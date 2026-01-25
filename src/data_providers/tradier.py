@@ -566,70 +566,102 @@ class TradierProvider(DataProvider):
         dte_min: int = 30,
         dte_max: int = 60,
         right: str = "P",
-        delay_seconds: float = 0.2
+        max_concurrent: int = 5
     ) -> Dict[str, List[OptionQuote]]:
         """
-        Options-Chains für mehrere Symbole.
-        
-        Inkludiert Rate-Limiting Delay zwischen Requests.
+        Options-Chains für mehrere Symbole (parallelisiert).
+
+        Uses semaphore for controlled concurrency to respect rate limits.
+
+        Args:
+            symbols: List of stock symbols
+            dte_min: Minimum days to expiration
+            dte_max: Maximum days to expiration
+            right: Option type (P for puts, C for calls)
+            max_concurrent: Maximum concurrent requests (default: 5)
         """
-        result = {}
-        
-        for i, symbol in enumerate(symbols):
-            try:
-                chain = await self.get_option_chain(
-                    symbol, 
-                    dte_min=dte_min, 
-                    dte_max=dte_max, 
-                    right=right
-                )
-                result[symbol.upper()] = chain
-                
-                logger.info(f"[{i+1}/{len(symbols)}] {symbol}: {len(chain)} Optionen")
-                
-            except Exception as e:
-                logger.error(f"Fehler bei {symbol}: {e}")
-                result[symbol.upper()] = []
-            
-            # Rate-Limiting
-            if i < len(symbols) - 1 and delay_seconds > 0:
-                await asyncio.sleep(delay_seconds)
-        
+        semaphore = asyncio.Semaphore(max_concurrent)
+        result: Dict[str, List[OptionQuote]] = {}
+        completed = 0
+        total = len(symbols)
+
+        async def fetch_one(symbol: str) -> tuple:
+            nonlocal completed
+            async with semaphore:
+                try:
+                    chain = await self.get_option_chain(
+                        symbol,
+                        dte_min=dte_min,
+                        dte_max=dte_max,
+                        right=right
+                    )
+                    completed += 1
+                    logger.info(f"[{completed}/{total}] {symbol}: {len(chain)} Optionen")
+                    return (symbol.upper(), chain)
+                except Exception as e:
+                    completed += 1
+                    logger.error(f"Fehler bei {symbol}: {e}")
+                    return (symbol.upper(), [])
+
+        # Run all fetches concurrently with semaphore limiting
+        tasks = [fetch_one(symbol) for symbol in symbols]
+        results = await asyncio.gather(*tasks)
+
+        # Build result dict
+        for symbol, chain in results:
+            result[symbol] = chain
+
         return result
     
     async def update_iv_cache_from_chains(
         self,
         symbols: List[str],
-        delay_seconds: float = 0.3
+        max_concurrent: int = 5
     ) -> Dict[str, bool]:
         """
-        IV-Cache für mehrere Symbole aus Options-Chains aktualisieren.
-        
-        Extrahiert ATM-IV aus jeder Chain und fügt sie zum Cache hinzu.
+        IV-Cache für mehrere Symbole aus Options-Chains aktualisieren (parallelisiert).
+
+        Uses semaphore for controlled concurrency to respect rate limits.
+
+        Args:
+            symbols: List of stock symbols
+            max_concurrent: Maximum concurrent requests (default: 5)
         """
-        results = {}
-        
-        for i, symbol in enumerate(symbols):
-            try:
-                iv_data = await self.get_iv_data(symbol)
-                success = iv_data is not None and iv_data.current_iv is not None
-                results[symbol.upper()] = success
-                
-                if success:
-                    logger.info(f"[{i+1}/{len(symbols)}] {symbol}: IV={iv_data.current_iv:.1%}")
-                else:
-                    logger.warning(f"[{i+1}/{len(symbols)}] {symbol}: Keine IV-Daten")
-                    
-            except Exception as e:
-                logger.error(f"Fehler bei {symbol}: {e}")
-                results[symbol.upper()] = False
-            
-            if i < len(symbols) - 1 and delay_seconds > 0:
-                await asyncio.sleep(delay_seconds)
-        
+        semaphore = asyncio.Semaphore(max_concurrent)
+        results: Dict[str, bool] = {}
+        completed = 0
+        total = len(symbols)
+
+        async def fetch_one(symbol: str) -> tuple:
+            nonlocal completed
+            async with semaphore:
+                try:
+                    iv_data = await self.get_iv_data(symbol)
+                    success = iv_data is not None and iv_data.current_iv is not None
+                    completed += 1
+
+                    if success:
+                        logger.info(f"[{completed}/{total}] {symbol}: IV={iv_data.current_iv:.1%}")
+                    else:
+                        logger.warning(f"[{completed}/{total}] {symbol}: Keine IV-Daten")
+
+                    return (symbol.upper(), success)
+                except Exception as e:
+                    completed += 1
+                    logger.error(f"Fehler bei {symbol}: {e}")
+                    return (symbol.upper(), False)
+
+        # Run all fetches concurrently with semaphore limiting
+        tasks = [fetch_one(symbol) for symbol in symbols]
+        fetch_results = await asyncio.gather(*tasks)
+
+        # Build result dict
+        for symbol, success in fetch_results:
+            results[symbol] = success
+
         successful = sum(1 for v in results.values() if v)
         logger.info(f"IV-Cache Update: {successful}/{len(symbols)} erfolgreich")
-        
+
         return results
     
     # =========================================================================

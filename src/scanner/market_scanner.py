@@ -89,43 +89,58 @@ class MarketScanner:
         symbols: List[str],
         data_fetcher,  # Callable[[str], Tuple[prices, volumes, highs, lows]]
         min_score: float = 5.0,
-        strategies: Optional[List[str]] = None
+        strategies: Optional[List[str]] = None,
+        max_concurrent: int = 10
     ) -> Dict[str, List[TradeSignal]]:
         """
-        Scannt alle Symbole mit allen Analyzern.
-        
+        Scannt alle Symbole mit allen Analyzern (parallelisiert).
+
         Args:
             symbols: Liste der zu scannenden Symbole
-            data_fetcher: Funktion zum Abrufen von Preisdaten
+            data_fetcher: Async function to fetch price data
             min_score: Minimaler Score für Ergebnisse
             strategies: Optional: Nur diese Strategien verwenden
-            
+            max_concurrent: Maximum concurrent data fetches (default: 10)
+
         Returns:
             Dict mit Symbol -> Liste von Signals
         """
         self._last_scan = datetime.now()
         results: Dict[str, List[TradeSignal]] = {}
-        
+
         # Filter Analyzer wenn strategies angegeben
         analyzers = self._analyzers
         if strategies:
             analyzers = [a for a in self._analyzers if a.strategy_name in strategies]
-        
+
         if not analyzers:
             logger.warning("No analyzers registered or selected")
             return results
-        
+
         logger.info(f"Scanning {len(symbols)} symbols with {len(analyzers)} analyzers")
-        
-        for symbol in symbols:
+
+        # Phase 1: Fetch all data in parallel
+        semaphore = asyncio.Semaphore(max_concurrent)
+
+        async def fetch_data(symbol: str):
+            async with semaphore:
+                try:
+                    return (symbol, await data_fetcher(symbol))
+                except Exception as e:
+                    logger.error(f"Failed to fetch data for {symbol}: {e}")
+                    return (symbol, None)
+
+        fetch_tasks = [fetch_data(symbol) for symbol in symbols]
+        fetched_data = await asyncio.gather(*fetch_tasks)
+
+        # Phase 2: Analyze all fetched data (CPU-bound, but fast)
+        for symbol, data in fetched_data:
+            if not data:
+                continue
+
             try:
-                # Daten abrufen
-                data = await data_fetcher(symbol)
-                if not data:
-                    continue
-                
                 prices, volumes, highs, lows = data
-                
+
                 # Alle Analyzer anwenden
                 symbol_signals = []
                 for analyzer in analyzers:
@@ -135,13 +150,13 @@ class MarketScanner:
                             symbol_signals.append(signal)
                     except Exception as e:
                         logger.debug(f"{analyzer.strategy_name} failed for {symbol}: {e}")
-                
+
                 if symbol_signals:
                     results[symbol] = symbol_signals
-                    
+
             except Exception as e:
-                logger.error(f"Failed to scan {symbol}: {e}")
-        
+                logger.error(f"Failed to analyze {symbol}: {e}")
+
         logger.info(f"Scan complete: {len(results)} symbols with signals")
         return results
     
