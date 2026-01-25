@@ -11,7 +11,7 @@
 
 import re
 import logging
-from typing import List, Optional
+from typing import List, Optional, Tuple, Union
 
 logger = logging.getLogger(__name__)
 
@@ -149,7 +149,7 @@ def validate_symbols(
 # PARAMETER VALIDATION
 # =============================================================================
 
-def validate_dte(dte: int, param_name: str = "DTE") -> int:
+def validate_dte(dte: Union[int, str], param_name: str = "DTE") -> int:
     """
     Validiert Days-to-Expiration Parameter.
     
@@ -178,7 +178,7 @@ def validate_dte(dte: int, param_name: str = "DTE") -> int:
     return dte
 
 
-def validate_dte_range(dte_min: int, dte_max: int) -> tuple:
+def validate_dte_range(dte_min: Union[int, str], dte_max: Union[int, str]) -> Tuple[int, int]:
     """
     Validiert einen DTE-Bereich.
     
@@ -199,7 +199,7 @@ def validate_dte_range(dte_min: int, dte_max: int) -> tuple:
     return dte_min, dte_max
 
 
-def validate_delta(delta: float, param_name: str = "delta") -> float:
+def validate_delta(delta: Union[int, float], param_name: str = "delta") -> float:
     """
     Validiert Delta-Parameter.
     
@@ -244,7 +244,7 @@ def validate_right(right: str) -> str:
         raise ValidationError(f"Invalid right: '{right}'. Expected 'P'/'PUT' or 'C'/'CALL'")
 
 
-def validate_positive_int(value: int, param_name: str, max_value: Optional[int] = None) -> int:
+def validate_positive_int(value: Union[int, str], param_name: str, max_value: Optional[int] = None) -> int:
     """
     Validiert positive Integer-Werte.
     """
@@ -285,7 +285,7 @@ class ValidationLimits:
     MIN_PAUSE_SECONDS: int = 1
 
 
-def validate_batch_size(batch_size: int) -> int:
+def validate_batch_size(batch_size: Union[int, str]) -> int:
     """
     Validate batch_size parameter for bulk operations.
 
@@ -318,7 +318,7 @@ def validate_batch_size(batch_size: int) -> int:
     return batch_size
 
 
-def validate_max_results(max_results: int) -> int:
+def validate_max_results(max_results: Union[int, str]) -> int:
     """
     Validate max_results parameter for scan/query operations.
 
@@ -351,7 +351,7 @@ def validate_max_results(max_results: int) -> int:
     return max_results
 
 
-def validate_min_score(min_score: float) -> float:
+def validate_min_score(min_score: Union[int, float, str]) -> float:
     """
     Validate min_score parameter for filtering.
 
@@ -380,7 +380,7 @@ def validate_min_score(min_score: float) -> float:
     return min_score
 
 
-def validate_num_alternatives(num_alternatives: int) -> int:
+def validate_num_alternatives(num_alternatives: Union[int, str]) -> int:
     """
     Validate num_alternatives parameter for strike recommendations.
 
@@ -413,7 +413,7 @@ def validate_num_alternatives(num_alternatives: int) -> int:
     return num_alternatives
 
 
-def validate_min_days(min_days: int) -> int:
+def validate_min_days(min_days: Union[int, str]) -> int:
     """
     Validate min_days parameter for earnings checks.
 
@@ -442,7 +442,7 @@ def validate_min_days(min_days: int) -> int:
     return min_days
 
 
-def validate_pause_seconds(pause_seconds: int) -> int:
+def validate_pause_seconds(pause_seconds: Union[int, str]) -> int:
     """
     Validate pause_seconds parameter for batch operations.
 
