@@ -18,6 +18,7 @@ from enum import Enum
 
 try:
     from ..analyzers.base import BaseAnalyzer
+    from ..analyzers.context import AnalysisContext
     from ..analyzers.pullback import PullbackAnalyzer
     from ..analyzers.ath_breakout import ATHBreakoutAnalyzer, ATHBreakoutConfig
     from ..analyzers.bounce import BounceAnalyzer, BounceConfig
@@ -26,6 +27,7 @@ try:
     from ..config.config_loader import PullbackScoringConfig
 except ImportError:
     from analyzers.base import BaseAnalyzer
+    from analyzers.context import AnalysisContext
     from analyzers.pullback import PullbackAnalyzer
     from analyzers.ath_breakout import ATHBreakoutAnalyzer, ATHBreakoutConfig
     from analyzers.bounce import BounceAnalyzer, BounceConfig
@@ -288,11 +290,12 @@ class MultiStrategyScanner:
         highs: List[float],
         lows: List[float],
         strategies: Optional[List[str]] = None,
+        context: Optional[AnalysisContext] = None,
         **kwargs
     ) -> List[TradeSignal]:
         """
         Analysiert ein Symbol mit allen (oder ausgewählten) Strategien.
-        
+
         Args:
             symbol: Ticker-Symbol
             prices: Schlusskurse
@@ -300,58 +303,64 @@ class MultiStrategyScanner:
             highs: Tageshochs
             lows: Tagestiefs
             strategies: Optional: Nur diese Strategien verwenden
+            context: Optional: Pre-calculated AnalysisContext for performance
             **kwargs: Zusätzliche Parameter für Analyzer
-            
+
         Returns:
             Liste von TradeSignals
         """
         signals = []
-        
+
         # Welche Analyzer verwenden?
         analyzers_to_use = self._analyzers
         if strategies:
             analyzers_to_use = {k: v for k, v in self._analyzers.items() if k in strategies}
-        
+
+        # Pre-calculate context once if not provided (shared across all analyzers)
+        if context is None and len(analyzers_to_use) > 1:
+            context = AnalysisContext.from_data(symbol, prices, volumes, highs, lows)
+
         for name, analyzer in analyzers_to_use.items():
             try:
                 # Earnings-Filter
                 if self._should_skip_for_earnings(symbol, name):
                     continue
-                
+
                 # IV-Rank-Filter
                 passes_iv, iv_reason = self._check_iv_filter(symbol, name)
                 if not passes_iv:
                     logger.debug(f"Skipping {symbol} for {name}: {iv_reason}")
                     continue
-                
-                # Analyse durchführen
+
+                # Analyse durchführen mit shared context
                 signal = analyzer.analyze(
                     symbol=symbol,
                     prices=prices,
                     volumes=volumes,
                     highs=highs,
                     lows=lows,
+                    context=context,
                     **kwargs
                 )
-                
+
                 # IV-Rank zum Signal hinzufügen wenn verfügbar
                 iv_rank = self._iv_cache.get(symbol.upper())
                 if iv_rank is not None and signal.details is not None:
                     signal.details['iv_rank'] = iv_rank
-                
+
                 # Nur Signale über min_score
                 if signal.score >= self.config.min_score:
                     signals.append(signal)
-                    
+
             except ValueError as e:
                 # Insufficient data or validation errors - log at debug level
                 logger.debug(f"Skipping {symbol} for {name}: {e}")
             except Exception as e:
                 logger.warning(f"Unexpected error in {name} for {symbol}: {e}", exc_info=True)
-        
+
         # Sortiere nach Score
         signals.sort(key=lambda x: x.score, reverse=True)
-        
+
         # Limit pro Symbol
         return signals[:self.config.max_results_per_symbol]
     

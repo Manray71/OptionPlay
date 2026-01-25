@@ -12,6 +12,7 @@ from typing import List, Optional, Dict, Any
 import logging
 
 from .base import BaseAnalyzer
+from .context import AnalysisContext
 
 try:
     from ..models.base import TradeSignal, SignalType, SignalStrength
@@ -81,11 +82,12 @@ class ATHBreakoutAnalyzer(BaseAnalyzer):
         highs: List[float],
         lows: List[float],
         spy_prices: Optional[List[float]] = None,
+        context: Optional[AnalysisContext] = None,
         **kwargs
     ) -> TradeSignal:
         """
         Analysiert ein Symbol auf ATH-Breakout.
-        
+
         Args:
             symbol: Ticker-Symbol
             prices: Schlusskurse (älteste zuerst)
@@ -93,7 +95,8 @@ class ATHBreakoutAnalyzer(BaseAnalyzer):
             highs: Tageshochs
             lows: Tagestiefs
             spy_prices: Optional SPY-Preise für Relative Strength
-            
+            context: Optional pre-calculated AnalysisContext for performance
+
         Returns:
             TradeSignal mit Breakout-Bewertung
         """

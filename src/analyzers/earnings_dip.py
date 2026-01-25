@@ -13,6 +13,7 @@ from datetime import datetime, date, timedelta
 import logging
 
 from .base import BaseAnalyzer
+from .context import AnalysisContext
 
 try:
     from ..models.base import TradeSignal, SignalType, SignalStrength
@@ -95,6 +96,7 @@ class EarningsDipAnalyzer(BaseAnalyzer):
         lows: List[float],
         earnings_date: Optional[date] = None,
         pre_earnings_price: Optional[float] = None,
+        context: Optional[AnalysisContext] = None,
         **kwargs
     ) -> TradeSignal:
         """

@@ -8,6 +8,7 @@ from datetime import datetime
 import logging
 
 from .base import BaseAnalyzer
+from .context import AnalysisContext
 
 try:
     from ..models.base import TradeSignal, SignalType, SignalStrength
@@ -66,16 +67,20 @@ class PullbackAnalyzer(BaseAnalyzer):
         volumes: List[int],
         highs: List[float],
         lows: List[float],
+        context: Optional[AnalysisContext] = None,
         **kwargs
     ) -> TradeSignal:
         """
         Analysiert ein Symbol auf Pullback-Setup.
-        
+
+        Args:
+            context: Optional pre-calculated AnalysisContext for performance
+
         Returns:
             TradeSignal mit Score und Entry-Empfehlung
         """
         # Vollständige Analyse durchführen
-        candidate = self.analyze_detailed(symbol, prices, volumes, highs, lows)
+        candidate = self.analyze_detailed(symbol, prices, volumes, highs, lows, context=context)
         
         # In TradeSignal konvertieren
         if candidate.is_qualified():
@@ -131,59 +136,102 @@ class PullbackAnalyzer(BaseAnalyzer):
         )
     
     def analyze_detailed(
-        self, 
-        symbol: str, 
-        prices: List[float], 
-        volumes: List[int], 
-        highs: List[float], 
-        lows: List[float]
+        self,
+        symbol: str,
+        prices: List[float],
+        volumes: List[int],
+        highs: List[float],
+        lows: List[float],
+        context: Optional[AnalysisContext] = None
     ) -> PullbackCandidate:
         """
         Vollständige Pullback-Analyse für ein Symbol.
-        
+
         Args:
             symbol: Ticker-Symbol
             prices: Schlusskurse (älteste zuerst)
             volumes: Tagesvolumen
             highs: Tageshochs
             lows: Tagestiefs
-            
+            context: Optional pre-calculated AnalysisContext for performance
+
         Returns:
             PullbackCandidate mit Score, Breakdown und allen Indikatoren
-            
+
         Raises:
             ValueError: Bei ungültigen oder inkonsistenten Input-Daten
         """
         # Input Validierung
         self._validate_inputs(symbol, prices, volumes, highs, lows)
-        
+
         min_required = self.config.moving_averages.long_period
         if len(prices) < min_required:
             raise ValueError(f"Need {min_required} data points, got {len(prices)}")
-        
+
         current_price = prices[-1]
         current_volume = volumes[-1]
-        
-        # Technische Indikatoren berechnen
-        rsi = self._calculate_rsi(prices, self.config.rsi.period)
-        sma_20 = self._calculate_sma(prices, self.config.moving_averages.short_period)
-        sma_50 = self._calculate_sma(prices, 50) if len(prices) >= 50 else None
-        sma_200 = self._calculate_sma(prices, self.config.moving_averages.long_period)
-        macd_result = self._calculate_macd(prices)
-        stoch_result = self._calculate_stochastic(highs, lows, prices)
-        
-        # Trend bestimmen
-        above_sma20 = current_price > sma_20
-        above_sma50 = current_price > sma_50 if sma_50 else None
-        above_sma200 = current_price > sma_200
-        
-        if above_sma200 and above_sma20:
-            trend = 'uptrend'
-        elif not above_sma200 and not above_sma20:
-            trend = 'downtrend'
+
+        # Use context if provided, otherwise calculate
+        if context and context.rsi_14 is not None:
+            # Use pre-calculated values from context
+            rsi = context.rsi_14
+            sma_20 = context.sma_20
+            sma_50 = context.sma_50
+            sma_200 = context.sma_200
+            above_sma20 = context.above_sma20
+            above_sma50 = context.above_sma50
+            above_sma200 = context.above_sma200
+            trend = context.trend
+            support_levels = context.support_levels
+            resistance_levels = context.resistance_levels
+
+            # MACD still needs MACDResult format
+            if context.macd_line is not None:
+                macd_result = MACDResult(
+                    macd_line=context.macd_line,
+                    signal_line=context.macd_signal,
+                    histogram=context.macd_histogram,
+                    bullish_cross=context.macd_histogram > 0 if context.macd_histogram else False,
+                    bearish_cross=context.macd_histogram < 0 if context.macd_histogram else False
+                )
+            else:
+                macd_result = self._calculate_macd(prices)
+
+            # Stochastic
+            if context.stoch_k is not None:
+                stoch_result = StochasticResult(
+                    k=context.stoch_k,
+                    d=context.stoch_d,
+                    oversold=context.stoch_k < self.STOCH_OVERSOLD,
+                    overbought=context.stoch_k > self.STOCH_OVERBOUGHT
+                )
+            else:
+                stoch_result = self._calculate_stochastic(highs, lows, prices)
         else:
-            trend = 'sideways'
-        
+            # Calculate everything (fallback)
+            rsi = self._calculate_rsi(prices, self.config.rsi.period)
+            sma_20 = self._calculate_sma(prices, self.config.moving_averages.short_period)
+            sma_50 = self._calculate_sma(prices, 50) if len(prices) >= 50 else None
+            sma_200 = self._calculate_sma(prices, self.config.moving_averages.long_period)
+            macd_result = self._calculate_macd(prices)
+            stoch_result = self._calculate_stochastic(highs, lows, prices)
+
+            # Trend bestimmen
+            above_sma20 = current_price > sma_20
+            above_sma50 = current_price > sma_50 if sma_50 else None
+            above_sma200 = current_price > sma_200
+
+            if above_sma200 and above_sma20:
+                trend = 'uptrend'
+            elif not above_sma200 and not above_sma20:
+                trend = 'downtrend'
+            else:
+                trend = 'sideways'
+
+            # Support/Resistance
+            support_levels = self._find_support_levels(lows)
+            resistance_levels = self._find_resistance_levels(highs)
+
         technicals = TechnicalIndicators(
             rsi_14=rsi,
             sma_20=sma_20,
@@ -196,10 +244,6 @@ class PullbackAnalyzer(BaseAnalyzer):
             above_sma200=above_sma200,
             trend=trend
         )
-        
-        # Support/Resistance
-        support_levels = self._find_support_levels(lows)
-        resistance_levels = self._find_resistance_levels(highs)
         
         # Fibonacci
         lookback = self.config.fibonacci.lookback_days
