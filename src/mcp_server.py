@@ -63,6 +63,7 @@ from .portfolio import (
 from .config import get_config, get_scan_config, get_watchlist_loader
 from .strike_recommender import StrikeRecommender, StrikeRecommendation, StrikeQuality
 from .indicators.support_resistance import find_support_levels, calculate_fibonacci
+from .container import ServiceContainer
 
 # IBKR Bridge (optional)
 try:
@@ -99,59 +100,77 @@ class OptionPlayServer:
     """
     
     VERSION = "3.4.0"
-    
-    def __init__(self, api_key: Optional[str] = None):
+
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        container: Optional[ServiceContainer] = None
+    ):
         """
         Initialize OptionPlay server.
-        
+
         Args:
             api_key: Marketdata.app API key (optional, reads from env if not provided)
-            
+            container: Dependency injection container (optional, creates default if not provided)
+
         Raises:
             ValueError: If API key is not provided and not found in environment
         """
-        # Load config
-        self._config = get_config()
-        perf = self._config.settings.performance
-        api_conn = self._config.settings.api_connection
-        cb_cfg = self._config.settings.circuit_breaker
-        
-        # Load API key (with lazy loading and masking)
-        self._api_key = api_key
-        if not self._api_key:
-            try:
-                self._api_key = get_api_key("MARKETDATA_API_KEY", required=True)
-            except ValueError as e:
-                raise ValueError(
-                    "MARKETDATA_API_KEY required. "
-                    "Set environment variable or create .env file."
-                ) from e
-        
+        # Use container if provided, otherwise create services directly
+        self._container = container
+
+        if container is not None:
+            # Use container services
+            self._config = container.config
+            self._rate_limiter = container.rate_limiter
+            self._circuit_breaker = container.circuit_breaker
+            self._historical_cache = container.historical_cache
+            self._provider = container.provider
+            self._api_key = api_key or get_api_key("MARKETDATA_API_KEY", required=True)
+        else:
+            # Legacy: create services directly (backwards compatible)
+            self._config = get_config()
+            perf = self._config.settings.performance
+            cb_cfg = self._config.settings.circuit_breaker
+
+            # Load API key (with lazy loading and masking)
+            self._api_key = api_key
+            if not self._api_key:
+                try:
+                    self._api_key = get_api_key("MARKETDATA_API_KEY", required=True)
+                except ValueError as e:
+                    raise ValueError(
+                        "MARKETDATA_API_KEY required. "
+                        "Set environment variable or create .env file."
+                    ) from e
+
+            # Initialize components
+            self._provider = None
+            self._rate_limiter = get_marketdata_limiter()
+            self._historical_cache = get_historical_cache(
+                ttl_seconds=perf.cache_ttl_seconds,
+                max_entries=perf.cache_max_entries
+            )
+
+            # Circuit breaker for API connections
+            self._circuit_breaker = get_circuit_breaker(
+                name="marketdata_api",
+                failure_threshold=cb_cfg.failure_threshold,
+                recovery_timeout=cb_cfg.recovery_timeout,
+            )
+
         logger.debug(f"API key loaded: {mask_api_key(self._api_key)}")
-        
-        # Initialize components
-        self._provider: Optional[MarketDataProvider] = None
+
+        # Non-container components (always created directly)
         self._scanner: Optional[MultiStrategyScanner] = None
         self._earnings_fetcher: Optional[EarningsFetcher] = None
         self._vix_selector = VIXStrategySelector()
-        self._rate_limiter = get_marketdata_limiter()
-        self._historical_cache = get_historical_cache(
-            ttl_seconds=perf.cache_ttl_seconds,
-            max_entries=perf.cache_max_entries
-        )
-        
-        # Circuit breaker for API connections
-        self._circuit_breaker = get_circuit_breaker(
-            name="marketdata_api",
-            failure_threshold=cb_cfg.failure_threshold,
-            recovery_timeout=cb_cfg.recovery_timeout,
-        )
-        
+
         # Connection state
         self._connected = False
         self._current_vix: Optional[float] = None
         self._vix_updated: Optional[datetime] = None
-        
+
         # IBKR Bridge (optional)
         self._ibkr_bridge: Optional["IBKRBridge"] = None
         if IBKR_AVAILABLE:
