@@ -1,0 +1,32 @@
+# OptionPlay Test Dependencies
+# =============================
+# Install: pip install -r requirements-test.txt
+
+# Include base dependencies
+-r requirements.txt
+
+# =============================================================================
+# TESTING FRAMEWORK
+# =============================================================================
+
+# Test runner
+pytest>=7.0.0,<8.0.0
+
+# Async test support
+pytest-asyncio>=0.21.0,<1.0.0
+
+# Coverage reporting
+pytest-cov>=4.1.0
+
+# Property-based testing
+hypothesis>=6.92.0
+
+# =============================================================================
+# MOCKING
+# =============================================================================
+
+# HTTP mocking
+aioresponses>=0.7.4
+
+# Freezing time in tests
+freezegun>=1.2.2

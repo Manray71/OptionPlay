@@ -1,0 +1,60 @@
+# OptionPlay Development Dependencies
+# =====================================
+# Full development environment with linting, testing, and type checking
+#
+# Install: pip install -r requirements-dev.txt
+
+# Include test dependencies (which include base dependencies)
+-r requirements-test.txt
+
+# =============================================================================
+# CODE FORMATTING
+# =============================================================================
+
+# Code formatter
+black>=24.1.0
+
+# Import sorter
+isort>=5.13.0
+
+# =============================================================================
+# LINTING
+# =============================================================================
+
+# Linter
+flake8>=7.0.0
+
+# Flake8 plugins
+flake8-bugbear>=24.1.0
+flake8-comprehensions>=3.14.0
+
+# Security linter
+bandit>=1.7.7
+
+# =============================================================================
+# TYPE CHECKING
+# =============================================================================
+
+# Static type checker
+mypy>=1.8.0
+
+# Type stubs
+types-PyYAML
+types-aiohttp
+
+# =============================================================================
+# PRE-COMMIT
+# =============================================================================
+
+# Git hooks manager
+pre-commit>=3.6.0
+
+# =============================================================================
+# DOCUMENTATION (optional)
+# =============================================================================
+
+# Documentation generator
+# mkdocs>=1.5.0
+# mkdocs-material>=9.5.0
+# mkdocstrings>=0.24.0
+# mkdocstrings-python>=1.8.0
