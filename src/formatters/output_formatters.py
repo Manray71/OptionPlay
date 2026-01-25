@@ -459,6 +459,7 @@ class HealthCheckData:
     ibkr_available: bool = False
     ibkr_host: Optional[str] = None
     ibkr_port: Optional[int] = None
+    metrics_stats: Optional[Dict[str, Any]] = None  # Application metrics
 
 
 class HealthCheckFormatter(BaseFormatter):
@@ -538,7 +539,38 @@ class HealthCheckFormatter(BaseFormatter):
             b.kv_line("Features", "News, Max Pain, Live VIX")
         else:
             b.kv_line("Status", "❌ Not available (ib_insync not installed)")
-        
+
+        # Application Metrics
+        if data.metrics_stats:
+            b.blank().h2("Application Metrics")
+            ms = data.metrics_stats
+            b.kv_line("Uptime", f"{ms.get('uptime_seconds', 0):.0f}s")
+
+            # API Request Stats
+            metrics = ms.get("metrics", {})
+            api_reqs = metrics.get("api_requests_total", {})
+            if isinstance(api_reqs, dict) and "values" in api_reqs:
+                total_calls = sum(v.get("value", 0) for v in api_reqs.get("values", []))
+                b.kv_line("API Calls", total_calls)
+            elif isinstance(api_reqs, dict):
+                b.kv_line("API Calls", api_reqs.get("value", 0))
+
+            # Latency Stats
+            api_lat = metrics.get("api_latency_ms", {})
+            if isinstance(api_lat, dict):
+                if "mean" in api_lat:
+                    b.kv_line("Avg Latency", f"{api_lat['mean']:.1f}ms")
+                if "count" in api_lat:
+                    b.kv_line("Requests", api_lat["count"])
+
+            # Error Stats
+            errs = metrics.get("errors_total", {})
+            if isinstance(errs, dict) and "values" in errs:
+                total_errors = sum(v.get("value", 0) for v in errs.get("values", []))
+                b.kv_line("Errors", total_errors)
+            elif isinstance(errs, dict):
+                b.kv_line("Errors", errs.get("value", 0))
+
         return b.build()
 
 
