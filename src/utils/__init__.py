@@ -64,9 +64,16 @@ from .circuit_breaker import (
 )
 
 from .error_handler import (
+    ErrorCode,
     MCPError,
     DataFetchError,
+    RateLimitError,
+    ApiTimeoutError,
+    ApiConnectionError,
     ConfigurationError,
+    ProviderError,
+    SymbolNotFoundError,
+    NoDataError,
     format_error_response,
     mcp_endpoint,
     sync_endpoint,
@@ -155,9 +162,16 @@ __all__ = [
     'reset_circuit_breakers',
     
     # Error Handler
+    'ErrorCode',
     'MCPError',
     'DataFetchError',
+    'RateLimitError',
+    'ApiTimeoutError',
+    'ApiConnectionError',
     'ConfigurationError',
+    'ProviderError',
+    'SymbolNotFoundError',
+    'NoDataError',
     'format_error_response',
     'mcp_endpoint',
     'sync_endpoint',
