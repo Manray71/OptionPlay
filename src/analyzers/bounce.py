@@ -12,6 +12,7 @@ from typing import List, Optional, Dict, Any, Tuple
 import logging
 
 from .base import BaseAnalyzer
+from .context import AnalysisContext
 
 try:
     from ..models.base import TradeSignal, SignalType, SignalStrength
@@ -87,36 +88,42 @@ class BounceAnalyzer(BaseAnalyzer):
         volumes: List[int],
         highs: List[float],
         lows: List[float],
+        context: Optional[AnalysisContext] = None,
         **kwargs
     ) -> TradeSignal:
         """
         Analysiert ein Symbol auf Support-Bounce.
-        
+
         Args:
             symbol: Ticker-Symbol
             prices: Schlusskurse (älteste zuerst)
             volumes: Tagesvolumen
             highs: Tageshochs
             lows: Tagestiefs
-            
+            context: Optional pre-calculated AnalysisContext for performance
+
         Returns:
             TradeSignal mit Bounce-Bewertung
         """
         # Input-Validierung
         min_data = max(self.config.support_lookback_days, 60)
         self.validate_inputs(prices, volumes, highs, lows, min_length=min_data)
-        
+
         current_price = prices[-1]
         current_low = lows[-1]
-        
+
         # Score-Komponenten
         score_breakdown = {}
         total_score = 0
         reasons = []
         warnings = []
-        
+
         # 1. Support Detection & Test (3 Punkte)
-        support_levels = self._find_support_levels(lows)
+        # Use context if available
+        if context and context.support_levels:
+            support_levels = context.support_levels
+        else:
+            support_levels = self._find_support_levels(lows)
         support_score, support_info = self._score_support_test(
             current_low, current_price, support_levels
         )
