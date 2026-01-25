@@ -1,0 +1,39 @@
+# OptionPlay Dependencies
+# =======================
+# Production dependencies for the MCP server
+#
+# Install: pip install -r requirements.txt
+# For development: pip install -r requirements-dev.txt
+
+# =============================================================================
+# CORE DEPENDENCIES
+# =============================================================================
+
+# Async HTTP client for API calls
+aiohttp>=3.9.0,<4.0.0
+
+# Numerical computing for technical analysis
+numpy>=1.24.0,<2.0.0
+
+# YAML configuration parsing
+pyyaml>=6.0,<7.0
+
+# =============================================================================
+# MCP SERVER
+# =============================================================================
+
+# Model Context Protocol
+mcp>=1.0.0
+
+# Fast MCP server implementation
+fastmcp>=0.1.0
+
+# Data validation
+pydantic>=2.0.0,<3.0.0
+
+# =============================================================================
+# UTILITIES
+# =============================================================================
+
+# Environment variable loading
+python-dotenv>=1.0.0
