@@ -104,6 +104,23 @@ from .structured_logging import (
     log_api_call,
 )
 
+from .metrics import (
+    Metric,
+    Counter,
+    Gauge,
+    Histogram,
+    MetricsRegistry,
+    metrics,
+    api_requests,
+    api_latency,
+    active_connections,
+    cache_hits,
+    cache_misses,
+    circuit_breaker_state,
+    rate_limit_waits,
+    errors,
+)
+
 __all__ = [
     # Rate Limiter
     'RateLimiter',
@@ -198,4 +215,20 @@ __all__ = [
     'log_context',
     'log_performance',
     'log_api_call',
+
+    # Metrics
+    'Metric',
+    'Counter',
+    'Gauge',
+    'Histogram',
+    'MetricsRegistry',
+    'metrics',
+    'api_requests',
+    'api_latency',
+    'active_connections',
+    'cache_hits',
+    'cache_misses',
+    'circuit_breaker_state',
+    'rate_limit_waits',
+    'errors',
 ]
