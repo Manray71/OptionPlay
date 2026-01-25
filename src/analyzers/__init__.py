@@ -8,6 +8,14 @@ from .pullback import PullbackAnalyzer
 from .ath_breakout import ATHBreakoutAnalyzer, ATHBreakoutConfig
 from .bounce import BounceAnalyzer, BounceConfig
 from .earnings_dip import EarningsDipAnalyzer, EarningsDipConfig
+from .pool import (
+    AnalyzerPool,
+    PoolConfig,
+    PoolStats,
+    get_analyzer_pool,
+    reset_analyzer_pool,
+    configure_default_pool,
+)
 
 __all__ = [
     # Base
@@ -24,4 +32,12 @@ __all__ = [
     'ATHBreakoutConfig',
     'BounceConfig',
     'EarningsDipConfig',
+
+    # Pool
+    'AnalyzerPool',
+    'PoolConfig',
+    'PoolStats',
+    'get_analyzer_pool',
+    'reset_analyzer_pool',
+    'configure_default_pool',
 ]
