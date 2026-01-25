@@ -4,6 +4,7 @@
 #
 # Features:
 # - Parallel-Scanning mit allen registrierten Analyzern
+# - Object Pooling für Analyzer-Wiederverwendung
 # - Ranking und Aggregation von Signalen
 # - Filter nach Strategie, Score, Signal-Typ
 # - Earnings-Filter Integration
@@ -23,6 +24,7 @@ try:
     from ..analyzers.ath_breakout import ATHBreakoutAnalyzer, ATHBreakoutConfig
     from ..analyzers.bounce import BounceAnalyzer, BounceConfig
     from ..analyzers.earnings_dip import EarningsDipAnalyzer, EarningsDipConfig
+    from ..analyzers.pool import AnalyzerPool, PoolConfig, get_analyzer_pool
     from ..models.base import TradeSignal, SignalType, SignalStrength
     from ..config.config_loader import PullbackScoringConfig
 except ImportError:
@@ -32,6 +34,7 @@ except ImportError:
     from analyzers.ath_breakout import ATHBreakoutAnalyzer, ATHBreakoutConfig
     from analyzers.bounce import BounceAnalyzer, BounceConfig
     from analyzers.earnings_dip import EarningsDipAnalyzer, EarningsDipConfig
+    from analyzers.pool import AnalyzerPool, PoolConfig, get_analyzer_pool
     from models.base import TradeSignal, SignalType, SignalStrength
     from config.config_loader import PullbackScoringConfig
 
@@ -54,30 +57,34 @@ class ScanConfig:
     # Score-Filter
     min_score: float = 5.0
     min_actionable_score: float = 6.0
-    
+
     # Earnings-Filter
     exclude_earnings_within_days: int = 60
-    
+
     # IV-Rank Filter (für Credit-Spreads wichtig!)
     iv_rank_minimum: float = 30.0   # Min IV-Rank für ausreichend Prämie
     iv_rank_maximum: float = 80.0   # Max IV-Rank (zu hohe IV = erhöhtes Risiko)
     enable_iv_filter: bool = True   # IV-Filter aktivieren/deaktivieren
-    
+
     # Output-Limits
     max_results_per_symbol: int = 3
     max_total_results: int = 50
-    
+
     # Parallel Processing
     max_concurrent: int = 10
-    
+
     # Data Requirements
     min_data_points: int = 60
-    
+
     # Strategies to enable
     enable_pullback: bool = True
     enable_ath_breakout: bool = True
     enable_bounce: bool = True
     enable_earnings_dip: bool = True
+
+    # Analyzer Pool Settings
+    use_analyzer_pool: bool = True   # Object Pooling für Performance
+    pool_size_per_strategy: int = 5  # Analyzer pro Strategie im Pool
 
 
 @dataclass
@@ -124,42 +131,103 @@ AsyncDataFetcher = Callable[[str], 'asyncio.Future[Tuple[List[float], List[int],
 class MultiStrategyScanner:
     """
     Multi-Strategie Scanner für umfassendes Market Scanning.
-    
+
     Kombiniert alle verfügbaren Analyzer und bietet:
     - Einheitliches Interface für alle Strategien
+    - Object Pooling für Analyzer-Wiederverwendung (Performance)
     - Ranking und Aggregation
     - Earnings-Filter
     - Async-Support für paralleles Scanning
-    
+
     Verwendung:
         scanner = MultiStrategyScanner()
-        
+
         # Mit async Data Fetcher
         async def fetch_data(symbol):
             return prices, volumes, highs, lows
-        
+
         result = await scanner.scan_async(
             symbols=["AAPL", "MSFT", "GOOGL"],
             data_fetcher=fetch_data
         )
-        
+
         # Top 10 Signale
         for signal in result.signals[:10]:
             print(f"{signal.symbol}: {signal.strategy} - Score {signal.score}")
+
+        # Pool-Statistiken
+        print(scanner.pool_stats())
     """
-    
-    def __init__(self, config: Optional[ScanConfig] = None):
+
+    def __init__(
+        self,
+        config: Optional[ScanConfig] = None,
+        analyzer_pool: Optional[AnalyzerPool] = None
+    ):
         self.config = config or ScanConfig()
         self._analyzers: Dict[str, BaseAnalyzer] = {}
         self._earnings_cache: Dict[str, Optional[date]] = {}
         self._iv_cache: Dict[str, Optional[float]] = {}  # Symbol -> IV-Rank
         self._last_scan: Optional[ScanResult] = None
-        
-        # Registriere Standard-Analyzer
-        self._register_default_analyzers()
-    
+
+        # Analyzer Pool für Object Pooling
+        self._pool: Optional[AnalyzerPool] = None
+        self._use_pool = self.config.use_analyzer_pool
+
+        if self._use_pool:
+            self._pool = analyzer_pool or self._create_pool()
+
+        # Registriere Standard-Analyzer (Fallback wenn Pool nicht verwendet)
+        if not self._use_pool:
+            self._register_default_analyzers()
+
+    def _create_pool(self) -> AnalyzerPool:
+        """Erstellt und konfiguriert den Analyzer Pool"""
+        pool_config = PoolConfig(
+            default_pool_size=self.config.pool_size_per_strategy,
+            max_pool_size=self.config.pool_size_per_strategy * 2,
+            create_on_empty=True
+        )
+
+        pool = AnalyzerPool(pool_config)
+
+        # Registriere Analyzer-Factories basierend auf Config
+        if self.config.enable_pullback:
+            try:
+                pullback_config = PullbackScoringConfig()
+                pool.register_factory(
+                    "pullback",
+                    lambda cfg=pullback_config: PullbackAnalyzer(cfg)
+                )
+            except Exception as e:
+                logger.warning(f"Could not register PullbackAnalyzer: {e}")
+
+        if self.config.enable_ath_breakout:
+            pool.register_factory(
+                "ath_breakout",
+                lambda: ATHBreakoutAnalyzer(ATHBreakoutConfig())
+            )
+
+        if self.config.enable_bounce:
+            pool.register_factory(
+                "bounce",
+                lambda: BounceAnalyzer(BounceConfig())
+            )
+
+        if self.config.enable_earnings_dip:
+            pool.register_factory(
+                "earnings_dip",
+                lambda: EarningsDipAnalyzer(EarningsDipConfig())
+            )
+
+        logger.info(
+            f"Created analyzer pool with strategies: {pool.registered_strategies}"
+        )
+
+        return pool
+
     def _register_default_analyzers(self) -> None:
-        """Registriert die Standard-Analyzer basierend auf Config"""
+        """Registriert die Standard-Analyzer basierend auf Config (ohne Pool)"""
         if self.config.enable_pullback:
             try:
                 # PullbackAnalyzer benötigt PullbackScoringConfig
@@ -167,31 +235,65 @@ class MultiStrategyScanner:
                 self._analyzers['pullback'] = PullbackAnalyzer(pullback_config)
             except Exception as e:
                 logger.warning(f"Could not register PullbackAnalyzer: {e}")
-        
+
         if self.config.enable_ath_breakout:
             self._analyzers['ath_breakout'] = ATHBreakoutAnalyzer()
-        
+
         if self.config.enable_bounce:
             self._analyzers['bounce'] = BounceAnalyzer()
-        
+
         if self.config.enable_earnings_dip:
             self._analyzers['earnings_dip'] = EarningsDipAnalyzer()
-        
+
         logger.info(f"Registered {len(self._analyzers)} analyzers: {list(self._analyzers.keys())}")
     
     def register_analyzer(self, analyzer: BaseAnalyzer) -> None:
         """Registriert einen zusätzlichen Analyzer"""
-        self._analyzers[analyzer.strategy_name] = analyzer
+        if self._use_pool and self._pool:
+            # Registriere Factory für den Analyzer
+            self._pool.register_factory(
+                analyzer.strategy_name,
+                lambda a=analyzer: a  # Gibt immer dieselbe Instanz zurück
+            )
+        else:
+            self._analyzers[analyzer.strategy_name] = analyzer
         logger.info(f"Registered custom analyzer: {analyzer.strategy_name}")
-    
+
     def get_analyzer(self, name: str) -> Optional[BaseAnalyzer]:
         """Gibt einen Analyzer nach Namen zurück"""
+        if self._use_pool and self._pool:
+            # Checkout ohne Checkin (für direkte Verwendung)
+            try:
+                return self._pool.checkout(name)
+            except KeyError:
+                return None
         return self._analyzers.get(name)
-    
+
     @property
     def available_strategies(self) -> List[str]:
         """Liste aller verfügbaren Strategien"""
+        if self._use_pool and self._pool:
+            return self._pool.registered_strategies
         return list(self._analyzers.keys())
+
+    def pool_stats(self) -> Dict[str, Any]:
+        """Gibt Pool-Statistiken zurück (nur wenn Pool aktiviert)"""
+        if self._pool:
+            return self._pool.stats()
+        return {"pool_enabled": False}
+
+    def prefill_pool(self) -> Dict[str, int]:
+        """
+        Füllt den Analyzer Pool mit Instanzen vor.
+
+        Nützlich für Warmup vor großen Scans um Latenz zu reduzieren.
+
+        Returns:
+            Dict mit Strategie -> Anzahl erstellter Analyzer
+        """
+        if self._pool:
+            return self._pool.prefill_all()
+        return {}
     
     def set_earnings_date(self, symbol: str, earnings_date: Optional[date]) -> None:
         """Setzt das Earnings-Datum für ein Symbol"""
@@ -311,37 +413,48 @@ class MultiStrategyScanner:
         """
         signals = []
 
-        # Welche Analyzer verwenden?
-        analyzers_to_use = self._analyzers
-        if strategies:
-            analyzers_to_use = {k: v for k, v in self._analyzers.items() if k in strategies}
+        # Welche Strategien verwenden?
+        if self._use_pool and self._pool:
+            strategies_to_use = strategies or self._pool.registered_strategies
+        else:
+            strategies_to_use = strategies or list(self._analyzers.keys())
 
         # Pre-calculate context once if not provided (shared across all analyzers)
-        if context is None and len(analyzers_to_use) > 1:
+        if context is None and len(strategies_to_use) > 1:
             context = AnalysisContext.from_data(symbol, prices, volumes, highs, lows)
 
-        for name, analyzer in analyzers_to_use.items():
+        for strategy_name in strategies_to_use:
             try:
                 # Earnings-Filter
-                if self._should_skip_for_earnings(symbol, name):
+                if self._should_skip_for_earnings(symbol, strategy_name):
                     continue
 
                 # IV-Rank-Filter
-                passes_iv, iv_reason = self._check_iv_filter(symbol, name)
+                passes_iv, iv_reason = self._check_iv_filter(symbol, strategy_name)
                 if not passes_iv:
-                    logger.debug(f"Skipping {symbol} for {name}: {iv_reason}")
+                    logger.debug(f"Skipping {symbol} for {strategy_name}: {iv_reason}")
                     continue
 
-                # Analyse durchführen mit shared context
-                signal = analyzer.analyze(
-                    symbol=symbol,
-                    prices=prices,
-                    volumes=volumes,
-                    highs=highs,
-                    lows=lows,
-                    context=context,
-                    **kwargs
-                )
+                # Analyzer holen (aus Pool oder direkt)
+                if self._use_pool and self._pool:
+                    # Mit Pool: acquire/release Context Manager
+                    with self._pool.acquire(strategy_name) as analyzer:
+                        signal = self._run_analysis(
+                            analyzer, symbol, prices, volumes, highs, lows,
+                            context, **kwargs
+                        )
+                else:
+                    # Ohne Pool: direkte Verwendung
+                    analyzer = self._analyzers.get(strategy_name)
+                    if not analyzer:
+                        continue
+                    signal = self._run_analysis(
+                        analyzer, symbol, prices, volumes, highs, lows,
+                        context, **kwargs
+                    )
+
+                if signal is None:
+                    continue
 
                 # IV-Rank zum Signal hinzufügen wenn verfügbar
                 iv_rank = self._iv_cache.get(symbol.upper())
@@ -352,17 +465,63 @@ class MultiStrategyScanner:
                 if signal.score >= self.config.min_score:
                     signals.append(signal)
 
+            except KeyError as e:
+                # Strategy not registered in pool
+                logger.debug(f"Strategy {strategy_name} not available: {e}")
             except ValueError as e:
                 # Insufficient data or validation errors - log at debug level
-                logger.debug(f"Skipping {symbol} for {name}: {e}")
+                logger.debug(f"Skipping {symbol} for {strategy_name}: {e}")
             except Exception as e:
-                logger.warning(f"Unexpected error in {name} for {symbol}: {e}", exc_info=True)
+                logger.warning(f"Unexpected error in {strategy_name} for {symbol}: {e}", exc_info=True)
 
         # Sortiere nach Score
         signals.sort(key=lambda x: x.score, reverse=True)
 
         # Limit pro Symbol
         return signals[:self.config.max_results_per_symbol]
+
+    def _run_analysis(
+        self,
+        analyzer: BaseAnalyzer,
+        symbol: str,
+        prices: List[float],
+        volumes: List[int],
+        highs: List[float],
+        lows: List[float],
+        context: Optional[AnalysisContext],
+        **kwargs
+    ) -> Optional[TradeSignal]:
+        """
+        Führt die Analyse mit einem Analyzer durch.
+
+        Extrahiert die Analyse-Logik für Wiederverwendung mit/ohne Pool.
+
+        Args:
+            analyzer: Zu verwendender Analyzer
+            symbol: Ticker-Symbol
+            prices, volumes, highs, lows: Preisdaten
+            context: Pre-calculated AnalysisContext
+            **kwargs: Zusätzliche Parameter
+
+        Returns:
+            TradeSignal oder None bei Fehler
+        """
+        try:
+            return analyzer.analyze(
+                symbol=symbol,
+                prices=prices,
+                volumes=volumes,
+                highs=highs,
+                lows=lows,
+                context=context,
+                **kwargs
+            )
+        except ValueError:
+            # Insufficient data - expected, don't log
+            raise
+        except Exception as e:
+            logger.debug(f"Analysis error for {symbol}: {e}")
+            return None
     
     async def scan_async(
         self,
