@@ -180,7 +180,38 @@ class OptionPlayServer:
     def api_key_masked(self) -> str:
         """Return masked API key for debugging/logging."""
         return mask_api_key(self._api_key)
-    
+
+    # =========================================================================
+    # ASYNC CONTEXT MANAGER
+    # =========================================================================
+
+    async def __aenter__(self) -> "OptionPlayServer":
+        """
+        Enter async context - connect to data provider.
+
+        Usage:
+            async with OptionPlayServer() as server:
+                result = await server.get_quote("AAPL")
+
+        Returns:
+            Connected server instance
+        """
+        await self._ensure_connected()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+        """
+        Exit async context - disconnect and cleanup.
+
+        Args:
+            exc_type: Exception type if any
+            exc_val: Exception value if any
+            exc_tb: Exception traceback if any
+        """
+        await self.disconnect()
+        # Don't suppress exceptions
+        return None
+
     # =========================================================================
     # CONNECTION MANAGEMENT
     # =========================================================================
