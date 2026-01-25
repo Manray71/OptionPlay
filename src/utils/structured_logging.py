@@ -26,7 +26,7 @@ import time
 import functools
 from contextlib import contextmanager
 from datetime import datetime
-from typing import Any, Callable, Dict, Optional, TypeVar
+from typing import Any, Callable, Dict, Generator, Optional, TypeVar
 from threading import local
 
 # Thread-local storage for context
@@ -192,7 +192,7 @@ def configure_logging(
 
 
 @contextmanager
-def log_context(**kwargs: Any):
+def log_context(**kwargs: Any) -> Generator[None, None, None]:
     """
     Context manager to add fields to all logs within the context.
 
@@ -211,7 +211,7 @@ def log_context(**kwargs: Any):
         _context.data = old_data
 
 
-def log_performance(logger: Optional[logging.Logger] = None):
+def log_performance(logger: Optional[logging.Logger] = None) -> Callable[[F], F]:
     """
     Decorator to log function performance.
 
@@ -292,7 +292,7 @@ def log_performance(logger: Optional[logging.Logger] = None):
 def log_api_call(
     logger: Optional[logging.Logger] = None,
     include_args: bool = False
-):
+) -> Callable[[F], F]:
     """
     Decorator to log API calls with timing and status.
 
