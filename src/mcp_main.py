@@ -31,6 +31,7 @@ Verwendung in claude_desktop_config.json:
 
 import asyncio
 import logging
+import time
 from typing import Optional, List
 
 from mcp.server import Server
@@ -39,6 +40,7 @@ from mcp.types import Tool, TextContent
 
 from .mcp_server import OptionPlayServer
 from .container import ServiceContainer
+from .utils.metrics import api_requests, api_latency, errors
 
 # Logging Setup
 logging.basicConfig(level=logging.INFO)
@@ -447,7 +449,9 @@ async def list_tools() -> list[Tool]:
 async def call_tool(name: str, arguments: dict) -> list[TextContent]:
     """Handle tool calls."""
     server = get_server()
-    
+    start_time = time.time()
+    status = "success"
+
     try:
         # =================================================================
         # CORE TOOLS
@@ -594,11 +598,20 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             
         else:
             result = f"Unknown tool: {name}"
-            
+            status = "unknown_tool"
+
     except Exception as e:
         logger.error(f"Tool {name} error: {e}")
         result = f"❌ Error: {str(e)}"
-    
+        status = "error"
+        errors.inc(labels={"type": type(e).__name__, "operation": name})
+
+    finally:
+        # Record metrics
+        elapsed_ms = (time.time() - start_time) * 1000
+        api_requests.inc(labels={"endpoint": name, "status": status})
+        api_latency.observe(elapsed_ms, labels={"endpoint": name})
+
     return [TextContent(type="text", text=result)]
 
 

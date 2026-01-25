@@ -51,6 +51,7 @@ from .utils.secure_config import get_api_key, mask_api_key
 from .utils.circuit_breaker import CircuitBreaker, CircuitBreakerOpen, get_circuit_breaker
 from .utils.error_handler import mcp_endpoint, sync_endpoint, format_error_response, truncate_string
 from .utils.markdown_builder import MarkdownBuilder, format_price, format_volume, truncate
+from .utils.metrics import metrics
 from .utils.earnings_aggregator import (
     EarningsAggregator, EarningsResult, EarningsSource, 
     AggregatedEarnings, get_earnings_aggregator, create_earnings_result
@@ -1863,6 +1864,7 @@ class OptionPlayServer:
             ibkr_available=IBKR_AVAILABLE and self._ibkr_bridge is not None,
             ibkr_host=ibkr_host,
             ibkr_port=ibkr_port,
+            metrics_stats=metrics.to_dict(),
         )
         
         return formatters.health_check.format(data)
