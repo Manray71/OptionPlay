@@ -306,6 +306,36 @@ class ServiceContainer:
 
         logger.debug("ServiceContainer reset")
 
+    # =========================================================================
+    # ASYNC CONTEXT MANAGER
+    # =========================================================================
+
+    async def __aenter__(self) -> 'ServiceContainer':
+        """
+        Enter async context - ensure provider is connected.
+
+        Usage:
+            async with ServiceContainer.create_default() as container:
+                quote = await container.provider.get_quote("AAPL")
+
+        Returns:
+            Container with connected provider
+        """
+        await self.ensure_provider()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+        """
+        Exit async context - disconnect provider.
+
+        Args:
+            exc_type: Exception type if any
+            exc_val: Exception value if any
+            exc_tb: Exception traceback if any
+        """
+        await self.disconnect()
+        return None
+
 
 # =============================================================================
 # GLOBAL CONTAINER (optional, for gradual migration)
