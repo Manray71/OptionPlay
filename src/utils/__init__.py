@@ -87,6 +87,16 @@ from .markdown_builder import (
     truncate,
 )
 
+from .structured_logging import (
+    StructuredFormatter,
+    StructuredLogger,
+    get_logger,
+    configure_logging,
+    log_context,
+    log_performance,
+    log_api_call,
+)
+
 __all__ = [
     # Rate Limiter
     'RateLimiter',
@@ -165,4 +175,13 @@ __all__ = [
     'format_volume',
     'format_date',
     'truncate',
+
+    # Structured Logging
+    'StructuredFormatter',
+    'StructuredLogger',
+    'get_logger',
+    'configure_logging',
+    'log_context',
+    'log_performance',
+    'log_api_call',
 ]
