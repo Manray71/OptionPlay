@@ -1,0 +1,406 @@
+# OptionPlay - Watchlist Konfiguration
+# =====================================
+# Organisiert nach GICS (Global Industry Classification Standard) Sektoren
+
+watchlists:
+  # =========================================================================
+  # DEFAULT WATCHLIST (275 Symbole aus 11 Sektoren)
+  # =========================================================================
+  default_275:
+    name: "Standard Watchlist"
+    description: "275 liquide US-Aktien aus allen GICS-Sektoren"
+    
+    sectors:
+      # -------------------------------------------------------------------
+      # INFORMATION TECHNOLOGY (25 Symbole)
+      # -------------------------------------------------------------------
+      information_technology:
+        name: "Information Technology"
+        symbols:
+          - AAPL   # Apple
+          - MSFT   # Microsoft
+          - NVDA   # NVIDIA
+          - AVGO   # Broadcom
+          - ORCL   # Oracle
+          - CRM    # Salesforce
+          - ADBE   # Adobe
+          - AMD    # Advanced Micro Devices
+          - CSCO   # Cisco
+          - ACN    # Accenture
+          - INTC   # Intel
+          - IBM    # IBM
+          - INTU   # Intuit
+          - TXN    # Texas Instruments
+          - QCOM   # Qualcomm
+          - AMAT   # Applied Materials
+          - NOW    # ServiceNow
+          - PANW   # Palo Alto Networks
+          - MU     # Micron
+          - LRCX   # Lam Research
+          - ADI    # Analog Devices
+          - KLAC   # KLA Corp
+          - SNPS   # Synopsys
+          - CDNS   # Cadence Design
+          - MRVL   # Marvell Technology
+          
+      # -------------------------------------------------------------------
+      # HEALTH CARE (25 Symbole)
+      # -------------------------------------------------------------------
+      health_care:
+        name: "Health Care"
+        symbols:
+          - UNH    # UnitedHealth
+          - JNJ    # Johnson & Johnson
+          - LLY    # Eli Lilly
+          - ABBV   # AbbVie
+          - MRK    # Merck
+          - PFE    # Pfizer
+          - TMO    # Thermo Fisher
+          - ABT    # Abbott
+          - DHR    # Danaher
+          - AMGN   # Amgen
+          - BMY    # Bristol-Myers Squibb
+          - ISRG   # Intuitive Surgical
+          - GILD   # Gilead
+          - VRTX   # Vertex Pharma
+          - MDT    # Medtronic
+          - SYK    # Stryker
+          - REGN   # Regeneron
+          - BSX    # Boston Scientific
+          - ZTS    # Zoetis
+          - ELV    # Elevance Health
+          - CI     # Cigna
+          - HCA    # HCA Healthcare
+          - MCK    # McKesson
+          - CVS    # CVS Health
+          - HUM    # Humana
+          
+      # -------------------------------------------------------------------
+      # FINANCIALS (25 Symbole)
+      # -------------------------------------------------------------------
+      financials:
+        name: "Financials"
+        symbols:
+          - BRK.B  # Berkshire Hathaway
+          - JPM    # JPMorgan Chase
+          - V      # Visa
+          - MA     # Mastercard
+          - BAC    # Bank of America
+          - WFC    # Wells Fargo
+          - GS     # Goldman Sachs
+          - MS     # Morgan Stanley
+          - SPGI   # S&P Global
+          - BLK    # BlackRock
+          - C      # Citigroup
+          - AXP    # American Express
+          - SCHW   # Charles Schwab
+          - PGR    # Progressive
+          - CB     # Chubb
+          - MMC    # Marsh McLennan
+          - CME    # CME Group
+          - ICE    # Intercontinental Exchange
+          - AON    # Aon
+          - USB    # U.S. Bancorp
+          - PNC    # PNC Financial
+          - TFC    # Truist
+          - MET    # MetLife
+          - AIG    # AIG
+          - AFL    # Aflac
+          
+      # -------------------------------------------------------------------
+      # CONSUMER DISCRETIONARY (25 Symbole)
+      # -------------------------------------------------------------------
+      consumer_discretionary:
+        name: "Consumer Discretionary"
+        symbols:
+          - AMZN   # Amazon
+          - TSLA   # Tesla
+          - HD     # Home Depot
+          - MCD    # McDonald's
+          - NKE    # Nike
+          - LOW    # Lowe's
+          - SBUX   # Starbucks
+          - TJX    # TJX Companies
+          - BKNG   # Booking Holdings
+          - CMG    # Chipotle
+          - ORLY   # O'Reilly Auto
+          - AZO    # AutoZone
+          - MAR    # Marriott
+          - HLT    # Hilton
+          - GM     # General Motors
+          - F      # Ford
+          - ROST   # Ross Stores
+          - DHI    # D.R. Horton
+          - LEN    # Lennar
+          - YUM    # Yum! Brands
+          - DG     # Dollar General
+          - DLTR   # Dollar Tree
+          - EBAY   # eBay
+          - APTV   # Aptiv
+          - CCL    # Carnival
+          
+      # -------------------------------------------------------------------
+      # COMMUNICATION SERVICES (25 Symbole)
+      # -------------------------------------------------------------------
+      communication_services:
+        name: "Communication Services"
+        symbols:
+          - GOOG   # Alphabet Class C
+          - GOOGL  # Alphabet Class A
+          - META   # Meta Platforms
+          - NFLX   # Netflix
+          - DIS    # Walt Disney
+          - CMCSA  # Comcast
+          - VZ     # Verizon
+          - T      # AT&T
+          - TMUS   # T-Mobile
+          - CHTR   # Charter Communications
+          - EA     # Electronic Arts
+          - TTWO   # Take-Two Interactive
+          - WBD    # Warner Bros Discovery
+          - LYV    # Live Nation
+          - OMC    # Omnicom
+          - IPG    # Interpublic Group
+          - MTCH   # Match Group
+          - PARA   # Paramount
+          - FOXA   # Fox Corp A
+          - NWSA   # News Corp A
+          - RBLX   # Roblox
+          - SNAP   # Snap
+          - PINS   # Pinterest
+          - ZM     # Zoom Video
+          - SPOT   # Spotify
+          
+      # -------------------------------------------------------------------
+      # INDUSTRIALS (25 Symbole)
+      # -------------------------------------------------------------------
+      industrials:
+        name: "Industrials"
+        symbols:
+          - GE     # GE Aerospace
+          - CAT    # Caterpillar
+          - RTX    # RTX (Raytheon)
+          - HON    # Honeywell
+          - UNP    # Union Pacific
+          - UPS    # UPS
+          - BA     # Boeing
+          - DE     # Deere
+          - LMT    # Lockheed Martin
+          - ADP    # ADP
+          - ETN    # Eaton
+          - ITW    # Illinois Tool Works
+          - EMR    # Emerson Electric
+          - GD     # General Dynamics
+          - NOC    # Northrop Grumman
+          - WM     # Waste Management
+          - CSX    # CSX Corp
+          - NSC    # Norfolk Southern
+          - PH     # Parker-Hannifin
+          - JCI    # Johnson Controls
+          - CARR   # Carrier Global
+          - TT     # Trane Technologies
+          - PCAR   # PACCAR
+          - CTAS   # Cintas
+          - FAST   # Fastenal
+          
+      # -------------------------------------------------------------------
+      # CONSUMER STAPLES (25 Symbole)
+      # -------------------------------------------------------------------
+      consumer_staples:
+        name: "Consumer Staples"
+        symbols:
+          - PG     # Procter & Gamble
+          - KO     # Coca-Cola
+          - PEP    # PepsiCo
+          - COST   # Costco
+          - WMT    # Walmart
+          - PM     # Philip Morris
+          - MO     # Altria
+          - MDLZ   # Mondelez
+          - CL     # Colgate-Palmolive
+          - EL     # Estée Lauder
+          - KMB    # Kimberly-Clark
+          - GIS    # General Mills
+          - KHC    # Kraft Heinz
+          - SYY    # Sysco
+          - HSY    # Hershey
+          - STZ    # Constellation Brands
+          - KR     # Kroger
+          - K      # Kellanova
+          - ADM    # Archer-Daniels-Midland
+          - TSN    # Tyson Foods
+          - CAG    # Conagra Brands
+          - CHD    # Church & Dwight
+          - MKC    # McCormick
+          - CLX    # Clorox
+          - SJM    # J.M. Smucker
+          
+      # -------------------------------------------------------------------
+      # ENERGY (25 Symbole)
+      # -------------------------------------------------------------------
+      energy:
+        name: "Energy"
+        symbols:
+          - XOM    # Exxon Mobil
+          - CVX    # Chevron
+          - COP    # ConocoPhillips
+          - SLB    # Schlumberger
+          - EOG    # EOG Resources
+          - MPC    # Marathon Petroleum
+          - PSX    # Phillips 66
+          - VLO    # Valero Energy
+          - PXD    # Pioneer Natural Resources
+          - OXY    # Occidental Petroleum
+          - WMB    # Williams Companies
+          - KMI    # Kinder Morgan
+          - HAL    # Halliburton
+          - DVN    # Devon Energy
+          - FANG   # Diamondback Energy
+          - BKR    # Baker Hughes
+          - HES    # Hess Corp
+          - OKE    # ONEOK
+          - TRGP   # Targa Resources
+          - MRO    # Marathon Oil
+          - APA    # APA Corp
+          - EQT    # EQT Corp
+          - CTRA   # Coterra Energy
+          - PR     # Permian Resources
+          - AR     # Antero Resources
+          
+      # -------------------------------------------------------------------
+      # UTILITIES (25 Symbole)
+      # -------------------------------------------------------------------
+      utilities:
+        name: "Utilities"
+        symbols:
+          - NEE    # NextEra Energy
+          - SO     # Southern Company
+          - DUK    # Duke Energy
+          - SRE    # Sempra Energy
+          - AEP    # American Electric Power
+          - D      # Dominion Energy
+          - EXC    # Exelon
+          - XEL    # Xcel Energy
+          - PEG    # PSEG
+          - ED     # Consolidated Edison
+          - WEC    # WEC Energy
+          - AWK    # American Water Works
+          - ES     # Eversource Energy
+          - EIX    # Edison International
+          - DTE    # DTE Energy
+          - FE     # FirstEnergy
+          - PPL    # PPL Corp
+          - ETR    # Entergy
+          - CMS    # CMS Energy
+          - AEE    # Ameren
+          - CNP    # CenterPoint Energy
+          - ATO    # Atmos Energy
+          - NI     # NiSource
+          - EVRG   # Evergy
+          - LNT    # Alliant Energy
+          
+      # -------------------------------------------------------------------
+      # MATERIALS (25 Symbole)
+      # -------------------------------------------------------------------
+      materials:
+        name: "Materials"
+        symbols:
+          - LIN    # Linde
+          - APD    # Air Products
+          - SHW    # Sherwin-Williams
+          - FCX    # Freeport-McMoRan
+          - NUE    # Nucor
+          - ECL    # Ecolab
+          - DD     # DuPont
+          - DOW    # Dow Inc
+          - NEM    # Newmont
+          - PPG    # PPG Industries
+          - VMC    # Vulcan Materials
+          - MLM    # Martin Marietta
+          - CTVA   # Corteva
+          - ALB    # Albemarle
+          - IFF    # IFF
+          - BALL   # Ball Corp
+          - PKG    # Packaging Corp
+          - IP     # International Paper
+          - CE     # Celanese
+          - EMN    # Eastman Chemical
+          - CF     # CF Industries
+          - MOS    # Mosaic
+          - FMC    # FMC Corp
+          - SEE    # Sealed Air
+          - AVY    # Avery Dennison
+          
+      # -------------------------------------------------------------------
+      # REAL ESTATE (25 Symbole)
+      # -------------------------------------------------------------------
+      real_estate:
+        name: "Real Estate"
+        symbols:
+          - PLD    # Prologis
+          - AMT    # American Tower
+          - EQIX   # Equinix
+          - CCI    # Crown Castle
+          - PSA    # Public Storage
+          - WELL   # Welltower
+          - SPG    # Simon Property Group
+          - O      # Realty Income
+          - DLR    # Digital Realty
+          - VICI   # VICI Properties
+          - SBAC   # SBA Communications
+          - AVB    # AvalonBay
+          - EQR    # Equity Residential
+          - WY     # Weyerhaeuser
+          - EXR    # Extra Space Storage
+          - ARE    # Alexandria Real Estate
+          - VTR    # Ventas
+          - MAA    # Mid-America Apartment
+          - UDR    # UDR Inc
+          - INVH   # Invitation Homes
+          - ESS    # Essex Property
+          - HST    # Host Hotels
+          - REG    # Regency Centers
+          - KIM    # Kimco Realty
+          - CPT    # Camden Property
+
+  # =========================================================================
+  # FOKUSSIERTE WATCHLISTS
+  # =========================================================================
+  
+  tech_focus:
+    name: "Tech Focus"
+    description: "Nur Technology-Sektor"
+    sectors:
+      information_technology:
+        symbols:
+          - AAPL
+          - MSFT
+          - NVDA
+          - AVGO
+          - ORCL
+          - AMD
+          - CRM
+          - ADBE
+          - CSCO
+          - ACN
+          
+  high_liquidity:
+    name: "High Liquidity"
+    description: "Nur Aktien mit sehr hohem Volumen"
+    min_avg_volume: 5000000
+    symbols:
+      - AAPL
+      - MSFT
+      - NVDA
+      - TSLA
+      - AMZN
+      - META
+      - GOOGL
+      - AMD
+      - BAC
+      - F
+      - INTC
+      - T
+      - PFE
+      - WFC
+      - CSCO

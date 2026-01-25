@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "optionplay": {
+      "command": "/opt/homebrew/bin/python3.12",
+      "args": ["-m", "src.mcp_main"],
+      "cwd": "/Users/larschristiansen/OptionPlay",
+      "env": {
+        "PYTHONPATH": "/Users/larschristiansen/OptionPlay",
+        "MARKETDATA_API_KEY": "ZElKSW5jdjBNb1doNkppaktGZUFEeTdFNVVxdDZoWXZfSXZWTHBrOHFTbz0"
+      }
+    }
+  }
+}

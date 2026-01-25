@@ -1,0 +1,284 @@
+# OptionPlay - MCP Server Integration Tests
+# ==========================================
+# Tests für das Zusammenspiel der neuen Features im MCP Server
+
+import pytest
+import asyncio
+from unittest.mock import Mock, AsyncMock, patch
+from datetime import datetime
+
+# Diese Tests prüfen die Integration der neuen Features:
+# - Circuit Breaker
+# - Historical Cache
+# - Config-basierte Parameter
+# - Validation
+
+
+class TestMCPServerInitialization:
+    """Tests für MCP Server Initialisierung mit neuen Features"""
+    
+    @pytest.fixture
+    def mock_env(self, monkeypatch):
+        """Mock environment variables"""
+        monkeypatch.setenv("MARKETDATA_API_KEY", "test_api_key_12345")
+    
+    def test_server_initializes_circuit_breaker(self, mock_env):
+        """Server sollte Circuit Breaker initialisieren"""
+        from src.mcp_server import OptionPlayServer
+        from src.utils.circuit_breaker import CircuitBreaker
+        
+        with patch('src.mcp_server.get_config') as mock_config:
+            # Mock config
+            mock_settings = Mock()
+            mock_settings.performance.cache_ttl_seconds = 300
+            mock_settings.performance.cache_max_entries = 500
+            mock_settings.api_connection.max_retries = 3
+            mock_settings.api_connection.retry_base_delay = 2
+            mock_settings.circuit_breaker.failure_threshold = 5
+            mock_settings.circuit_breaker.recovery_timeout = 60
+            mock_config.return_value.settings = mock_settings
+            
+            server = OptionPlayServer(api_key="test_key")
+            
+            assert hasattr(server, '_circuit_breaker')
+            assert isinstance(server._circuit_breaker, CircuitBreaker)
+    
+    def test_server_initializes_cache(self, mock_env):
+        """Server sollte Historical Cache initialisieren"""
+        from src.mcp_server import OptionPlayServer
+        from src.cache.historical_cache import HistoricalCache
+        
+        with patch('src.mcp_server.get_config') as mock_config:
+            mock_settings = Mock()
+            mock_settings.performance.cache_ttl_seconds = 600
+            mock_settings.performance.cache_max_entries = 1000
+            mock_settings.api_connection.max_retries = 3
+            mock_settings.api_connection.retry_base_delay = 2
+            mock_settings.circuit_breaker.failure_threshold = 5
+            mock_settings.circuit_breaker.recovery_timeout = 60
+            mock_config.return_value.settings = mock_settings
+            
+            server = OptionPlayServer(api_key="test_key")
+            
+            assert hasattr(server, '_historical_cache')
+            assert isinstance(server._historical_cache, HistoricalCache)
+
+
+class TestCircuitBreakerIntegration:
+    """Tests für Circuit Breaker Integration"""
+    
+    def test_circuit_breaker_blocks_when_open(self):
+        """Circuit Breaker sollte Requests blockieren wenn offen"""
+        from src.utils.circuit_breaker import CircuitBreaker, CircuitBreakerOpen
+        
+        breaker = CircuitBreaker(failure_threshold=2, recovery_timeout=60)
+        
+        # Öffne den Circuit
+        breaker.record_failure()
+        breaker.record_failure()
+        
+        assert breaker.is_open
+        assert not breaker.can_execute()
+        
+        with pytest.raises(CircuitBreakerOpen):
+            with breaker:
+                pass
+    
+    def test_circuit_breaker_allows_after_recovery(self):
+        """Circuit Breaker sollte Requests nach Recovery erlauben"""
+        from src.utils.circuit_breaker import CircuitBreaker
+        import time
+        
+        breaker = CircuitBreaker(
+            failure_threshold=1,
+            recovery_timeout=0.5,  # 500ms für schnellen Test
+            success_threshold=1
+        )
+        
+        # Öffne den Circuit
+        breaker.record_failure()
+        assert breaker.is_open
+        
+        # Warte auf Recovery
+        time.sleep(0.6)
+        
+        # Sollte jetzt Half-Open sein
+        assert breaker.is_half_open
+        assert breaker.can_execute()
+        
+        # Erfolg sollte schließen
+        breaker.record_success()
+        assert breaker.is_closed
+
+
+class TestHistoricalCacheIntegration:
+    """Tests für Historical Cache Integration"""
+    
+    def test_cache_stores_and_retrieves(self):
+        """Cache sollte Daten speichern und abrufen"""
+        from src.cache.historical_cache import HistoricalCache, CacheStatus
+        
+        cache = HistoricalCache(ttl_seconds=60)
+        
+        # Sample data
+        data = (
+            [100.0, 101.0, 102.0],  # prices
+            [1000, 1100, 1200],      # volumes
+            [101.0, 102.0, 103.0],   # highs
+            [99.0, 100.0, 101.0]     # lows
+        )
+        
+        cache.set("AAPL", data, days=60)
+        result = cache.get("AAPL", days=60)
+        
+        assert result.status == CacheStatus.HIT
+        assert result.data == data
+    
+    def test_cache_accepts_larger_data(self):
+        """Cache sollte größere Daten für kleinere Anfragen akzeptieren"""
+        from src.cache.historical_cache import HistoricalCache, CacheStatus
+        
+        cache = HistoricalCache(ttl_seconds=60)
+        
+        # 260 Tage Daten
+        data = (
+            [100.0 + i for i in range(260)],
+            [1000 + i for i in range(260)],
+            [101.0 + i for i in range(260)],
+            [99.0 + i for i in range(260)]
+        )
+        
+        cache.set("AAPL", data, days=260)
+        
+        # Anfrage für 60 Tage sollte 260-Tage-Cache nutzen
+        result = cache.get("AAPL", days=60, accept_more_days=True)
+        
+        assert result.status == CacheStatus.HIT
+
+
+class TestValidationIntegration:
+    """Tests für Validation Integration"""
+    
+    def test_symbol_validation(self):
+        """Symbol-Validierung sollte korrekt funktionieren"""
+        from src.utils.validation import validate_symbol, ValidationError
+        
+        # Gültige Symbole
+        assert validate_symbol("AAPL") == "AAPL"
+        assert validate_symbol("brk.b") == "BRK.B"
+        
+        # Ungültige Symbole
+        with pytest.raises(ValidationError):
+            validate_symbol("INVALID!!!")
+        
+        with pytest.raises(ValidationError):
+            validate_symbol("")
+    
+    def test_symbols_list_validation(self):
+        """Symbollisten-Validierung sollte funktionieren"""
+        from src.utils.validation import validate_symbols
+        
+        symbols = ["AAPL", "aapl", "MSFT", "INVALID!!!"]
+        
+        # Mit skip_invalid
+        result = validate_symbols(symbols, skip_invalid=True)
+        assert "AAPL" in result
+        assert "MSFT" in result
+        assert len(result) == 2  # Dedupliziert und ohne Invalid
+
+
+class TestConfigIntegration:
+    """Tests für Config Integration"""
+    
+    def test_performance_config_values(self):
+        """Performance Config sollte korrekte Werte haben"""
+        from src.config import PerformanceConfig
+        
+        config = PerformanceConfig()
+        
+        assert config.cache_ttl_seconds > 0
+        assert config.historical_days > 0
+        assert config.cache_max_entries > 0
+    
+    def test_circuit_breaker_config_values(self):
+        """Circuit Breaker Config sollte korrekte Werte haben"""
+        from src.config import CircuitBreakerConfig
+        
+        config = CircuitBreakerConfig()
+        
+        assert config.failure_threshold > 0
+        assert config.recovery_timeout > 0
+        assert config.half_open_max_calls > 0
+        assert config.success_threshold > 0
+
+
+class TestSecureConfigIntegration:
+    """Tests für Secure Config Integration"""
+    
+    def test_api_key_masking(self):
+        """API Key sollte korrekt maskiert werden"""
+        from src.utils.secure_config import mask_api_key
+        
+        key = "sk-1234567890abcdefghijklmnop"
+        masked = mask_api_key(key)
+        
+        # Sollte nur Anfang und Ende zeigen
+        assert "1234567890" not in masked
+        assert masked.startswith("sk-1")
+        assert "..." in masked
+    
+    def test_sensitive_data_masking(self):
+        """Sensitive Daten sollten maskiert werden"""
+        from src.utils.secure_config import mask_sensitive_data
+        
+        text = "API Key: abcdefghijklmnopqrstuvwxyz123456"
+        masked = mask_sensitive_data(text)
+        
+        # Langer String sollte maskiert sein
+        assert "abcdefghijklmnopqrstuvwxyz123456" not in masked
+
+
+class TestHealthCheckIntegration:
+    """Tests für Health Check mit neuen Features"""
+    
+    def test_health_check_includes_cache_stats(self):
+        """Health Check sollte Cache-Stats enthalten"""
+        from src.cache.historical_cache import HistoricalCache
+        
+        cache = HistoricalCache()
+        
+        # Einige Operationen
+        cache.set("AAPL", ([1.0], [1], [1.0], [1.0]), days=60)
+        cache.get("AAPL", days=60)
+        cache.get("MSFT", days=60)  # Miss
+        
+        stats = cache.stats()
+        
+        assert "entries" in stats
+        assert "hits" in stats
+        assert "misses" in stats
+        assert "hit_rate_percent" in stats
+        assert stats["hits"] == 1
+        assert stats["misses"] == 1
+    
+    def test_health_check_includes_circuit_breaker_stats(self):
+        """Health Check sollte Circuit Breaker Stats enthalten"""
+        from src.utils.circuit_breaker import CircuitBreaker
+        
+        breaker = CircuitBreaker(name="test")
+        
+        breaker.record_success()
+        breaker.record_failure()
+        
+        stats = breaker.stats()
+        
+        assert "name" in stats
+        assert "state" in stats
+        assert "total_calls" in stats
+        assert "successful_calls" in stats
+        assert "failed_calls" in stats
+        assert stats["total_calls"] == 2
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])
