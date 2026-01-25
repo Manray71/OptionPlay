@@ -419,7 +419,55 @@ class IVCache:
         )
         
         self._save_cache()
-    
+
+    def add_iv_points_batch(
+        self,
+        entries: List[Tuple[str, float, IVSource]]
+    ) -> int:
+        """
+        Batch-Update für mehrere IV-Werte (single cache save).
+
+        Args:
+            entries: List of (symbol, iv_value, source) tuples
+
+        Returns:
+            Number of entries successfully added
+        """
+        added = 0
+        for symbol, iv_value, source in entries:
+            symbol = symbol.upper()
+
+            if iv_value is None or iv_value <= 0:
+                continue
+
+            entry = self._cache.get(symbol)
+
+            if entry:
+                history = entry.iv_history.copy()
+            else:
+                history = []
+
+            history.append(iv_value)
+
+            if len(history) > IV_HISTORY_DAYS:
+                history = history[-IV_HISTORY_DAYS:]
+
+            self._cache[symbol] = IVCacheEntry(
+                iv_history=history,
+                iv_high=max(history),
+                iv_low=min(history),
+                data_points=len(history),
+                source=source.value,
+                updated=datetime.now().isoformat()
+            )
+            added += 1
+
+        # Single save at end
+        if added > 0:
+            self._save_cache()
+
+        return added
+
     def is_fresh(self, symbol: str) -> bool:
         """Prüft ob Cache-Eintrag für Symbol noch gültig ist"""
         symbol = symbol.upper()
