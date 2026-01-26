@@ -13,6 +13,9 @@ from vix_strategy import (
     VIXThresholds,
     StrategyRecommendation,
     get_strategy_for_vix,
+    get_strategy_for_stock,
+    calculate_spread_width,
+    get_spread_width_table,
     format_recommendation
 )
 
@@ -111,21 +114,26 @@ class TestStrategyRecommendation:
         assert rec.earnings_buffer_days is not None
         
     def test_conservative_values(self):
-        """Conservative-Profil sollte konservative Werte haben"""
+        """Conservative-Profil sollte Basis-Werte haben"""
         rec = get_strategy_for_vix(12.0)
-        
+
         assert rec.profile_name == "conservative"
-        assert rec.delta_target == -0.20
-        assert rec.spread_width == 2.5
-        assert rec.min_score >= 6
-        
+        assert rec.delta_target == -0.20  # Basis-Delta für alle
+        assert rec.spread_width == 5.0
+        assert rec.min_score >= 5
+        assert rec.dte_min == 60
+        assert rec.dte_max == 90
+        assert rec.earnings_buffer_days == 60
+
     def test_aggressive_values(self):
-        """Aggressive-Profil sollte aggressivere Werte haben"""
+        """Aggressive-Profil sollte Basis-Delta mit breiterem Spread haben"""
         rec = get_strategy_for_vix(25.0)
-        
+
         assert rec.profile_name == "aggressive"
-        assert rec.delta_target == -0.35
-        assert rec.min_score <= 4
+        assert rec.delta_target == -0.20  # Basis-Delta für alle
+        assert rec.spread_width == 7.5    # Breiterer Spread bei höherer Vol
+        assert rec.dte_min == 60
+        assert rec.dte_max == 90
         
     def test_high_vol_has_warnings(self):
         """High-Vol sollte Warnungen enthalten"""
@@ -178,21 +186,123 @@ class TestCustomThresholds:
 
 class TestFormatRecommendation:
     """Tests für formatierte Ausgabe"""
-    
+
     def test_format_is_string(self):
         """format_recommendation sollte String zurückgeben"""
         rec = get_strategy_for_vix(18.0)
         output = format_recommendation(rec)
-        
+
         assert isinstance(output, str)
         assert len(output) > 50
-        
+
     def test_format_contains_key_info(self):
         """Formatierte Ausgabe sollte wichtige Infos enthalten"""
         rec = get_strategy_for_vix(22.5)
         output = format_recommendation(rec)
-        
+
         assert "22.5" in output or "22" in output
+
+
+class TestSpreadWidthCalculation:
+    """Tests für dynamische Spread-Breite Berechnung"""
+
+    def test_cheap_stock_small_spread(self):
+        """Günstige Aktien (<$30) sollten kleine Spreads haben"""
+        assert calculate_spread_width(25.0) == 1.0
+        assert calculate_spread_width(20.0) == 1.0
+
+    def test_medium_stock_spread(self):
+        """Mittlere Aktien ($30-50) sollten $2.50 Spreads haben"""
+        assert calculate_spread_width(40.0) == 2.5
+        assert calculate_spread_width(45.0) == 2.5
+
+    def test_standard_stock_spread(self):
+        """Standard Aktien ($50-100) sollten $5 Spreads haben"""
+        assert calculate_spread_width(75.0) == 5.0
+        assert calculate_spread_width(90.0) == 5.0
+
+    def test_higher_stock_spread(self):
+        """Teurere Aktien ($100-200) sollten $5 Spreads haben"""
+        assert calculate_spread_width(150.0) == 5.0
+        assert calculate_spread_width(180.0) == 5.0
+
+    def test_expensive_stock_spread(self):
+        """Teure Aktien ($200-500) sollten $10 Spreads haben"""
+        assert calculate_spread_width(300.0) == 10.0
+        assert calculate_spread_width(450.0) == 10.0
+
+    def test_very_expensive_stock_spread(self):
+        """Sehr teure Aktien (>$500) sollten $15 Spreads haben"""
+        assert calculate_spread_width(600.0) == 15.0
+        assert calculate_spread_width(1000.0) == 15.0
+
+    def test_elevated_volatility_widens_spread(self):
+        """Erhöhte Volatilität sollte Spread um 50% verbreitern"""
+        # $75 Aktie: Basis $5, bei ELEVATED -> $7.50
+        assert calculate_spread_width(75.0, MarketRegime.ELEVATED) == 7.5
+
+    def test_high_volatility_doubles_spread(self):
+        """Hohe Volatilität sollte Spread verdoppeln"""
+        # $75 Aktie: Basis $5, bei HIGH_VOL -> $10
+        assert calculate_spread_width(75.0, MarketRegime.HIGH_VOL) == 10.0
+
+    def test_low_vol_no_change(self):
+        """Niedrige Volatilität sollte Spread nicht ändern"""
+        assert calculate_spread_width(75.0, MarketRegime.LOW_VOL) == 5.0
+        assert calculate_spread_width(75.0, MarketRegime.NORMAL) == 5.0
+
+
+class TestSpreadWidthTable:
+    """Tests für Spread-Breite Tabelle"""
+
+    def test_table_contains_all_regimes(self):
+        """Tabelle sollte alle Regime enthalten"""
+        table = get_spread_width_table(100.0)
+
+        assert 'low_vol' in table
+        assert 'normal' in table
+        assert 'elevated' in table
+        assert 'high_vol' in table
+
+    def test_table_values_increase_with_volatility(self):
+        """Spread sollte mit Volatilität zunehmen"""
+        table = get_spread_width_table(100.0)
+
+        assert table['low_vol'] <= table['normal']
+        assert table['normal'] <= table['elevated']
+        assert table['elevated'] <= table['high_vol']
+
+
+class TestGetStrategyForStock:
+    """Tests für get_strategy_for_stock mit dynamischer Spread-Berechnung"""
+
+    def test_uses_dynamic_spread(self):
+        """Sollte dynamische Spread-Breite verwenden"""
+        # VIX 18 (normal), $150 Aktie -> Spread $5
+        rec = get_strategy_for_stock(18.0, 150.0)
+        assert rec.spread_width == 5.0
+
+    def test_elevated_vix_widens_spread(self):
+        """Erhöhte VIX sollte Spread verbreitern"""
+        # VIX 25 (elevated), $150 Aktie -> Spread $7.50
+        rec = get_strategy_for_stock(25.0, 150.0)
+        assert rec.spread_width == 7.5
+
+    def test_high_vix_doubles_spread(self):
+        """Hohe VIX sollte Spread verdoppeln"""
+        # VIX 35 (high_vol), $150 Aktie -> Spread $10
+        rec = get_strategy_for_stock(35.0, 150.0)
+        assert rec.spread_width == 10.0
+
+    def test_cheap_stock_smaller_spread(self):
+        """Günstige Aktie sollte kleineren Spread haben"""
+        rec = get_strategy_for_stock(18.0, 40.0)
+        assert rec.spread_width == 2.5
+
+    def test_expensive_stock_larger_spread(self):
+        """Teure Aktie sollte größeren Spread haben"""
+        rec = get_strategy_for_stock(18.0, 350.0)
+        assert rec.spread_width == 10.0
 
 
 if __name__ == "__main__":

@@ -169,9 +169,10 @@ class TestRecommendationWithValidation:
     def test_recommendation_for_extreme_vix_has_warnings(self):
         """Test: Extrem hoher VIX hat Crash-Mode Warnungen"""
         rec = get_strategy_for_vix(150.0)
-        
+
         assert rec.regime == MarketRegime.HIGH_VOL
-        assert any("Crash" in w or "reduziert" in w.lower() for w in rec.warnings)
+        # Warnungen enthalten CRASH-MODUS oder Positionsgrößen
+        assert any("CRASH" in w or "Positions" in w for w in rec.warnings)
     
     def test_recommendation_values_are_valid(self):
         """Test: Empfehlungswerte sind plausibel"""
