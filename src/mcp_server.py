@@ -439,15 +439,20 @@ class OptionPlayServer:
                     )
                     days_to = fetched.days_to_earnings if fetched else None
 
-                # Classify symbol
-                if days_to is None or days_to >= min_days:
+                # Classify symbol - konservativ: None = nicht sicher
+                if days_to is not None and days_to >= min_days:
                     safe_symbols.append(symbol)
+                elif days_to is None:
+                    # Unbekannte Earnings = ausschließen (konservativ)
+                    excluded_count += 1
+                    logger.debug(f"Excluding {symbol}: unknown earnings date")
                 else:
                     excluded_count += 1
 
             except Exception as e:
+                # Bei Fehlern ebenfalls ausschließen (konservativ)
                 logger.debug(f"Earnings check failed for {symbol}: {e}")
-                safe_symbols.append(symbol)  # Error = accept with caution
+                excluded_count += 1
 
         return safe_symbols, excluded_count, cache_hits
 
