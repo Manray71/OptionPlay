@@ -349,11 +349,13 @@ class TestPerformanceConfig:
     def test_default_values(self):
         """PerformanceConfig should have correct defaults"""
         config = PerformanceConfig()
-        
+
         assert config.request_timeout == 30
         assert config.batch_delay == 1.0
         assert config.max_concurrent_requests == 5
-        assert config.cache_ttl_seconds == 300
+        assert config.cache_ttl_seconds == 900  # 15 Minuten für historische Daten
+        assert config.cache_ttl_intraday == 300  # 5 Minuten für Live-Quotes
+        assert config.cache_ttl_vix == 300  # 5 Minuten für VIX
         assert config.historical_days == 260
         assert config.cache_max_entries == 500
     
@@ -363,15 +365,19 @@ class TestPerformanceConfig:
             request_timeout=60,
             batch_delay=2.0,
             max_concurrent_requests=10,
-            cache_ttl_seconds=600,
+            cache_ttl_seconds=1800,
+            cache_ttl_intraday=600,
+            cache_ttl_vix=120,
             historical_days=365,
             cache_max_entries=1000
         )
-        
+
         assert config.request_timeout == 60
         assert config.batch_delay == 2.0
         assert config.max_concurrent_requests == 10
-        assert config.cache_ttl_seconds == 600
+        assert config.cache_ttl_seconds == 1800
+        assert config.cache_ttl_intraday == 600
+        assert config.cache_ttl_vix == 120
         assert config.historical_days == 365
         assert config.cache_max_entries == 1000
 
@@ -600,6 +606,61 @@ performance:
         # api_connection and circuit_breaker not in YAML -> Defaults
         assert settings.api_connection.max_retries == 3
         assert settings.circuit_breaker.failure_threshold == 5
+
+
+class TestKeltnerChannelConfig:
+    """Tests for KeltnerChannelConfig with upper band weights"""
+
+    def test_default_lower_band_weights(self):
+        """Lower band weights should have correct defaults"""
+        from src.config.config_loader import KeltnerChannelConfig
+
+        config = KeltnerChannelConfig()
+
+        assert config.weight_below_lower == 2.0
+        assert config.weight_near_lower == 1.0
+        assert config.weight_mean_reversion == 1.0
+
+    def test_default_upper_band_weights(self):
+        """Upper band weights should have correct defaults for breakout"""
+        from src.config.config_loader import KeltnerChannelConfig
+
+        config = KeltnerChannelConfig()
+
+        assert config.weight_above_upper == 2.0
+        assert config.weight_near_upper == 1.0
+
+    def test_custom_upper_band_weights(self):
+        """Custom upper band weights should be settable"""
+        from src.config.config_loader import KeltnerChannelConfig
+
+        config = KeltnerChannelConfig(
+            weight_above_upper=3.0,
+            weight_near_upper=1.5
+        )
+
+        assert config.weight_above_upper == 3.0
+        assert config.weight_near_upper == 1.5
+
+
+class TestSupportConfigTouchTolerance:
+    """Tests for SupportConfig touch_tolerance_pct field"""
+
+    def test_default_touch_tolerance(self):
+        """Touch tolerance should default to 2%"""
+        from src.config.config_loader import SupportConfig
+
+        config = SupportConfig()
+
+        assert config.touch_tolerance_pct == 2.0
+
+    def test_custom_touch_tolerance(self):
+        """Custom touch tolerance should be settable"""
+        from src.config.config_loader import SupportConfig
+
+        config = SupportConfig(touch_tolerance_pct=3.0)
+
+        assert config.touch_tolerance_pct == 3.0
 
 
 if __name__ == "__main__":

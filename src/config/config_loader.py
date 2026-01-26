@@ -96,6 +96,7 @@ class SupportConfig:
     proximity_percent: float = 3.0
     proximity_percent_wide: float = 5.0
     min_touches: int = 2
+    touch_tolerance_pct: float = 2.0  # Toleranz für Touch-Erkennung
     weight_close: int = 2
     weight_near: int = 1
 
@@ -131,6 +132,58 @@ class VolumeConfig:
     """Volumen Scoring"""
     average_period: int = 20
     spike_multiplier: float = 1.5
+    # NEW: Volume-Trend Scoring
+    weight_decreasing: float = 1.0  # Sinkendes Volumen = gesunder Pullback
+    decrease_threshold: float = 0.7  # Vol < 70% des Durchschnitts = "decreasing"
+
+
+@dataclass
+class MACDScoringConfig:
+    """MACD Scoring Konfiguration"""
+    weight_bullish_cross: float = 2.0  # Bullish Cross = starkes Signal
+    weight_bullish: float = 1.0  # Histogram positiv
+    weight_neutral: float = 0.0
+
+
+@dataclass
+class StochasticScoringConfig:
+    """Stochastik Scoring Konfiguration"""
+    oversold_threshold: int = 20
+    overbought_threshold: int = 80
+    weight_oversold_cross: float = 2.0  # Oversold + Bullish Cross
+    weight_oversold: float = 1.0  # Nur oversold
+
+
+@dataclass
+class TrendStrengthConfig:
+    """Trend-Stärke Konfiguration"""
+    # SMA-Alignment Scoring
+    weight_strong_alignment: float = 2.0  # SMA20 > SMA50 > SMA200
+    weight_moderate_alignment: float = 1.0  # Preis > SMA200, aber nicht perfektes Alignment
+    # Slope-Berechnung
+    slope_lookback: int = 5  # Tage für Slope-Berechnung
+    min_positive_slope: float = 0.001  # Mindest-Steigung für Aufwärtstrend
+
+
+@dataclass
+class KeltnerChannelConfig:
+    """Keltner Channel Konfiguration"""
+    # Channel-Parameter
+    ema_period: int = 20  # EMA für Mittellinie
+    atr_period: int = 10  # ATR-Periode
+    atr_multiplier: float = 2.0  # Multiplikator für Bandbreite
+
+    # Scoring - Lower Band (für Pullback/Bounce Strategien)
+    weight_below_lower: float = 2.0  # Preis unter unterem Band = stark oversold
+    weight_near_lower: float = 1.0  # Preis nahe unterem Band
+    weight_mean_reversion: float = 1.0  # Preis bewegt sich zurück zur Mitte
+
+    # Scoring - Upper Band (für ATH Breakout Strategien)
+    weight_above_upper: float = 2.0  # Preis über oberem Band = starker Breakout
+    weight_near_upper: float = 1.0  # Preis nahe oberem Band = potenzieller Breakout
+
+    # Thresholds
+    near_band_threshold: float = 0.1  # Innerhalb 10% der Bandbreite zum Band
 
 
 @dataclass
@@ -141,8 +194,169 @@ class PullbackScoringConfig:
     fibonacci: FibonacciConfig = field(default_factory=FibonacciConfig)
     moving_averages: MovingAverageConfig = field(default_factory=MovingAverageConfig)
     volume: VolumeConfig = field(default_factory=VolumeConfig)
-    max_score: int = 10
-    min_score_for_candidate: int = 5
+    # Zusätzliche Scoring-Komponenten
+    macd: MACDScoringConfig = field(default_factory=MACDScoringConfig)
+    stochastic: StochasticScoringConfig = field(default_factory=StochasticScoringConfig)
+    trend_strength: TrendStrengthConfig = field(default_factory=TrendStrengthConfig)
+    keltner: KeltnerChannelConfig = field(default_factory=KeltnerChannelConfig)
+    max_score: int = 16  # Erhöht von 14 auf 16 (Keltner = 0-2)
+    min_score_for_candidate: int = 6
+
+
+# =============================================================================
+# BOUNCE ANALYZER CONFIG
+# =============================================================================
+
+@dataclass
+class BounceSupportConfig:
+    """Support Detection für Bounce"""
+    lookback_days: int = 60
+    touches_min: int = 2
+    tolerance_pct: float = 1.5  # Support-Zone Toleranz
+    weight_strong: float = 3.0  # Starker Support mit Touches
+    weight_moderate: float = 2.0
+    weight_weak: float = 1.0
+
+
+@dataclass
+class BounceCandlestickConfig:
+    """Candlestick Pattern Scoring für Bounce"""
+    weight_hammer: float = 2.0
+    weight_engulfing: float = 2.0
+    weight_doji: float = 1.0
+    weight_bullish_candle: float = 1.0
+
+
+@dataclass
+class BounceScoringConfig:
+    """Gesamte Bounce Scoring Konfiguration"""
+    support: BounceSupportConfig = field(default_factory=BounceSupportConfig)
+    candlestick: BounceCandlestickConfig = field(default_factory=BounceCandlestickConfig)
+    volume: VolumeConfig = field(default_factory=VolumeConfig)
+    macd: MACDScoringConfig = field(default_factory=MACDScoringConfig)
+    stochastic: StochasticScoringConfig = field(default_factory=StochasticScoringConfig)
+    keltner: KeltnerChannelConfig = field(default_factory=KeltnerChannelConfig)
+    # RSI-Thresholds für Bounce (oversold)
+    rsi_extreme_oversold: int = 30
+    rsi_oversold: int = 40
+    # Bounce Confirmation
+    bounce_min_pct: float = 1.0
+    volume_spike_multiplier: float = 1.3
+    # Risk Management
+    stop_below_support_pct: float = 2.0
+    target_risk_reward: float = 2.0
+    # Scoring
+    max_score: int = 17
+    min_score_for_signal: int = 6
+
+
+# =============================================================================
+# ATH BREAKOUT ANALYZER CONFIG
+# =============================================================================
+
+@dataclass
+class ATHDetectionConfig:
+    """ATH Detection Konfiguration"""
+    lookback_days: int = 252  # 1 Jahr
+    consolidation_days: int = 20
+    breakout_threshold_pct: float = 1.0  # Min % über altem ATH
+    weight_with_consolidation: float = 3.0
+    weight_without_consolidation: float = 2.0
+
+
+@dataclass
+class MomentumConfig:
+    """Momentum/ROC Konfiguration"""
+    roc_period: int = 10  # Rate of Change Periode
+    weight_strong_momentum: float = 2.0  # ROC > 5%
+    weight_moderate_momentum: float = 1.0  # ROC > 2%
+    strong_threshold: float = 5.0
+    moderate_threshold: float = 2.0
+
+
+@dataclass
+class RelativeStrengthConfig:
+    """Relative Strength vs SPY"""
+    lookback_days: int = 20
+    weight_strong_outperformance: float = 2.0  # > 5% Outperformance
+    weight_moderate_outperformance: float = 1.0  # > 2%
+    strong_threshold: float = 5.0
+    moderate_threshold: float = 2.0
+
+
+@dataclass
+class ATHBreakoutScoringConfig:
+    """Gesamte ATH Breakout Scoring Konfiguration"""
+    ath_detection: ATHDetectionConfig = field(default_factory=ATHDetectionConfig)
+    volume: VolumeConfig = field(default_factory=VolumeConfig)
+    momentum: MomentumConfig = field(default_factory=MomentumConfig)
+    relative_strength: RelativeStrengthConfig = field(default_factory=RelativeStrengthConfig)
+    macd: MACDScoringConfig = field(default_factory=MACDScoringConfig)
+    keltner: KeltnerChannelConfig = field(default_factory=KeltnerChannelConfig)
+    # Volume für Breakout (höher als normal)
+    volume_spike_multiplier: float = 1.5
+    volume_strong_multiplier: float = 2.25
+    # RSI nicht überkauft
+    rsi_max: float = 80.0
+    rsi_ideal_max: float = 70.0
+    # Scoring
+    max_score: int = 16
+    min_score_for_signal: int = 6
+
+
+# =============================================================================
+# EARNINGS DIP ANALYZER CONFIG
+# =============================================================================
+
+@dataclass
+class DipDetectionConfig:
+    """Earnings Dip Detection Konfiguration"""
+    min_dip_pct: float = 5.0
+    max_dip_pct: float = 25.0
+    ideal_max_dip_pct: float = 10.0
+    lookback_days: int = 5
+    weight_ideal: float = 3.0  # 5-10% Dip
+    weight_moderate: float = 2.0  # 10-15% Dip
+    weight_large: float = 1.0  # 15-25% Dip
+
+
+@dataclass
+class GapAnalysisConfig:
+    """Gap Analysis Konfiguration"""
+    min_gap_pct: float = 2.0
+    gap_fill_threshold: float = 50.0  # Ab 50% gilt als "filling"
+    weight_gap_detected: float = 1.0
+
+
+@dataclass
+class StabilizationConfig:
+    """Stabilization Scoring"""
+    min_days_for_full_score: int = 2
+    weight_stable: float = 2.0
+    weight_beginning: float = 1.0
+
+
+@dataclass
+class EarningsDipScoringConfig:
+    """Gesamte Earnings Dip Scoring Konfiguration"""
+    dip_detection: DipDetectionConfig = field(default_factory=DipDetectionConfig)
+    gap_analysis: GapAnalysisConfig = field(default_factory=GapAnalysisConfig)
+    stabilization: StabilizationConfig = field(default_factory=StabilizationConfig)
+    volume: VolumeConfig = field(default_factory=VolumeConfig)
+    macd: MACDScoringConfig = field(default_factory=MACDScoringConfig)
+    stochastic: StochasticScoringConfig = field(default_factory=StochasticScoringConfig)
+    keltner: KeltnerChannelConfig = field(default_factory=KeltnerChannelConfig)
+    # RSI für Oversold nach Dip
+    rsi_extreme_oversold: int = 25
+    rsi_oversold: int = 35
+    # Quality Filter
+    require_above_sma200: bool = True
+    # Risk Management
+    stop_below_dip_low_pct: float = 3.0
+    target_recovery_pct: float = 50.0
+    # Scoring
+    max_score: int = 18
+    min_score_for_signal: int = 6
 
 
 @dataclass
@@ -160,31 +374,35 @@ class FilterConfig:
 class ScannerConfig:
     """
     Scanner-Konfiguration aus settings.yaml.
-    
+
     Wird verwendet, um ScanConfig im MultiStrategyScanner zu initialisieren.
     """
     # Score-Filter
     min_score: float = 5.0
     min_actionable_score: float = 6.0
-    
+
     # Earnings-Filter
     exclude_earnings_within_days: int = 60
-    
+
+    # Auto Earnings Pre-Filter (reduziert API-Calls!)
+    auto_earnings_prefilter: bool = True  # Automatisch vor Scans filtern
+    earnings_prefilter_min_days: int = 45  # Mindestabstand zu Earnings
+
     # IV-Rank Filter (für Credit-Spreads wichtig!)
     iv_rank_minimum: float = 30.0   # Min IV-Rank für ausreichend Prämie
     iv_rank_maximum: float = 80.0   # Max IV-Rank (zu hohe IV = erhöhtes Risiko)
     enable_iv_filter: bool = True   # IV-Filter aktivieren/deaktivieren
-    
+
     # Output-Limits
     max_results_per_symbol: int = 3
     max_total_results: int = 50
-    
+
     # Parallel Processing
     max_concurrent: int = 10
-    
+
     # Data Requirements
     min_data_points: int = 60
-    
+
     # Strategies to enable
     enable_pullback: bool = True
     enable_ath_breakout: bool = True
@@ -225,7 +443,10 @@ class PerformanceConfig:
     request_timeout: int = 30
     batch_delay: float = 1.0
     max_concurrent_requests: int = 5
-    cache_ttl_seconds: int = 300
+    # Cache TTLs (in Sekunden)
+    cache_ttl_seconds: int = 900  # 15 Minuten (historische Daten ändern sich selten)
+    cache_ttl_intraday: int = 300  # 5 Minuten für Intraday-Quotes
+    cache_ttl_vix: int = 300  # 5 Minuten für VIX
     historical_days: int = 260
     cache_max_entries: int = 500
 
@@ -422,21 +643,24 @@ class ConfigLoader:
         
         # Scanner Config
         # Kombiniert Werte aus verschiedenen Sections
+        scanner_raw = raw.get('scanner', {})
         settings.scanner = ScannerConfig(
             min_score=settings.pullback_scoring.min_score_for_candidate,
             min_actionable_score=settings.pullback_scoring.min_score_for_candidate + 1,
             exclude_earnings_within_days=settings.filters.earnings_exclude_days,
+            auto_earnings_prefilter=scanner_raw.get('auto_earnings_prefilter', True),
+            earnings_prefilter_min_days=scanner_raw.get('earnings_prefilter_min_days', 45),
             iv_rank_minimum=settings.filters.iv_rank_minimum,
             iv_rank_maximum=settings.filters.iv_rank_maximum,
-            enable_iv_filter=raw.get('scanner', {}).get('enable_iv_filter', True),
-            max_results_per_symbol=raw.get('scanner', {}).get('max_results_per_symbol', 3),
-            max_total_results=raw.get('scanner', {}).get('max_total_results', 50),
+            enable_iv_filter=scanner_raw.get('enable_iv_filter', True),
+            max_results_per_symbol=scanner_raw.get('max_results_per_symbol', 3),
+            max_total_results=scanner_raw.get('max_total_results', 50),
             max_concurrent=raw.get('performance', {}).get('max_concurrent_requests', 10),
-            min_data_points=raw.get('scanner', {}).get('min_data_points', 60),
-            enable_pullback=raw.get('scanner', {}).get('enable_pullback', True),
-            enable_ath_breakout=raw.get('scanner', {}).get('enable_ath_breakout', True),
-            enable_bounce=raw.get('scanner', {}).get('enable_bounce', True),
-            enable_earnings_dip=raw.get('scanner', {}).get('enable_earnings_dip', True),
+            min_data_points=scanner_raw.get('min_data_points', 60),
+            enable_pullback=scanner_raw.get('enable_pullback', True),
+            enable_ath_breakout=scanner_raw.get('enable_ath_breakout', True),
+            enable_bounce=scanner_raw.get('enable_bounce', True),
+            enable_earnings_dip=scanner_raw.get('enable_earnings_dip', True),
         )
         
         # Performance Config
@@ -446,7 +670,9 @@ class ConfigLoader:
                 request_timeout=perf.get('request_timeout', 30),
                 batch_delay=perf.get('batch_delay', 1.0),
                 max_concurrent_requests=perf.get('max_concurrent_requests', 5),
-                cache_ttl_seconds=perf.get('cache_ttl_seconds', 300),
+                cache_ttl_seconds=perf.get('cache_ttl_seconds', 900),  # 15 min default
+                cache_ttl_intraday=perf.get('cache_ttl_intraday', 300),  # 5 min
+                cache_ttl_vix=perf.get('cache_ttl_vix', 300),  # 5 min
                 historical_days=perf.get('historical_days', 260),
                 cache_max_entries=perf.get('cache_max_entries', 500),
             )
@@ -592,7 +818,16 @@ _config: Optional[ConfigLoader] = None
 
 
 def get_config(config_dir: Optional[str] = None) -> ConfigLoader:
-    """Globaler Config-Zugriff (Singleton)."""
+    """
+    Globaler Config-Zugriff (Singleton).
+
+    .. deprecated:: 3.5.0
+        Use ``ServiceContainer.config`` or pass config explicitly.
+        Will be removed in v4.0.
+    """
+    from ..utils.deprecation import warn_singleton_usage
+    warn_singleton_usage("get_config", "container.config")
+
     global _config
     if _config is None:
         _config = ConfigLoader(config_dir)
