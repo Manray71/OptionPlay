@@ -12,14 +12,26 @@ from .context import AnalysisContext
 
 try:
     from ..models.base import TradeSignal, SignalType, SignalStrength
-    from ..models.indicators import MACDResult, StochasticResult, TechnicalIndicators
+    from ..models.indicators import MACDResult, StochasticResult, TechnicalIndicators, KeltnerChannelResult
     from ..models.candidates import PullbackCandidate, ScoreBreakdown
     from ..config.config_loader import PullbackScoringConfig
 except ImportError:
     from models.base import TradeSignal, SignalType, SignalStrength
-    from models.indicators import MACDResult, StochasticResult, TechnicalIndicators
+    from models.indicators import MACDResult, StochasticResult, TechnicalIndicators, KeltnerChannelResult
     from models.candidates import PullbackCandidate, ScoreBreakdown
     from config.config_loader import PullbackScoringConfig
+
+# Import optimized support/resistance functions
+try:
+    from ..indicators.support_resistance import (
+        find_support_levels as find_support_optimized,
+        find_resistance_levels as find_resistance_optimized,
+    )
+except ImportError:
+    from indicators.support_resistance import (
+        find_support_levels as find_support_optimized,
+        find_resistance_levels as find_resistance_optimized,
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -228,9 +240,23 @@ class PullbackAnalyzer(BaseAnalyzer):
             else:
                 trend = 'sideways'
 
-            # Support/Resistance
-            support_levels = self._find_support_levels(lows)
-            resistance_levels = self._find_resistance_levels(highs)
+            # Support/Resistance (using optimized O(n) algorithm)
+            support_levels = find_support_optimized(
+                lows=lows,
+                lookback=self.config.support.lookback_days,
+                window=5,
+                max_levels=5,
+                volumes=volumes if volumes else None,
+                tolerance_pct=1.5
+            )
+            resistance_levels = find_resistance_optimized(
+                highs=highs,
+                lookback=60,
+                window=5,
+                max_levels=5,
+                volumes=volumes if volumes else None,
+                tolerance_pct=1.5
+            )
 
         technicals = TechnicalIndicators(
             rsi_14=rsi,
@@ -254,49 +280,85 @@ class PullbackAnalyzer(BaseAnalyzer):
         
         # Scoring
         breakdown = ScoreBreakdown()
-        
-        # 1. RSI Score
+
+        # 1. RSI Score (0-3 Punkte)
         breakdown.rsi_score, breakdown.rsi_reason = self._score_rsi(rsi)
         breakdown.rsi_value = rsi
-        
-        # 2. Support Score
-        breakdown.support_score, breakdown.support_reason = self._score_support(
-            current_price, support_levels
+
+        # 2. Support Score mit Stärke-Bewertung (0-2.5 Punkte)
+        support_result = self._score_support_with_strength(
+            current_price, support_levels, volumes, lows
         )
+        breakdown.support_score = support_result[0]
+        breakdown.support_reason = support_result[1]
+        breakdown.support_strength = support_result[2]
+        breakdown.support_touches = support_result[3]
         if support_levels:
             nearest = min(support_levels, key=lambda x: abs(x - current_price))
             breakdown.support_level = nearest
             breakdown.support_distance_pct = abs(current_price - nearest) / current_price * 100
-        
-        # 3. Fibonacci Score
+
+        # 3. Fibonacci Score (0-2 Punkte)
         breakdown.fibonacci_score, breakdown.fib_level, breakdown.fib_reason = \
             self._score_fibonacci(current_price, fib_levels)
-        
-        # 4. Moving Average Score
+
+        # 4. Moving Average Score (0-2 Punkte)
         breakdown.ma_score, breakdown.ma_reason = self._score_moving_averages(
             current_price, sma_20, sma_200
         )
         breakdown.price_vs_sma20 = "above" if above_sma20 else "below"
         breakdown.price_vs_sma200 = "above" if above_sma200 else "below"
-        
-        # 5. Volume Score
+
+        # 5. Trend-Stärke Score (0-2 Punkte) - NEU
+        trend_result = self._score_trend_strength(prices, sma_20, sma_50, sma_200)
+        breakdown.trend_strength_score = trend_result[0]
+        breakdown.trend_alignment = trend_result[1]
+        breakdown.sma20_slope = trend_result[2]
+        breakdown.trend_reason = trend_result[3]
+
+        # 6. Volume Score mit Trend (0-1 Punkt) - VERBESSERT
         avg_volume = int(np.mean(volumes[-self.config.volume.average_period:]))
-        breakdown.volume_score, breakdown.volume_reason = self._score_volume(
-            current_volume, avg_volume
-        )
+        vol_result = self._score_volume(current_volume, avg_volume)
+        breakdown.volume_score = vol_result[0]
+        breakdown.volume_reason = vol_result[1]
+        breakdown.volume_trend = vol_result[2]
         breakdown.volume_ratio = current_volume / avg_volume if avg_volume > 0 else 0
-        
-        # 6. MACD/Stoch Signals (informativ)
-        breakdown.macd_signal = self._get_macd_signal(macd_result)
-        breakdown.stoch_signal = self._get_stoch_signal(stoch_result)
-        
-        # Total Score
+
+        # 7. MACD Score (0-2 Punkte) - NEU
+        macd_result_score = self._score_macd(macd_result)
+        breakdown.macd_score = macd_result_score[0]
+        breakdown.macd_reason = macd_result_score[1]
+        breakdown.macd_signal = macd_result_score[2]
+        breakdown.macd_histogram = macd_result.histogram if macd_result else 0
+
+        # 8. Stochastik Score (0-2 Punkte)
+        stoch_result_score = self._score_stochastic(stoch_result)
+        breakdown.stoch_score = stoch_result_score[0]
+        breakdown.stoch_reason = stoch_result_score[1]
+        breakdown.stoch_signal = stoch_result_score[2]
+        breakdown.stoch_k = stoch_result.k if stoch_result else 0
+        breakdown.stoch_d = stoch_result.d if stoch_result else 0
+
+        # 9. Keltner Channel Score (0-2 Punkte) - NEU
+        keltner_result = self._calculate_keltner_channel(prices, highs, lows)
+        if keltner_result:
+            keltner_score_result = self._score_keltner(keltner_result, current_price)
+            breakdown.keltner_score = keltner_score_result[0]
+            breakdown.keltner_reason = keltner_score_result[1]
+            breakdown.keltner_position = keltner_result.price_position
+            breakdown.keltner_percent = keltner_result.percent_position
+
+        # Total Score (max ~16.5 Punkte)
         breakdown.total_score = (
-            breakdown.rsi_score +
-            breakdown.support_score +
-            breakdown.fibonacci_score +
-            breakdown.ma_score +
-            breakdown.volume_score
+            breakdown.rsi_score +           # 0-3
+            breakdown.support_score +       # 0-2.5
+            breakdown.fibonacci_score +     # 0-2
+            breakdown.ma_score +            # 0-2
+            breakdown.trend_strength_score + # 0-2
+            breakdown.volume_score +        # 0-1
+            breakdown.macd_score +          # 0-2
+            breakdown.stoch_score +         # 0-2
+            breakdown.keltner_score         # 0-2
         )
         breakdown.max_possible = self.config.max_score
         
@@ -314,22 +376,61 @@ class PullbackAnalyzer(BaseAnalyzer):
         )
     
     def _build_reason(self, candidate: PullbackCandidate) -> str:
-        """Erstellt Begründung aus Score-Breakdown"""
+        """Erstellt Begründung aus Score-Breakdown (erweitert für neue Komponenten)"""
         reasons = []
-        
-        if candidate.score_breakdown.rsi_score > 0:
+        bd = candidate.score_breakdown
+
+        # RSI
+        if bd.rsi_score > 0:
             reasons.append(f"RSI oversold ({candidate.technicals.rsi_14:.1f})")
-        
-        if candidate.score_breakdown.support_score > 0:
-            reasons.append("Near support")
-        
-        if candidate.score_breakdown.ma_score > 0:
+
+        # Support mit Stärke
+        if bd.support_score > 0:
+            if bd.support_strength == "strong":
+                reasons.append(f"Near strong support ({bd.support_touches} touches)")
+            elif bd.support_strength == "moderate":
+                reasons.append("Near moderate support")
+            else:
+                reasons.append("Near support")
+
+        # Trend-Stärke
+        if bd.trend_strength_score > 0:
+            if bd.trend_alignment == "strong":
+                reasons.append("Strong uptrend")
+            else:
+                reasons.append("Uptrend")
+
+        # MA-Score (Dip im Aufwärtstrend)
+        if bd.ma_score > 0:
             reasons.append("Dip in uptrend")
-        
-        if candidate.score_breakdown.fibonacci_score > 0:
-            reasons.append(f"At Fib {candidate.score_breakdown.fib_level}")
-        
-        return " + ".join(reasons) if reasons else "Weak setup"
+
+        # Fibonacci
+        if bd.fibonacci_score > 0:
+            reasons.append(f"At Fib {bd.fib_level}")
+
+        # MACD (NEU)
+        if bd.macd_score >= 2:
+            reasons.append("MACD bullish cross")
+        elif bd.macd_score > 0:
+            reasons.append("MACD bullish")
+
+        # Stochastik (NEU)
+        if bd.stoch_score >= 2:
+            reasons.append("Stoch oversold + cross")
+        elif bd.stoch_score > 0:
+            reasons.append("Stoch oversold")
+
+        # Volume
+        if bd.volume_score > 0:
+            reasons.append("Healthy low volume")
+
+        # Keltner Channel (NEU)
+        if bd.keltner_score >= 2:
+            reasons.append("Below Keltner lower band")
+        elif bd.keltner_score > 0:
+            reasons.append("Near Keltner lower band")
+
+        return " | ".join(reasons) if reasons else "Weak setup"
     
     def _validate_inputs(
         self,
@@ -548,57 +649,6 @@ class PullbackAnalyzer(BaseAnalyzer):
             '100.0%': low
         }
     
-    def _find_support_levels(self, lows: List[float], window: int = 20) -> List[float]:
-        """Findet Support-Levels (Swing Lows)"""
-        lookback = min(self.config.support.lookback_days, len(lows))
-        
-        min_required = 2 * window + 1
-        if lookback < min_required:
-            logger.debug(
-                f"Not enough data for support detection: {lookback} < {min_required}"
-            )
-            return []
-        
-        supports = []
-        start_idx = len(lows) - lookback
-        
-        for i in range(window, lookback - window):
-            abs_idx = start_idx + i
-            window_start = abs_idx - window
-            window_end = abs_idx + window + 1
-            
-            local_min = min(lows[window_start:window_end])
-            
-            if lows[abs_idx] == local_min:
-                supports.append(lows[abs_idx])
-        
-        unique_supports = sorted(set(supports))
-        return unique_supports[-3:] if unique_supports else []
-    
-    def _find_resistance_levels(self, highs: List[float], window: int = 20) -> List[float]:
-        """Findet Resistance-Levels (Swing Highs)"""
-        lookback = min(60, len(highs))
-        
-        min_required = 2 * window + 1
-        if lookback < min_required:
-            return []
-        
-        resistances = []
-        start_idx = len(highs) - lookback
-        
-        for i in range(window, lookback - window):
-            abs_idx = start_idx + i
-            window_start = abs_idx - window
-            window_end = abs_idx + window + 1
-            
-            local_max = max(highs[window_start:window_end])
-            
-            if highs[abs_idx] == local_max:
-                resistances.append(highs[abs_idx])
-        
-        unique_resistances = sorted(set(resistances))
-        return unique_resistances[:3] if unique_resistances else []
-    
     # =========================================================================
     # SCORING
     # =========================================================================
@@ -663,22 +713,175 @@ class PullbackAnalyzer(BaseAnalyzer):
         
         return 0, "MA config doesn't indicate pullback"
     
-    def _score_volume(self, current: int, average: int) -> Tuple[float, str]:
-        """Volume Score (0-1 Punkt)"""
+    def _score_volume(self, current: int, average: int) -> Tuple[float, str, str]:
+        """
+        Volume Score (0-1 Punkt)
+
+        NEU: Sinkendes Volumen beim Pullback = gesund (keine Panik-Verkäufe)
+        """
         if average == 0:
-            return 0, "No average volume data"
-        
+            return 0, "No average volume data", "unknown"
+
         ratio = current / average
-        
-        if ratio >= self.config.volume.spike_multiplier:
-            return 1, f"Volume spike: {ratio:.1f}x avg"
+        cfg = self.config.volume
+
+        # NEU: Sinkendes Volumen ist POSITIV bei einem Pullback
+        if ratio < cfg.decrease_threshold:
+            return cfg.weight_decreasing, f"Low volume pullback: {ratio:.1f}x avg (healthy)", "decreasing"
+        elif ratio >= cfg.spike_multiplier:
+            # Hohes Volumen bei Pullback = potenziell problematisch (Panik)
+            return 0, f"Volume spike: {ratio:.1f}x avg (caution)", "increasing"
         else:
-            return 0, f"Volume normal: {ratio:.1f}x avg"
-    
+            return 0, f"Volume normal: {ratio:.1f}x avg", "stable"
+
+    def _score_macd(self, macd: Optional[MACDResult]) -> Tuple[float, str, str]:
+        """
+        MACD Score (0-2 Punkte)
+
+        - Bullish Cross: 2 Punkte (starkes Umkehrsignal)
+        - Histogram positiv: 1 Punkt
+        """
+        if not macd:
+            return 0, "No MACD data", "neutral"
+
+        cfg = self.config.macd
+
+        if macd.crossover == 'bullish':
+            return cfg.weight_bullish_cross, "MACD bullish crossover", "bullish_cross"
+        elif macd.histogram and macd.histogram > 0:
+            return cfg.weight_bullish, "MACD histogram positive", "bullish"
+        elif macd.histogram and macd.histogram < 0:
+            return 0, "MACD histogram negative", "bearish"
+
+        return cfg.weight_neutral, "MACD neutral", "neutral"
+
+    def _score_stochastic(self, stoch: Optional[StochasticResult]) -> Tuple[float, str, str]:
+        """
+        Stochastik Score (0-2 Punkte)
+
+        - Oversold + Bullish Cross: 2 Punkte (sehr starkes Signal)
+        - Nur Oversold: 1 Punkt
+        """
+        if not stoch:
+            return 0, "No Stochastic data", "neutral"
+
+        cfg = self.config.stochastic
+
+        if stoch.zone == 'oversold':
+            if stoch.crossover == 'bullish':
+                return cfg.weight_oversold_cross, f"Stoch oversold ({stoch.k:.0f}) + bullish cross", "oversold_bullish_cross"
+            return cfg.weight_oversold, f"Stoch oversold ({stoch.k:.0f})", "oversold"
+        elif stoch.zone == 'overbought':
+            return 0, f"Stoch overbought ({stoch.k:.0f})", "overbought"
+
+        return 0, f"Stoch neutral ({stoch.k:.0f})", "neutral"
+
+    def _score_trend_strength(
+        self,
+        prices: List[float],
+        sma_20: float,
+        sma_50: Optional[float],
+        sma_200: float
+    ) -> Tuple[float, str, float, str]:
+        """
+        Trend-Stärke Score (0-2 Punkte)
+
+        - Starkes Alignment (SMA20 > SMA50 > SMA200): 2 Punkte
+        - Moderates Alignment (Preis > SMA200): 1 Punkt
+        - Kein Alignment: 0 Punkte
+
+        Returns:
+            (score, alignment, sma20_slope, reason)
+        """
+        cfg = self.config.trend_strength
+        current_price = prices[-1]
+
+        # Berechne SMA20-Slope (Steigung)
+        slope_lookback = min(cfg.slope_lookback, len(prices) - 1)
+        if slope_lookback > 0:
+            sma20_recent = sum(prices[-20:]) / 20 if len(prices) >= 20 else current_price
+            sma20_older = sum(prices[-20-slope_lookback:-slope_lookback]) / 20 if len(prices) >= 20 + slope_lookback else sma20_recent
+            sma20_slope = (sma20_recent - sma20_older) / sma20_older if sma20_older > 0 else 0
+        else:
+            sma20_slope = 0
+
+        # Prüfe SMA-Alignment
+        if sma_50 is not None:
+            # Vollständiges Alignment: SMA20 > SMA50 > SMA200
+            if sma_20 > sma_50 > sma_200 and current_price > sma_200:
+                if sma20_slope >= cfg.min_positive_slope:
+                    return cfg.weight_strong_alignment, "strong", sma20_slope, "Strong uptrend (SMA20 > SMA50 > SMA200, rising)"
+                else:
+                    return cfg.weight_moderate_alignment, "moderate", sma20_slope, "Aligned SMAs but flat/declining slope"
+            elif current_price > sma_200 and sma_20 > sma_200:
+                return cfg.weight_moderate_alignment, "moderate", sma20_slope, "Above SMA200, partial alignment"
+        else:
+            # Ohne SMA50: Nur SMA20 vs SMA200 prüfen
+            if sma_20 > sma_200 and current_price > sma_200:
+                if sma20_slope >= cfg.min_positive_slope:
+                    return cfg.weight_strong_alignment, "strong", sma20_slope, "Strong uptrend (SMA20 > SMA200, rising)"
+                else:
+                    return cfg.weight_moderate_alignment, "moderate", sma20_slope, "Above SMA200 but flat slope"
+
+        # Kein Aufwärtstrend
+        if current_price < sma_200:
+            return 0, "none", sma20_slope, "Below SMA200 - no uptrend"
+
+        return 0, "weak", sma20_slope, "Weak trend structure"
+
+    def _score_support_with_strength(
+        self,
+        price: float,
+        supports: List[float],
+        volumes: Optional[List[int]] = None,
+        lows: Optional[List[float]] = None
+    ) -> Tuple[float, str, str, int]:
+        """
+        Erweitertes Support-Scoring mit Stärke-Bewertung.
+
+        Returns:
+            (score, reason, strength, touches)
+        """
+        if not supports:
+            return 0, "No support levels found", "none", 0
+
+        cfg = self.config.support
+        nearest = min(supports, key=lambda x: abs(x - price))
+        distance_pct = abs(price - nearest) / price * 100
+
+        # Schätze Support-Stärke basierend auf Häufigkeit
+        touches = 0
+        strength = "weak"
+
+        if lows is not None:
+            tolerance = nearest * (cfg.touch_tolerance_pct / 100)
+            touches = sum(1 for low in lows[-cfg.lookback_days:] if abs(low - nearest) <= tolerance)
+
+            if touches >= cfg.min_touches + 2:
+                strength = "strong"
+            elif touches >= cfg.min_touches:
+                strength = "moderate"
+            else:
+                strength = "weak"
+
+        # Scoring basierend auf Distanz UND Stärke
+        base_score = 0
+        if distance_pct <= cfg.proximity_percent:
+            base_score = cfg.weight_close
+        elif distance_pct <= cfg.proximity_percent_wide:
+            base_score = cfg.weight_near
+
+        # Bonus für starken Support
+        if strength == "strong" and base_score > 0:
+            base_score += 0.5  # Bonus für starken Support
+
+        reason = f"Within {distance_pct:.1f}% of {strength} support ${nearest:.2f} ({touches} touches)"
+        return base_score, reason, strength, touches
+
     # =========================================================================
-    # SIGNAL HELPER
+    # SIGNAL HELPER (Legacy - für Rückwärtskompatibilität)
     # =========================================================================
-    
+
     def _get_macd_signal(self, macd: Optional[MACDResult]) -> Optional[str]:
         """Bestimmt MACD-Signal für Anzeige"""
         if not macd:
@@ -699,7 +902,7 @@ class PullbackAnalyzer(BaseAnalyzer):
         """Bestimmt Stochastik-Signal für Anzeige"""
         if not stoch:
             return None
-        
+
         if stoch.zone == 'oversold':
             if stoch.crossover == 'bullish':
                 return 'oversold_bullish_cross'
@@ -708,5 +911,160 @@ class PullbackAnalyzer(BaseAnalyzer):
             if stoch.crossover == 'bearish':
                 return 'overbought_bearish_cross'
             return 'overbought'
-        
+
         return 'neutral'
+
+    # =========================================================================
+    # KELTNER CHANNEL
+    # =========================================================================
+
+    def _calculate_keltner_channel(
+        self,
+        prices: List[float],
+        highs: List[float],
+        lows: List[float]
+    ) -> Optional[KeltnerChannelResult]:
+        """
+        Berechnet Keltner Channel.
+
+        Keltner Channel = EMA ± (ATR × Multiplier)
+        - Middle: EMA(20)
+        - Upper: EMA + ATR(10) × 2
+        - Lower: EMA - ATR(10) × 2
+
+        Args:
+            prices: Schlusskurse
+            highs: Tageshochs
+            lows: Tagestiefs
+
+        Returns:
+            KeltnerChannelResult oder None bei unzureichenden Daten
+        """
+        cfg = self.config.keltner
+        min_required = max(cfg.ema_period, cfg.atr_period) + 1
+
+        if len(prices) < min_required:
+            return None
+
+        # EMA berechnen (Mittellinie)
+        ema_values = self._calculate_ema(prices, cfg.ema_period)
+        if not ema_values:
+            return None
+        current_ema = ema_values[-1]
+
+        # ATR berechnen
+        atr = self._calculate_atr(highs, lows, prices, cfg.atr_period)
+        if atr is None or atr <= 0:
+            return None
+
+        # Bänder berechnen
+        band_width = atr * cfg.atr_multiplier
+        upper = current_ema + band_width
+        lower = current_ema - band_width
+
+        # Aktuelle Position des Preises bestimmen
+        current_price = prices[-1]
+        channel_range = upper - lower
+
+        if channel_range <= 0:
+            return None
+
+        # Percent Position: -1 = lower, 0 = middle, +1 = upper
+        percent_position = (current_price - current_ema) / band_width if band_width > 0 else 0
+
+        # Position Label
+        if current_price > upper:
+            price_position = 'above_upper'
+        elif current_price < lower:
+            price_position = 'below_lower'
+        elif percent_position < -0.5:
+            price_position = 'near_lower'
+        elif percent_position > 0.5:
+            price_position = 'near_upper'
+        else:
+            price_position = 'in_channel'
+
+        # Channel-Breite als % des Preises (Volatilitätsindikator)
+        channel_width_pct = (channel_range / current_price) * 100 if current_price > 0 else 0
+
+        return KeltnerChannelResult(
+            upper=upper,
+            middle=current_ema,
+            lower=lower,
+            atr=atr,
+            price_position=price_position,
+            percent_position=percent_position,
+            channel_width_pct=channel_width_pct
+        )
+
+    def _calculate_atr(
+        self,
+        highs: List[float],
+        lows: List[float],
+        closes: List[float],
+        period: int = 14
+    ) -> Optional[float]:
+        """
+        Berechnet Average True Range (ATR).
+
+        True Range = max(H-L, |H-Pc|, |L-Pc|)
+        ATR = SMA(TR, period)
+        """
+        if len(highs) < period + 1:
+            return None
+
+        true_ranges = []
+        for i in range(1, len(highs)):
+            high = highs[i]
+            low = lows[i]
+            prev_close = closes[i - 1]
+
+            tr = max(
+                high - low,
+                abs(high - prev_close),
+                abs(low - prev_close)
+            )
+            true_ranges.append(tr)
+
+        if len(true_ranges) < period:
+            return None
+
+        return float(np.mean(true_ranges[-period:]))
+
+    def _score_keltner(
+        self,
+        keltner: KeltnerChannelResult,
+        current_price: float
+    ) -> Tuple[float, str]:
+        """
+        Keltner Channel Score (0-2 Punkte).
+
+        Scoring-Logik für Pullbacks:
+        - Preis unter unterem Band: 2 Punkte (stark oversold, Mean Reversion erwartet)
+        - Preis nahe unterem Band: 1 Punkt (pullback in oversold territory)
+        - Preis im Channel: 0 Punkte (neutral)
+        - Preis über oberem Band: 0 Punkte (überkauft, kein Pullback-Setup)
+
+        Returns:
+            (score, reason)
+        """
+        cfg = self.config.keltner
+        position = keltner.price_position
+        pct = keltner.percent_position
+
+        if position == 'below_lower':
+            return cfg.weight_below_lower, f"Preis unter Keltner Lower Band ({pct:.2f})"
+
+        if position == 'near_lower':
+            # Nahe unterem Band = potenzielle Kaufgelegenheit
+            return cfg.weight_near_lower, f"Preis nahe Keltner Lower Band ({pct:.2f})"
+
+        if position == 'in_channel' and pct < -0.3:
+            # Im Channel, aber im unteren Drittel
+            return cfg.weight_mean_reversion * 0.5, f"Pullback im unteren Channel-Bereich ({pct:.2f})"
+
+        if position == 'above_upper':
+            # Überkauft = kein Pullback-Signal
+            return 0, f"Preis über Keltner Upper Band ({pct:.2f}) - überkauft"
+
+        return 0, f"Preis in neutraler Channel-Position ({pct:.2f})"

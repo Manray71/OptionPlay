@@ -10,6 +10,18 @@ from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Any
 import logging
 
+# Import optimized support/resistance functions
+try:
+    from ..indicators.support_resistance import (
+        find_support_levels as find_support_optimized,
+        find_resistance_levels as find_resistance_optimized,
+    )
+except ImportError:
+    from indicators.support_resistance import (
+        find_support_levels as find_support_optimized,
+        find_resistance_levels as find_resistance_optimized,
+    )
+
 logger = logging.getLogger(__name__)
 
 
@@ -140,9 +152,23 @@ class AnalysisContext:
         if len(highs) >= 14 and len(lows) >= 14:
             self._calc_stochastic(highs, lows, prices)
 
-        # Support/Resistance
-        self.support_levels = self._find_support_levels(lows)
-        self.resistance_levels = self._find_resistance_levels(highs)
+        # Support/Resistance (using optimized O(n) algorithm)
+        self.support_levels = find_support_optimized(
+            lows=lows,
+            lookback=min(60, len(lows)),
+            window=5,
+            max_levels=5,
+            volumes=volumes if volumes else None,
+            tolerance_pct=1.5
+        )
+        self.resistance_levels = find_resistance_optimized(
+            highs=highs,
+            lookback=min(60, len(highs)),
+            window=5,
+            max_levels=5,
+            volumes=volumes if volumes else None,
+            tolerance_pct=1.5
+        )
 
         # Fibonacci (last 60 days)
         lookback = min(60, len(highs))
@@ -169,7 +195,11 @@ class AnalysisContext:
         self._determine_trend()
 
     def _calc_rsi(self, prices: List[float], period: int = 14) -> Optional[float]:
-        """Calculate RSI."""
+        """
+        Calculate RSI using Wilder's smoothing method.
+
+        This uses the same algorithm as momentum.py for consistency.
+        """
         if len(prices) < period + 1:
             return None
 
@@ -178,8 +208,14 @@ class AnalysisContext:
         gains = [c if c > 0 else 0 for c in changes]
         losses = [-c if c < 0 else 0 for c in changes]
 
-        avg_gain = sum(gains[-period:]) / period
-        avg_loss = sum(losses[-period:]) / period
+        # Initial averages (simple average for first period)
+        avg_gain = sum(gains[:period]) / period
+        avg_loss = sum(losses[:period]) / period
+
+        # Apply Wilder's smoothing for remaining periods
+        for i in range(period, len(gains)):
+            avg_gain = (avg_gain * (period - 1) + gains[i]) / period
+            avg_loss = (avg_loss * (period - 1) + losses[i]) / period
 
         if avg_loss == 0:
             return 100.0
@@ -233,79 +269,39 @@ class AnalysisContext:
         k_period: int = 14,
         d_period: int = 3
     ) -> None:
-        """Calculate Stochastic oscillator."""
-        if len(prices) < k_period:
+        """
+        Calculate Stochastic oscillator with proper %D.
+
+        %K = (Current Close - Lowest Low) / (Highest High - Lowest Low) * 100
+        %D = 3-period SMA of %K
+        """
+        # Need enough data for k_period plus d_period-1 for the SMA
+        min_required = k_period + d_period - 1
+        if len(prices) < min_required:
             return
 
-        highest_high = max(highs[-k_period:])
-        lowest_low = min(lows[-k_period:])
+        # Calculate multiple %K values for the %D SMA
+        k_values = []
+        for i in range(d_period):
+            offset = d_period - 1 - i
+            end_idx = len(prices) - offset
+            start_idx = end_idx - k_period
 
-        if highest_high == lowest_low:
-            self.stoch_k = 50.0
-        else:
-            self.stoch_k = (prices[-1] - lowest_low) / (highest_high - lowest_low) * 100
+            highest_high = max(highs[start_idx:end_idx])
+            lowest_low = min(lows[start_idx:end_idx])
+            close = prices[end_idx - 1]
 
-        # Calculate %D (SMA of %K) - simplified
-        self.stoch_d = self.stoch_k  # Would need history for proper calc
+            if highest_high == lowest_low:
+                k_values.append(50.0)
+            else:
+                k_val = (close - lowest_low) / (highest_high - lowest_low) * 100
+                k_values.append(k_val)
 
-    def _find_support_levels(
-        self,
-        lows: List[float],
-        window: int = 20,
-        max_levels: int = 3
-    ) -> List[float]:
-        """Find significant support levels."""
-        if len(lows) < window * 2:
-            return []
+        # Current %K is the last value
+        self.stoch_k = k_values[-1]
 
-        supports = []
-        lookback = min(60, len(lows))
-        start = len(lows) - lookback
-
-        for i in range(window, lookback - window):
-            abs_idx = start + i
-            window_start = abs_idx - window
-            window_end = abs_idx + window + 1
-
-            if window_end > len(lows):
-                continue
-
-            local_min = min(lows[window_start:window_end])
-            if lows[abs_idx] == local_min:
-                supports.append(lows[abs_idx])
-
-        # Dedupe and return top levels below current price
-        unique = sorted(set(supports), reverse=True)
-        return unique[:max_levels]
-
-    def _find_resistance_levels(
-        self,
-        highs: List[float],
-        window: int = 20,
-        max_levels: int = 3
-    ) -> List[float]:
-        """Find significant resistance levels."""
-        if len(highs) < window * 2:
-            return []
-
-        resistances = []
-        lookback = min(60, len(highs))
-        start = len(highs) - lookback
-
-        for i in range(window, lookback - window):
-            abs_idx = start + i
-            window_start = abs_idx - window
-            window_end = abs_idx + window + 1
-
-            if window_end > len(highs):
-                continue
-
-            local_max = max(highs[window_start:window_end])
-            if highs[abs_idx] == local_max:
-                resistances.append(highs[abs_idx])
-
-        unique = sorted(set(resistances))
-        return unique[:max_levels]
+        # %D is the 3-period SMA of %K values
+        self.stoch_d = sum(k_values) / len(k_values)
 
     def _calc_fibonacci(self, high: float, low: float) -> Dict[str, float]:
         """Calculate Fibonacci retracement levels."""
