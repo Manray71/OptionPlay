@@ -435,25 +435,32 @@ def get_historical_cache(
 ) -> HistoricalCache:
     """
     Gibt die globale Cache-Instanz zurück.
-    
+
     Erstellt bei Bedarf eine neue Instanz.
-    
+
+    .. deprecated:: 3.5.0
+        Use ``container.historical_cache`` instead.
+        Will be removed in v4.0.
+
     Args:
         ttl_seconds: TTL für neue Instanz
         max_entries: Max Entries für neue Instanz
-        
+
     Returns:
         HistoricalCache Instanz
     """
+    from ..utils.deprecation import warn_singleton_usage
+    warn_singleton_usage("get_historical_cache", "container.historical_cache")
+
     global _cache_instance
-    
+
     if _cache_instance is None:
         _cache_instance = HistoricalCache(
             ttl_seconds=ttl_seconds,
             max_entries=max_entries
         )
         logger.info(f"Historical cache initialized (TTL: {ttl_seconds}s, Max: {max_entries})")
-    
+
     return _cache_instance
 
 

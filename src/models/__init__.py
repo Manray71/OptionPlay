@@ -26,6 +26,11 @@ from .candidates import (
     ScoreBreakdown,
     SupportLevel
 )
+from .strategy_breakdowns import (
+    BounceScoreBreakdown,
+    ATHBreakoutScoreBreakdown,
+    EarningsDipScoreBreakdown
+)
 from .options import (
     MaxPainResult,
     StrikePainData,
@@ -67,6 +72,11 @@ __all__ = [
     'PullbackCandidate',
     'ScoreBreakdown',
     'SupportLevel',
+
+    # Strategy Breakdowns
+    'BounceScoreBreakdown',
+    'ATHBreakoutScoreBreakdown',
+    'EarningsDipScoreBreakdown',
     
     # Options
     'MaxPainResult',

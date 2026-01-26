@@ -1,9 +1,23 @@
 # OptionPlay - Cache Package
 # ===========================
-# Caching für Earnings und IV-Daten
+# Caching für Earnings, IV-Daten und Historical Data
 #
 # Usage:
 #     from src.cache import EarningsCache, IVCache, get_earnings, get_iv_rank
+#     from src.cache import CacheManager, get_cache_manager
+
+from .cache_manager import (
+    # Classes
+    CacheManager,
+    BaseCache,
+    CachePolicy,
+    CacheEntry,
+    CachePriority,
+
+    # Functions
+    get_cache_manager,
+    reset_cache_manager,
+)
 
 from .earnings_cache import (
     # Classes
@@ -54,6 +68,17 @@ from .historical_cache import (
 )
 
 __all__ = [
+    # Cache Manager Classes
+    'CacheManager',
+    'BaseCache',
+    'CachePolicy',
+    'CacheEntry',
+    'CachePriority',
+
+    # Cache Manager Functions
+    'get_cache_manager',
+    'reset_cache_manager',
+
     # Earnings Classes
     'EarningsCache',
     'EarningsFetcher', 

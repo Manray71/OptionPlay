@@ -5,7 +5,10 @@
 import numpy as np
 from typing import List, Optional, Tuple
 
-from ..models.indicators import MACDResult, StochasticResult
+try:
+    from ..models.indicators import MACDResult, StochasticResult
+except ImportError:
+    from models.indicators import MACDResult, StochasticResult
 
 
 def calculate_rsi(prices: List[float], period: int = 14) -> float:

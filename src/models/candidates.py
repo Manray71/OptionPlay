@@ -25,31 +25,55 @@ class ScoreBreakdown:
     rsi_score: float = 0
     rsi_value: float = 0
     rsi_reason: str = ""
-    
+
     support_score: float = 0
     support_level: Optional[float] = None
     support_distance_pct: float = 0
+    support_strength: str = ""  # NEW: weak, moderate, strong
+    support_touches: int = 0  # NEW: Anzahl der Berührungen
     support_reason: str = ""
-    
+
     fibonacci_score: float = 0
     fib_level: Optional[str] = None
     fib_reason: str = ""
-    
+
     ma_score: float = 0
     price_vs_sma20: str = ""
     price_vs_sma200: str = ""
     ma_reason: str = ""
-    
+
+    # NEW: Trend-Stärke Score
+    trend_strength_score: float = 0
+    trend_alignment: str = ""  # "strong", "moderate", "weak", "none"
+    sma20_slope: float = 0  # Steigung des SMA20
+    trend_reason: str = ""
+
     volume_score: float = 0
     volume_ratio: float = 0
+    volume_trend: str = ""  # NEW: "decreasing" (gut), "increasing", "stable"
     volume_reason: str = ""
-    
-    # MACD und Stochastik (informativ, kein Score-Einfluss)
-    macd_signal: Optional[str] = None  # 'bullish', 'bearish', 'neutral'
-    stoch_signal: Optional[str] = None  # 'oversold', 'overbought', 'neutral'
-    
+
+    # MACD Score (NEW - jetzt mit Scoring)
+    macd_score: float = 0
+    macd_signal: Optional[str] = None  # 'bullish_cross', 'bullish', 'bearish', 'neutral'
+    macd_histogram: float = 0
+    macd_reason: str = ""
+
+    # Stochastik Score (NEW - jetzt mit Scoring)
+    stoch_score: float = 0
+    stoch_signal: Optional[str] = None  # 'oversold_bullish_cross', 'oversold', etc.
+    stoch_k: float = 0
+    stoch_d: float = 0
+    stoch_reason: str = ""
+
+    # Keltner Channel Score (NEW)
+    keltner_score: float = 0
+    keltner_position: str = ""  # 'below_lower', 'near_lower', 'in_channel', 'near_upper', 'above_upper'
+    keltner_percent: float = 0  # -1 = lower, 0 = middle, +1 = upper
+    keltner_reason: str = ""
+
     total_score: float = 0
-    max_possible: int = 10
+    max_possible: int = 16  # Erhöht von 14 auf 16 (Keltner = 0-2)
     
     def to_dict(self) -> Dict:
         return {
@@ -66,6 +90,8 @@ class ScoreBreakdown:
                     'score': self.support_score,
                     'level': self.support_level,
                     'distance_pct': round(self.support_distance_pct, 2),
+                    'strength': self.support_strength,
+                    'touches': self.support_touches,
                     'reason': self.support_reason
                 },
                 'fibonacci': {
@@ -79,15 +105,37 @@ class ScoreBreakdown:
                     'vs_sma200': self.price_vs_sma200,
                     'reason': self.ma_reason
                 },
+                'trend_strength': {
+                    'score': self.trend_strength_score,
+                    'alignment': self.trend_alignment,
+                    'sma20_slope': round(self.sma20_slope, 4),
+                    'reason': self.trend_reason
+                },
                 'volume': {
                     'score': self.volume_score,
                     'ratio': round(self.volume_ratio, 2),
+                    'trend': self.volume_trend,
                     'reason': self.volume_reason
+                },
+                'macd': {
+                    'score': self.macd_score,
+                    'signal': self.macd_signal,
+                    'histogram': round(self.macd_histogram, 4),
+                    'reason': self.macd_reason
+                },
+                'stochastic': {
+                    'score': self.stoch_score,
+                    'signal': self.stoch_signal,
+                    'k': round(self.stoch_k, 2),
+                    'd': round(self.stoch_d, 2),
+                    'reason': self.stoch_reason
+                },
+                'keltner': {
+                    'score': self.keltner_score,
+                    'position': self.keltner_position,
+                    'percent': round(self.keltner_percent, 3),
+                    'reason': self.keltner_reason
                 }
-            },
-            'signals': {
-                'macd': self.macd_signal,
-                'stochastic': self.stoch_signal
             }
         }
 
