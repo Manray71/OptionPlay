@@ -172,23 +172,22 @@ class TestStochasticCalculation:
 class TestSupportResistance:
     """Tests for Support/Resistance detection"""
     
-    @pytest.fixture
-    def analyzer(self):
-        config = PullbackScoringConfig()
-        return PullbackAnalyzer(config)
-    
-    def test_find_support_levels(self, analyzer):
-        """Should find swing lows as support"""
+    def test_find_support_levels(self):
+        """Should find swing lows as support via centralized module"""
+        from indicators.support_resistance import find_support_levels
+
         lows = [100, 99, 98, 95, 98, 99, 100, 101, 102, 103,
                 102, 101, 100, 96, 100, 101, 102, 103, 104, 105] * 5
-        supports = analyzer._find_support_levels(lows)
+        supports = find_support_levels(lows, lookback=60, window=3, max_levels=5)
         assert isinstance(supports, list)
-        
-    def test_find_resistance_levels(self, analyzer):
-        """Should find swing highs as resistance"""
+
+    def test_find_resistance_levels(self):
+        """Should find swing highs as resistance via centralized module"""
+        from indicators.support_resistance import find_resistance_levels
+
         highs = [100, 101, 102, 105, 102, 101, 100, 99, 98, 97,
                  98, 99, 100, 104, 100, 99, 98, 97, 96, 95] * 5
-        resistances = analyzer._find_resistance_levels(highs)
+        resistances = find_resistance_levels(highs, lookback=60, window=3, max_levels=5)
         assert isinstance(resistances, list)
 
 
@@ -340,9 +339,578 @@ class TestFullAnalysis:
         assert result.strategy == "pullback"
 
 
+class TestMACDScoring:
+    """Tests for MACD scoring (NEW)"""
+
+    @pytest.fixture
+    def analyzer(self):
+        config = PullbackScoringConfig()
+        return PullbackAnalyzer(config)
+
+    def test_macd_score_bullish_cross(self, analyzer):
+        """Bullish crossover should give 2 points"""
+        macd = MACDResult(
+            macd_line=0.5,
+            signal_line=0.4,
+            histogram=0.1,
+            crossover='bullish'
+        )
+        score, reason, signal = analyzer._score_macd(macd)
+
+        assert score == 2
+        assert signal == "bullish_cross"
+        assert "bullish" in reason.lower()
+
+    def test_macd_score_bullish_histogram(self, analyzer):
+        """Positive histogram should give 1 point"""
+        macd = MACDResult(
+            macd_line=0.5,
+            signal_line=0.4,
+            histogram=0.1,
+            crossover=None
+        )
+        score, reason, signal = analyzer._score_macd(macd)
+
+        assert score == 1
+        assert signal == "bullish"
+
+    def test_macd_score_bearish(self, analyzer):
+        """Negative histogram should give 0 points"""
+        macd = MACDResult(
+            macd_line=0.3,
+            signal_line=0.5,
+            histogram=-0.2,
+            crossover=None
+        )
+        score, reason, signal = analyzer._score_macd(macd)
+
+        assert score == 0
+        assert signal == "bearish"
+
+    def test_macd_score_none(self, analyzer):
+        """No MACD data should give 0 points"""
+        score, reason, signal = analyzer._score_macd(None)
+
+        assert score == 0
+        assert signal == "neutral"
+
+
+class TestStochasticScoring:
+    """Tests for Stochastic scoring (NEW)"""
+
+    @pytest.fixture
+    def analyzer(self):
+        config = PullbackScoringConfig()
+        return PullbackAnalyzer(config)
+
+    def test_stoch_score_oversold_bullish_cross(self, analyzer):
+        """Oversold + bullish cross should give 2 points"""
+        stoch = StochasticResult(
+            k=15.0,
+            d=18.0,
+            crossover='bullish',
+            zone='oversold'
+        )
+        score, reason, signal = analyzer._score_stochastic(stoch)
+
+        assert score == 2
+        assert signal == "oversold_bullish_cross"
+
+    def test_stoch_score_oversold_only(self, analyzer):
+        """Oversold without cross should give 1 point"""
+        stoch = StochasticResult(
+            k=15.0,
+            d=12.0,
+            crossover=None,
+            zone='oversold'
+        )
+        score, reason, signal = analyzer._score_stochastic(stoch)
+
+        assert score == 1
+        assert signal == "oversold"
+
+    def test_stoch_score_overbought(self, analyzer):
+        """Overbought should give 0 points"""
+        stoch = StochasticResult(
+            k=85.0,
+            d=82.0,
+            crossover=None,
+            zone='overbought'
+        )
+        score, reason, signal = analyzer._score_stochastic(stoch)
+
+        assert score == 0
+        assert signal == "overbought"
+
+    def test_stoch_score_neutral(self, analyzer):
+        """Neutral zone should give 0 points"""
+        stoch = StochasticResult(
+            k=50.0,
+            d=48.0,
+            crossover=None,
+            zone='neutral'
+        )
+        score, reason, signal = analyzer._score_stochastic(stoch)
+
+        assert score == 0
+        assert signal == "neutral"
+
+
+class TestTrendStrengthScoring:
+    """Tests for Trend Strength scoring (NEW)"""
+
+    @pytest.fixture
+    def analyzer(self):
+        config = PullbackScoringConfig()
+        return PullbackAnalyzer(config)
+
+    def test_strong_alignment_rising_slope(self, analyzer):
+        """SMA20 > SMA50 > SMA200 with rising slope should give 2 points"""
+        # Steadily rising prices
+        n = 250
+        prices = [100 + i * 0.1 for i in range(n)]
+        sma_20 = sum(prices[-20:]) / 20
+        sma_50 = sum(prices[-50:]) / 50
+        sma_200 = sum(prices[-200:]) / 200
+
+        score, alignment, slope, reason = analyzer._score_trend_strength(
+            prices, sma_20, sma_50, sma_200
+        )
+
+        assert score == 2
+        assert alignment == "strong"
+        assert slope > 0
+        assert "strong" in reason.lower()
+
+    def test_moderate_alignment(self, analyzer):
+        """Price > SMA200 with partial alignment should give 1 point"""
+        n = 250
+        # Price above SMA200 but messy alignment
+        prices = [100 + (i % 10) * 0.5 for i in range(n)]
+        prices[-1] = 110  # Current price above SMA200
+
+        sma_20 = sum(prices[-20:]) / 20
+        sma_50 = sum(prices[-50:]) / 50
+        sma_200 = sum(prices[-200:]) / 200
+
+        # Ensure price > SMA200 for moderate alignment
+        if prices[-1] > sma_200:
+            score, alignment, _, _ = analyzer._score_trend_strength(
+                prices, sma_20, sma_50, sma_200
+            )
+            assert score >= 1 or alignment in ["moderate", "strong"]
+
+    def test_no_alignment_below_sma200(self, analyzer):
+        """Price below SMA200 should give 0 points"""
+        n = 250
+        # Declining prices
+        prices = [150 - i * 0.2 for i in range(n)]
+        sma_20 = sum(prices[-20:]) / 20
+        sma_50 = sum(prices[-50:]) / 50
+        sma_200 = sum(prices[-200:]) / 200
+
+        score, alignment, _, reason = analyzer._score_trend_strength(
+            prices, sma_20, sma_50, sma_200
+        )
+
+        assert score == 0
+        assert "no uptrend" in reason.lower() or alignment in ["none", "weak"]
+
+
+class TestVolumeScoring:
+    """Tests for improved Volume scoring (NEW)"""
+
+    @pytest.fixture
+    def analyzer(self):
+        config = PullbackScoringConfig()
+        return PullbackAnalyzer(config)
+
+    def test_volume_decreasing_healthy(self, analyzer):
+        """Low volume pullback should give 1 point (healthy)"""
+        current_volume = 500000
+        avg_volume = 1000000  # 50% of average = decreasing
+
+        score, reason, trend = analyzer._score_volume(current_volume, avg_volume)
+
+        assert score == 1
+        assert trend == "decreasing"
+        assert "healthy" in reason.lower()
+
+    def test_volume_spike_caution(self, analyzer):
+        """Volume spike should give 0 points (caution)"""
+        current_volume = 2000000
+        avg_volume = 1000000  # 200% of average = spike
+
+        score, reason, trend = analyzer._score_volume(current_volume, avg_volume)
+
+        assert score == 0
+        assert trend == "increasing"
+        assert "caution" in reason.lower() or "spike" in reason.lower()
+
+    def test_volume_normal(self, analyzer):
+        """Normal volume should give 0 points"""
+        current_volume = 1000000
+        avg_volume = 1000000  # 100% = normal
+
+        score, reason, trend = analyzer._score_volume(current_volume, avg_volume)
+
+        assert score == 0
+        assert trend == "stable"
+
+    def test_volume_zero_average(self, analyzer):
+        """Zero average volume should handle gracefully"""
+        score, reason, trend = analyzer._score_volume(1000000, 0)
+
+        assert score == 0
+        assert trend == "unknown"
+
+
+class TestSupportWithStrength:
+    """Tests for Support scoring with strength (NEW)"""
+
+    @pytest.fixture
+    def analyzer(self):
+        config = PullbackScoringConfig()
+        return PullbackAnalyzer(config)
+
+    def test_strong_support_close(self, analyzer):
+        """Close to strong support should give bonus points"""
+        price = 100
+        supports = [98.0]  # 2% below = close
+
+        # Create lows that touch support multiple times
+        lows = [98, 99, 100, 98, 99, 100, 98, 99, 100, 98] * 6  # 60 days with 4+ touches
+
+        score, reason, strength, touches = analyzer._score_support_with_strength(
+            price, supports, None, lows
+        )
+
+        # Should get base score + bonus for strong support
+        assert score >= 2
+        assert strength in ["moderate", "strong"]
+        assert touches >= 2
+
+    def test_weak_support_near(self, analyzer):
+        """Near weak support should give lower score"""
+        price = 100
+        supports = [96.0]  # 4% below = near but not close
+
+        # Create lows that rarely touch support
+        lows = [98, 99, 100, 99, 98, 99, 100, 99, 98, 99] * 6  # No touches at 96
+
+        score, reason, strength, touches = analyzer._score_support_with_strength(
+            price, supports, None, lows
+        )
+
+        assert strength == "weak"
+        assert touches == 0
+
+    def test_no_support_levels(self, analyzer):
+        """No support levels should give 0 points"""
+        score, reason, strength, touches = analyzer._score_support_with_strength(
+            100, [], None, None
+        )
+
+        assert score == 0
+        assert strength == "none"
+        assert touches == 0
+
+
+class TestKeltnerChannelCalculation:
+    """Tests for Keltner Channel calculation (NEW)"""
+
+    @pytest.fixture
+    def analyzer(self):
+        config = PullbackScoringConfig()
+        return PullbackAnalyzer(config)
+
+    def test_keltner_channel_returns_result(self, analyzer):
+        """Keltner Channel should return result with sufficient data"""
+        n = 50
+        prices = [100 + i * 0.1 for i in range(n)]
+        highs = [p + 1 for p in prices]
+        lows = [p - 1 for p in prices]
+
+        result = analyzer._calculate_keltner_channel(prices, highs, lows)
+
+        assert result is not None
+        assert result.upper > result.middle > result.lower
+        assert result.atr > 0
+        assert result.price_position in ['above_upper', 'near_upper', 'in_channel', 'near_lower', 'below_lower']
+
+    def test_keltner_channel_none_for_insufficient_data(self, analyzer):
+        """Keltner Channel should return None with insufficient data"""
+        prices = [100, 101, 102]
+        highs = [101, 102, 103]
+        lows = [99, 100, 101]
+
+        result = analyzer._calculate_keltner_channel(prices, highs, lows)
+        assert result is None
+
+    def test_keltner_below_lower_band(self, analyzer):
+        """Price below lower band should be detected"""
+        n = 50
+        # Steady prices then sudden drop
+        prices = [100.0] * 40 + [95.0, 94.0, 93.0, 92.0, 91.0, 90.0, 89.0, 88.0, 87.0, 85.0]
+        highs = [p + 1 for p in prices]
+        lows = [p - 1 for p in prices]
+
+        result = analyzer._calculate_keltner_channel(prices, highs, lows)
+
+        assert result is not None
+        # After sharp drop, price should be below lower band
+        assert result.percent_position < 0
+
+    def test_keltner_above_upper_band(self, analyzer):
+        """Price above upper band should be detected"""
+        n = 50
+        # Steady prices then sudden spike
+        prices = [100.0] * 40 + [105.0, 106.0, 107.0, 108.0, 109.0, 110.0, 112.0, 114.0, 116.0, 120.0]
+        highs = [p + 2 for p in prices]
+        lows = [p - 1 for p in prices]
+
+        result = analyzer._calculate_keltner_channel(prices, highs, lows)
+
+        assert result is not None
+        # After sharp rise, price should be above upper band
+        assert result.percent_position > 0
+
+    def test_keltner_channel_width(self, analyzer):
+        """Channel width should reflect volatility"""
+        n = 50
+        # Low volatility
+        prices_low_vol = [100 + i * 0.01 for i in range(n)]
+        highs_low_vol = [p + 0.5 for p in prices_low_vol]
+        lows_low_vol = [p - 0.5 for p in prices_low_vol]
+
+        # High volatility
+        prices_high_vol = [100 + (i % 5 - 2) * 2 for i in range(n)]
+        highs_high_vol = [p + 3 for p in prices_high_vol]
+        lows_high_vol = [p - 3 for p in prices_high_vol]
+
+        result_low = analyzer._calculate_keltner_channel(prices_low_vol, highs_low_vol, lows_low_vol)
+        result_high = analyzer._calculate_keltner_channel(prices_high_vol, highs_high_vol, lows_high_vol)
+
+        assert result_low is not None and result_high is not None
+        # High volatility should have wider channel
+        assert result_high.channel_width_pct > result_low.channel_width_pct
+
+
+class TestKeltnerScoring:
+    """Tests for Keltner Channel scoring (NEW)"""
+
+    @pytest.fixture
+    def analyzer(self):
+        config = PullbackScoringConfig()
+        return PullbackAnalyzer(config)
+
+    def test_keltner_score_below_lower(self, analyzer):
+        """Price below lower band should give 2 points"""
+        from src.models.indicators import KeltnerChannelResult
+
+        keltner = KeltnerChannelResult(
+            upper=110.0,
+            middle=100.0,
+            lower=90.0,
+            atr=5.0,
+            price_position='below_lower',
+            percent_position=-1.5,
+            channel_width_pct=20.0
+        )
+
+        score, reason = analyzer._score_keltner(keltner, 85.0)
+
+        assert score == 2
+        assert "unter" in reason.lower() or "below" in reason.lower()
+
+    def test_keltner_score_near_lower(self, analyzer):
+        """Price near lower band should give 1 point"""
+        from src.models.indicators import KeltnerChannelResult
+
+        keltner = KeltnerChannelResult(
+            upper=110.0,
+            middle=100.0,
+            lower=90.0,
+            atr=5.0,
+            price_position='near_lower',
+            percent_position=-0.7,
+            channel_width_pct=20.0
+        )
+
+        score, reason = analyzer._score_keltner(keltner, 93.0)
+
+        assert score == 1
+        assert "nahe" in reason.lower() or "near" in reason.lower()
+
+    def test_keltner_score_above_upper(self, analyzer):
+        """Price above upper band should give 0 points"""
+        from src.models.indicators import KeltnerChannelResult
+
+        keltner = KeltnerChannelResult(
+            upper=110.0,
+            middle=100.0,
+            lower=90.0,
+            atr=5.0,
+            price_position='above_upper',
+            percent_position=1.5,
+            channel_width_pct=20.0
+        )
+
+        score, reason = analyzer._score_keltner(keltner, 115.0)
+
+        assert score == 0
+        assert "über" in reason.lower() or "above" in reason.lower() or "überkauft" in reason.lower()
+
+    def test_keltner_score_in_channel(self, analyzer):
+        """Price in channel should give 0 points (neutral)"""
+        from src.models.indicators import KeltnerChannelResult
+
+        keltner = KeltnerChannelResult(
+            upper=110.0,
+            middle=100.0,
+            lower=90.0,
+            atr=5.0,
+            price_position='in_channel',
+            percent_position=0.1,
+            channel_width_pct=20.0
+        )
+
+        score, reason = analyzer._score_keltner(keltner, 101.0)
+
+        assert score == 0
+
+
+class TestATRCalculation:
+    """Tests for ATR calculation"""
+
+    @pytest.fixture
+    def analyzer(self):
+        config = PullbackScoringConfig()
+        return PullbackAnalyzer(config)
+
+    def test_atr_calculation(self, analyzer):
+        """ATR should be calculated correctly"""
+        n = 30
+        highs = [100 + 2] * n
+        lows = [100 - 2] * n
+        closes = [100.0] * n
+
+        atr = analyzer._calculate_atr(highs, lows, closes, 14)
+
+        assert atr is not None
+        # With constant range of 4 (102-98), ATR should be ~4
+        assert 3.5 < atr < 4.5
+
+    def test_atr_none_for_insufficient_data(self, analyzer):
+        """ATR should return None with insufficient data"""
+        atr = analyzer._calculate_atr([100, 101], [98, 99], [99, 100], 14)
+        assert atr is None
+
+    def test_atr_increases_with_volatility(self, analyzer):
+        """ATR should increase with higher volatility"""
+        n = 30
+
+        # Low volatility
+        highs_low = [100 + 1] * n
+        lows_low = [100 - 1] * n
+        closes_low = [100.0] * n
+
+        # High volatility
+        highs_high = [100 + 5] * n
+        lows_high = [100 - 5] * n
+        closes_high = [100.0] * n
+
+        atr_low = analyzer._calculate_atr(highs_low, lows_low, closes_low, 14)
+        atr_high = analyzer._calculate_atr(highs_high, lows_high, closes_high, 14)
+
+        assert atr_low is not None and atr_high is not None
+        assert atr_high > atr_low
+
+
+class TestScoreBreakdownIntegration:
+    """Tests for ScoreBreakdown with new fields"""
+
+    @pytest.fixture
+    def analyzer(self):
+        config = PullbackScoringConfig()
+        return PullbackAnalyzer(config)
+
+    def test_breakdown_contains_all_new_fields(self, analyzer):
+        """ScoreBreakdown should contain all new scoring fields"""
+        n = 250
+        prices = [100 + i * 0.05 for i in range(n)]
+        volumes = [1000000] * n
+        highs = [p + 1 for p in prices]
+        lows = [p - 1 for p in prices]
+
+        result = analyzer.analyze_detailed("TEST", prices, volumes, highs, lows)
+        breakdown = result.score_breakdown
+
+        # Check new fields exist
+        assert hasattr(breakdown, 'macd_score')
+        assert hasattr(breakdown, 'macd_reason')
+        assert hasattr(breakdown, 'stoch_score')
+        assert hasattr(breakdown, 'stoch_reason')
+        assert hasattr(breakdown, 'trend_strength_score')
+        assert hasattr(breakdown, 'trend_alignment')
+        assert hasattr(breakdown, 'volume_trend')
+        assert hasattr(breakdown, 'support_strength')
+        assert hasattr(breakdown, 'support_touches')
+        assert hasattr(breakdown, 'keltner_score')
+        assert hasattr(breakdown, 'keltner_position')
+        assert hasattr(breakdown, 'keltner_reason')
+
+    def test_to_dict_contains_new_components(self, analyzer):
+        """to_dict should include all new scoring components"""
+        n = 250
+        prices = [100 + i * 0.05 for i in range(n)]
+        volumes = [1000000] * n
+        highs = [p + 1 for p in prices]
+        lows = [p - 1 for p in prices]
+
+        result = analyzer.analyze_detailed("TEST", prices, volumes, highs, lows)
+        d = result.score_breakdown.to_dict()
+
+        assert 'components' in d
+        assert 'macd' in d['components']
+        assert 'stochastic' in d['components']
+        assert 'trend_strength' in d['components']
+        assert 'keltner' in d['components']
+        assert 'score' in d['components']['macd']
+        assert 'score' in d['components']['stochastic']
+        assert 'alignment' in d['components']['trend_strength']
+        assert 'position' in d['components']['keltner']
+
+    def test_total_score_includes_all_components(self, analyzer):
+        """Total score should be sum of all scoring components"""
+        n = 250
+        prices = [100 + i * 0.05 for i in range(n)]
+        volumes = [500000] * n  # Low volume for healthy pullback
+        highs = [p + 1 for p in prices]
+        lows = [p - 1 for p in prices]
+
+        result = analyzer.analyze_detailed("TEST", prices, volumes, highs, lows)
+        breakdown = result.score_breakdown
+
+        # Calculate expected total (including Keltner)
+        expected_total = (
+            breakdown.rsi_score +
+            breakdown.support_score +
+            breakdown.fibonacci_score +
+            breakdown.ma_score +
+            breakdown.trend_strength_score +
+            breakdown.volume_score +
+            breakdown.macd_score +
+            breakdown.stoch_score +
+            breakdown.keltner_score
+        )
+
+        assert abs(breakdown.total_score - expected_total) < 0.01
+
+
 class TestCandidateMethods:
     """Tests for PullbackCandidate methods"""
-    
+
     def test_is_qualified_true(self):
         """is_qualified should be True when score >= min_score"""
         breakdown = ScoreBreakdown(total_score=6)

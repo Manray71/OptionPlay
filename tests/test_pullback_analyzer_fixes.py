@@ -119,23 +119,22 @@ class TestStochasticValidation:
 
 
 class TestSupportDetectionEdgeCases:
-    """Tests for Support level detection edge cases"""
-    
-    @pytest.fixture
-    def analyzer(self):
-        config = PullbackScoringConfig()
-        return PullbackAnalyzer(config)
-    
-    def test_support_detection_short_list(self, analyzer):
+    """Tests for Support level detection edge cases via centralized module"""
+
+    def test_support_detection_short_list(self):
         """Support detection returns empty list with insufficient data"""
+        from indicators.support_resistance import find_support_levels
+
         lows = [100.0] * 30
-        supports = analyzer._find_support_levels(lows)
+        supports = find_support_levels(lows, lookback=30, window=5, max_levels=5)
         assert supports == []
-    
-    def test_resistance_detection_short_list(self, analyzer):
+
+    def test_resistance_detection_short_list(self):
         """Resistance detection returns empty list with insufficient data"""
+        from indicators.support_resistance import find_resistance_levels
+
         highs = [100.0] * 30
-        resistances = analyzer._find_resistance_levels(highs)
+        resistances = find_resistance_levels(highs, lookback=30, window=5, max_levels=5)
         assert resistances == []
 
 
