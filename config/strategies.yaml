@@ -1,148 +1,160 @@
 # OptionPlay - Strategy Profiles
-# ===============================
-# Vordefinierte Strategien mit angepassten Parametern.
-# Kann über CLI oder API ausgewählt werden.
+# ==============================
+# Basisstrategie: Short Put mit Delta -0.20, DTE 60-90 Tage
+# Earnings-Buffer: mindestens 60 Tage
 
 profiles:
   # =========================================================================
-  # KONSERVATIV - Für ruhige Märkte und Einsteiger
+  # KONSERVATIV - Für ruhige Märkte (VIX < 15)
   # =========================================================================
   conservative:
     name: "Konservativ"
-    description: "Niedrigeres Risiko, moderate Rendite. Für VIX < 15."
-    
+    description: "Niedriges Risiko bei niedrigen Prämien. Für VIX < 15."
+
     pullback_scoring:
-      min_score_for_candidate: 6    # Höhere Schwelle
-      rsi:
-        extreme_oversold: 25        # Strengere RSI-Anforderung
-        
+      min_score_for_candidate: 6
+
     filters:
       earnings:
-        exclude_days_before: 90     # Mehr Abstand zu Earnings
+        exclude_days_before: 60       # Minimum 60 Tage
       implied_volatility:
-        iv_rank_minimum: 20         # Niedrigere IV akzeptabel
-        iv_rank_maximum: 50         # Keine sehr hohe IV
-        
+        iv_rank_minimum: 20
+        iv_rank_maximum: 50
+
     options_analysis:
+      expiration:
+        dte_minimum: 60               # Basisstrategie: 60-90 Tage
+        dte_maximum: 90
       short_put:
-        delta_minimum: -0.25        # Weniger aggressiv
+        delta_minimum: -0.25
         delta_maximum: -0.15
-        delta_target: -0.20
+        delta_target: -0.20           # Basis-Delta
       spread:
-        preferred_width: 2.5        # Engerer Spread = weniger Risiko
+        preferred_width: 5.0
       premium:
-        minimum_credit_percent: 25  # Höhere Prämien-Anforderung
-        
+        minimum_credit_percent: 25
+
     market_conditions:
       vix_range: [0, 15]
-      
+
   # =========================================================================
-  # STANDARD - Ausgeglichenes Profil
+  # STANDARD - Ausgeglichenes Profil (VIX 15-20)
   # =========================================================================
   standard:
     name: "Standard"
     description: "Ausgeglichenes Risiko-Rendite-Profil. Für VIX 15-20."
-    
+
     pullback_scoring:
       min_score_for_candidate: 5
-      
+
     filters:
       earnings:
-        exclude_days_before: 60
+        exclude_days_before: 60       # Minimum 60 Tage
       implied_volatility:
         iv_rank_minimum: 30
         iv_rank_maximum: 70
-        
-    options_analysis:
-      short_put:
-        delta_minimum: -0.35
-        delta_maximum: -0.20
-        delta_target: -0.30
-      spread:
-        preferred_width: 5.0
-      premium:
-        minimum_credit_percent: 20
-        
-    market_conditions:
-      vix_range: [15, 20]
-      
-  # =========================================================================
-  # AGGRESSIV - Für erhöhte Volatilität
-  # =========================================================================
-  aggressive:
-    name: "Aggressiv"
-    description: "Höheres Risiko, höhere Rendite. Für VIX 20-30."
-    
-    pullback_scoring:
-      min_score_for_candidate: 4    # Niedrigere Schwelle
-      rsi:
-        extreme_oversold: 35        # Großzügigere RSI-Schwelle
-        
-    filters:
-      earnings:
-        exclude_days_before: 45     # Weniger Abstand zu Earnings
-      implied_volatility:
-        iv_rank_minimum: 40         # Höhere IV für bessere Prämien
-        iv_rank_maximum: 80
-        
-    options_analysis:
-      short_put:
-        delta_minimum: -0.40        # Aggressiveres Delta
-        delta_maximum: -0.25
-        delta_target: -0.35
-      spread:
-        preferred_width: 5.0
-      premium:
-        minimum_credit_percent: 30  # Höhere Prämien erwarten
-        
-    market_conditions:
-      vix_range: [20, 30]
-      
-  # =========================================================================
-  # HIGH_VOL - Für extreme Volatilität (Crash-Modus)
-  # =========================================================================
-  high_volatility:
-    name: "High Volatility"
-    description: "Extremes Umfeld. Für VIX > 30. Sehr selektiv."
-    
-    pullback_scoring:
-      min_score_for_candidate: 7    # Sehr hohe Qualitätsanforderung
-      
-    filters:
-      earnings:
-        exclude_days_before: 90     # Maximaler Earnings-Abstand
-      price:
-        minimum: 50                 # Nur etablierte Aktien
-        maximum: 300
-      implied_volatility:
-        iv_rank_minimum: 60         # Nur bei sehr hoher IV
-        iv_rank_maximum: 95
-        
+
     options_analysis:
       expiration:
-        dte_minimum: 45             # Längere Laufzeit
+        dte_minimum: 60               # Basisstrategie: 60-90 Tage
         dte_maximum: 90
       short_put:
-        delta_minimum: -0.30
-        delta_maximum: -0.15        # Konservativer trotz hoher Vol
-        delta_target: -0.20
+        delta_minimum: -0.25
+        delta_maximum: -0.15
+        delta_target: -0.20           # Basis-Delta
       spread:
-        preferred_width: 10.0       # Breitere Spreads für mehr Puffer
+        preferred_width: 5.0
       premium:
-        minimum_credit_percent: 40  # Sehr hohe Prämien
-        
+        minimum_credit_percent: 25
+
+    market_conditions:
+      vix_range: [15, 20]
+
+  # =========================================================================
+  # AGGRESSIV - Für erhöhte Volatilität (VIX 20-30)
+  # =========================================================================
+  aggressive:
+    name: "Moderat Aggressiv"
+    description: "Bessere Prämien, erhöhte Vorsicht. Für VIX 20-30."
+
+    pullback_scoring:
+      min_score_for_candidate: 5
+
+    filters:
+      earnings:
+        exclude_days_before: 60       # Minimum 60 Tage
+      implied_volatility:
+        iv_rank_minimum: 40
+        iv_rank_maximum: 80
+
+    options_analysis:
+      expiration:
+        dte_minimum: 60               # Basisstrategie: 60-90 Tage
+        dte_maximum: 90
+      short_put:
+        delta_minimum: -0.25
+        delta_maximum: -0.15
+        delta_target: -0.20           # Basis-Delta (gleich für alle)
+      spread:
+        preferred_width: 7.5          # Breiterer Spread für Gap-Schutz
+      premium:
+        minimum_credit_percent: 30
+
+    market_conditions:
+      vix_range: [20, 30]
+
+    warnings:
+      - "Positionsgrößen reduzieren"
+      - "Breitere Spreads nutzen"
+
+  # =========================================================================
+  # HIGH_VOL - Für extreme Volatilität / Crash-Modus (VIX > 30)
+  # =========================================================================
+  high_volatility:
+    name: "High Volatility (Crash-Modus)"
+    description: "Hohe Prämien, maximale Vorsicht. Für VIX > 30."
+
+    pullback_scoring:
+      min_score_for_candidate: 6      # Höhere Qualität
+
+    filters:
+      earnings:
+        exclude_days_before: 60       # Minimum 60 Tage
+      price:
+        minimum: 50
+        maximum: 300
+      implied_volatility:
+        iv_rank_minimum: 60
+        iv_rank_maximum: 95
+
+    options_analysis:
+      expiration:
+        dte_minimum: 60               # Basisstrategie: 60-90 Tage
+        dte_maximum: 90
+      short_put:
+        delta_minimum: -0.25
+        delta_maximum: -0.15
+        delta_target: -0.20           # Basis-Delta (gleich für alle)
+      spread:
+        preferred_width: 10.0         # Breiterer Spread für Schutz
+      premium:
+        minimum_credit_percent: 30
+
     market_conditions:
       vix_range: [30, 100]
+
+    warnings:
+      - "Positionsgrößen auf 50% reduzieren"
+      - "Tägliche Portfolio-Überwachung erforderlich"
 
 # =========================================================================
 # AUTO-PROFIL LOGIK
 # =========================================================================
 auto_selection:
   enabled: true
-  vix_source: "tradier"           # Quelle für VIX-Daten
-  fallback_profile: "standard"    # Bei fehlenden VIX-Daten
-  
-  # Mapping VIX -> Profil
+  vix_source: "tradier"
+  fallback_profile: "standard"
+
   vix_mapping:
     - vix_max: 15
       profile: "conservative"
@@ -154,25 +166,28 @@ auto_selection:
       profile: "high_volatility"
 
 # =========================================================================
-# CUSTOM PROFILE TEMPLATE
+# BASISSTRATEGIE ÜBERSICHT
 # =========================================================================
-# Kopiere dieses Template um eigene Profile zu erstellen:
+# Alle Profile verwenden dieselbe Basisstrategie:
+#
+# - Delta-Target:    -0.20 (für alle Regime)
+# - Delta-Range:     [-0.25, -0.15]
+# - DTE:             60-90 Tage
+# - Earnings-Buffer: 60 Tage (keine Optionen wenn Earnings < 60 Tage)
+#
+# =========================================================================
+# DYNAMISCHE SPREAD-BREITE
+# =========================================================================
+# Spread-Breite wird basierend auf Aktienkurs berechnet:
+#
+# Aktienkurs   | Basis-Spread | Bei VIX 20-30 | Bei VIX >30
+# -------------|--------------|---------------|-------------
+# < $30        | $1.00        | $1.00         | $2.50
+# $30-50       | $2.50        | $2.50         | $5.00
+# $50-100      | $5.00        | $7.50         | $10.00
+# $100-200     | $5.00        | $7.50         | $10.00
+# $200-500     | $10.00       | $15.00        | $20.00
+# > $500       | $15.00       | $20.00        | $25.00
+#
+# Funktion: calculate_spread_width(stock_price, regime) in vix_strategy.py
 
-# custom_example:
-#   name: "Mein Profil"
-#   description: "Beschreibung"
-#   
-#   pullback_scoring:
-#     min_score_for_candidate: 5
-#     
-#   filters:
-#     earnings:
-#       exclude_days_before: 60
-#     implied_volatility:
-#       iv_rank_minimum: 30
-#       
-#   options_analysis:
-#     short_put:
-#       delta_target: -0.30
-#     spread:
-#       preferred_width: 5.0

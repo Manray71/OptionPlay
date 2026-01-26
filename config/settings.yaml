@@ -218,7 +218,13 @@ performance:
   request_timeout: 30             # Sekunden pro API-Request
   batch_delay: 1.0                # Sekunden zwischen Batches
   max_concurrent_requests: 5      # Parallele Requests
-  cache_ttl_seconds: 300          # Cache-Dauer (5 Minuten)
+
+  # Cache TTLs (längere TTL = weniger API-Calls!)
+  # Historische Daten (Schlusskurse) ändern sich nur einmal täglich
+  cache_ttl_seconds: 900          # 15 Minuten für historische Daten
+  cache_ttl_intraday: 300         # 5 Minuten für Live-Quotes
+  cache_ttl_vix: 300              # 5 Minuten für VIX
+
   historical_days: 260            # Standard-Tage für historische Daten (1 Jahr)
   cache_max_entries: 500          # Max Einträge im Historical Cache
 
@@ -239,6 +245,32 @@ circuit_breaker:
   recovery_timeout: 60            # Sekunden bis Half-Open
   half_open_max_calls: 3          # Max Calls im Half-Open State
   success_threshold: 2            # Erfolge für Close im Half-Open
+
+# ============================================================================
+# SCANNER KONFIGURATION
+# ============================================================================
+scanner:
+  # Automatischer Earnings Pre-Filter (reduziert API-Calls!)
+  # Filtert Symbole VOR dem Scan heraus, deren Earnings zu nah sind.
+  # Nutzt 4-Wochen-Cache für Earnings-Daten.
+  auto_earnings_prefilter: true   # Automatisch vor Scans aktivieren
+  earnings_prefilter_min_days: 45 # Mindestabstand zu Earnings (Tage)
+
+  # IV-Filter
+  enable_iv_filter: true          # IV-Rank Filter aktivieren
+
+  # Output-Limits
+  max_results_per_symbol: 3       # Max Ergebnisse pro Symbol
+  max_total_results: 50           # Max Gesamtergebnisse
+
+  # Data Requirements
+  min_data_points: 60             # Mindest-Datenpunkte für Analyse
+
+  # Strategien aktivieren/deaktivieren
+  enable_pullback: true
+  enable_ath_breakout: true
+  enable_bounce: true
+  enable_earnings_dip: true
 
 # ============================================================================
 # RISIKO-MANAGEMENT PARAMETER
