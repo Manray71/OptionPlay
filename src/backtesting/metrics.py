@@ -343,26 +343,53 @@ def calculate_sharpe_ratio(
     initial_capital: float,
     risk_free_rate: float = 0.05,
     periods_per_year: int = 12,
+    use_daily_returns: bool = False,
+    daily_returns: Optional[List[float]] = None,
 ) -> float:
     """
-    Berechnet die Sharpe Ratio.
+    Berechnet die Sharpe Ratio korrekt nach der Standard-Formel.
 
-    Sharpe = (E[R] - Rf) / std(R)
+    Sharpe = (Mean Return - Risk Free Rate) / Std(Returns) * sqrt(Periods)
+
+    Die korrekte Annualisierung:
+    - Sharpe_annual = Sharpe_period * sqrt(periods_per_year)
+    - NICHT: excess_return * periods / (std * sqrt(periods))
 
     Args:
-        pnls: Liste der Profits/Losses
-        initial_capital: Startkapital
-        risk_free_rate: Risikofreier Zinssatz (annualisiert)
-        periods_per_year: Anzahl Perioden pro Jahr (z.B. 12 für monatlich)
+        pnls: Liste der Profits/Losses pro Trade
+        initial_capital: Startkapital für Return-Berechnung
+        risk_free_rate: Risikofreier Zinssatz (annualisiert, z.B. 0.05 für 5%)
+        periods_per_year: Trading-Perioden pro Jahr
+            - 252 für tägliche Returns
+            - 52 für wöchentliche Returns
+            - 12 für monatliche Returns
+            - Anzahl Trades pro Jahr für trade-basiert
+        use_daily_returns: True wenn daily_returns übergeben werden
+        daily_returns: Optional Liste von täglichen Returns (bevorzugt)
 
     Returns:
-        Sharpe Ratio
-    """
-    if len(pnls) < 2:
-        return 0.0
+        Annualisierte Sharpe Ratio
 
-    # Konvertiere zu Returns
-    returns = [p / initial_capital for p in pnls]
+    Beispiel:
+        >>> # Trade-basierte Berechnung (weniger genau)
+        >>> sharpe = calculate_sharpe_ratio(pnls, 100000, periods_per_year=20)
+        >>>
+        >>> # Tägliche Returns (genauer)
+        >>> sharpe = calculate_sharpe_ratio(
+        ...     [], 100000, use_daily_returns=True,
+        ...     daily_returns=daily_equity_returns
+        ... )
+    """
+    # Bevorzuge tägliche Returns wenn verfügbar
+    if use_daily_returns and daily_returns and len(daily_returns) >= 2:
+        returns = daily_returns
+        periods = 252  # Handelstage
+    elif len(pnls) < 2:
+        return 0.0
+    else:
+        # Trade-basierte Returns (weniger ideal aber funktional)
+        returns = [p / initial_capital for p in pnls]
+        periods = periods_per_year
 
     avg_return = statistics.mean(returns)
     std_return = statistics.stdev(returns)
@@ -371,13 +398,19 @@ def calculate_sharpe_ratio(
         return 0.0
 
     # Risikofreie Rate pro Periode
-    rf_per_period = risk_free_rate / periods_per_year
+    rf_per_period = risk_free_rate / periods
 
-    # Sharpe Ratio (annualisiert)
-    excess_return = avg_return - rf_per_period
-    sharpe = (excess_return * periods_per_year) / (std_return * math.sqrt(periods_per_year))
+    # Korrekte Sharpe Ratio Berechnung:
+    # 1. Berechne Excess Return pro Periode
+    excess_return_per_period = avg_return - rf_per_period
 
-    return sharpe
+    # 2. Berechne Sharpe pro Periode
+    sharpe_per_period = excess_return_per_period / std_return
+
+    # 3. Annualisiere: multipliziere mit sqrt(periods)
+    sharpe_annual = sharpe_per_period * math.sqrt(periods)
+
+    return sharpe_annual
 
 
 def calculate_sortino_ratio(
@@ -385,45 +418,68 @@ def calculate_sortino_ratio(
     initial_capital: float,
     risk_free_rate: float = 0.05,
     periods_per_year: int = 12,
+    target_return: float = 0.0,
+    use_daily_returns: bool = False,
+    daily_returns: Optional[List[float]] = None,
 ) -> float:
     """
-    Berechnet die Sortino Ratio.
+    Berechnet die Sortino Ratio korrekt mit Target Return.
 
-    Wie Sharpe, aber nur Downside-Volatilität.
+    Sortino = (Mean Return - Target Return) / Downside Deviation * sqrt(Periods)
+
+    Die Downside Deviation verwendet nur Returns unter dem Target,
+    nicht alle negativen Returns.
 
     Args:
-        pnls: Liste der Profits/Losses
+        pnls: Liste der Profits/Losses pro Trade
         initial_capital: Startkapital
-        risk_free_rate: Risikofreier Zinssatz
-        periods_per_year: Perioden pro Jahr
+        risk_free_rate: Risikofreier Zinssatz (annualisiert)
+        periods_per_year: Perioden pro Jahr (252 für täglich)
+        target_return: Minimum akzeptabler Return pro Periode (default: 0)
+        use_daily_returns: True wenn daily_returns übergeben werden
+        daily_returns: Optional Liste von täglichen Returns
 
     Returns:
-        Sortino Ratio
+        Annualisierte Sortino Ratio
     """
-    if len(pnls) < 2:
+    # Bevorzuge tägliche Returns wenn verfügbar
+    if use_daily_returns and daily_returns and len(daily_returns) >= 2:
+        returns = daily_returns
+        periods = 252
+    elif len(pnls) < 2:
         return 0.0
+    else:
+        returns = [p / initial_capital for p in pnls]
+        periods = periods_per_year
 
-    returns = [p / initial_capital for p in pnls]
     avg_return = statistics.mean(returns)
 
-    # Nur negative Returns für Downside Deviation
-    negative_returns = [r for r in returns if r < 0]
+    # Downside Returns: alle Returns unter dem Target
+    # (nicht nur negative, sondern unter MAR - Minimum Acceptable Return)
+    downside_returns = [r - target_return for r in returns if r < target_return]
 
-    if not negative_returns:
-        return float("inf") if avg_return > 0 else 0.0
+    if not downside_returns:
+        return float("inf") if avg_return > target_return else 0.0
 
-    # Downside Deviation
-    downside_dev = math.sqrt(sum(r ** 2 for r in negative_returns) / len(negative_returns))
+    # Downside Deviation (Semi-Deviation)
+    # sqrt(mean(squared downside deviations))
+    downside_dev = math.sqrt(
+        sum(r ** 2 for r in downside_returns) / len(returns)  # Teile durch ALLE Returns
+    )
 
     if downside_dev == 0:
         return 0.0
 
-    rf_per_period = risk_free_rate / periods_per_year
-    excess_return = avg_return - rf_per_period
+    # Excess Return über Target (nicht Risk-Free Rate für Sortino)
+    excess_return = avg_return - target_return
 
-    sortino = (excess_return * periods_per_year) / (downside_dev * math.sqrt(periods_per_year))
+    # Sortino pro Periode
+    sortino_per_period = excess_return / downside_dev
 
-    return sortino
+    # Annualisieren
+    sortino_annual = sortino_per_period * math.sqrt(periods)
+
+    return sortino_annual
 
 
 def calculate_max_drawdown(

@@ -56,7 +56,18 @@ class ExitReason(Enum):
 
 @dataclass
 class BacktestConfig:
-    """Konfiguration für Backtest"""
+    """
+    Konfiguration für Backtest.
+
+    WICHTIG - Stop Loss Korrektur:
+    Der ursprüngliche stop_loss_pct von 200% war zu weit und ermöglichte
+    fast vollständige Verluste. Der neue Default von 100% (1:1 Risk/Reward)
+    ist realistischer und entspricht Best Practices.
+
+    Hinweis zu Look-Ahead Bias:
+    Das Backtesting verwendet jetzt T-1 Daten für Signal-Generierung,
+    um Look-Ahead Bias zu vermeiden. Der Entry erfolgt am nächsten Tag.
+    """
     # Zeitraum
     start_date: date
     end_date: date
@@ -73,9 +84,9 @@ class BacktestConfig:
     dte_min: int = 45
     dte_max: int = 75
 
-    # Exit-Kriterien
+    # Exit-Kriterien (KORRIGIERT)
     profit_target_pct: float = 50.0  # % des Max Profits
-    stop_loss_pct: float = 200.0  # % des Credit (2x Credit = Stop)
+    stop_loss_pct: float = 100.0  # KORRIGIERT: 100% = 1:1 Risk/Reward (war 200%)
     dte_exit_threshold: int = 14  # Exit wenn DTE < X
 
     # Spread-Parameter
@@ -88,6 +99,9 @@ class BacktestConfig:
 
     # Earnings-Filter
     min_days_to_earnings: int = 14  # Keine Trades wenn Earnings < X Tage
+
+    # Look-Ahead Bias Prevention (NEU)
+    use_previous_day_signals: bool = True  # Signal von T-1, Entry am T
 
 
 @dataclass
@@ -120,6 +134,9 @@ class TradeResult:
     entry_vix: Optional[float] = None
     pullback_score: Optional[float] = None
     short_delta_at_entry: Optional[float] = None
+    # Score-Breakdown für Komponenten-Analyse (Signal Validation)
+    # Format: {"rsi_score": 2.0, "support_score": 1.5, ...}
+    score_breakdown: Optional[Dict[str, float]] = None
 
     @property
     def pnl_pct(self) -> float:
@@ -517,7 +534,15 @@ class BacktestEngine:
 
         # Berechne einfachen Pullback-Score basierend auf Preis-Action
         # (In Produktion würde hier der echte Analyzer verwendet)
-        score = self._calculate_simple_pullback_score(symbol, current_date, price_data)
+        result = self._calculate_simple_pullback_score(
+            symbol, current_date, price_data, return_breakdown=True
+        )
+
+        if isinstance(result, tuple):
+            score, score_breakdown = result
+        else:
+            score = result
+            score_breakdown = None
 
         if score < self.config.min_pullback_score:
             return None
@@ -532,6 +557,7 @@ class BacktestEngine:
         return {
             "price": current_price,
             "score": score,
+            "score_breakdown": score_breakdown,
             "vix": vix,
             "date": current_date,
         }
@@ -540,78 +566,188 @@ class BacktestEngine:
         self,
         symbol: str,
         current_date: date,
-        price_data: Dict
+        price_data: Dict,
+        use_previous_day: bool = True,
+        return_breakdown: bool = False,
     ) -> float:
         """
         Berechnet vereinfachten Pullback-Score.
 
-        In Produktion würde hier der vollständige PullbackAnalyzer verwendet.
+        WICHTIG: Um Look-Ahead Bias zu vermeiden, wird der Score basierend auf
+        VORHERIGEN Tages-Daten berechnet. Das Entry-Signal entsteht am Ende des
+        vorherigen Tages, der Trade wird am nächsten Tag (current_date) ausgeführt.
+
+        Args:
+            symbol: Ticker-Symbol
+            current_date: Datum für Trade-Entry (nicht für Signal-Berechnung)
+            price_data: Preis-Daten vom current_date (nur für Entry-Preis)
+            use_previous_day: True = Score basiert auf T-1 Daten (verhindert Look-Ahead)
+
+        Returns:
+            Pullback-Score (0-10)
         """
         if symbol not in self._historical_data:
             return 0.0
 
-        # Hole letzte 20 Tage
+        # Hole historische Daten VOR dem Signal-Tag
+        # Signal wird am Ende von T-1 generiert, Trade am T ausgeführt
         history = []
+        signal_date = current_date - timedelta(days=1) if use_previous_day else current_date
+
         for bar in self._historical_data[symbol]:
             bar_date = bar.get("date")
             if isinstance(bar_date, str):
                 bar_date = date.fromisoformat(bar_date)
-            if bar_date < current_date:
+            # KORREKTUR: Verwende Daten VOR dem Signal-Tag (strikt kleiner)
+            if bar_date < signal_date:
                 history.append(bar)
 
         if len(history) < 20:
             return 0.0
 
+        # Sortiere und nimm die letzten 20 Tage VOR dem Signal-Tag
         history = sorted(history, key=lambda x: x.get("date", ""), reverse=True)[:20]
         closes = [bar.get("close", 0) for bar in history]
 
         if not closes or closes[0] <= 0:
             return 0.0
 
-        current_close = price_data.get("close", 0)
+        # KORREKTUR: Verwende den VORHERIGEN Schlusskurs für Score-Berechnung
+        # (nicht den aktuellen Tag, der noch nicht "bekannt" ist)
+        if use_previous_day:
+            # Signal-Tag Close = letzter verfügbarer Close vor current_date
+            prev_day_data = None
+            for bar in self._historical_data[symbol]:
+                bar_date = bar.get("date")
+                if isinstance(bar_date, str):
+                    bar_date = date.fromisoformat(bar_date)
+                if bar_date == signal_date:
+                    prev_day_data = bar
+                    break
+
+            if prev_day_data:
+                signal_close = prev_day_data.get("close", 0)
+            else:
+                # Fallback: letzter Close in history
+                signal_close = closes[0]
+        else:
+            signal_close = price_data.get("close", 0)
+
         sma_20 = sum(closes) / len(closes)
         high_20 = max(bar.get("high", 0) for bar in history)
 
+        # Score-Breakdown für Komponenten-Analyse
+        score_breakdown = {
+            "rsi_score": 0.0,
+            "support_score": 0.0,
+            "fibonacci_score": 0.0,
+            "ma_score": 0.0,
+            "trend_strength_score": 0.0,
+            "volume_score": 0.0,
+            "macd_score": 0.0,
+            "stoch_score": 0.0,
+            "keltner_score": 0.0,
+        }
+
         score = 0.0
 
-        # Pullback von High (max 3 Punkte)
-        pullback_pct = ((high_20 - current_close) / high_20) * 100 if high_20 > 0 else 0
+        # RSI-Score (simuliert, basierend auf Pullback) - max 2 Punkte
+        pullback_pct = ((high_20 - signal_close) / high_20) * 100 if high_20 > 0 else 0
         if 3 <= pullback_pct <= 8:
-            score += 3.0
+            score_breakdown["rsi_score"] = 2.0
         elif 8 < pullback_pct <= 15:
-            score += 2.0
+            score_breakdown["rsi_score"] = 1.5
         elif pullback_pct > 15:
-            score += 1.0
+            score_breakdown["rsi_score"] = 0.5
 
-        # Über SMA20 (max 2 Punkte)
-        if current_close > sma_20:
-            score += 2.0
-        elif current_close > sma_20 * 0.98:
-            score += 1.0
-
-        # Uptrend (max 2 Punkte)
-        if len(closes) >= 10:
-            sma_10 = sum(closes[:10]) / 10
-            if sma_10 > sma_20:
-                score += 2.0
-
-        # Volume-Spike (max 1 Punkt)
-        current_vol = price_data.get("volume", 0)
-        avg_vol = sum(bar.get("volume", 0) for bar in history) / len(history)
-        if avg_vol > 0 and current_vol > avg_vol * 1.2:
-            score += 1.0
-
-        # Support-Nähe (max 2 Punkte)
+        # Support-Score - max 2 Punkte
         lows = [bar.get("low", 0) for bar in history]
         support = min(lows) if lows else 0
         if support > 0:
-            dist_to_support = ((current_close - support) / current_close) * 100
+            dist_to_support = ((signal_close - support) / signal_close) * 100
             if dist_to_support < 5:
-                score += 2.0
+                score_breakdown["support_score"] = 2.0
             elif dist_to_support < 10:
-                score += 1.0
+                score_breakdown["support_score"] = 1.0
 
-        return min(score, 10.0)
+        # Fibonacci-Score (basierend auf Retracement vom High) - max 1.5 Punkte
+        if 3 <= pullback_pct <= 8:
+            score_breakdown["fibonacci_score"] = 1.5  # ~38.2% Retracement
+        elif 8 < pullback_pct <= 12:
+            score_breakdown["fibonacci_score"] = 1.0  # ~50% Retracement
+        elif 12 < pullback_pct <= 18:
+            score_breakdown["fibonacci_score"] = 0.5  # ~61.8% Retracement
+
+        # MA-Score (Preis relativ zu SMA20) - max 1.5 Punkte
+        if signal_close > sma_20 * 1.02:
+            score_breakdown["ma_score"] = 1.5
+        elif signal_close > sma_20:
+            score_breakdown["ma_score"] = 1.0
+        elif signal_close > sma_20 * 0.98:
+            score_breakdown["ma_score"] = 0.5
+
+        # Trend-Strength-Score (SMA10 vs SMA20) - max 1.5 Punkte
+        if len(closes) >= 10:
+            sma_10 = sum(closes[:10]) / 10
+            if sma_10 > sma_20 * 1.02:
+                score_breakdown["trend_strength_score"] = 1.5
+            elif sma_10 > sma_20:
+                score_breakdown["trend_strength_score"] = 1.0
+            elif sma_10 > sma_20 * 0.98:
+                score_breakdown["trend_strength_score"] = 0.5
+
+        # Volume-Score - max 1 Punkt
+        if use_previous_day and prev_day_data:
+            signal_vol = prev_day_data.get("volume", 0)
+        else:
+            signal_vol = price_data.get("volume", 0)
+
+        avg_vol = sum(bar.get("volume", 0) for bar in history) / len(history)
+        if avg_vol > 0:
+            if signal_vol > avg_vol * 1.5:
+                score_breakdown["volume_score"] = 1.0
+            elif signal_vol > avg_vol * 1.2:
+                score_breakdown["volume_score"] = 0.5
+
+        # MACD-Score (simuliert basierend auf Momentum) - max 1 Punkt
+        if len(closes) >= 5:
+            recent_change = (closes[0] - closes[4]) / closes[4] * 100 if closes[4] > 0 else 0
+            if recent_change > 2:
+                score_breakdown["macd_score"] = 1.0
+            elif recent_change > 0:
+                score_breakdown["macd_score"] = 0.5
+
+        # Stochastic-Score (simuliert) - max 1 Punkt
+        if len(history) >= 14:
+            highs_14 = [bar.get("high", 0) for bar in history[:14]]
+            lows_14 = [bar.get("low", 0) for bar in history[:14]]
+            high_14 = max(highs_14)
+            low_14 = min(lows_14)
+            if high_14 > low_14:
+                stoch_k = ((signal_close - low_14) / (high_14 - low_14)) * 100
+                if 20 <= stoch_k <= 40:  # Oversold recovery
+                    score_breakdown["stoch_score"] = 1.0
+                elif 40 < stoch_k <= 60:
+                    score_breakdown["stoch_score"] = 0.5
+
+        # Keltner-Score (simuliert basierend auf Volatilität) - max 0.5 Punkte
+        if len(history) >= 10:
+            atr_approx = sum(
+                bar.get("high", 0) - bar.get("low", 0) for bar in history[:10]
+            ) / 10
+            if atr_approx > 0:
+                keltner_upper = sma_20 + 2 * atr_approx
+                keltner_lower = sma_20 - 2 * atr_approx
+                if keltner_lower < signal_close < sma_20:
+                    score_breakdown["keltner_score"] = 0.5
+
+        # Gesamtscore berechnen
+        score = sum(score_breakdown.values())
+
+        if return_breakdown:
+            return min(score, 12.0), score_breakdown
+
+        return min(score, 12.0)
 
     def _open_position(
         self,
@@ -661,6 +797,7 @@ class BacktestEngine:
             "max_loss": total_max_loss + commission,
             "entry_vix": entry_signal.get("vix"),
             "pullback_score": entry_signal.get("score"),
+            "score_breakdown": entry_signal.get("score_breakdown"),
             "dte_at_entry": self.config.dte_max,  # Annahme: Entry bei max DTE
             "expiry_date": entry_date + timedelta(days=self.config.dte_max),
             "commission": commission,
@@ -800,4 +937,5 @@ class BacktestEngine:
             hold_days=max(1, hold_days),
             entry_vix=position.get("entry_vix"),
             pullback_score=position.get("pullback_score"),
+            score_breakdown=position.get("score_breakdown"),
         )

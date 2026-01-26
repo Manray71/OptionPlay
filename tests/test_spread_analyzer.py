@@ -608,8 +608,8 @@ class TestGreeksCalculation:
         assert result.net_theta is not None
         assert result.theta_per_day is not None
 
-    def test_no_greeks_without_input(self, analyzer):
-        """Test: Keine Greeks ohne Input-Daten"""
+    def test_greeks_calculated_via_black_scholes(self, analyzer):
+        """Test: Greeks werden via Black-Scholes berechnet wenn keine Input-Greeks"""
         params = BullPutSpreadParams(
             symbol="TEST",
             current_price=100.0,
@@ -618,12 +618,17 @@ class TestGreeksCalculation:
             net_credit=1.50,
             dte=30,
             contracts=1
-            # Keine Delta/Theta
+            # Keine Delta/Theta - Black-Scholes wird verwendet
         )
         result = analyzer.analyze(params)
 
-        assert result.net_delta is None
-        assert result.theta_per_day is None
+        # Mit Black-Scholes Integration werden Greeks automatisch berechnet
+        assert result.net_delta is not None
+        assert result.theta_per_day is not None
+        # Bull-Put-Spread hat positives Delta (bullish)
+        assert result.net_delta > 0
+        # Credit Spread hat positives Theta (verdient am Zeitwertverfall)
+        assert result.theta_per_day > 0
 
 
 class TestConvenienceFunction:

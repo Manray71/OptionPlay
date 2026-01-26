@@ -42,7 +42,7 @@ class TestBacktestConfig:
 
         assert config.initial_capital == 100000.0
         assert config.profit_target_pct == 50.0
-        assert config.stop_loss_pct == 200.0
+        assert config.stop_loss_pct == 100.0  # Korrigiert von 200% auf 100% für besseres Risk Management
         assert config.min_pullback_score == 5.0
 
     def test_custom_values(self):

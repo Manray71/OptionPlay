@@ -28,6 +28,7 @@ try:
     from ..analyzers.pool import AnalyzerPool, PoolConfig, get_analyzer_pool
     from ..models.base import TradeSignal, SignalType, SignalStrength
     from ..config.config_loader import PullbackScoringConfig
+    from ..backtesting.reliability import ReliabilityScorer, ScorerConfig
 except ImportError:
     from analyzers.base import BaseAnalyzer
     from analyzers.context import AnalysisContext
@@ -38,6 +39,11 @@ except ImportError:
     from analyzers.pool import AnalyzerPool, PoolConfig, get_analyzer_pool
     from models.base import TradeSignal, SignalType, SignalStrength
     from config.config_loader import PullbackScoringConfig
+    try:
+        from backtesting.reliability import ReliabilityScorer, ScorerConfig
+    except ImportError:
+        ReliabilityScorer = None
+        ScorerConfig = None
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +92,11 @@ class ScanConfig:
     # Analyzer Pool Settings
     use_analyzer_pool: bool = True   # Object Pooling für Performance
     pool_size_per_strategy: int = 5  # Analyzer pro Strategie im Pool
+
+    # Reliability Scoring (Phase 3 - Hochverlässlichkeits-Framework)
+    enable_reliability_scoring: bool = True  # Reliability-Grades berechnen
+    reliability_model_path: Optional[str] = None  # Pfad zum trainierten Modell
+    reliability_min_grade: str = "D"  # Mindest-Grade für Signale (A-F)
 
 
 @dataclass
@@ -163,12 +174,14 @@ class MultiStrategyScanner:
     def __init__(
         self,
         config: Optional[ScanConfig] = None,
-        analyzer_pool: Optional[AnalyzerPool] = None
+        analyzer_pool: Optional[AnalyzerPool] = None,
+        reliability_scorer: Optional['ReliabilityScorer'] = None
     ):
         self.config = config or ScanConfig()
         self._analyzers: Dict[str, BaseAnalyzer] = {}
         self._earnings_cache: Dict[str, Optional[date]] = {}
         self._iv_cache: Dict[str, Optional[float]] = {}  # Symbol -> IV-Rank
+        self._vix_cache: Optional[float] = None  # Aktueller VIX für Reliability
         self._last_scan: Optional[ScanResult] = None
 
         # Analyzer Pool für Object Pooling
@@ -181,6 +194,43 @@ class MultiStrategyScanner:
         # Registriere Standard-Analyzer (Fallback wenn Pool nicht verwendet)
         if not self._use_pool:
             self._register_default_analyzers()
+
+        # Reliability Scorer (Phase 3)
+        self._reliability_scorer: Optional['ReliabilityScorer'] = None
+        if self.config.enable_reliability_scoring and ReliabilityScorer is not None:
+            self._reliability_scorer = reliability_scorer or self._create_reliability_scorer()
+
+    def _create_reliability_scorer(self) -> Optional['ReliabilityScorer']:
+        """Erstellt den Reliability Scorer"""
+        if ReliabilityScorer is None:
+            logger.warning("ReliabilityScorer not available - reliability scoring disabled")
+            return None
+
+        try:
+            if self.config.reliability_model_path:
+                # Lade trainiertes Modell
+                scorer = ReliabilityScorer.from_trained_model(
+                    self.config.reliability_model_path
+                )
+                logger.info(f"Loaded reliability model from {self.config.reliability_model_path}")
+            else:
+                # Default Scorer ohne Trainingsdaten
+                scorer = ReliabilityScorer()
+                logger.info("Using default reliability scorer (no trained model)")
+
+            return scorer
+        except Exception as e:
+            logger.warning(f"Could not create reliability scorer: {e}")
+            return None
+
+    def set_vix(self, vix: float) -> None:
+        """
+        Setzt den aktuellen VIX für Regime-basierte Reliability-Anpassungen.
+
+        Args:
+            vix: Aktueller VIX-Wert
+        """
+        self._vix_cache = vix
 
     def _create_pool(self) -> AnalyzerPool:
         """Erstellt und konfiguriert den Analyzer Pool"""
@@ -462,6 +512,10 @@ class MultiStrategyScanner:
                 if iv_rank is not None and signal.details is not None:
                     signal.details['iv_rank'] = iv_rank
 
+                # Reliability Scoring (Phase 3)
+                if self._reliability_scorer and signal.score >= self.config.min_score:
+                    self._add_reliability_to_signal(signal)
+
                 # Nur Signale über min_score
                 if signal.score >= self.config.min_score:
                     signals.append(signal)
@@ -480,6 +534,48 @@ class MultiStrategyScanner:
 
         # Limit pro Symbol
         return signals[:self.config.max_results_per_symbol]
+
+    def _add_reliability_to_signal(self, signal: TradeSignal) -> None:
+        """
+        Fügt Reliability-Informationen zu einem Signal hinzu.
+
+        Args:
+            signal: TradeSignal das erweitert werden soll
+        """
+        if not self._reliability_scorer:
+            return
+
+        try:
+            # Score Breakdown aus Details extrahieren wenn verfügbar
+            score_breakdown = None
+            if signal.details and 'score_breakdown' in signal.details:
+                score_breakdown = signal.details['score_breakdown']
+
+            # Reliability berechnen
+            result = self._reliability_scorer.score(
+                pullback_score=signal.score,
+                score_breakdown=score_breakdown,
+                vix=self._vix_cache,
+            )
+
+            # Zum Signal hinzufügen
+            signal.reliability_grade = result.grade
+            signal.reliability_win_rate = result.historical_win_rate
+            signal.reliability_ci = result.confidence_interval
+            signal.reliability_warnings = result.warnings.copy()
+
+            # Auch in Details speichern für JSON-Export
+            if signal.details is not None:
+                signal.details['reliability'] = {
+                    'grade': result.grade,
+                    'win_rate': result.historical_win_rate,
+                    'confidence_interval': result.confidence_interval,
+                    'regime': result.regime,
+                    'should_trade': result.should_trade,
+                }
+
+        except Exception as e:
+            logger.debug(f"Could not add reliability to signal: {e}")
 
     def _run_analysis(
         self,
@@ -771,9 +867,15 @@ class MultiStrategyScanner:
         ]
         
         for i, signal in enumerate(result.signals[:10], 1):
+            # Reliability Badge wenn verfügbar
+            rel_badge = ""
+            if signal.reliability_grade:
+                wr = signal.reliability_win_rate or 0
+                rel_badge = f" [{signal.reliability_grade}] {wr:.0f}%"
+
             lines.append(
                 f"{i:2}. {signal.symbol:6} | {signal.strategy:15} | "
-                f"Score: {signal.score:4.1f} | {signal.strength.value:8}"
+                f"Score: {signal.score:4.1f} | {signal.strength.value:8}{rel_badge}"
             )
             if signal.reason:
                 lines.append(f"    └─ {signal.reason[:60]}")
