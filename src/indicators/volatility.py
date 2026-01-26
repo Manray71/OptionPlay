@@ -5,7 +5,10 @@
 import numpy as np
 from typing import List, Optional
 
-from ..models.indicators import BollingerBands, ATRResult
+try:
+    from ..models.indicators import BollingerBands, ATRResult
+except ImportError:
+    from models.indicators import BollingerBands, ATRResult
 
 
 def calculate_atr(

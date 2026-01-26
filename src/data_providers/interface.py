@@ -11,11 +11,15 @@ from enum import Enum
 # Import der kanonischen Datenklassen aus den Cache-Modulen
 # Vermeidet doppelte Definitionen und stellt Konsistenz sicher
 try:
-    from ..earnings_cache import EarningsInfo, EarningsSource
-    from ..iv_cache import IVData, IVSource
+    from src.earnings_cache import EarningsInfo, EarningsSource
+    from src.iv_cache import IVData, IVSource
 except ImportError:
-    from earnings_cache import EarningsInfo, EarningsSource
-    from iv_cache import IVData, IVSource
+    try:
+        from earnings_cache import EarningsInfo, EarningsSource
+        from iv_cache import IVData, IVSource
+    except ImportError:
+        from ..earnings_cache import EarningsInfo, EarningsSource
+        from ..iv_cache import IVData, IVSource
 
 
 class DataQuality(Enum):

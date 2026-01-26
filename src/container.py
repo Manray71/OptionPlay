@@ -352,9 +352,16 @@ def get_container() -> ServiceContainer:
     migration from global singletons - new code should prefer explicit
     dependency injection.
 
+    .. deprecated:: 3.5.0
+        Use ``ServiceContainer.create_default()`` instead and pass container
+        explicitly to components. Will be removed in v4.0.
+
     Returns:
         The default ServiceContainer instance
     """
+    from .utils.deprecation import warn_singleton_usage
+    warn_singleton_usage("get_container", "ServiceContainer.create_default()")
+
     global _default_container
     if _default_container is None:
         _default_container = ServiceContainer.create_default()

@@ -95,9 +95,47 @@ class ATRResult:
     """Average True Range Result"""
     atr: float
     atr_percent: float  # ATR als % des Preises
-    
+
     def to_dict(self) -> Dict:
         return {
             'atr': round(self.atr, 2),
             'atr_percent': round(self.atr_percent, 2)
+        }
+
+
+@dataclass
+class KeltnerChannelResult:
+    """
+    Keltner Channel Result
+
+    Keltner Channels sind volatilitätsbasierte Bänder:
+    - Middle: EMA (typischerweise 20)
+    - Upper: EMA + (ATR * Multiplier)
+    - Lower: EMA - (ATR * Multiplier)
+
+    Für Pullback-Analyse:
+    - Preis berührt unteres Band = potenzielle Kaufgelegenheit
+    - Preis innerhalb Channel bei Uptrend = gesunder Pullback
+    """
+    upper: float
+    middle: float  # EMA
+    lower: float
+    atr: float
+
+    # Position des aktuellen Preises
+    price_position: str  # 'above_upper', 'in_channel', 'below_lower'
+    percent_position: float  # -1 = lower band, 0 = middle, +1 = upper band
+
+    # Band-Breite (Volatilitätsindikator)
+    channel_width_pct: float  # Channel-Breite als % des Preises
+
+    def to_dict(self) -> Dict:
+        return {
+            'upper': round(self.upper, 2),
+            'middle': round(self.middle, 2),
+            'lower': round(self.lower, 2),
+            'atr': round(self.atr, 2),
+            'price_position': self.price_position,
+            'percent_position': round(self.percent_position, 3),
+            'channel_width_pct': round(self.channel_width_pct, 2)
         }
