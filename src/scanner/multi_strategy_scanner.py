@@ -11,6 +11,7 @@
 # - Export-Funktionen
 
 import asyncio
+import heapq
 import logging
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Callable, Tuple, Any
@@ -532,13 +533,13 @@ class MultiStrategyScanner:
     ) -> ScanResult:
         """
         Scannt Symbole asynchron.
-        
+
         Args:
             symbols: Liste der Symbole
             data_fetcher: Async-Funktion zum Abrufen der Daten
             mode: Scan-Modus
             progress_callback: Optional: Callback für Fortschritt (current, total, symbol)
-            
+
         Returns:
             ScanResult mit allen Signalen
         """
@@ -546,52 +547,79 @@ class MultiStrategyScanner:
         all_signals: List[TradeSignal] = []
         errors: List[str] = []
         symbols_with_signals = 0
-        
+
         # Strategien basierend auf Mode
         strategies = self._get_strategies_for_mode(mode)
-        
-        # Semaphore für Parallelität
+
+        # PERFORMANCE: Prefill analyzer pool before scan to reduce first-checkout latency
+        if self._use_pool and self._pool:
+            self._pool.prefill_all()
+
+        # PERFORMANCE: Create semaphore once, but defer acquisition until after data fetch
+        # This allows data fetching to proceed in parallel while only limiting analysis
         semaphore = asyncio.Semaphore(self.config.max_concurrent)
-        
+
+        # PERFORMANCE: Context cache to avoid re-calculating for same data
+        context_cache: Dict[str, AnalysisContext] = {}
+
         async def scan_one(idx: int, symbol: str) -> List[TradeSignal]:
-            async with semaphore:
-                try:
-                    if progress_callback:
-                        progress_callback(idx + 1, len(symbols), symbol)
-                    
-                    # Daten abrufen
-                    data = await data_fetcher(symbol)
-                    if not data or len(data[0]) < self.config.min_data_points:
-                        return []
-                    
-                    prices, volumes, highs, lows = data
-                    
-                    # Analysieren
+            try:
+                if progress_callback:
+                    progress_callback(idx + 1, len(symbols), symbol)
+
+                # PERFORMANCE: Fetch data OUTSIDE semaphore (I/O bound, not CPU bound)
+                data = await data_fetcher(symbol)
+                if not data or len(data[0]) < self.config.min_data_points:
+                    return []
+
+                prices, volumes, highs, lows = data
+
+                # PERFORMANCE: Only acquire semaphore for CPU-intensive analysis
+                async with semaphore:
+                    # PERFORMANCE: Create context once and cache it
+                    context = context_cache.get(symbol)
+                    if context is None:
+                        context = AnalysisContext.from_data(symbol, prices, volumes, highs, lows)
+                        context_cache[symbol] = context
+
+                    # Analysieren mit gecachtem Context
                     return self.analyze_symbol(
                         symbol=symbol,
                         prices=prices,
                         volumes=volumes,
                         highs=highs,
                         lows=lows,
-                        strategies=strategies
+                        strategies=strategies,
+                        context=context
                     )
-                except Exception as e:
-                    errors.append(f"{symbol}: {str(e)}")
-                    return []
-        
+            except Exception as e:
+                errors.append(f"{symbol}: {str(e)}")
+                return []
+
         # Parallel ausführen
         tasks = [scan_one(i, sym) for i, sym in enumerate(symbols)]
         results = await asyncio.gather(*tasks)
-        
+
+        # PERFORMANCE: Clear context cache after scan to free memory
+        context_cache.clear()
+
+        # PERFORMANCE: Use heapq.nlargest instead of sort + slice for top-N
+        # This is O(n log k) instead of O(n log n) where k = max_total_results
         # Ergebnisse aggregieren
         for symbol_signals in results:
             if symbol_signals:
                 symbols_with_signals += 1
                 all_signals.extend(symbol_signals)
-        
-        # Nach Score sortieren und limitieren
-        all_signals.sort(key=lambda x: x.score, reverse=True)
-        all_signals = all_signals[:self.config.max_total_results]
+
+        # PERFORMANCE: nlargest is faster than full sort when k << n
+        max_results = self.config.max_total_results
+        if len(all_signals) > max_results * 2:
+            # Use heapq for large result sets
+            all_signals = heapq.nlargest(max_results, all_signals, key=lambda x: x.score)
+        else:
+            # Regular sort for small result sets (heapq overhead not worth it)
+            all_signals.sort(key=lambda x: x.score, reverse=True)
+            all_signals = all_signals[:max_results]
         
         # Best Signal Mode: Nur bestes pro Symbol
         if mode == ScanMode.BEST_SIGNAL:
