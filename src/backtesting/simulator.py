@@ -30,6 +30,25 @@ from datetime import date, timedelta
 from typing import List, Dict, Optional, Tuple
 from enum import Enum
 
+# Black-Scholes Integration für akkurates Spread-Pricing
+try:
+    from ..options.black_scholes import (
+        BlackScholes,
+        BullPutSpread as BSBullPutSpread,
+        OptionType,
+    )
+    _BLACK_SCHOLES_AVAILABLE = True
+except ImportError:
+    try:
+        from src.options.black_scholes import (
+            BlackScholes,
+            BullPutSpread as BSBullPutSpread,
+            OptionType,
+        )
+        _BLACK_SCHOLES_AVAILABLE = True
+    except ImportError:
+        _BLACK_SCHOLES_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 
@@ -167,7 +186,7 @@ class TradeSimulator:
     Simuliert einzelne Bull-Put-Spread Trades.
 
     Features:
-    - Realistische Spread-Pricing
+    - Realistische Spread-Pricing (Black-Scholes wenn verfügbar)
     - Time Decay Modellierung
     - Exit-Logik (Profit Target, Stop Loss, Expiration)
     """
@@ -175,7 +194,7 @@ class TradeSimulator:
     DEFAULT_CONFIG = {
         # Exit-Kriterien
         "profit_target_pct": 50.0,  # Exit bei 50% des Max Profits
-        "stop_loss_pct": 200.0,  # Stop bei 2x Credit
+        "stop_loss_pct": 100.0,  # Stop bei 1x Credit (KORRIGIERT von 200%)
 
         # Pricing
         "theta_decay_factor": 0.7,  # Theta beschleunigt sich
@@ -202,6 +221,7 @@ class TradeSimulator:
         price_path: List[float],
         contracts: int = 1,
         entry_date: Optional[date] = None,
+        volatility: float = 0.25,
     ) -> SimulatedTrade:
         """
         Simuliert einen Trade über den gegebenen Preispfad.
@@ -216,6 +236,7 @@ class TradeSimulator:
             price_path: Liste von Tagespreisen
             contracts: Anzahl Contracts
             entry_date: Optional Entry-Datum
+            volatility: Implied Volatility für Black-Scholes Pricing (default 25%)
 
         Returns:
             SimulatedTrade mit allen Details
@@ -256,10 +277,11 @@ class TradeSimulator:
                 trade.exit_reason = "expiration"
                 break
 
-            # Berechne Spread-Wert
+            # Berechne Spread-Wert (mit Black-Scholes wenn verfügbar)
             spread_value = self._calculate_spread_value(
                 price, short_strike, long_strike,
-                effective_credit, remaining_dte, dte
+                effective_credit, remaining_dte, dte,
+                volatility=volatility
             )
 
             # Unrealized P&L
@@ -323,18 +345,49 @@ class TradeSimulator:
         long_strike: float,
         initial_credit: float,
         remaining_dte: int,
-        initial_dte: int
+        initial_dte: int,
+        volatility: float = 0.25
     ) -> float:
         """
         Berechnet den aktuellen Wert des Spreads.
 
-        Vereinfachtes Modell basierend auf:
-        - Intrinsic Value
-        - Time Value (Theta Decay)
-        - Moneyness
+        Verwendet Black-Scholes für akkurate Pricing wenn verfügbar,
+        ansonsten Fallback auf vereinfachtes Modell.
         """
         spread_width = short_strike - long_strike
 
+        # Methode 1: Black-Scholes für akkurates Pricing
+        if _BLACK_SCHOLES_AVAILABLE and remaining_dte > 0:
+            try:
+                time_to_expiry = remaining_dte / 365.0
+
+                # Erstelle Black-Scholes Objekte für beide Puts
+                short_put = BlackScholes(
+                    spot=current_price,
+                    strike=short_strike,
+                    time_to_expiry=time_to_expiry,
+                    volatility=volatility,
+                )
+                long_put = BlackScholes(
+                    spot=current_price,
+                    strike=long_strike,
+                    time_to_expiry=time_to_expiry,
+                    volatility=volatility,
+                )
+
+                # Spread Value = Short Put - Long Put (wir sind short den spread)
+                short_put_value = short_put.put_price()
+                long_put_value = long_put.put_price()
+                spread_value = short_put_value - long_put_value
+
+                # Clamp to valid range
+                return max(0, min(spread_width, spread_value))
+
+            except Exception as e:
+                logger.debug(f"Black-Scholes calculation failed, using fallback: {e}")
+                # Fall through to simplified model
+
+        # Methode 2: Vereinfachtes Modell (Fallback)
         # Intrinsic Value der Puts
         short_put_intrinsic = max(0, short_strike - current_price)
         long_put_intrinsic = max(0, long_strike - current_price)
@@ -347,7 +400,6 @@ class TradeSimulator:
         theta_decay = time_factor ** self.config["theta_decay_factor"]
 
         # Initial time value (Credit - Intrinsic at entry)
-        # At entry, spread is OTM, so intrinsic = 0
         initial_time_value = initial_credit
 
         # Current time value
@@ -355,7 +407,6 @@ class TradeSimulator:
 
         # Moneyness adjustment
         if current_price < short_strike:
-            # Getting closer to short strike increases value
             moneyness = (short_strike - current_price) / short_strike
             delta_effect = moneyness * self.config["delta_sensitivity"] * spread_width
             remaining_time_value += delta_effect
@@ -364,9 +415,7 @@ class TradeSimulator:
         spread_value = spread_intrinsic + remaining_time_value
 
         # Clamp to valid range
-        spread_value = max(0, min(spread_width, spread_value))
-
-        return spread_value
+        return max(0, min(spread_width, spread_value))
 
     def _check_exit(
         self,
@@ -384,15 +433,22 @@ class TradeSimulator:
         Returns:
             Exit-Reason String oder None
         """
-        # Profit Target
+        # Profit Target: Exit wenn unrealisierter Gewinn >= X% des Max Profits
         profit_pct = (unrealized_pnl / max_profit) * 100 if max_profit > 0 else 0
         if profit_pct >= self.config["profit_target_pct"]:
             return "profit_target"
 
-        # Stop Loss
-        loss_pct = (spread_value / credit) * 100 if credit > 0 else 0
-        if loss_pct >= self.config["stop_loss_pct"]:
-            return "stop_loss"
+        # Stop Loss: Exit wenn Verlust >= X% des Credits
+        # Loss = Spread Value - Credit (positiv wenn Spread teurer als Credit)
+        # Korrektur: Loss-Prozent basiert auf dem Credit, nicht auf dem Spread-Wert
+        # 100% Stop Loss = Verlust = Credit (break-even + Credit verloren)
+        if credit > 0:
+            loss = spread_value - credit
+            # Nur triggern wenn tatsächlich Verlust (loss > 0)
+            if loss > 0:
+                loss_pct = (loss / credit) * 100
+                if loss_pct >= self.config["stop_loss_pct"]:
+                    return "stop_loss"
 
         # Deep ITM (Max Loss likely)
         if price <= long_strike:
@@ -451,6 +507,7 @@ class TradeSimulator:
                 dte=dte,
                 price_path=price_path,
                 contracts=contracts,
+                volatility=volatility,  # Durchreichen für Black-Scholes Pricing
             )
 
             results.append(trade)

@@ -33,6 +33,27 @@ from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Tuple
 from enum import Enum
 
+# Black-Scholes Integration für akkurate Pricing und Greeks
+try:
+    from .options.black_scholes import (
+        BlackScholes,
+        BullPutSpread as BSBullPutSpread,
+        OptionType,
+        calculate_probability_otm,
+    )
+    _BLACK_SCHOLES_AVAILABLE = True
+except ImportError:
+    try:
+        from src.options.black_scholes import (
+            BlackScholes,
+            BullPutSpread as BSBullPutSpread,
+            OptionType,
+            calculate_probability_otm,
+        )
+        _BLACK_SCHOLES_AVAILABLE = True
+    except ImportError:
+        _BLACK_SCHOLES_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 
@@ -424,12 +445,45 @@ class SpreadAnalyzer:
         break_even: float
     ) -> Tuple[float, float]:
         """
-        Schätzt Wahrscheinlichkeiten basierend auf Delta oder OTM%.
+        Berechnet Wahrscheinlichkeiten mit Black-Scholes oder Delta.
+
+        Verwendet Black-Scholes für akkurate Berechnungen wenn verfügbar,
+        ansonsten Fallback auf Delta-basierte Schätzung.
 
         Returns:
             Tuple von (P(Profit), P(Max Profit))
         """
-        # Wenn Delta verfügbar, nutze es
+        # Methode 1: Black-Scholes für akkurate Wahrscheinlichkeiten
+        if _BLACK_SCHOLES_AVAILABLE:
+            try:
+                # IV aus Options-Daten oder Default 25%
+                iv = params.short_iv if params.short_iv else 0.25
+                time_to_expiry = params.dte / 365.0
+
+                # P(Max Profit) = P(Preis > Short Strike bei Expiration)
+                prob_max_profit = calculate_probability_otm(
+                    spot=params.current_price,
+                    strike=params.short_strike,
+                    dte=params.dte,
+                    volatility=iv,
+                    option_type=OptionType.PUT
+                ) * 100
+
+                # P(Profit) = P(Preis > Break-Even bei Expiration)
+                prob_profit = calculate_probability_otm(
+                    spot=params.current_price,
+                    strike=break_even,
+                    dte=params.dte,
+                    volatility=iv,
+                    option_type=OptionType.PUT
+                ) * 100
+
+                return prob_profit, prob_max_profit
+            except Exception as e:
+                logger.warning(f"Black-Scholes probability calculation failed: {e}")
+                # Fall through to Delta/heuristic method
+
+        # Methode 2: Wenn Delta verfügbar, nutze es
         if params.short_delta:
             # P(OTM) ≈ 1 - |Delta|
             prob_max_profit = (1 - abs(params.short_delta)) * 100
@@ -439,7 +493,7 @@ class SpreadAnalyzer:
                           params.short_strike * 100)
             prob_profit = min(prob_max_profit + buffer_pct * 2, 99)
         else:
-            # Schätzung basierend auf OTM%
+            # Methode 3: Heuristische Schätzung basierend auf OTM%
             otm_pct = ((params.current_price - params.short_strike) /
                        params.current_price * 100)
 
@@ -495,11 +549,42 @@ class SpreadAnalyzer:
         self,
         params: BullPutSpreadParams
     ) -> Tuple[Optional[float], Optional[float], Optional[float]]:
-        """Berechnet Net Greeks für den Spread"""
+        """
+        Berechnet Net Greeks für den Spread.
+
+        Verwendet Black-Scholes für akkurate Greeks wenn verfügbar,
+        ansonsten Fallback auf übergebene Greeks oder Schätzungen.
+        """
         net_delta = None
         net_theta = None
         theta_per_day = None
 
+        # Methode 1: Black-Scholes für akkurate Greeks
+        if _BLACK_SCHOLES_AVAILABLE:
+            try:
+                iv = params.short_iv if params.short_iv else 0.25
+                time_to_expiry = params.dte / 365.0
+
+                # Erstelle BullPutSpread für vollständige Greeks-Berechnung
+                bs_spread = BSBullPutSpread(
+                    spot=params.current_price,
+                    short_strike=params.short_strike,
+                    long_strike=params.long_strike,
+                    time_to_expiry=time_to_expiry,
+                    volatility=iv,
+                )
+
+                spread_greeks = bs_spread.greeks()
+                net_delta = spread_greeks.net_delta
+                net_theta = spread_greeks.net_theta
+                theta_per_day = net_theta * params.contracts
+
+                return net_delta, net_theta, theta_per_day
+            except Exception as e:
+                logger.warning(f"Black-Scholes Greeks calculation failed: {e}")
+                # Fall through to manual calculation
+
+        # Methode 2: Übergebene Greeks nutzen
         if params.short_delta and params.long_delta:
             # Short Put hat positives Delta (wir sind short)
             # Long Put hat negatives Delta (wir sind long)

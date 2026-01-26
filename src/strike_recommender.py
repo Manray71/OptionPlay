@@ -45,6 +45,27 @@ try:
 except ImportError:
     _VIX_SPREAD_AVAILABLE = False
 
+# Black-Scholes für akkurate Delta-Berechnung
+try:
+    from .options.black_scholes import (
+        BlackScholes,
+        OptionType,
+        calculate_delta as bs_calculate_delta,
+        calculate_probability_otm,
+    )
+    _BLACK_SCHOLES_AVAILABLE = True
+except ImportError:
+    try:
+        from src.options.black_scholes import (
+            BlackScholes,
+            OptionType,
+            calculate_delta as bs_calculate_delta,
+            calculate_probability_otm,
+        )
+        _BLACK_SCHOLES_AVAILABLE = True
+    except ImportError:
+        _BLACK_SCHOLES_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 
@@ -590,17 +611,26 @@ class StrikeRecommender:
         iv_rank: Optional[float],
         dte: int
     ) -> Dict[str, Any]:
-        """Berechnet Metriken für den Spread"""
+        """
+        Berechnet Metriken für den Spread.
+
+        Verwendet Black-Scholes für akkurate Delta und Wahrscheinlichkeitsberechnung
+        wenn verfügbar, ansonsten Options-Daten oder heuristische Schätzungen.
+        """
         metrics = {}
-        
+
         # Basis-Metriken (immer berechenbar)
         metrics["spread_width"] = spread_width
         metrics["max_loss"] = spread_width * 100  # pro Contract
-        
+
+        # Volatilität aus IV-Rank schätzen wenn keine echten Daten
+        # IV-Rank 50 ≈ 25% IV typisch, IV-Rank 80 ≈ 40% IV
+        estimated_iv = 0.20 + (iv_rank or 50) / 100 * 0.30 if iv_rank else 0.25
+
         # Options-Daten verwenden wenn verfügbar
         short_put = None
         long_put = None
-        
+
         if options_data:
             for opt in options_data:
                 if opt.get("right") != "P":
@@ -609,13 +639,13 @@ class StrikeRecommender:
                     short_put = opt
                 if abs(opt.get("strike", 0) - long_strike) < 0.5:
                     long_put = opt
-        
+
         if short_put and long_put:
             # Echte Options-Daten
             short_credit = (short_put.get("bid", 0) or 0)
             long_debit = (long_put.get("ask", 0) or 0)
             net_credit = short_credit - long_debit
-            
+
             if net_credit > 0:
                 metrics["credit"] = round(net_credit, 2)
                 metrics["max_profit"] = round(net_credit * 100, 2)
@@ -624,40 +654,113 @@ class StrikeRecommender:
                 metrics["risk_reward"] = round(
                     metrics["max_profit"] / metrics["max_loss"], 2
                 ) if metrics["max_loss"] > 0 else 0
-            
+
             if short_put.get("delta"):
                 metrics["delta"] = short_put["delta"]
-        
+            # Nutze IV aus Options-Daten wenn verfügbar
+            if short_put.get("impliedVol"):
+                estimated_iv = short_put["impliedVol"]
+
         else:
-            # Schätzungen ohne echte Options-Daten
-            # Vereinfachte Prämien-Schätzung basierend auf OTM% und IV
-            otm_pct = (current_price - short_strike) / current_price * 100
-            
-            # Basis-Credit-Schätzung (sehr vereinfacht)
-            if iv_rank and iv_rank > 50:
-                credit_factor = 0.35
-            else:
-                credit_factor = 0.25
-            
-            estimated_credit = spread_width * credit_factor
-            estimated_credit = round(max(estimated_credit, spread_width * 0.20), 2)
-            
-            metrics["credit"] = estimated_credit
-            metrics["max_profit"] = round(estimated_credit * 100, 2)
-            metrics["max_loss"] = round((spread_width - estimated_credit) * 100, 2)
-            metrics["break_even"] = round(short_strike - estimated_credit, 2)
-            
-            # Delta-Schätzung basierend auf OTM%
-            # Sehr vereinfacht: 10% OTM ≈ -0.25 Delta, 15% OTM ≈ -0.18 Delta
-            estimated_delta = -0.50 * (1 - otm_pct / 20)
-            estimated_delta = max(min(estimated_delta, -0.15), -0.45)
-            metrics["delta"] = round(estimated_delta, 2)
-        
-        # Gewinn-Wahrscheinlichkeit schätzen
-        if "delta" in metrics:
+            # Keine echten Options-Daten - nutze Black-Scholes oder Heuristik
+
+            # Methode 1: Black-Scholes für akkurate Credit-Schätzung
+            if _BLACK_SCHOLES_AVAILABLE and dte > 0:
+                try:
+                    time_to_expiry = dte / 365.0
+
+                    short_bs = BlackScholes(
+                        spot=current_price,
+                        strike=short_strike,
+                        time_to_expiry=time_to_expiry,
+                        volatility=estimated_iv,
+                    )
+                    long_bs = BlackScholes(
+                        spot=current_price,
+                        strike=long_strike,
+                        time_to_expiry=time_to_expiry,
+                        volatility=estimated_iv,
+                    )
+
+                    # Berechne theoretische Preise
+                    short_put_price = short_bs.put_price()
+                    long_put_price = long_bs.put_price()
+                    estimated_credit = short_put_price - long_put_price
+
+                    # Berechne akkurates Delta
+                    metrics["delta"] = short_bs.delta(OptionType.PUT)
+
+                    if estimated_credit > 0:
+                        metrics["credit"] = round(estimated_credit, 2)
+                        metrics["max_profit"] = round(estimated_credit * 100, 2)
+                        metrics["max_loss"] = round((spread_width - estimated_credit) * 100, 2)
+                        metrics["break_even"] = round(short_strike - estimated_credit, 2)
+                        metrics["risk_reward"] = round(
+                            metrics["max_profit"] / metrics["max_loss"], 2
+                        ) if metrics["max_loss"] > 0 else 0
+
+                except Exception as e:
+                    logger.debug(f"Black-Scholes calculation failed: {e}")
+                    # Fall through to heuristic
+
+            # Methode 2: Heuristische Schätzung (Fallback)
+            if "credit" not in metrics:
+                otm_pct = (current_price - short_strike) / current_price * 100
+
+                # Basis-Credit-Schätzung (sehr vereinfacht)
+                if iv_rank and iv_rank > 50:
+                    credit_factor = 0.35
+                else:
+                    credit_factor = 0.25
+
+                estimated_credit = spread_width * credit_factor
+                estimated_credit = round(max(estimated_credit, spread_width * 0.20), 2)
+
+                metrics["credit"] = estimated_credit
+                metrics["max_profit"] = round(estimated_credit * 100, 2)
+                metrics["max_loss"] = round((spread_width - estimated_credit) * 100, 2)
+                metrics["break_even"] = round(short_strike - estimated_credit, 2)
+
+            # Delta via Black-Scholes wenn verfügbar aber Pricing fehlgeschlagen
+            if "delta" not in metrics:
+                if _BLACK_SCHOLES_AVAILABLE and dte > 0:
+                    try:
+                        metrics["delta"] = bs_calculate_delta(
+                            spot=current_price,
+                            strike=short_strike,
+                            dte=dte,
+                            volatility=estimated_iv,
+                            option_type=OptionType.PUT,
+                        )
+                    except Exception:
+                        pass
+
+                # Heuristischer Fallback für Delta
+                if "delta" not in metrics:
+                    otm_pct = (current_price - short_strike) / current_price * 100
+                    estimated_delta = -0.50 * (1 - otm_pct / 20)
+                    estimated_delta = max(min(estimated_delta, -0.15), -0.45)
+                    metrics["delta"] = round(estimated_delta, 2)
+
+        # Gewinn-Wahrscheinlichkeit mit Black-Scholes oder Delta-basiert
+        if _BLACK_SCHOLES_AVAILABLE and dte > 0:
+            try:
+                metrics["prob_profit"] = round(
+                    calculate_probability_otm(
+                        spot=current_price,
+                        strike=short_strike,
+                        dte=dte,
+                        volatility=estimated_iv,
+                        option_type=OptionType.PUT,
+                    ) * 100, 1
+                )
+            except Exception:
+                if "delta" in metrics:
+                    metrics["prob_profit"] = round((1 - abs(metrics["delta"])) * 100, 1)
+        elif "delta" in metrics:
             # P(OTM) ≈ 1 - |Delta|
             metrics["prob_profit"] = round((1 - abs(metrics["delta"])) * 100, 1)
-        
+
         return metrics
     
     def _evaluate_quality(
