@@ -413,21 +413,45 @@ class MultiStrategyScanner:
         """
         Prüft ob ein Symbol wegen Earnings übersprungen werden soll.
 
-        Für Bull-Put-Spreads (pullback, bounce) wollen wir keine
-        Aktien mit nahen Earnings.
+        Logik:
+        - earnings_dip: Nur wenn Earnings KÜRZLICH stattgefunden haben
+          (innerhalb der letzten 10 Tage). Bevorstehende Earnings = skip.
+        - andere Strategien: Skip wenn Earnings bevorstehen (in den nächsten X Tagen)
 
         HINWEIS: Die primäre Filterung erfolgt im MCP-Server via
         _apply_earnings_prefilter(). Diese Methode ist eine zusätzliche
         Sicherheitsschicht für direkte Scanner-Aufrufe.
         """
+        earnings_date = self._earnings_cache.get(symbol)
+
         if strategy == 'earnings_dip':
-            # Earnings Dip braucht gerade Earnings
+            # Earnings Dip braucht KÜRZLICH VERGANGENE Earnings
+            if not earnings_date:
+                # Kein Datum bekannt -> überspringen
+                logger.debug(f"Skipping {symbol} for earnings_dip: no earnings date known")
+                return True
+
+            days_to_earnings = (earnings_date - date.today()).days
+
+            # Earnings müssen in der Vergangenheit liegen (negativ)
+            # und nicht zu weit zurück (max 10 Tage)
+            if days_to_earnings > 0:
+                # Earnings stehen noch bevor -> kein Dip möglich
+                logger.debug(f"Skipping {symbol} for earnings_dip: earnings in {days_to_earnings} days (not yet occurred)")
+                return True
+
+            if days_to_earnings < -10:
+                # Earnings zu lange her (>10 Tage) -> kein frischer Dip
+                logger.debug(f"Skipping {symbol} for earnings_dip: earnings {abs(days_to_earnings)} days ago (too old)")
+                return True
+
+            # Earnings innerhalb der letzten 10 Tage -> analysieren
             return False
 
+        # Für andere Strategien: Skip wenn Earnings bevorstehen
         if self.config.exclude_earnings_within_days <= 0:
             return False
 
-        earnings_date = self._earnings_cache.get(symbol)
         if not earnings_date:
             # Kein Datum im Scanner-Cache bekannt.
             # Der MCP-Server sollte bereits vorgefiltert haben,
