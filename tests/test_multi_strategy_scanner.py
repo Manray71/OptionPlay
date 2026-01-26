@@ -343,18 +343,30 @@ class TestEarningsFilter:
         bounce_signals = [s for s in signals if s.strategy == 'bounce']
         assert len(bounce_signals) == 0  # Bounce gefiltert
     
-    def test_earnings_dip_not_filtered(self, scanner):
-        """earnings_dip sollte NICHT gefiltert werden"""
+    def test_earnings_dip_with_upcoming_earnings_filtered(self, scanner):
+        """earnings_dip sollte gefiltert werden wenn Earnings BEVORSTEHEN"""
+        # Earnings in 10 Tagen -> noch nicht stattgefunden -> skip
         scanner.set_earnings_date("AAPL", date.today() + timedelta(days=10))
-        
-        # earnings_dip sollte trotzdem analysiert werden
+        should_skip = scanner._should_skip_for_earnings("AAPL", "earnings_dip")
+        assert should_skip == True
+
+    def test_earnings_dip_with_recent_past_earnings_not_filtered(self, scanner):
+        """earnings_dip sollte NICHT gefiltert werden wenn Earnings KÜRZLICH waren"""
+        # Earnings vor 5 Tagen -> kürzlich vergangen -> nicht skippen
+        scanner.set_earnings_date("AAPL", date.today() - timedelta(days=5))
         should_skip = scanner._should_skip_for_earnings("AAPL", "earnings_dip")
         assert should_skip == False
-    
-    def test_past_earnings_not_filtered(self, scanner):
-        """Vergangene Earnings sollten nicht filtern"""
-        scanner.set_earnings_date("AAPL", date.today() - timedelta(days=5))
 
+    def test_earnings_dip_with_old_past_earnings_filtered(self, scanner):
+        """earnings_dip sollte gefiltert werden wenn Earnings zu LANGE HER sind"""
+        # Earnings vor 15 Tagen -> zu alt -> skip
+        scanner.set_earnings_date("AAPL", date.today() - timedelta(days=15))
+        should_skip = scanner._should_skip_for_earnings("AAPL", "earnings_dip")
+        assert should_skip == True
+
+    def test_past_earnings_not_filtered_for_other_strategies(self, scanner):
+        """Vergangene Earnings sollten andere Strategien nicht filtern"""
+        scanner.set_earnings_date("AAPL", date.today() - timedelta(days=5))
         should_skip = scanner._should_skip_for_earnings("AAPL", "bounce")
         assert should_skip == False
 
@@ -365,12 +377,12 @@ class TestEarningsFilter:
         should_skip = scanner._should_skip_for_earnings("MSFT", "bounce")
         assert should_skip == True
 
-    def test_unknown_earnings_not_filtered_for_earnings_dip(self, scanner):
-        """earnings_dip sollte auch bei unbekannten Earnings nicht gefiltert werden"""
+    def test_unknown_earnings_filtered_for_earnings_dip(self, scanner):
+        """earnings_dip sollte auch bei unbekannten Earnings gefiltert werden"""
         # MSFT hat KEIN Earnings-Datum im Scanner-Cache
-        # earnings_dip sollte trotzdem NICHT gefiltert werden
+        # earnings_dip braucht bekannte, kürzlich vergangene Earnings -> skip
         should_skip = scanner._should_skip_for_earnings("MSFT", "earnings_dip")
-        assert should_skip == False
+        assert should_skip == True
 
 
 # =============================================================================

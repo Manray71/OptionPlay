@@ -404,7 +404,8 @@ class OptionPlayServer:
     async def _apply_earnings_prefilter(
         self,
         symbols: List[str],
-        min_days: int
+        min_days: int,
+        for_earnings_dip: bool = False
     ) -> tuple[List[str], int, int]:
         """
         Internal earnings pre-filter that returns filtered symbols without markdown output.
@@ -412,7 +413,9 @@ class OptionPlayServer:
 
         Args:
             symbols: List of symbols to filter
-            min_days: Minimum days until earnings
+            min_days: Minimum days until earnings (for normal strategies)
+            for_earnings_dip: If True, filter for earnings_dip strategy instead
+                              (only keep symbols with RECENT PAST earnings)
 
         Returns:
             Tuple of (safe_symbols, excluded_count, cache_hits)
@@ -439,15 +442,30 @@ class OptionPlayServer:
                     )
                     days_to = fetched.days_to_earnings if fetched else None
 
-                # Classify symbol - konservativ: None = nicht sicher
-                if days_to is not None and days_to >= min_days:
-                    safe_symbols.append(symbol)
-                elif days_to is None:
-                    # Unbekannte Earnings = ausschließen (konservativ)
-                    excluded_count += 1
-                    logger.debug(f"Excluding {symbol}: unknown earnings date")
+                if for_earnings_dip:
+                    # Für earnings_dip: Nur Symbole mit KÜRZLICH VERGANGENEN Earnings
+                    # days_to muss negativ sein (Earnings vorbei) und nicht älter als 10 Tage
+                    if days_to is not None and -10 <= days_to <= 0:
+                        safe_symbols.append(symbol)
+                    else:
+                        excluded_count += 1
+                        if days_to is None:
+                            logger.debug(f"Excluding {symbol} for earnings_dip: unknown earnings date")
+                        elif days_to > 0:
+                            logger.debug(f"Excluding {symbol} for earnings_dip: earnings in {days_to} days (not yet occurred)")
+                        else:
+                            logger.debug(f"Excluding {symbol} for earnings_dip: earnings {abs(days_to)} days ago (too old)")
                 else:
-                    excluded_count += 1
+                    # Für normale Strategien: Symbole mit bevorstehenden Earnings ausschließen
+                    # Konservativ: None = nicht sicher
+                    if days_to is not None and days_to >= min_days:
+                        safe_symbols.append(symbol)
+                    elif days_to is None:
+                        # Unbekannte Earnings = ausschließen (konservativ)
+                        excluded_count += 1
+                        logger.debug(f"Excluding {symbol}: unknown earnings date")
+                    else:
+                        excluded_count += 1
 
             except Exception as e:
                 # Bei Fehlern ebenfalls ausschließen (konservativ)
@@ -586,16 +604,28 @@ class OptionPlayServer:
         earnings_cache_hits = 0
 
         scanner_config = self._config.settings.scanner
-        if scanner_config.auto_earnings_prefilter:
+        # Für ALL/BEST_SIGNAL Modi: Kein Prefilter, da Scanner beide Earnings-Logiken braucht
+        # Für andere Modi: Prefilter entsprechend dem Modus anwenden
+        skip_prefilter = mode in [ScanMode.ALL, ScanMode.BEST_SIGNAL]
+
+        if scanner_config.auto_earnings_prefilter and not skip_prefilter:
             min_days = scanner_config.earnings_prefilter_min_days
+            # Für EARNINGS_DIP Modus: Nur Symbole mit kürzlich vergangenen Earnings
+            for_earnings_dip = (mode == ScanMode.EARNINGS_DIP)
             symbols, excluded_by_earnings, earnings_cache_hits = await self._apply_earnings_prefilter(
-                symbols, min_days
+                symbols, min_days, for_earnings_dip=for_earnings_dip
             )
             if excluded_by_earnings > 0:
-                logger.info(
-                    f"Earnings pre-filter: {excluded_by_earnings}/{original_count} symbols excluded "
-                    f"(earnings within {min_days} days), {earnings_cache_hits} cache hits"
-                )
+                if for_earnings_dip:
+                    logger.info(
+                        f"Earnings pre-filter (dip mode): {excluded_by_earnings}/{original_count} symbols excluded "
+                        f"(no recent past earnings), {earnings_cache_hits} cache hits"
+                    )
+                else:
+                    logger.info(
+                        f"Earnings pre-filter: {excluded_by_earnings}/{original_count} symbols excluded "
+                        f"(earnings within {min_days} days), {earnings_cache_hits} cache hits"
+                    )
 
         # Check scan cache first
         cache_key = self._make_scan_cache_key(mode, symbols, min_score, max_results)
@@ -628,6 +658,21 @@ class OptionPlayServer:
                 enable_earnings_dip=enable_earnings_dip,
             )
             scanner.config.max_total_results = max_results
+
+            # Load earnings dates into scanner for per-symbol filtering
+            # This is needed for ALL/BEST_SIGNAL modes where prefilter is skipped
+            if self._earnings_fetcher is None:
+                self._earnings_fetcher = get_earnings_fetcher()
+
+            for symbol in symbols:
+                cached = self._earnings_fetcher.cache.get(symbol)
+                if cached and cached.earnings_date:
+                    from datetime import date as date_type
+                    try:
+                        earnings_date = date_type.fromisoformat(cached.earnings_date)
+                        scanner.set_earnings_date(symbol, earnings_date)
+                    except (ValueError, TypeError):
+                        pass
 
             # Determine historical data requirement
             config_days = self._config.settings.performance.historical_days
