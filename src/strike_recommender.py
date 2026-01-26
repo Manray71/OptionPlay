@@ -38,6 +38,13 @@ try:
 except ImportError:
     _CONFIG_AVAILABLE = False
 
+# VIX-basierte Spread-Berechnung
+try:
+    from .vix_strategy import calculate_spread_width, MarketRegime
+    _VIX_SPREAD_AVAILABLE = True
+except ImportError:
+    _VIX_SPREAD_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 
@@ -224,11 +231,12 @@ class StrikeRecommender:
         iv_rank: Optional[float] = None,
         options_data: Optional[List[Dict]] = None,
         fib_levels: Optional[List[Dict]] = None,
-        dte: int = 45
+        dte: int = 45,
+        regime: Optional["MarketRegime"] = None
     ) -> StrikeRecommendation:
         """
         Generiert Strike-Empfehlung für einen Bull-Put-Spread
-        
+
         Args:
             symbol: Ticker-Symbol
             current_price: Aktueller Aktienkurs
@@ -237,19 +245,20 @@ class StrikeRecommender:
             options_data: Options-Chain mit Greeks, optional
             fib_levels: Fibonacci-Levels, optional
             dte: Days to Expiration
-        
+            regime: Optional MarketRegime für VIX-basierte Spread-Berechnung
+
         Returns:
             StrikeRecommendation mit allen Details
         """
         logger.info(f"Generiere Strike-Empfehlung für {symbol} @ ${current_price}")
-        
+
         # 1. Support-Levels analysieren und anreichern
         analyzed_supports = self._analyze_support_levels(
             current_price, support_levels, fib_levels
         )
-        
-        # 2. Spread-Width basierend auf Preisniveau bestimmen
-        spread_widths = self._get_spread_widths(current_price)
+
+        # 2. Spread-Width basierend auf Preisniveau und VIX-Regime bestimmen
+        spread_widths = self._get_spread_widths(current_price, regime)
         preferred_width = spread_widths[0]  # Kleinste empfohlene Width
         
         # 3. Short-Strike finden
@@ -432,8 +441,28 @@ class StrikeRecommender:
         
         return analyzed
     
-    def _get_spread_widths(self, price: float) -> List[float]:
-        """Bestimmt empfohlene Spread-Widths basierend auf Preisniveau"""
+    def _get_spread_widths(
+        self,
+        price: float,
+        regime: Optional["MarketRegime"] = None
+    ) -> List[float]:
+        """
+        Bestimmt empfohlene Spread-Widths basierend auf Preisniveau und VIX-Regime.
+
+        Args:
+            price: Aktueller Aktienkurs
+            regime: Optional MarketRegime für VIX-basierte Anpassung
+
+        Returns:
+            Liste empfohlener Spread-Widths
+        """
+        # Wenn VIX-basierte Berechnung verfügbar, nutze diese
+        if _VIX_SPREAD_AVAILABLE and regime is not None:
+            dynamic_width = calculate_spread_width(price, regime)
+            # Gib auch Alternativen zurück
+            return [dynamic_width, dynamic_width * 1.5, dynamic_width * 2.0]
+
+        # Fallback auf statische Konfiguration
         for threshold, widths in sorted(self.config["spread_widths"].items()):
             if price <= threshold:
                 return widths
