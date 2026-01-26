@@ -44,7 +44,10 @@ from typing import Any, Dict, List, Optional
 from .data_providers.marketdata import MarketDataProvider
 from .scanner.multi_strategy_scanner import MultiStrategyScanner, ScanConfig, ScanMode
 from .cache import EarningsFetcher, get_earnings_fetcher, EarningsInfo, get_historical_cache, CacheStatus
-from .vix_strategy import VIXStrategySelector, get_strategy_for_vix, format_recommendation
+from .vix_strategy import (
+    VIXStrategySelector, get_strategy_for_vix, get_strategy_for_stock,
+    calculate_spread_width, get_spread_width_table, format_recommendation, MarketRegime
+)
 from .utils.rate_limiter import get_marketdata_limiter, AdaptiveRateLimiter
 from .utils.validation import validate_symbol, validate_symbols, validate_dte_range, ValidationError
 from .utils.secure_config import get_api_key, mask_api_key
@@ -52,6 +55,7 @@ from .utils.circuit_breaker import CircuitBreaker, CircuitBreakerOpen, get_circu
 from .utils.error_handler import mcp_endpoint, sync_endpoint, format_error_response, truncate_string
 from .utils.markdown_builder import MarkdownBuilder, format_price, format_volume, truncate
 from .utils.metrics import metrics
+from .utils.request_dedup import get_request_deduplicator, RequestDeduplicator
 from .utils.earnings_aggregator import (
     EarningsAggregator, EarningsResult, EarningsSource, 
     AggregatedEarnings, get_earnings_aggregator, create_earnings_result
@@ -63,7 +67,13 @@ from .portfolio import (
 )
 from .config import get_config, get_scan_config, get_watchlist_loader
 from .strike_recommender import StrikeRecommender, StrikeRecommendation, StrikeQuality
+from .spread_analyzer import SpreadAnalyzer, BullPutSpreadParams, SpreadAnalysis
+from .backtesting import (
+    BacktestEngine, BacktestConfig, BacktestResult,
+    TradeSimulator, PriceSimulator, PerformanceMetrics, calculate_metrics
+)
 from .indicators.support_resistance import find_support_levels, calculate_fibonacci
+from .indicators.events import EventCalendar, get_macro_events, EventType
 from .container import ServiceContainer
 
 # IBKR Bridge (optional)
@@ -171,6 +181,20 @@ class OptionPlayServer:
         self._connected = False
         self._current_vix: Optional[float] = None
         self._vix_updated: Optional[datetime] = None
+
+        # Quote cache (reduces repeated API calls for same symbol)
+        self._quote_cache: Dict[str, tuple] = {}  # symbol -> (quote, timestamp)
+        self._quote_cache_hits = 0
+        self._quote_cache_misses = 0
+
+        # Scan results cache (reduces repeated scans with same parameters)
+        self._scan_cache: Dict[str, tuple] = {}  # cache_key -> (result, timestamp)
+        self._scan_cache_ttl = 1800  # 30 minutes (for 1-2x daily usage)
+        self._scan_cache_hits = 0
+        self._scan_cache_misses = 0
+
+        # Request deduplicator (prevents duplicate concurrent requests)
+        self._deduplicator = get_request_deduplicator()
 
         # IBKR Bridge (optional)
         self._ibkr_bridge: Optional["IBKRBridge"] = None
@@ -331,40 +355,182 @@ class OptionPlayServer:
         days: Optional[int] = None
     ) -> Optional[tuple]:
         """
-        Fetch historical data with caching.
-        
+        Fetch historical data with caching and request deduplication.
+
+        Features:
+        - TTL-based cache (cache_ttl_seconds, default 15 minutes)
+        - Request deduplication for concurrent identical requests
+
         Args:
             symbol: Ticker symbol
             days: Number of days (default: from config)
-            
+
         Returns:
             Tuple of (prices, volumes, highs, lows) or None
         """
         if days is None:
             days = self._config.settings.performance.historical_days
-        
-        # Check cache
+
+        # Check cache first
         cache_result = self._historical_cache.get(symbol, days)
-        
+
         if cache_result.status == CacheStatus.HIT:
             logger.debug(f"Cache hit for {symbol} ({days}d)")
             return cache_result.data
-        
-        # Load from API
-        try:
+
+        # Use deduplication for the actual API call
+        async def fetch_historical():
             provider = await self._ensure_connected()
             await self._rate_limiter.acquire()
-            data = await provider.get_historical_for_scanner(symbol, days=days)
+            d = await provider.get_historical_for_scanner(symbol, days=days)
             self._rate_limiter.record_success()
-            
+            return d
+
+        try:
+            data = await self._deduplicator.deduplicated_call(
+                key=f"historical:{symbol}:{days}",
+                coro_factory=fetch_historical
+            )
+
             if data:
                 self._historical_cache.set(symbol, data, days=days)
-            
+
             return data
-            
+
         except Exception as e:
             logger.warning(f"Failed to fetch historical data for {symbol}: {e}")
             return None
+
+    async def _apply_earnings_prefilter(
+        self,
+        symbols: List[str],
+        min_days: int
+    ) -> tuple[List[str], int, int]:
+        """
+        Internal earnings pre-filter that returns filtered symbols without markdown output.
+        Uses the 4-week earnings cache to minimize API calls.
+
+        Args:
+            symbols: List of symbols to filter
+            min_days: Minimum days until earnings
+
+        Returns:
+            Tuple of (safe_symbols, excluded_count, cache_hits)
+        """
+        if self._earnings_fetcher is None:
+            self._earnings_fetcher = get_earnings_fetcher()
+
+        safe_symbols: List[str] = []
+        excluded_count = 0
+        cache_hits = 0
+
+        for symbol in symbols:
+            try:
+                # Check cache first
+                cached = self._earnings_fetcher.cache.get(symbol)
+                if cached:
+                    cache_hits += 1
+                    days_to = cached.days_to_earnings
+                else:
+                    # Fetch from API
+                    fetched = await asyncio.to_thread(
+                        self._earnings_fetcher.fetch,
+                        symbol
+                    )
+                    days_to = fetched.days_to_earnings if fetched else None
+
+                # Classify symbol
+                if days_to is None or days_to >= min_days:
+                    safe_symbols.append(symbol)
+                else:
+                    excluded_count += 1
+
+            except Exception as e:
+                logger.debug(f"Earnings check failed for {symbol}: {e}")
+                safe_symbols.append(symbol)  # Error = accept with caution
+
+        return safe_symbols, excluded_count, cache_hits
+
+    async def _get_quote_cached(self, symbol: str) -> Optional[Any]:
+        """
+        Get quote with caching and request deduplication.
+
+        Features:
+        - TTL-based cache (cache_ttl_intraday, default 5 minutes)
+        - Request deduplication for concurrent identical requests
+
+        Args:
+            symbol: Ticker symbol
+
+        Returns:
+            PriceQuote or None
+        """
+        symbol = symbol.upper()
+        cache_ttl = self._config.settings.performance.cache_ttl_intraday
+
+        # Check cache first
+        if symbol in self._quote_cache:
+            quote, timestamp = self._quote_cache[symbol]
+            age = (datetime.now() - timestamp).total_seconds()
+            if age < cache_ttl:
+                self._quote_cache_hits += 1
+                logger.debug(f"Quote cache HIT: {symbol} (age: {age:.0f}s)")
+                return quote
+
+        # Use deduplication for the actual API call
+        async def fetch_quote():
+            provider = await self._ensure_connected()
+            await self._rate_limiter.acquire()
+            q = await provider.get_quote(symbol)
+            self._rate_limiter.record_success()
+            return q
+
+        quote = await self._deduplicator.deduplicated_call(
+            key=f"quote:{symbol}",
+            coro_factory=fetch_quote
+        )
+
+        # Cache result (even None to avoid repeated failed lookups)
+        self._quote_cache[symbol] = (quote, datetime.now())
+        self._quote_cache_misses += 1
+        logger.debug(f"Quote cache MISS: {symbol}")
+
+        return quote
+
+    def _get_quote_cache_stats(self) -> Dict[str, Any]:
+        """Get quote cache statistics."""
+        total = self._quote_cache_hits + self._quote_cache_misses
+        hit_rate = (self._quote_cache_hits / total * 100) if total > 0 else 0
+        return {
+            "entries": len(self._quote_cache),
+            "hits": self._quote_cache_hits,
+            "misses": self._quote_cache_misses,
+            "hit_rate_percent": round(hit_rate, 1),
+        }
+
+    def _make_scan_cache_key(
+        self,
+        mode: ScanMode,
+        symbols: List[str],
+        min_score: float,
+        max_results: int
+    ) -> str:
+        """Generate a cache key for scan results."""
+        # Sort symbols for consistent hashing
+        symbols_hash = hash(tuple(sorted(symbols)))
+        return f"scan:{mode.value}:{symbols_hash}:{min_score}:{max_results}"
+
+    def _get_scan_cache_stats(self) -> Dict[str, Any]:
+        """Get scan cache statistics."""
+        total = self._scan_cache_hits + self._scan_cache_misses
+        hit_rate = (self._scan_cache_hits / total * 100) if total > 0 else 0
+        return {
+            "entries": len(self._scan_cache),
+            "hits": self._scan_cache_hits,
+            "misses": self._scan_cache_misses,
+            "hit_rate_percent": round(hit_rate, 1),
+            "ttl_seconds": self._scan_cache_ttl,
+        }
 
     async def _execute_scan(
         self,
@@ -409,43 +575,92 @@ class OptionPlayServer:
         else:
             symbols = validate_symbols(symbols, skip_invalid=True)
 
-        # Configure scanner based on mode
-        enable_pullback = mode in [ScanMode.PULLBACK_ONLY, ScanMode.ALL, ScanMode.BEST_SIGNAL]
-        enable_bounce = mode in [ScanMode.BOUNCE_ONLY, ScanMode.ALL, ScanMode.BEST_SIGNAL]
-        enable_breakout = mode in [ScanMode.BREAKOUT_ONLY, ScanMode.ALL, ScanMode.BEST_SIGNAL]
-        enable_earnings_dip = mode in [ScanMode.EARNINGS_DIP, ScanMode.ALL, ScanMode.BEST_SIGNAL]
+        # Apply earnings pre-filter if enabled (reduces API calls!)
+        original_count = len(symbols)
+        excluded_by_earnings = 0
+        earnings_cache_hits = 0
 
-        scanner = self._get_multi_scanner(
-            min_score=min_score,
-            enable_pullback=enable_pullback,
-            enable_bounce=enable_bounce,
-            enable_breakout=enable_breakout,
-            enable_earnings_dip=enable_earnings_dip,
-        )
-        scanner.config.max_total_results = max_results
+        scanner_config = self._config.settings.scanner
+        if scanner_config.auto_earnings_prefilter:
+            min_days = scanner_config.earnings_prefilter_min_days
+            symbols, excluded_by_earnings, earnings_cache_hits = await self._apply_earnings_prefilter(
+                symbols, min_days
+            )
+            if excluded_by_earnings > 0:
+                logger.info(
+                    f"Earnings pre-filter: {excluded_by_earnings}/{original_count} symbols excluded "
+                    f"(earnings within {min_days} days), {earnings_cache_hits} cache hits"
+                )
 
-        # Determine historical data requirement
-        config_days = self._config.settings.performance.historical_days
-        historical_days = max(config_days, min_historical_days) if min_historical_days else config_days
+        # Check scan cache first
+        cache_key = self._make_scan_cache_key(mode, symbols, min_score, max_results)
+        cache_hit = False
 
-        async def data_fetcher(symbol: str):
-            return await self._fetch_historical_cached(symbol, days=historical_days)
+        if cache_key in self._scan_cache:
+            cached_result, cached_time = self._scan_cache[cache_key]
+            age = (datetime.now() - cached_time).total_seconds()
+            if age < self._scan_cache_ttl:
+                result = cached_result
+                cache_hit = True
+                self._scan_cache_hits += 1
+                duration = 0.0
+                logger.info(f"Scan cache HIT: {mode.value} (age: {age:.0f}s)")
 
-        # Execute scan
-        start_time = datetime.now()
-        result = await scanner.scan_async(
-            symbols=symbols,
-            data_fetcher=data_fetcher,
-            mode=mode
-        )
-        duration = (datetime.now() - start_time).total_seconds()
+        if not cache_hit:
+            self._scan_cache_misses += 1
+
+            # Configure scanner based on mode
+            enable_pullback = mode in [ScanMode.PULLBACK_ONLY, ScanMode.ALL, ScanMode.BEST_SIGNAL]
+            enable_bounce = mode in [ScanMode.BOUNCE_ONLY, ScanMode.ALL, ScanMode.BEST_SIGNAL]
+            enable_breakout = mode in [ScanMode.BREAKOUT_ONLY, ScanMode.ALL, ScanMode.BEST_SIGNAL]
+            enable_earnings_dip = mode in [ScanMode.EARNINGS_DIP, ScanMode.ALL, ScanMode.BEST_SIGNAL]
+
+            scanner = self._get_multi_scanner(
+                min_score=min_score,
+                enable_pullback=enable_pullback,
+                enable_bounce=enable_bounce,
+                enable_breakout=enable_breakout,
+                enable_earnings_dip=enable_earnings_dip,
+            )
+            scanner.config.max_total_results = max_results
+
+            # Determine historical data requirement
+            config_days = self._config.settings.performance.historical_days
+            historical_days = max(config_days, min_historical_days) if min_historical_days else config_days
+
+            async def data_fetcher(symbol: str):
+                return await self._fetch_historical_cached(symbol, days=historical_days)
+
+            # Execute scan
+            start_time = datetime.now()
+            result = await scanner.scan_async(
+                symbols=symbols,
+                data_fetcher=data_fetcher,
+                mode=mode
+            )
+            duration = (datetime.now() - start_time).total_seconds()
+
+            # Cache the result
+            self._scan_cache[cache_key] = (result, datetime.now())
+            logger.debug(f"Scan cached: {mode.value} ({len(result.signals)} signals)")
 
         # Build output
         b = MarkdownBuilder()
         b.h1(f"{emoji} {title}").blank()
-        b.kv("Scanned", f"{len(symbols)} symbols")
+
+        # Show pre-filter stats if active
+        if excluded_by_earnings > 0:
+            b.kv("Watchlist", f"{original_count} symbols")
+            b.kv("Pre-filtered", f"-{excluded_by_earnings} (earnings)")
+            b.kv("Scanned", f"{len(symbols)} symbols")
+        else:
+            b.kv("Scanned", f"{len(symbols)} symbols")
+
         b.kv("With Signals", result.symbols_with_signals)
-        b.kv("Duration", f"{duration:.1f}s")
+        if cache_hit:
+            b.kv("Source", "cached (2 min TTL)")
+        else:
+            b.kv("Duration", f"{duration:.1f}s")
         b.blank()
 
         if result.signals:
@@ -575,14 +790,256 @@ class OptionPlayServer:
     async def get_strategy_recommendation(self) -> str:
         """
         Get current strategy recommendation based on VIX.
-        
+
         Returns:
             Formatted Markdown recommendation
         """
         vix = await self.get_vix()
         recommendation = get_strategy_for_vix(vix)
         return formatters.strategy.format(recommendation, vix)
-    
+
+    @mcp_endpoint(operation="strategy for stock", symbol_param="symbol")
+    async def get_strategy_for_stock(self, symbol: str) -> str:
+        """
+        Get strategy recommendation with dynamic spread width based on stock price.
+
+        Args:
+            symbol: Ticker symbol
+
+        Returns:
+            Formatted Markdown recommendation with optimal spread width
+        """
+        symbol = validate_symbol(symbol)
+
+        # Get current quote (cached)
+        quote = await self._get_quote_cached(symbol)
+
+        if not quote or not quote.last:
+            return f"❌ Cannot get quote for {symbol}"
+
+        stock_price = quote.last
+        vix = await self.get_vix()
+
+        recommendation = get_strategy_for_stock(vix, stock_price)
+
+        b = MarkdownBuilder()
+        b.h1(f"📊 Strategy for {symbol}").blank()
+
+        b.h2("Market Context")
+        b.kv_line("VIX", f"{vix:.2f}" if vix else "N/A")
+        b.kv_line("Regime", recommendation.regime.value)
+        b.kv_line("Stock Price", f"${stock_price:.2f}")
+        b.blank()
+
+        b.h2("Basisstrategie: Short Put")
+        b.kv_line("Delta-Target", f"{recommendation.delta_target}")
+        b.kv_line("Delta-Range", f"[{recommendation.delta_min}, {recommendation.delta_max}]")
+        b.kv_line("DTE", f"{recommendation.dte_min}-{recommendation.dte_max} Tage")
+        b.kv_line("Earnings-Buffer", f">{recommendation.earnings_buffer_days} Tage")
+        b.blank()
+
+        b.h2("Dynamische Spread-Breite")
+        b.kv_line("Empfohlene Breite", f"${recommendation.spread_width:.2f}")
+        b.kv_line("Min-Score", f"{recommendation.min_score}")
+        b.blank()
+
+        # Spread width table
+        spread_table = get_spread_width_table(stock_price)
+        b.h3("Spread-Breite nach Regime")
+        rows = [
+            ["Low Vol (VIX <15)", f"${spread_table['low_vol']:.2f}"],
+            ["Normal (VIX 15-20)", f"${spread_table['normal']:.2f}"],
+            ["Elevated (VIX 20-30)", f"${spread_table['elevated']:.2f}"],
+            ["High Vol (VIX >30)", f"${spread_table['high_vol']:.2f}"],
+        ]
+        b.table(["Regime", "Spread"], rows)
+        b.blank()
+
+        b.h2("Reasoning")
+        b.text(recommendation.reasoning)
+
+        if recommendation.warnings:
+            b.blank()
+            b.h2("⚠️ Warnungen")
+            for warning in recommendation.warnings:
+                b.text(f"• {warning}")
+
+        return b.build()
+
+    @mcp_endpoint(operation="spread width calculation", symbol_param="symbol")
+    async def get_spread_width(self, symbol: str) -> str:
+        """
+        Calculate optimal spread width for a symbol based on price and VIX.
+
+        Args:
+            symbol: Ticker symbol
+
+        Returns:
+            Spread width recommendation table
+        """
+        symbol = validate_symbol(symbol)
+
+        quote = await self._get_quote_cached(symbol)
+
+        if not quote or not quote.last:
+            return f"❌ Cannot get quote for {symbol}"
+
+        stock_price = quote.last
+        vix = await self.get_vix()
+        regime = self._vix_selector.get_regime(vix)
+
+        current_spread = calculate_spread_width(stock_price, regime)
+        spread_table = get_spread_width_table(stock_price)
+
+        b = MarkdownBuilder()
+        b.h1(f"📐 Spread-Breite: {symbol}").blank()
+
+        b.kv_line("Aktienkurs", f"${stock_price:.2f}")
+        b.kv_line("VIX", f"{vix:.2f}" if vix else "N/A")
+        b.kv_line("Regime", regime.value if regime else "unknown")
+        b.blank()
+
+        b.h2("Empfohlene Spread-Breite")
+        b.kv_line("Aktuelle Empfehlung", f"${current_spread:.2f}")
+        b.blank()
+
+        b.h2("Tabelle nach VIX-Regime")
+        rows = [
+            ["Low Vol (VIX <15)", f"${spread_table['low_vol']:.2f}"],
+            ["Normal (VIX 15-20)", f"${spread_table['normal']:.2f}"],
+            ["Elevated (VIX 20-30)", f"${spread_table['elevated']:.2f}"],
+            ["High Vol (VIX >30)", f"${spread_table['high_vol']:.2f}"],
+        ]
+        b.table(["Regime", "Spread-Breite"], rows)
+
+        return b.build()
+
+    @mcp_endpoint(operation="event calendar")
+    async def get_event_calendar(self, days: int = 30) -> str:
+        """
+        Get upcoming market events (FOMC, OPEX, etc.).
+
+        Args:
+            days: Number of days to look ahead
+
+        Returns:
+            Formatted event calendar
+        """
+        from datetime import timedelta
+
+        calendar = EventCalendar(include_macro_events=True)
+        end_date = date.today() + timedelta(days=days)
+
+        events = [e for e in calendar.events if e.event_date <= end_date]
+        events = sorted(events, key=lambda e: e.event_date)
+
+        b = MarkdownBuilder()
+        b.h1(f"📅 Market Events (Next {days} Days)").blank()
+
+        if not events:
+            b.hint("No major events in this period.")
+            return b.build()
+
+        event_icons = {
+            EventType.FED_MEETING: "🏦",
+            EventType.CPI: "📊",
+            EventType.NFP: "📈",
+            EventType.OPEX: "📉",
+            EventType.EARNINGS: "💰",
+            EventType.DIVIDEND: "💵",
+        }
+
+        rows = []
+        for event in events[:20]:
+            icon = event_icons.get(event.event_type, "📌")
+            days_until = (event.event_date - date.today()).days
+            rows.append([
+                str(event.event_date),
+                f"+{days_until}d" if days_until >= 0 else f"{days_until}d",
+                f"{icon} {event.event_type.value}",
+                event.description or "-"
+            ])
+
+        b.table(["Date", "Days", "Event", "Description"], rows)
+
+        return b.build()
+
+    @mcp_endpoint(operation="earnings validation", symbol_param="symbol")
+    async def validate_for_trading(self, symbol: str) -> str:
+        """
+        Validate if a symbol is safe for trading based on events.
+
+        Checks earnings, dividends, and other events that could affect the trade.
+
+        Args:
+            symbol: Ticker symbol
+
+        Returns:
+            Validation result with confidence score
+        """
+        from datetime import timedelta
+
+        symbol = validate_symbol(symbol)
+
+        # Build event calendar with earnings
+        calendar = EventCalendar(include_macro_events=True)
+
+        # Try to get earnings date
+        try:
+            provider = await self._ensure_connected()
+            await self._rate_limiter.acquire()
+            earnings = await provider.get_earnings_date(symbol)
+            self._rate_limiter.record_success()
+
+            if earnings and earnings.earnings_date:
+                earnings_date_obj = datetime.strptime(
+                    earnings.earnings_date, "%Y-%m-%d"
+                ).date() if isinstance(earnings.earnings_date, str) else earnings.earnings_date
+                calendar.add_earnings(symbol, earnings_date_obj, confirmed=True)
+        except Exception as e:
+            logger.debug(f"Could not fetch earnings for {symbol}: {e}")
+
+        # Validate
+        result = calendar.validate_for_sr(symbol)
+
+        b = MarkdownBuilder()
+        b.h1(f"🔍 Trading Validation: {symbol}").blank()
+
+        # Overall status
+        if result.is_valid:
+            if result.confidence_multiplier >= 0.9:
+                b.status_ok("**✅ SAFE FOR TRADING**")
+            else:
+                b.status_warning(f"**⚠️ PROCEED WITH CAUTION** (Confidence: {result.confidence_multiplier:.0%})")
+        else:
+            b.status_error("**❌ NOT RECOMMENDED**")
+        b.blank()
+
+        b.kv_line("Confidence", f"{result.confidence_multiplier:.0%}")
+        b.blank()
+
+        # Blocking events
+        if result.blocking_events:
+            b.h2("🚫 Blocking Events")
+            for event in result.blocking_events:
+                b.text(f"• {event.event_type.value}: {event.event_date} ({event.days_until} days)")
+            b.blank()
+
+        # Warnings
+        if result.warning_events:
+            b.h2("⚠️ Warning Events")
+            for event in result.warning_events:
+                b.text(f"• {event.event_type.value}: {event.event_date} ({event.days_until} days)")
+            b.blank()
+
+        # Recommendations
+        if result.recommendations:
+            b.h2("💡 Recommendations")
+            for rec in result.recommendations:
+                b.text(f"• {rec}")
+
+        return b.build()
+
     # =========================================================================
     # SCANNING - PULLBACK (ORIGINAL)
     # =========================================================================
@@ -945,11 +1402,9 @@ class OptionPlayServer:
             return f"❌ No historical data available for {symbol}"
         
         prices, volumes, highs, lows = data
-        
-        await self._rate_limiter.acquire()
-        quote = await provider.get_quote(symbol)
-        self._rate_limiter.record_success()
-        
+
+        quote = await self._get_quote_cached(symbol)
+
         vix = await self.get_vix()
         
         scanner = self._get_multi_scanner(min_score=0)
@@ -966,12 +1421,27 @@ class OptionPlayServer:
         
         b = MarkdownBuilder()
         b.h1(f"📊 Multi-Strategy Analysis: {symbol}").blank()
-        
+
         if quote:
             b.kv_line("Price", f"${quote.last:.2f}" if quote.last else "N/A")
         b.kv_line("VIX", f"{vix:.2f}" if vix else "N/A")
+
+        # Earnings check with warning
+        await self._rate_limiter.acquire()
+        earnings = await provider.get_earnings_date(symbol)
+        self._rate_limiter.record_success()
+
+        if earnings and earnings.earnings_date:
+            if earnings.days_to_earnings < 45:
+                b.kv_line("Earnings", f"❌ {earnings.days_to_earnings}d - DO NOT TRADE")
+            elif earnings.days_to_earnings < 60:
+                b.kv_line("Earnings", f"⚠️ {earnings.days_to_earnings}d - CAUTION")
+            else:
+                b.kv_line("Earnings", f"✅ {earnings.days_to_earnings}d")
+        else:
+            b.kv_line("Earnings", "N/A")
         b.blank()
-        
+
         signal_by_strategy = {s.strategy: s for s in signals}
         
         b.h2("Strategy Scores").blank()
@@ -1013,12 +1483,9 @@ class OptionPlayServer:
     async def get_quote(self, symbol: str) -> str:
         """Get current stock quote."""
         symbol = validate_symbol(symbol)
-        provider = await self._ensure_connected()
-        
-        await self._rate_limiter.acquire()
-        quote = await provider.get_quote(symbol)
-        self._rate_limiter.record_success()
-        
+
+        quote = await self._get_quote_cached(symbol)
+
         return formatters.quote.format(symbol, quote)
     
     @mcp_endpoint(operation="options chain lookup", symbol_param="symbol")
@@ -1034,13 +1501,10 @@ class OptionPlayServer:
         symbol = validate_symbol(symbol)
         dte_min, dte_max = validate_dte_range(dte_min, dte_max)
         provider = await self._ensure_connected()
-        
-        await self._rate_limiter.acquire()
-        quote = await provider.get_quote(symbol)
-        self._rate_limiter.record_success()
-        
+
+        quote = await self._get_quote_cached(symbol)
         underlying_price = quote.last if quote else None
-        
+
         await self._rate_limiter.acquire()
         options = await provider.get_option_chain(
             symbol,
@@ -1383,18 +1847,16 @@ class OptionPlayServer:
         """Perform complete analysis for a symbol (Bull-Put-Spread focus)."""
         symbol = validate_symbol(symbol)
         provider = await self._ensure_connected()
-        
+
         vix = await self.get_vix()
         recommendation = get_strategy_for_vix(vix)
-        
-        await self._rate_limiter.acquire()
-        quote = await provider.get_quote(symbol)
-        self._rate_limiter.record_success()
-        
+
+        quote = await self._get_quote_cached(symbol)
+
         await self._rate_limiter.acquire()
         historical = await provider.get_historical_for_scanner(symbol, days=260)
         self._rate_limiter.record_success()
-        
+
         await self._rate_limiter.acquire()
         earnings = await provider.get_earnings_date(symbol)
         self._rate_limiter.record_success()
@@ -1439,10 +1901,18 @@ class OptionPlayServer:
         b.h2("Earnings Check")
         if earnings and earnings.earnings_date:
             is_safe = earnings.days_to_earnings >= recommendation.earnings_buffer_days
-            status = "✅ SAFE" if is_safe else "⚠️ TOO CLOSE"
+            # Status with warning for <60 days
+            if earnings.days_to_earnings < recommendation.earnings_buffer_days:
+                status = "❌ TOO CLOSE - DO NOT TRADE"
+            elif earnings.days_to_earnings < 60:
+                status = "⚠️ CAUTION - Earnings in <60 days"
+            else:
+                status = "✅ SAFE"
             b.kv_line("Date", earnings.earnings_date)
             b.kv_line("Days", f"{earnings.days_to_earnings} (Min: {recommendation.earnings_buffer_days})")
             b.kv_line("Status", status)
+            if earnings.days_to_earnings < 60 and earnings.days_to_earnings >= recommendation.earnings_buffer_days:
+                b.text("⚠️ **Note:** Consider shorter DTE or monitor closely")
         else:
             b.kv_line("Status", "No date available")
         
@@ -1505,17 +1975,15 @@ class OptionPlayServer:
         """
         symbol = validate_symbol(symbol)
         provider = await self._ensure_connected()
-        
-        # 1. Get current quote
-        await self._rate_limiter.acquire()
-        quote = await provider.get_quote(symbol)
-        self._rate_limiter.record_success()
-        
+
+        # 1. Get current quote (cached)
+        quote = await self._get_quote_cached(symbol)
+
         if not quote or not quote.last:
             return f"❌ Cannot get quote for {symbol}"
-        
+
         current_price = quote.last
-        
+
         # 2. Get historical data for support analysis
         historical_days = 120  # Need more history for good support levels
         data = await self._fetch_historical_cached(symbol, days=historical_days)
@@ -1573,9 +2041,13 @@ class OptionPlayServer:
                 for opt in options
             ]
         
-        # 6. Get recommendations
+        # 6. Get VIX regime for dynamic spread calculation
+        vix = await self.get_vix()
+        regime = self._vix_selector.get_regime(vix) if vix else None
+
+        # 7. Get recommendations
         recommender = StrikeRecommender()
-        
+
         # Primary recommendation
         primary = recommender.get_recommendation(
             symbol=symbol,
@@ -1583,7 +2055,8 @@ class OptionPlayServer:
             support_levels=support_levels,
             options_data=options_data,
             fib_levels=fib_levels,
-            dte=dte_min + (dte_max - dte_min) // 2  # Mid-point DTE
+            dte=dte_min + (dte_max - dte_min) // 2,  # Mid-point DTE
+            regime=regime  # VIX-based regime for dynamic spread width
         )
         
         # Alternative recommendations
@@ -1595,14 +2068,16 @@ class OptionPlayServer:
             fib_levels=fib_levels,
             num_alternatives=num_alternatives
         )
-        
-        # 7. Build output
+
+        # 8. Build output
         b = MarkdownBuilder()
         b.h1(f"🎯 Strike Recommendation: {symbol}").blank()
-        
+
         # Current price and context
         b.kv_line("Current Price", f"${current_price:.2f}")
         b.kv_line("DTE Range", f"{dte_min}-{dte_max} days")
+        if vix and regime:
+            b.kv_line("VIX", f"{vix:.1f} ({regime.value})")
         b.blank()
         
         # Support levels found
@@ -1680,9 +2155,433 @@ class OptionPlayServer:
                     f"{q_icon} {alt.confidence_score:.0f}"
                 ])
             b.table(["#", "Strikes", "Width", "Credit", "Score"], rows)
-        
+
         return b.build()
-    
+
+    # =========================================================================
+    # SPREAD ANALYSIS
+    # =========================================================================
+
+    @mcp_endpoint(operation="spread analysis", symbol_param="symbol")
+    async def analyze_spread(
+        self,
+        symbol: str,
+        short_strike: float,
+        long_strike: float,
+        net_credit: float,
+        dte: int,
+        contracts: int = 1,
+    ) -> str:
+        """
+        Analyze a Bull-Put-Spread with comprehensive risk/reward metrics.
+
+        Provides detailed analysis including:
+        - Max profit/loss calculation
+        - Break-even analysis
+        - Risk/Reward ratio
+        - Probability estimates
+        - P&L scenarios at various prices
+        - Exit recommendations (profit targets, stop-loss)
+
+        Args:
+            symbol: Ticker symbol
+            short_strike: Strike price of short put
+            long_strike: Strike price of long put (must be lower than short)
+            net_credit: Net credit received per share
+            dte: Days to expiration
+            contracts: Number of contracts (default: 1)
+
+        Returns:
+            Formatted Markdown with spread analysis
+        """
+        symbol = validate_symbol(symbol)
+
+        # Get current quote (cached)
+        quote = await self._get_quote_cached(symbol)
+
+        if not quote or not quote.last:
+            return f"❌ Cannot get quote for {symbol}"
+
+        current_price = quote.last
+
+        # Validate spread parameters
+        if short_strike <= long_strike:
+            return "❌ Short strike must be higher than long strike"
+
+        if short_strike >= current_price:
+            return f"❌ Short strike (${short_strike}) should be below current price (${current_price:.2f})"
+
+        if net_credit <= 0:
+            return "❌ Net credit must be positive"
+
+        # Create spread parameters
+        try:
+            params = BullPutSpreadParams(
+                symbol=symbol,
+                current_price=current_price,
+                short_strike=short_strike,
+                long_strike=long_strike,
+                net_credit=net_credit,
+                dte=dte,
+                contracts=contracts
+            )
+        except ValueError as e:
+            return f"❌ Invalid parameters: {e}"
+
+        # Analyze spread
+        analyzer = SpreadAnalyzer()
+        analysis = analyzer.analyze(params)
+
+        # Build output
+        b = MarkdownBuilder()
+        b.h1(f"📊 Spread Analysis: {symbol}").blank()
+
+        # Spread details
+        b.h2("📋 Spread Details")
+        b.kv_line("Current Price", f"${current_price:.2f}")
+        b.kv_line("Short Strike", f"${short_strike:.2f} ({analysis.distance_to_short_strike:+.1f}% OTM)")
+        b.kv_line("Long Strike", f"${long_strike:.2f}")
+        b.kv_line("Spread Width", f"${analysis.spread_width:.2f}")
+        b.kv_line("Net Credit", f"${net_credit:.2f} x {contracts}")
+        b.kv_line("DTE", f"{dte} days")
+        b.blank()
+
+        # Profit/Loss metrics
+        b.h2("💰 Profit/Loss")
+        b.kv_line("Max Profit", f"${analysis.max_profit:,.2f} ({analysis.credit_to_width_ratio:.0f}% of width)")
+        b.kv_line("Max Loss", f"${analysis.max_loss:,.2f}")
+        b.kv_line("Risk/Reward", f"1:{analysis.risk_reward_ratio:.2f}")
+        b.kv_line("Break-Even", f"${analysis.break_even:.2f} ({analysis.distance_to_break_even:+.1f}%)")
+        b.blank()
+
+        # Probabilities
+        b.h2("📈 Probabilities")
+        b.kv_line("P(Profit)", f"{analysis.prob_profit:.0f}%")
+        b.kv_line("P(Max Profit)", f"{analysis.prob_max_profit:.0f}%")
+        b.kv_line("Expected Value", f"${analysis.expected_value:+.2f}")
+
+        # Risk level with icon
+        risk_icons = {
+            "low": "🟢",
+            "moderate": "🟡",
+            "high": "🟠",
+            "very_high": "🔴"
+        }
+        risk_icon = risk_icons.get(analysis.risk_level.value, "⚪")
+        b.kv_line("Risk Level", f"{risk_icon} {analysis.risk_level.value.upper()}")
+        b.blank()
+
+        # Greeks (if available)
+        if analysis.net_theta and analysis.theta_per_day:
+            b.h2("📐 Greeks")
+            if analysis.net_delta:
+                b.kv_line("Net Delta", f"{analysis.net_delta:.3f}")
+            b.kv_line("Theta/Day", f"${analysis.theta_per_day:.2f}")
+            b.blank()
+
+        # P&L Scenarios
+        if analysis.scenarios:
+            b.h2("🎯 P&L Scenarios (at Expiration)")
+            rows = []
+            for scenario in analysis.scenarios:
+                status_icons = {
+                    "max_profit": "✅",
+                    "profit": "🟢",
+                    "loss": "🔴",
+                    "max_loss": "❌"
+                }
+                icon = status_icons.get(scenario.status, "")
+                rows.append([
+                    f"${scenario.price:.2f}",
+                    f"${scenario.pnl_total:+,.2f}",
+                    f"{scenario.pnl_percent:+.0f}%",
+                    f"{icon} {scenario.status}"
+                ])
+            b.table(["Price", "P&L", "% Max", "Status"], rows)
+            b.blank()
+
+        # Warnings
+        if analysis.warnings:
+            b.h2("⚠️ Warnings")
+            for warning in analysis.warnings:
+                b.text(f"• {warning}")
+            b.blank()
+
+        # Recommendations
+        if analysis.recommendations:
+            b.h2("💡 Recommendations")
+            for rec in analysis.recommendations:
+                b.text(f"• {rec}")
+
+        return b.build()
+
+    @mcp_endpoint(operation="monte carlo simulation", symbol_param="symbol")
+    async def run_monte_carlo(
+        self,
+        symbol: str,
+        short_strike: float,
+        long_strike: float,
+        net_credit: float,
+        dte: int = 45,
+        num_simulations: int = 500,
+        volatility: Optional[float] = None,
+    ) -> str:
+        """
+        Run Monte Carlo simulation for a Bull-Put-Spread.
+
+        Simulates multiple price paths to estimate probability of outcomes.
+
+        Args:
+            symbol: Ticker symbol
+            short_strike: Strike price of short put
+            long_strike: Strike price of long put
+            net_credit: Net credit received per share
+            dte: Days to expiration (default: 45)
+            num_simulations: Number of simulations (default: 500, max: 2000)
+            volatility: Optional override for volatility (e.g., 0.30 = 30%)
+
+        Returns:
+            Formatted Markdown with simulation results
+        """
+        symbol = validate_symbol(symbol)
+        # Get current quote (cached)
+        quote = await self._get_quote_cached(symbol)
+
+        if not quote or not quote.last:
+            return f"❌ Cannot get quote for {symbol}"
+
+        current_price = quote.last
+
+        # Validate parameters
+        if short_strike <= long_strike:
+            return "❌ Short strike must be higher than long strike"
+
+        if short_strike >= current_price:
+            return f"❌ Short strike (${short_strike}) should be below current price (${current_price:.2f})"
+
+        # Limit simulations
+        num_simulations = min(2000, max(100, num_simulations))
+
+        # Estimate volatility from historical data if not provided
+        if volatility is None:
+            data = await self._fetch_historical_cached(symbol, days=60)
+            if data:
+                prices, _, _, _ = data
+                volatility = PriceSimulator.estimate_volatility(prices)
+            else:
+                volatility = 0.25  # Default 25%
+
+        # Run simulation
+        simulator = TradeSimulator()
+        results = simulator.run_monte_carlo(
+            symbol=symbol,
+            entry_price=current_price,
+            short_strike=short_strike,
+            long_strike=long_strike,
+            net_credit=net_credit,
+            dte=dte,
+            volatility=volatility,
+            num_simulations=num_simulations,
+        )
+
+        # Build output
+        b = MarkdownBuilder()
+        b.h1(f"🎲 Monte Carlo Simulation: {symbol}").blank()
+
+        # Parameters
+        b.h2("📋 Parameters")
+        b.kv_line("Current Price", f"${current_price:.2f}")
+        b.kv_line("Short Strike", f"${short_strike:.2f}")
+        b.kv_line("Long Strike", f"${long_strike:.2f}")
+        b.kv_line("Net Credit", f"${net_credit:.2f}")
+        b.kv_line("DTE", f"{dte} days")
+        b.kv_line("Volatility", f"{volatility * 100:.1f}%")
+        b.kv_line("Simulations", f"{num_simulations:,}")
+        b.blank()
+
+        # Results
+        b.h2("📊 Results")
+        b.kv_line("Win Rate", f"{results['win_rate']:.1f}%")
+        b.kv_line("Avg P&L", f"${results['avg_pnl']:+,.2f}")
+        b.kv_line("Median P&L", f"${results['median_pnl']:+,.2f}")
+        b.kv_line("Std Dev", f"${results['std_pnl']:,.2f}")
+        b.blank()
+
+        b.kv_line("Best Case", f"${results['max_pnl']:+,.2f}")
+        b.kv_line("Worst Case", f"${results['min_pnl']:+,.2f}")
+        b.kv_line("Avg Hold Days", f"{results['avg_hold_days']:.1f}")
+        b.blank()
+
+        # Percentiles
+        b.h2("📈 P&L Distribution")
+        percentiles = results.get("percentiles", {})
+        rows = [
+            ["5th", f"${percentiles.get('p5', 0):+,.2f}"],
+            ["25th", f"${percentiles.get('p25', 0):+,.2f}"],
+            ["50th (Median)", f"${percentiles.get('p50', 0):+,.2f}"],
+            ["75th", f"${percentiles.get('p75', 0):+,.2f}"],
+            ["95th", f"${percentiles.get('p95', 0):+,.2f}"],
+        ]
+        b.table(["Percentile", "P&L"], rows)
+        b.blank()
+
+        # Outcome Distribution
+        b.h2("🎯 Outcome Distribution")
+        outcomes = results.get("outcome_distribution", {})
+        total = sum(outcomes.values())
+        if total > 0:
+            outcome_rows = []
+            outcome_labels = {
+                "profit_target": "✅ Profit Target",
+                "expiration": "📅 Expiration",
+                "stop_loss": "🛑 Stop Loss",
+                "max_loss": "❌ Max Loss",
+            }
+            for key, label in outcome_labels.items():
+                count = outcomes.get(key, 0)
+                pct = (count / total) * 100
+                outcome_rows.append([label, str(count), f"{pct:.1f}%"])
+            b.table(["Outcome", "Count", "%"], outcome_rows)
+
+        return b.build()
+
+    @sync_endpoint(operation="backtest quick")
+    def run_quick_backtest(
+        self,
+        symbols: Optional[List[str]] = None,
+        days: int = 180,
+        profit_target_pct: float = 50.0,
+        stop_loss_pct: float = 200.0,
+    ) -> str:
+        """
+        Run a quick backtest with simulated data.
+
+        Uses simplified assumptions for rapid testing.
+
+        Args:
+            symbols: List of symbols (default: ["AAPL", "MSFT", "GOOGL"])
+            days: Number of days to simulate (default: 180)
+            profit_target_pct: Profit target as % of max profit (default: 50)
+            stop_loss_pct: Stop loss as % of credit (default: 200)
+
+        Returns:
+            Formatted Markdown with backtest results
+        """
+        if symbols is None:
+            symbols = ["AAPL", "MSFT", "GOOGL"]
+
+        symbols = validate_symbols(symbols, skip_invalid=True)[:5]  # Max 5 symbols
+
+        # Create simulated historical data
+        import random
+        from datetime import timedelta
+
+        start_date = date.today() - timedelta(days=days)
+        end_date = date.today()
+
+        historical_data = {}
+        for symbol in symbols:
+            base_price = random.uniform(100, 300)
+            prices = []
+            current = base_price
+
+            current_date = start_date
+            while current_date <= end_date:
+                if current_date.weekday() < 5:  # Weekdays only
+                    # Random walk
+                    change = random.gauss(0, 0.015) * current
+                    current = max(current + change, base_price * 0.5)
+                    prices.append({
+                        "date": current_date.isoformat(),
+                        "open": current * random.uniform(0.99, 1.01),
+                        "high": current * random.uniform(1.0, 1.02),
+                        "low": current * random.uniform(0.98, 1.0),
+                        "close": current,
+                        "volume": random.randint(1000000, 10000000),
+                    })
+                current_date += timedelta(days=1)
+
+            historical_data[symbol] = prices
+
+        # Create config
+        config = BacktestConfig(
+            start_date=start_date,
+            end_date=end_date,
+            initial_capital=100000.0,
+            profit_target_pct=profit_target_pct,
+            stop_loss_pct=stop_loss_pct,
+            min_pullback_score=5.0,
+        )
+
+        # Run backtest
+        engine = BacktestEngine(config)
+        result = engine.run_sync(
+            symbols=symbols,
+            historical_data=historical_data,
+        )
+
+        # Build output
+        b = MarkdownBuilder()
+        b.h1("📊 Quick Backtest Results").blank()
+
+        # Config
+        b.h2("⚙️ Configuration")
+        b.kv_line("Period", f"{start_date} to {end_date}")
+        b.kv_line("Symbols", ", ".join(symbols))
+        b.kv_line("Initial Capital", f"${config.initial_capital:,.2f}")
+        b.kv_line("Profit Target", f"{profit_target_pct}%")
+        b.kv_line("Stop Loss", f"{stop_loss_pct}%")
+        b.blank()
+
+        # Summary
+        b.h2("📈 Performance")
+        b.kv_line("Total Trades", str(result.total_trades))
+        b.kv_line("Win Rate", f"{result.win_rate:.1f}%")
+        b.kv_line("Total P&L", f"${result.total_pnl:+,.2f}")
+        return_pct = (result.total_pnl / config.initial_capital) * 100
+        b.kv_line("Return", f"{return_pct:+.2f}%")
+        b.kv_line("Profit Factor", f"{result.profit_factor:.2f}")
+        b.blank()
+
+        b.kv_line("Avg Win", f"${result.avg_win:,.2f}")
+        b.kv_line("Avg Loss", f"${result.avg_loss:,.2f}")
+        b.kv_line("Avg Hold Days", f"{result.avg_hold_days:.1f}")
+        b.blank()
+
+        # Risk
+        b.h2("⚠️ Risk Metrics")
+        b.kv_line("Max Drawdown", f"${result.max_drawdown:,.2f} ({result.max_drawdown_pct:.1f}%)")
+        b.kv_line("Sharpe Ratio", f"{result.sharpe_ratio:.2f}")
+        b.blank()
+
+        # Outcome Distribution
+        if result.outcome_distribution:
+            b.h2("🎯 Outcomes")
+            for outcome, count in sorted(result.outcome_distribution.items()):
+                pct = (count / result.total_trades * 100) if result.total_trades > 0 else 0
+                b.kv_line(outcome, f"{count} ({pct:.1f}%)")
+            b.blank()
+
+        # Recent trades
+        if result.trades:
+            b.h2("📋 Recent Trades")
+            rows = []
+            for trade in result.trades[-10:]:  # Last 10 trades
+                outcome_icon = "✅" if trade.is_winner else "❌"
+                rows.append([
+                    trade.symbol,
+                    str(trade.entry_date),
+                    f"${trade.realized_pnl:+,.0f}",
+                    f"{trade.hold_days}d",
+                    f"{outcome_icon} {trade.outcome.value}",
+                ])
+            b.table(["Symbol", "Entry", "P&L", "Days", "Outcome"], rows)
+
+        b.blank()
+        b.text("*Note: This uses simulated data for demonstration purposes.*")
+
+        return b.build()
+
     @sync_endpoint(operation="watchlist info")
     def get_watchlist_info(self) -> str:
         """Show information about the current watchlist."""
@@ -1701,12 +2600,41 @@ class OptionPlayServer:
     def get_cache_stats(self) -> str:
         """Show cache statistics."""
         cache_stats = self._historical_cache.stats()
-        
+        quote_cache_stats = self._get_quote_cache_stats()
+
         b = MarkdownBuilder()
         b.h1("Cache Statistics").blank()
+
+        b.h2("Historical Data Cache")
         b.kv_line("Entries", f"{cache_stats['entries']}/{cache_stats['max_entries']}")
         b.kv_line("Hit Rate", f"{cache_stats['hit_rate_percent']}%")
-        
+        b.kv_line("TTL", f"{cache_stats['ttl_seconds']}s")
+        b.blank()
+
+        b.h2("Quote Cache")
+        b.kv_line("Entries", quote_cache_stats['entries'])
+        b.kv_line("Hits", quote_cache_stats['hits'])
+        b.kv_line("Misses", quote_cache_stats['misses'])
+        b.kv_line("Hit Rate", f"{quote_cache_stats['hit_rate_percent']}%")
+        b.blank()
+
+        dedup_stats = self._deduplicator.stats()
+        b.h2("Request Deduplication")
+        b.kv_line("Total Requests", dedup_stats['total_requests'])
+        b.kv_line("Actual API Calls", dedup_stats['actual_calls'])
+        b.kv_line("Deduplicated", dedup_stats['deduplicated'])
+        b.kv_line("Dedup Rate", f"{dedup_stats['dedup_rate_percent']}%")
+        b.kv_line("In-Flight", dedup_stats['in_flight'])
+        b.blank()
+
+        scan_cache_stats = self._get_scan_cache_stats()
+        b.h2("Scan Results Cache")
+        b.kv_line("Entries", scan_cache_stats['entries'])
+        b.kv_line("Hits", scan_cache_stats['hits'])
+        b.kv_line("Misses", scan_cache_stats['misses'])
+        b.kv_line("Hit Rate", f"{scan_cache_stats['hit_rate_percent']}%")
+        b.kv_line("TTL", f"{scan_cache_stats['ttl_seconds']}s")
+
         return b.build()
     
     # =========================================================================

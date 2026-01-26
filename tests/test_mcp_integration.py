@@ -280,5 +280,85 @@ class TestHealthCheckIntegration:
         assert stats["total_calls"] == 2
 
 
+class TestEarningsPreFilterIntegration:
+    """Tests für automatischen Earnings Pre-Filter in Scans"""
+
+    def test_scanner_config_has_prefilter_options(self):
+        """ScannerConfig sollte Pre-Filter Optionen haben"""
+        from src.config import ScannerConfig
+
+        config = ScannerConfig()
+
+        assert hasattr(config, 'auto_earnings_prefilter')
+        assert hasattr(config, 'earnings_prefilter_min_days')
+        assert config.auto_earnings_prefilter is True  # Default: aktiviert
+        assert config.earnings_prefilter_min_days == 45  # Default: 45 Tage
+
+    def test_prefilter_can_be_disabled(self):
+        """Pre-Filter sollte deaktivierbar sein"""
+        from src.config import ScannerConfig
+
+        config = ScannerConfig(auto_earnings_prefilter=False)
+        assert config.auto_earnings_prefilter is False
+
+    def test_prefilter_min_days_configurable(self):
+        """Pre-Filter min_days sollte konfigurierbar sein"""
+        from src.config import ScannerConfig
+
+        config = ScannerConfig(earnings_prefilter_min_days=30)
+        assert config.earnings_prefilter_min_days == 30
+
+    @pytest.mark.asyncio
+    async def test_apply_earnings_prefilter_filters_correctly(self):
+        """_apply_earnings_prefilter sollte Symbole korrekt filtern"""
+        from unittest.mock import Mock, AsyncMock, patch, MagicMock
+        from src.mcp_server import OptionPlayServer
+
+        with patch('src.mcp_server.get_config') as mock_config:
+            # Mock config
+            mock_settings = Mock()
+            mock_settings.performance.cache_ttl_seconds = 300
+            mock_settings.performance.cache_max_entries = 500
+            mock_settings.api_connection.max_retries = 3
+            mock_settings.api_connection.retry_base_delay = 2
+            mock_settings.circuit_breaker.failure_threshold = 5
+            mock_settings.circuit_breaker.recovery_timeout = 60
+            mock_config.return_value.settings = mock_settings
+
+            server = OptionPlayServer(api_key="test_key")
+
+            # Mock earnings fetcher
+            mock_fetcher = MagicMock()
+            mock_cache = MagicMock()
+
+            # AAPL: 60 Tage bis Earnings (safe)
+            # MSFT: 30 Tage bis Earnings (excluded bei min_days=45)
+            # GOOGL: keine Daten (safe - unknown)
+            def cache_get(symbol):
+                if symbol == "AAPL":
+                    return Mock(earnings_date="2025-03-15", days_to_earnings=60)
+                elif symbol == "MSFT":
+                    return Mock(earnings_date="2025-02-15", days_to_earnings=30)
+                return None  # GOOGL
+
+            mock_cache.get = cache_get
+            mock_fetcher.cache = mock_cache
+            mock_fetcher.fetch = Mock(return_value=None)  # Fallback für nicht-gecachte
+
+            server._earnings_fetcher = mock_fetcher
+
+            # Test
+            safe, excluded, cache_hits = await server._apply_earnings_prefilter(
+                ["AAPL", "MSFT", "GOOGL"],
+                min_days=45
+            )
+
+            assert "AAPL" in safe
+            assert "MSFT" not in safe
+            assert "GOOGL" in safe  # Unknown = safe
+            assert excluded == 1
+            assert cache_hits == 2  # AAPL und MSFT waren gecacht
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
