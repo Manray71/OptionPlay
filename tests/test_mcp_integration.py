@@ -333,7 +333,7 @@ class TestEarningsPreFilterIntegration:
 
             # AAPL: 60 Tage bis Earnings (safe)
             # MSFT: 30 Tage bis Earnings (excluded bei min_days=45)
-            # GOOGL: keine Daten (safe - unknown)
+            # GOOGL: keine Daten (excluded - konservativ, unknown = nicht safe)
             def cache_get(symbol):
                 if symbol == "AAPL":
                     return Mock(earnings_date="2025-03-15", days_to_earnings=60)
@@ -355,8 +355,8 @@ class TestEarningsPreFilterIntegration:
 
             assert "AAPL" in safe
             assert "MSFT" not in safe
-            assert "GOOGL" in safe  # Unknown = safe
-            assert excluded == 1
+            assert "GOOGL" not in safe  # Unknown = excluded (konservativ)
+            assert excluded == 2  # MSFT (zu nah) + GOOGL (unbekannt)
             assert cache_hits == 2  # AAPL und MSFT waren gecacht
 
 

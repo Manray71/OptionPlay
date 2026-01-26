@@ -99,10 +99,21 @@ class EarningsInfo:
     updated_at: str  # ISO Format Timestamp
     confirmed: bool = False  # True wenn Datum bestätigt
     
-    def is_safe(self, min_days: int = 60) -> bool:
-        """Prüft ob genug Abstand zu Earnings"""
+    def is_safe(self, min_days: int = 60, unknown_is_safe: bool = False) -> bool:
+        """
+        Prüft ob genug Abstand zu Earnings.
+
+        Args:
+            min_days: Mindestabstand zu Earnings in Tagen
+            unknown_is_safe: Wie unbekannte Earnings behandelt werden sollen.
+                             False (default): Konservativ - unbekannt = nicht sicher
+                             True: Permissiv - unbekannt = akzeptieren
+
+        Returns:
+            True wenn sicher, False wenn Earnings zu nah oder unbekannt
+        """
         if self.days_to_earnings is None:
-            return True  # Unbekannt = akzeptieren (mit Warnung)
+            return unknown_is_safe
         return self.days_to_earnings >= min_days
     
     def to_dict(self) -> Dict:
@@ -113,7 +124,7 @@ class EarningsInfo:
             'source': self.source.value,
             'updated_at': self.updated_at,
             'confirmed': self.confirmed,
-            'is_safe_60d': self.is_safe(60)
+            'is_safe_60d': self.is_safe(60, unknown_is_safe=False)
         }
 
 
@@ -241,13 +252,24 @@ class EarningsCache:
                 logger.error(f"Could not save earnings cache: {e}")
     
     def _is_fresh(self, entry: EarningsCacheEntry) -> bool:
-        """Prüft ob Cache-Eintrag noch gültig ist"""
+        """
+        Prüft ob Cache-Eintrag noch gültig ist.
+
+        Einträge OHNE Earnings-Datum (None) werden kürzer gecacht (24h),
+        da dies oft bedeutet, dass der API-Abruf fehlgeschlagen ist.
+        """
         if not entry.updated:
             return False
-        
+
         try:
             updated = datetime.fromisoformat(entry.updated)
             age_hours = (datetime.now() - updated).total_seconds() / 3600
+
+            # Einträge ohne Earnings-Datum nur 24h cachen (API könnte gefailed sein)
+            if entry.earnings_date is None:
+                max_age = min(24, self.max_age_hours)
+                return age_hours < max_age
+
             return age_hours < self.max_age_hours
         except (ValueError, TypeError):
             return False

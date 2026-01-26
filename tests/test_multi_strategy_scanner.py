@@ -354,8 +354,22 @@ class TestEarningsFilter:
     def test_past_earnings_not_filtered(self, scanner):
         """Vergangene Earnings sollten nicht filtern"""
         scanner.set_earnings_date("AAPL", date.today() - timedelta(days=5))
-        
+
         should_skip = scanner._should_skip_for_earnings("AAPL", "bounce")
+        assert should_skip == False
+
+    def test_unknown_earnings_filtered_conservatively(self, scanner):
+        """Unbekannte Earnings (nicht im Cache) sollten konservativ gefiltert werden"""
+        # MSFT hat KEIN Earnings-Datum im Scanner-Cache
+        # Sollte konservativ übersprungen werden
+        should_skip = scanner._should_skip_for_earnings("MSFT", "bounce")
+        assert should_skip == True
+
+    def test_unknown_earnings_not_filtered_for_earnings_dip(self, scanner):
+        """earnings_dip sollte auch bei unbekannten Earnings nicht gefiltert werden"""
+        # MSFT hat KEIN Earnings-Datum im Scanner-Cache
+        # earnings_dip sollte trotzdem NICHT gefiltert werden
+        should_skip = scanner._should_skip_for_earnings("MSFT", "earnings_dip")
         assert should_skip == False
 
 

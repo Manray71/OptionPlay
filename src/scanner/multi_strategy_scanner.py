@@ -412,27 +412,35 @@ class MultiStrategyScanner:
     def _should_skip_for_earnings(self, symbol: str, strategy: str) -> bool:
         """
         Prüft ob ein Symbol wegen Earnings übersprungen werden soll.
-        
+
         Für Bull-Put-Spreads (pullback, bounce) wollen wir keine
         Aktien mit nahen Earnings.
+
+        HINWEIS: Die primäre Filterung erfolgt im MCP-Server via
+        _apply_earnings_prefilter(). Diese Methode ist eine zusätzliche
+        Sicherheitsschicht für direkte Scanner-Aufrufe.
         """
         if strategy == 'earnings_dip':
             # Earnings Dip braucht gerade Earnings
             return False
-        
+
         if self.config.exclude_earnings_within_days <= 0:
             return False
-        
+
         earnings_date = self._earnings_cache.get(symbol)
         if not earnings_date:
-            return False  # Kein Datum bekannt -> nicht filtern
-        
+            # Kein Datum im Scanner-Cache bekannt.
+            # Der MCP-Server sollte bereits vorgefiltert haben,
+            # aber für direkte Aufrufe: konservativ überspringen
+            logger.debug(f"Skipping {symbol} for {strategy}: no earnings date in scanner cache")
+            return True
+
         days_to_earnings = (earnings_date - date.today()).days
-        
+
         if 0 < days_to_earnings <= self.config.exclude_earnings_within_days:
             logger.debug(f"Skipping {symbol} for {strategy}: earnings in {days_to_earnings} days")
             return True
-        
+
         return False
     
     def analyze_symbol(
