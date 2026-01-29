@@ -1,0 +1,241 @@
+{
+  "pullback": {
+    "source": "worker0",
+    "weights": {
+      "rsi": 0.7126723218204492,
+      "support": 1.5526719947001388,
+      "fibonacci": 0.7127153001546588,
+      "moving_average": 0.5841171489885306,
+      "volume": 0.655497416140776,
+      "macd": 0.8226045462380271,
+      "stochastic": 1.8418101824405244,
+      "keltner": 1.0852821655476483,
+      "trend": 1.7101157025676472,
+      "momentum": 0.8145534870623439,
+      "relative_strength": 0.9820732403203183,
+      "candlestick": 0.7508246008019082,
+      "gap": 1.489696611253822,
+      "stabilization": 1.603692950399727,
+      "dip_magnitude": 1.1794831189673933,
+      "ath_breakout": 1.5285820813665423,
+      "vwap": 1.6140167746082894,
+      "market_context": 1.368234782697747
+    },
+    "roll_params": {
+      "trigger_pct": -64.91383126994107,
+      "dte_extension": 65,
+      "dte_extension_max": 74,
+      "max_rolls": 5,
+      "min_credit_recovery_pct": 0.7873684736287537,
+      "support_buffer_pct": 2.6863730437721025
+    },
+    "final": {
+      "total_trades": 1228,
+      "win_rate": 80.94462540716613,
+      "avg_pnl": 2.4567709349332203,
+      "sharpe_ratio": 0.42553675535276,
+      "roll_success_rate": 44.27860696517413,
+      "avg_rolls_per_trade": 1.456840390879479,
+      "by_regime": {
+        "low": {
+          "trades": 348,
+          "win_rate": 72.98850574712644,
+          "avg_pnl": -15.93280062638094
+        },
+        "normal": {
+          "trades": 477,
+          "win_rate": 82.80922431865828,
+          "avg_pnl": 5.481940698572159
+        },
+        "elevated": {
+          "trades": 358,
+          "win_rate": 84.63687150837988,
+          "avg_pnl": 12.86608021061075
+        },
+        "high": {
+          "trades": 45,
+          "win_rate": 93.33333333333333,
+          "avg_pnl": 29.790819943577663
+        }
+      }
+    }
+  },
+  "bounce": {
+    "source": "worker0",
+    "weights": {
+      "rsi": 0.6306399936995027,
+      "support": 0.510636924351034,
+      "fibonacci": 0.7958072787110517,
+      "moving_average": 0.6784542636112261,
+      "volume": 1.3660439562969109,
+      "macd": 1.3920052486007726,
+      "stochastic": 0.837324127837499,
+      "keltner": 1.7326433332734594,
+      "trend": 0.6393492400519829,
+      "momentum": 0.8408198324742496,
+      "relative_strength": 0.5954385988956326,
+      "candlestick": 0.5724379751805186,
+      "gap": 1.019101856495395,
+      "stabilization": 0.8192635630045962,
+      "dip_magnitude": 1.4041774762021118,
+      "ath_breakout": 1.1253629458587313,
+      "vwap": 0.9692881407634649,
+      "market_context": 0.651064898854246
+    },
+    "roll_params": {
+      "trigger_pct": -36.49123279815211,
+      "dte_extension": 52,
+      "dte_extension_max": 103,
+      "max_rolls": 6,
+      "min_credit_recovery_pct": 0.48999142156867337,
+      "support_buffer_pct": 4.06335491423148
+    },
+    "final": {
+      "total_trades": 102,
+      "win_rate": 87.25490196078431,
+      "avg_pnl": 19.694490552191592,
+      "sharpe_ratio": 4.212319338601759,
+      "roll_success_rate": 65.71428571428571,
+      "avg_rolls_per_trade": 1.7745098039215685,
+      "by_regime": {
+        "low": {
+          "trades": 29,
+          "win_rate": 79.3103448275862,
+          "avg_pnl": 15.530736273084592
+        },
+        "normal": {
+          "trades": 38,
+          "win_rate": 94.73684210526315,
+          "avg_pnl": 27.425140903110638
+        },
+        "elevated": {
+          "trades": 35,
+          "win_rate": 85.71428571428571,
+          "avg_pnl": 14.75118085959672
+        }
+      }
+    }
+  },
+  "ath_breakout": {
+    "source": "worker0",
+    "weights": {
+      "rsi": 1.1034095034434805,
+      "support": 0.8494302910117972,
+      "fibonacci": 0.8171882253171493,
+      "moving_average": 1.2516396172856172,
+      "volume": 0.7996146473296325,
+      "macd": 0.7350651225988641,
+      "stochastic": 0.9236960304485616,
+      "keltner": 1.6649874295351417,
+      "trend": 0.5490935572138025,
+      "momentum": 0.6222374240660483,
+      "relative_strength": 1.2433132084773537,
+      "candlestick": 1.5210788900250565,
+      "gap": 1.4026297493150597,
+      "stabilization": 1.3628438011206891,
+      "dip_magnitude": 1.6441925603165437,
+      "ath_breakout": 1.4647191166670672,
+      "vwap": 0.765698093737743,
+      "market_context": 1.5850993766218868
+    },
+    "roll_params": {
+      "trigger_pct": -31.77719131879867,
+      "dte_extension": 88,
+      "dte_extension_max": 87,
+      "max_rolls": 5,
+      "min_credit_recovery_pct": 0.7786379819079936,
+      "support_buffer_pct": 2.483024761348884
+    },
+    "final": {
+      "total_trades": 573,
+      "win_rate": 81.15183246073299,
+      "avg_pnl": -2.3650153993223144,
+      "sharpe_ratio": -0.35554333429880286,
+      "roll_success_rate": 62.19512195121951,
+      "avg_rolls_per_trade": 1.9232111692844678,
+      "by_regime": {
+        "low": {
+          "trades": 274,
+          "win_rate": 76.64233576642336,
+          "avg_pnl": -16.033381427623503
+        },
+        "normal": {
+          "trades": 235,
+          "win_rate": 84.68085106382979,
+          "avg_pnl": 7.723038985828132
+        },
+        "elevated": {
+          "trades": 63,
+          "win_rate": 87.3015873015873,
+          "avg_pnl": 18.43872204706235
+        },
+        "high": {
+          "trades": 1,
+          "win_rate": 100.0,
+          "avg_pnl": 61.43903672261537
+        }
+      }
+    }
+  },
+  "earnings_dip": {
+    "source": "worker1",
+    "weights": {
+      "rsi": 0.9773850955371519,
+      "support": 1.4403069348728095,
+      "fibonacci": 1.5672789382026124,
+      "moving_average": 1.5643909906408722,
+      "volume": 0.9377140657695865,
+      "macd": 1.853570647074771,
+      "stochastic": 1.2297808956491223,
+      "keltner": 1.6552554455228794,
+      "trend": 0.6941946448929794,
+      "momentum": 1.5321018622401823,
+      "relative_strength": 1.9671528571170807,
+      "candlestick": 1.8456964662733781,
+      "gap": 0.7342272209325145,
+      "stabilization": 0.7489522969358025,
+      "dip_magnitude": 0.5119599312314392,
+      "ath_breakout": 1.2200191501422655,
+      "vwap": 1.197430830721776,
+      "market_context": 0.6414470132469967
+    },
+    "roll_params": {
+      "trigger_pct": -38.03129488734464,
+      "dte_extension": 73,
+      "dte_extension_max": 106,
+      "max_rolls": 5,
+      "min_credit_recovery_pct": 0.7918000720564016,
+      "support_buffer_pct": 3.489720473111986
+    },
+    "final": {
+      "total_trades": 1735,
+      "win_rate": 80.7492795389049,
+      "avg_pnl": 4.292806186515531,
+      "sharpe_ratio": 0.7634825564864796,
+      "roll_success_rate": 58.269720101781175,
+      "avg_rolls_per_trade": 1.951585014409222,
+      "by_regime": {
+        "low": {
+          "trades": 589,
+          "win_rate": 73.68421052631578,
+          "avg_pnl": -10.64192138660293
+        },
+        "normal": {
+          "trades": 580,
+          "win_rate": 79.13793103448276,
+          "avg_pnl": 1.2166016256635486
+        },
+        "elevated": {
+          "trades": 439,
+          "win_rate": 87.01594533029613,
+          "avg_pnl": 15.518396664932245
+        },
+        "high": {
+          "trades": 127,
+          "win_rate": 99.21259842519686,
+          "avg_pnl": 48.802404342704385
+        }
+      }
+    }
+  }
+}

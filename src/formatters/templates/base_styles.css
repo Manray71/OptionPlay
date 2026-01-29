@@ -1,0 +1,665 @@
+/* ============================================
+   OptionPlay Report Design System
+   Apple-Inspired Minimal Design
+   ============================================ */
+
+/* ============================================
+   CSS Variables - Design Tokens
+   ============================================ */
+:root {
+  /* Typography Scale (Major Third - 1.25) */
+  --font-size-xs: 0.64rem;    /* 10.24px */
+  --font-size-sm: 0.8rem;     /* 12.8px */
+  --font-size-base: 1rem;     /* 16px */
+  --font-size-md: 1.25rem;    /* 20px */
+  --font-size-lg: 1.563rem;   /* 25px */
+  --font-size-xl: 1.953rem;   /* 31.25px */
+  --font-size-2xl: 2.441rem;  /* 39px */
+  --font-size-3xl: 3.052rem;  /* 48.8px */
+
+  /* Font Weights */
+  --font-light: 300;
+  --font-regular: 400;
+  --font-medium: 500;
+  --font-semibold: 600;
+  --font-bold: 700;
+
+  /* Line Heights */
+  --leading-tight: 1.2;
+  --leading-snug: 1.375;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.625;
+
+  /* Letter Spacing */
+  --tracking-tight: -0.025em;
+  --tracking-normal: 0;
+  --tracking-wide: 0.025em;
+
+  /* Spacing Scale (8px base) */
+  --space-1: 0.25rem;   /* 4px */
+  --space-2: 0.5rem;    /* 8px */
+  --space-3: 0.75rem;   /* 12px */
+  --space-4: 1rem;      /* 16px */
+  --space-5: 1.5rem;    /* 24px */
+  --space-6: 2rem;      /* 32px */
+  --space-8: 3rem;      /* 48px */
+  --space-10: 4rem;     /* 64px */
+  --space-12: 6rem;     /* 96px */
+
+  /* Colors - Light Mode (Default) */
+  --color-bg-primary: #ffffff;
+  --color-bg-secondary: #f5f5f7;
+  --color-bg-tertiary: #fbfbfd;
+  --color-bg-elevated: #ffffff;
+
+  --color-text-primary: #1d1d1f;
+  --color-text-secondary: #6e6e73;
+  --color-text-tertiary: #86868b;
+  --color-text-quaternary: #aeaeb2;
+
+  --color-border-primary: #d2d2d7;
+  --color-border-secondary: #e8e8ed;
+  --color-border-tertiary: #f2f2f7;
+
+  /* Accent Colors */
+  --color-accent-blue: #007aff;
+  --color-accent-green: #34c759;
+  --color-accent-orange: #ff9500;
+  --color-accent-red: #ff3b30;
+  --color-accent-purple: #af52de;
+  --color-accent-teal: #5ac8fa;
+
+  /* Semantic Colors */
+  --color-success: #34c759;
+  --color-success-bg: rgba(52, 199, 89, 0.12);
+  --color-warning: #ff9500;
+  --color-warning-bg: rgba(255, 149, 0, 0.12);
+  --color-danger: #ff3b30;
+  --color-danger-bg: rgba(255, 59, 48, 0.12);
+  --color-info: #007aff;
+  --color-info-bg: rgba(0, 122, 255, 0.12);
+
+  /* Chart Colors */
+  --color-chart-bullish: #34c759;
+  --color-chart-bearish: #ff3b30;
+  --color-chart-neutral: #6e6e73;
+  --color-chart-volume: rgba(0, 122, 255, 0.3);
+
+  /* Border Radius */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+  --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.16);
+
+  /* Page Dimensions (A4) */
+  --page-width: 210mm;
+  --page-height: 297mm;
+  --page-margin: 20mm;
+  --content-width: calc(var(--page-width) - 2 * var(--page-margin));
+}
+
+/* ============================================
+   @page Rules for Print/PDF
+   ============================================ */
+@page {
+  size: A4;
+  margin: 20mm;
+
+  @top-right {
+    content: counter(page);
+    font-family: 'SF Pro Display', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-tertiary);
+  }
+}
+
+@page :first {
+  margin-top: 0;
+  @top-right {
+    content: none;
+  }
+}
+
+/* ============================================
+   Base Reset & Typography
+   ============================================ */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: 'SF Pro Text', 'Inter', -apple-system, BlinkMacSystemFont,
+               'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-size: var(--font-size-base);
+  font-weight: var(--font-regular);
+  line-height: var(--leading-normal);
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-primary);
+}
+
+/* ============================================
+   Typography Classes
+   ============================================ */
+.display-large {
+  font-family: 'SF Pro Display', 'Inter', -apple-system, sans-serif;
+  font-size: var(--font-size-3xl);
+  font-weight: var(--font-bold);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tight);
+  color: var(--color-text-primary);
+}
+
+.display-medium {
+  font-family: 'SF Pro Display', 'Inter', -apple-system, sans-serif;
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-semibold);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tight);
+  color: var(--color-text-primary);
+}
+
+.title-large {
+  font-family: 'SF Pro Display', 'Inter', -apple-system, sans-serif;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-semibold);
+  line-height: var(--leading-snug);
+  color: var(--color-text-primary);
+}
+
+.title-medium {
+  font-family: 'SF Pro Display', 'Inter', -apple-system, sans-serif;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-semibold);
+  line-height: var(--leading-snug);
+  color: var(--color-text-primary);
+}
+
+.title-small {
+  font-family: 'SF Pro Text', 'Inter', -apple-system, sans-serif;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-semibold);
+  line-height: var(--leading-snug);
+  color: var(--color-text-primary);
+}
+
+.body-large {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-regular);
+  line-height: var(--leading-relaxed);
+  color: var(--color-text-primary);
+}
+
+.body-default {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-regular);
+  line-height: var(--leading-normal);
+  color: var(--color-text-primary);
+}
+
+.body-small {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-regular);
+  line-height: var(--leading-normal);
+  color: var(--color-text-secondary);
+}
+
+.caption {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-medium);
+  line-height: var(--leading-normal);
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+}
+
+.mono {
+  font-family: 'SF Mono', 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+/* ============================================
+   Layout Components
+   ============================================ */
+.page {
+  width: var(--page-width);
+  min-height: var(--page-height);
+  padding: var(--page-margin);
+  background: var(--color-bg-primary);
+  page-break-after: always;
+}
+
+.page:last-child {
+  page-break-after: avoid;
+}
+
+.section {
+  margin-bottom: var(--space-8);
+}
+
+.section-header {
+  margin-bottom: var(--space-5);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--color-border-secondary);
+}
+
+.grid {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.grid-2 { grid-template-columns: repeat(2, 1fr); }
+.grid-3 { grid-template-columns: repeat(3, 1fr); }
+.grid-4 { grid-template-columns: repeat(4, 1fr); }
+
+.flex {
+  display: flex;
+}
+
+.flex-between {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.flex-center {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* ============================================
+   Card Components
+   ============================================ */
+.card {
+  background: var(--color-bg-elevated);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  border: 1px solid var(--color-border-tertiary);
+}
+
+.card-elevated {
+  background: var(--color-bg-elevated);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  box-shadow: var(--shadow-md);
+}
+
+.card-subtle {
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+}
+
+/* ============================================
+   Metric Components
+   ============================================ */
+.metric-group {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--space-4);
+}
+
+.metric {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.metric-label {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-medium);
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+}
+
+.metric-value {
+  font-family: 'SF Pro Display', 'Inter', -apple-system, sans-serif;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-semibold);
+  color: var(--color-text-primary);
+  letter-spacing: var(--tracking-tight);
+}
+
+.metric-value-lg {
+  font-size: var(--font-size-2xl);
+}
+
+.metric-change {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-medium);
+}
+
+.metric-change.positive { color: var(--color-success); }
+.metric-change.negative { color: var(--color-danger); }
+.metric-change.neutral { color: var(--color-text-tertiary); }
+
+/* ============================================
+   Table Components
+   ============================================ */
+.table-container {
+  overflow-x: auto;
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-tertiary);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+}
+
+thead {
+  background: var(--color-bg-secondary);
+}
+
+th {
+  font-weight: var(--font-semibold);
+  color: var(--color-text-secondary);
+  text-align: left;
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  border-bottom: 1px solid var(--color-border-secondary);
+}
+
+td {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-border-tertiary);
+  color: var(--color-text-primary);
+}
+
+tr:last-child td {
+  border-bottom: none;
+}
+
+tbody tr:hover {
+  background: var(--color-bg-tertiary);
+}
+
+/* Numeric columns */
+.col-numeric {
+  text-align: right;
+  font-family: 'SF Mono', 'JetBrains Mono', monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ============================================
+   Badge & Tag Components
+   ============================================ */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+}
+
+.badge-success {
+  background: var(--color-success-bg);
+  color: var(--color-success);
+}
+
+.badge-warning {
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+}
+
+.badge-danger {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+}
+
+.badge-info {
+  background: var(--color-info-bg);
+  color: var(--color-info);
+}
+
+.badge-neutral {
+  background: var(--color-bg-secondary);
+  color: var(--color-text-secondary);
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-medium);
+  background: var(--color-bg-secondary);
+  color: var(--color-text-secondary);
+}
+
+/* ============================================
+   Score & Rating Components
+   ============================================ */
+.score-ring {
+  position: relative;
+  width: 80px;
+  height: 80px;
+}
+
+.score-ring svg {
+  transform: rotate(-90deg);
+}
+
+.score-ring-bg {
+  fill: none;
+  stroke: var(--color-border-secondary);
+  stroke-width: 6;
+}
+
+.score-ring-fill {
+  fill: none;
+  stroke: var(--color-accent-blue);
+  stroke-width: 6;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.5s ease;
+}
+
+.score-ring-value {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-family: 'SF Pro Display', 'Inter', -apple-system, sans-serif;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-bold);
+}
+
+.score-bar {
+  height: 6px;
+  background: var(--color-border-secondary);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.score-bar-fill {
+  height: 100%;
+  border-radius: var(--radius-full);
+  transition: width 0.5s ease;
+}
+
+.score-bar-fill.high { background: var(--color-success); }
+.score-bar-fill.medium { background: var(--color-warning); }
+.score-bar-fill.low { background: var(--color-danger); }
+
+/* ============================================
+   Progress & Status Components
+   ============================================ */
+.status-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.status-dot.active { background: var(--color-success); }
+.status-dot.warning { background: var(--color-warning); }
+.status-dot.inactive { background: var(--color-danger); }
+.status-dot.neutral { background: var(--color-text-quaternary); }
+
+/* ============================================
+   Chart Placeholders
+   ============================================ */
+.chart-container {
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  min-height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chart-container img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius-md);
+}
+
+/* ============================================
+   Dividers & Spacers
+   ============================================ */
+.divider {
+  height: 1px;
+  background: var(--color-border-secondary);
+  margin: var(--space-6) 0;
+}
+
+.divider-thick {
+  height: 2px;
+  background: var(--color-border-primary);
+}
+
+.spacer-sm { height: var(--space-2); }
+.spacer-md { height: var(--space-4); }
+.spacer-lg { height: var(--space-6); }
+.spacer-xl { height: var(--space-8); }
+
+/* ============================================
+   Cover Page Components
+   ============================================ */
+.cover {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(var(--page-height) - 2 * var(--page-margin));
+  padding: 0;
+}
+
+.cover-header {
+  padding-top: var(--space-12);
+  padding-bottom: var(--space-8);
+}
+
+.cover-brand {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-semibold);
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  margin-bottom: var(--space-4);
+}
+
+.cover-title {
+  font-family: 'SF Pro Display', 'Inter', -apple-system, sans-serif;
+  font-size: 3.5rem;
+  font-weight: var(--font-bold);
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-4);
+}
+
+.cover-subtitle {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-regular);
+  color: var(--color-text-secondary);
+  max-width: 480px;
+}
+
+.cover-meta {
+  margin-top: auto;
+  padding-bottom: var(--space-6);
+  display: flex;
+  gap: var(--space-8);
+}
+
+.cover-meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+/* ============================================
+   Utility Classes
+   ============================================ */
+.text-primary { color: var(--color-text-primary); }
+.text-secondary { color: var(--color-text-secondary); }
+.text-tertiary { color: var(--color-text-tertiary); }
+.text-success { color: var(--color-success); }
+.text-warning { color: var(--color-warning); }
+.text-danger { color: var(--color-danger); }
+
+.bg-primary { background: var(--color-bg-primary); }
+.bg-secondary { background: var(--color-bg-secondary); }
+.bg-success { background: var(--color-success-bg); }
+.bg-warning { background: var(--color-warning-bg); }
+.bg-danger { background: var(--color-danger-bg); }
+
+.font-mono { font-family: 'SF Mono', 'JetBrains Mono', monospace; }
+.font-tabular { font-variant-numeric: tabular-nums; }
+
+.text-right { text-align: right; }
+.text-center { text-align: center; }
+
+.mt-auto { margin-top: auto; }
+.mb-0 { margin-bottom: 0; }
+
+.no-break { page-break-inside: avoid; }
+.break-before { page-break-before: always; }
+.break-after { page-break-after: always; }
+
+/* ============================================
+   Print Optimizations
+   ============================================ */
+@media print {
+  body {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  .card, .card-elevated {
+    box-shadow: none;
+    border: 1px solid var(--color-border-secondary);
+  }
+}

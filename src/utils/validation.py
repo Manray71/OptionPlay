@@ -32,6 +32,28 @@ SYMBOL_PATTERN_EXTENDED = re.compile(r'^[A-Z]{1,6}([.\-][A-Z]{1,2})?$')
 # Bekannte Index-Symbole (ohne Prefix)
 INDEX_SYMBOLS = {'VIX', 'SPX', 'NDX', 'DJI', 'RUT'}
 
+# ETF-Symbole (haben keine Earnings)
+# Beinhaltet: Index-ETFs (SPY, QQQ) und alle 11 Sektor-SPDRs
+ETF_SYMBOLS = {
+    # Index-ETFs
+    'SPY',    # S&P 500 ETF
+    'QQQ',    # Nasdaq 100 ETF
+    'IWM',    # Russell 2000 ETF
+    'DIA',    # Dow Jones ETF
+    # Sektor-SPDRs (11 GICS-Sektoren)
+    'XLE',    # Energy
+    'XLK',    # Technology
+    'XLF',    # Financials
+    'XLV',    # Health Care
+    'XLI',    # Industrials
+    'XLY',    # Consumer Discretionary
+    'XLP',    # Consumer Staples
+    'XLB',    # Materials
+    'XLU',    # Utilities
+    'XLRE',   # Real Estate
+    'XLC',    # Communication Services
+}
+
 
 class ValidationError(ValueError):
     """Spezifische Exception für Validierungsfehler"""
@@ -495,7 +517,7 @@ def safe_validate_symbol(symbol: str, default: Optional[str] = None) -> Optional
 def is_valid_symbol(symbol: str) -> bool:
     """
     Prüft ob Symbol gültig ist.
-    
+
     Returns:
         True wenn gültig, False sonst
     """
@@ -504,3 +526,27 @@ def is_valid_symbol(symbol: str) -> bool:
         return True
     except ValidationError:
         return False
+
+
+def is_etf(symbol: str) -> bool:
+    """
+    Prüft ob Symbol ein bekannter ETF ist.
+
+    ETFs haben keine Earnings und sollten vom Earnings-Filter
+    übersprungen werden, um unnötige API-Calls zu vermeiden.
+
+    Args:
+        symbol: Ticker-Symbol
+
+    Returns:
+        True wenn ETF, False sonst
+
+    Examples:
+        >>> is_etf("SPY")
+        True
+        >>> is_etf("AAPL")
+        False
+    """
+    if symbol is None:
+        return False
+    return symbol.strip().upper() in ETF_SYMBOLS

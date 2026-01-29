@@ -1,0 +1,1478 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Market Scan Report</title>
+  <link rel="stylesheet" href="base_styles.css">
+  <style>
+    /* Scan Report specific styles */
+
+    /* Cover Page */
+    .scan-cover {
+      display: flex;
+      flex-direction: column;
+      min-height: calc(var(--page-height) - 2 * var(--page-margin));
+    }
+
+    .scan-hero {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: var(--space-8) 0;
+    }
+
+    .scan-hero-eyebrow {
+      font-size: var(--font-size-sm);
+      font-weight: var(--font-semibold);
+      color: var(--color-accent-blue);
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      margin-bottom: var(--space-4);
+    }
+
+    .scan-hero-title {
+      font-family: 'SF Pro Display', 'Inter', -apple-system, sans-serif;
+      font-size: 4.5rem;
+      font-weight: var(--font-bold);
+      line-height: 1;
+      letter-spacing: -0.04em;
+      color: var(--color-text-primary);
+      margin-bottom: var(--space-3);
+    }
+
+    .scan-hero-subtitle {
+      font-size: var(--font-size-xl);
+      font-weight: var(--font-light);
+      color: var(--color-text-secondary);
+      max-width: 500px;
+    }
+
+    /* Market Overview Cards */
+    .market-cards {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: var(--space-4);
+      margin: var(--space-8) 0;
+    }
+
+    .market-card {
+      background: var(--color-bg-secondary);
+      border-radius: var(--radius-lg);
+      padding: var(--space-4);
+      text-align: center;
+    }
+
+    .market-card-icon {
+      width: 40px;
+      height: 40px;
+      margin: 0 auto var(--space-3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--color-bg-elevated);
+      border-radius: var(--radius-md);
+      font-size: var(--font-size-lg);
+    }
+
+    .market-card-value {
+      font-family: 'SF Pro Display', 'Inter', -apple-system, sans-serif;
+      font-size: var(--font-size-2xl);
+      font-weight: var(--font-bold);
+      color: var(--color-text-primary);
+    }
+
+    .market-card-label {
+      font-size: var(--font-size-xs);
+      font-weight: var(--font-medium);
+      color: var(--color-text-tertiary);
+      text-transform: uppercase;
+      letter-spacing: var(--tracking-wide);
+      margin-top: var(--space-1);
+    }
+
+    /* Top Pick Showcase */
+    .top-pick-showcase {
+      background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+      border-radius: var(--radius-xl);
+      padding: var(--space-6);
+      color: #ffffff;
+      margin: var(--space-6) 0;
+    }
+
+    .top-pick-showcase .caption {
+      color: rgba(255, 255, 255, 0.6);
+    }
+
+    .top-pick-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: var(--space-4);
+    }
+
+    .top-pick-symbol {
+      font-family: 'SF Pro Display', 'Inter', -apple-system, sans-serif;
+      font-size: var(--font-size-3xl);
+      font-weight: var(--font-bold);
+      letter-spacing: -0.02em;
+    }
+
+    .top-pick-company {
+      font-size: var(--font-size-md);
+      color: rgba(255, 255, 255, 0.7);
+      margin-top: var(--space-1);
+    }
+
+    .top-pick-badge {
+      background: var(--color-success);
+      color: #000;
+      padding: var(--space-1) var(--space-3);
+      border-radius: var(--radius-full);
+      font-size: var(--font-size-xs);
+      font-weight: var(--font-bold);
+      text-transform: uppercase;
+    }
+
+    .top-pick-metrics {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: var(--space-4);
+      margin-top: var(--space-4);
+      padding-top: var(--space-4);
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .top-pick-metric-value {
+      font-family: 'SF Mono', monospace;
+      font-size: var(--font-size-lg);
+      font-weight: var(--font-semibold);
+    }
+
+    .top-pick-metric-label {
+      font-size: var(--font-size-xs);
+      color: rgba(255, 255, 255, 0.5);
+      text-transform: uppercase;
+      letter-spacing: var(--tracking-wide);
+    }
+
+    /* Secondary Picks */
+    .secondary-picks {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: var(--space-4);
+    }
+
+    .secondary-pick {
+      background: var(--color-bg-secondary);
+      border-radius: var(--radius-lg);
+      padding: var(--space-4);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .secondary-pick-info {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-1);
+    }
+
+    .secondary-pick-symbol {
+      font-size: var(--font-size-lg);
+      font-weight: var(--font-bold);
+      color: var(--color-text-primary);
+    }
+
+    .secondary-pick-company {
+      font-size: var(--font-size-sm);
+      color: var(--color-text-tertiary);
+    }
+
+    .secondary-pick-score {
+      font-family: 'SF Mono', monospace;
+      font-size: var(--font-size-xl);
+      font-weight: var(--font-bold);
+      color: var(--color-accent-blue);
+    }
+
+    /* VIX Indicator */
+    .vix-indicator {
+      display: flex;
+      align-items: center;
+      gap: var(--space-5);
+      background: var(--color-bg-secondary);
+      border-radius: var(--radius-xl);
+      padding: var(--space-5);
+    }
+
+    .vix-gauge {
+      position: relative;
+      width: 120px;
+      height: 60px;
+      overflow: hidden;
+    }
+
+    .vix-gauge-bg {
+      position: absolute;
+      width: 120px;
+      height: 120px;
+      border-radius: 60px 60px 0 0;
+      background: conic-gradient(
+        from 180deg,
+        var(--color-success) 0deg,
+        var(--color-warning) 90deg,
+        var(--color-danger) 180deg
+      );
+      clip-path: polygon(0 50%, 100% 50%, 100% 100%, 0 100%);
+      transform: rotate(180deg);
+    }
+
+    .vix-gauge-mask {
+      position: absolute;
+      width: 90px;
+      height: 90px;
+      background: var(--color-bg-secondary);
+      border-radius: 50%;
+      top: 15px;
+      left: 15px;
+    }
+
+    .vix-gauge-needle {
+      position: absolute;
+      width: 4px;
+      height: 40px;
+      background: var(--color-text-primary);
+      border-radius: 2px;
+      bottom: 0;
+      left: 58px;
+      transform-origin: bottom center;
+      transform: rotate(calc({{ vix_rotation }}deg));
+    }
+
+    .vix-info {
+      flex: 1;
+    }
+
+    .vix-value {
+      font-family: 'SF Pro Display', 'Inter', -apple-system, sans-serif;
+      font-size: var(--font-size-3xl);
+      font-weight: var(--font-bold);
+      color: var(--color-text-primary);
+    }
+
+    .vix-regime {
+      font-size: var(--font-size-md);
+      font-weight: var(--font-medium);
+      margin-top: var(--space-1);
+    }
+
+    .vix-regime.low { color: var(--color-success); }
+    .vix-regime.normal { color: var(--color-warning); }
+    .vix-regime.elevated { color: var(--color-danger); }
+
+    /* Scan Results Table */
+    .results-table {
+      font-size: var(--font-size-sm);
+    }
+
+    .results-table th {
+      font-size: 10px;
+      padding: var(--space-2) var(--space-3);
+    }
+
+    .results-table td {
+      padding: var(--space-2) var(--space-3);
+    }
+
+    .results-table .symbol-cell {
+      font-weight: var(--font-semibold);
+      color: var(--color-text-primary);
+    }
+
+    .results-table .score-cell {
+      font-family: 'SF Mono', monospace;
+      font-weight: var(--font-bold);
+    }
+
+    .results-table .score-high { color: var(--color-success); }
+    .results-table .score-medium { color: var(--color-warning); }
+    .results-table .score-low { color: var(--color-danger); }
+
+    /* Rank indicator */
+    .rank {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      font-size: var(--font-size-xs);
+      font-weight: var(--font-bold);
+    }
+
+    .rank-1 { background: #ffd700; color: #000; }
+    .rank-2 { background: #c0c0c0; color: #000; }
+    .rank-3 { background: #cd7f32; color: #000; }
+    .rank-default { background: var(--color-bg-secondary); color: var(--color-text-secondary); }
+
+    /* Comparison Section */
+    .comparison-grid {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: var(--space-4);
+      align-items: start;
+    }
+
+    .comparison-card {
+      background: var(--color-bg-secondary);
+      border-radius: var(--radius-lg);
+      padding: var(--space-5);
+    }
+
+    .comparison-card.winner {
+      background: linear-gradient(135deg, var(--color-success-bg) 0%, rgba(52, 199, 89, 0.05) 100%);
+      border: 2px solid var(--color-success);
+    }
+
+    .comparison-vs {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: var(--font-size-lg);
+      font-weight: var(--font-bold);
+      color: var(--color-text-tertiary);
+      padding-top: var(--space-10);
+    }
+
+    .comparison-symbol {
+      font-size: var(--font-size-xl);
+      font-weight: var(--font-bold);
+      color: var(--color-text-primary);
+      margin-bottom: var(--space-4);
+    }
+
+    .comparison-row {
+      display: flex;
+      justify-content: space-between;
+      padding: var(--space-2) 0;
+      border-bottom: 1px solid var(--color-border-tertiary);
+    }
+
+    .comparison-row:last-child {
+      border-bottom: none;
+    }
+
+    .comparison-label {
+      font-size: var(--font-size-sm);
+      color: var(--color-text-secondary);
+    }
+
+    .comparison-value {
+      font-family: 'SF Mono', monospace;
+      font-size: var(--font-size-sm);
+      font-weight: var(--font-semibold);
+    }
+
+    /* Trade Setup Cards */
+    .trade-setup {
+      background: var(--color-bg-secondary);
+      border-radius: var(--radius-xl);
+      padding: var(--space-5);
+      margin-bottom: var(--space-5);
+    }
+
+    .trade-setup-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: var(--space-4);
+      padding-bottom: var(--space-4);
+      border-bottom: 1px solid var(--color-border-secondary);
+    }
+
+    .trade-setup-symbol {
+      font-size: var(--font-size-2xl);
+      font-weight: var(--font-bold);
+    }
+
+    .trade-setup-price {
+      font-family: 'SF Mono', monospace;
+      font-size: var(--font-size-lg);
+      color: var(--color-text-secondary);
+    }
+
+    .trade-setup-badges {
+      display: flex;
+      gap: var(--space-2);
+    }
+
+    .trade-setup-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: var(--space-4);
+    }
+
+    .trade-setup-metric {
+      text-align: center;
+      padding: var(--space-3);
+      background: var(--color-bg-elevated);
+      border-radius: var(--radius-md);
+    }
+
+    /* Risk Management */
+    .risk-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: var(--space-4);
+    }
+
+    .risk-card {
+      background: var(--color-bg-secondary);
+      border-radius: var(--radius-lg);
+      padding: var(--space-4);
+    }
+
+    .risk-card-title {
+      font-size: var(--font-size-sm);
+      font-weight: var(--font-semibold);
+      color: var(--color-text-secondary);
+      text-transform: uppercase;
+      letter-spacing: var(--tracking-wide);
+      margin-bottom: var(--space-3);
+    }
+
+    .risk-item {
+      display: flex;
+      align-items: flex-start;
+      gap: var(--space-2);
+      padding: var(--space-2) 0;
+    }
+
+    .risk-icon {
+      width: 16px;
+      height: 16px;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    .risk-text {
+      font-size: var(--font-size-sm);
+      color: var(--color-text-primary);
+      line-height: var(--leading-snug);
+    }
+
+    /* Warning Box */
+    .warning-box {
+      background: var(--color-warning-bg);
+      border-left: 4px solid var(--color-warning);
+      border-radius: 0 var(--radius-md) var(--radius-md) 0;
+      padding: var(--space-4);
+      margin: var(--space-5) 0;
+    }
+
+    .warning-box-title {
+      font-size: var(--font-size-sm);
+      font-weight: var(--font-semibold);
+      color: var(--color-warning);
+      margin-bottom: var(--space-2);
+    }
+
+    .warning-box-text {
+      font-size: var(--font-size-sm);
+      color: var(--color-text-primary);
+    }
+
+    /* Calendar */
+    .calendar-mini {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 2px;
+      background: var(--color-bg-secondary);
+      border-radius: var(--radius-lg);
+      padding: var(--space-4);
+    }
+
+    .calendar-day {
+      aspect-ratio: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: var(--font-size-xs);
+      border-radius: var(--radius-sm);
+    }
+
+    .calendar-day.header {
+      font-weight: var(--font-semibold);
+      color: var(--color-text-tertiary);
+    }
+
+    .calendar-day.today {
+      background: var(--color-accent-blue);
+      color: #fff;
+      font-weight: var(--font-bold);
+    }
+
+    .calendar-day.earnings {
+      background: var(--color-danger-bg);
+      color: var(--color-danger);
+      font-weight: var(--font-bold);
+    }
+
+    .calendar-day.expiry {
+      background: var(--color-success-bg);
+      color: var(--color-success);
+      font-weight: var(--font-bold);
+    }
+
+    /* Table of Contents */
+    .toc {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+    }
+
+    .toc-item {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      padding: var(--space-3) 0;
+      border-bottom: 1px solid var(--color-border-tertiary);
+    }
+
+    .toc-number {
+      font-family: 'SF Mono', monospace;
+      font-size: var(--font-size-sm);
+      font-weight: var(--font-bold);
+      color: var(--color-accent-blue);
+      min-width: 30px;
+    }
+
+    .toc-title {
+      font-size: var(--font-size-base);
+      font-weight: var(--font-medium);
+      color: var(--color-text-primary);
+      flex: 1;
+    }
+
+    .toc-page {
+      font-family: 'SF Mono', monospace;
+      font-size: var(--font-size-sm);
+      color: var(--color-text-tertiary);
+    }
+
+    /* Page Header (for inner pages) */
+    .page-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: var(--space-4);
+      margin-bottom: var(--space-5);
+      border-bottom: 1px solid var(--color-border-secondary);
+    }
+
+    .page-header-title {
+      font-size: var(--font-size-sm);
+      font-weight: var(--font-semibold);
+      color: var(--color-text-tertiary);
+      text-transform: uppercase;
+      letter-spacing: var(--tracking-wide);
+    }
+
+    .page-header-date {
+      font-size: var(--font-size-xs);
+      color: var(--color-text-quaternary);
+    }
+  </style>
+</head>
+<body>
+  <!-- Page 1: Cover -->
+  <div class="page">
+    <div class="scan-cover">
+      <div class="scan-hero">
+        <div class="scan-hero-eyebrow">OptionPlay Scan Report</div>
+        <h1 class="scan-hero-title">Market<br>Analysis</h1>
+        <p class="scan-hero-subtitle">
+          {{ strategy_name }} Strategie<br>
+          {{ scan_date }}
+        </p>
+      </div>
+
+      <!-- Market Overview -->
+      <div class="market-cards">
+        <div class="market-card">
+          <div class="market-card-icon">📊</div>
+          <div class="market-card-value">{{ total_scanned }}</div>
+          <div class="market-card-label">Gescannt</div>
+        </div>
+        <div class="market-card">
+          <div class="market-card-icon">✓</div>
+          <div class="market-card-value">{{ qualified_count }}</div>
+          <div class="market-card-label">Qualifiziert</div>
+        </div>
+        <div class="market-card">
+          <div class="market-card-icon">📈</div>
+          <div class="market-card-value">{{ vix_level }}</div>
+          <div class="market-card-label">VIX</div>
+        </div>
+        <div class="market-card">
+          <div class="market-card-icon">🎯</div>
+          <div class="market-card-value">{{ avg_score }}</div>
+          <div class="market-card-label">Avg Score</div>
+        </div>
+      </div>
+
+      <!-- Top Pick Showcase -->
+      <div class="top-pick-showcase">
+        <span class="caption">Top Pick</span>
+        <div class="top-pick-header">
+          <div>
+            <div class="top-pick-symbol">{{ top_pick.symbol }}</div>
+            <div class="top-pick-company">{{ top_pick.company }}</div>
+          </div>
+          <span class="top-pick-badge">Empfohlen</span>
+        </div>
+        <div class="top-pick-metrics">
+          <div>
+            <div class="top-pick-metric-value">${{ top_pick.price }}</div>
+            <div class="top-pick-metric-label">Preis</div>
+          </div>
+          <div>
+            <div class="top-pick-metric-value">{{ top_pick.score }}/16</div>
+            <div class="top-pick-metric-label">Score</div>
+          </div>
+          <div>
+            <div class="top-pick-metric-value">{{ top_pick.rsi }}</div>
+            <div class="top-pick-metric-label">RSI</div>
+          </div>
+          <div>
+            <div class="top-pick-metric-value">{{ top_pick.roi }}%</div>
+            <div class="top-pick-metric-label">ROI</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Secondary Picks -->
+      <div class="secondary-picks">
+        {% for pick in secondary_picks %}
+        <div class="secondary-pick">
+          <div class="secondary-pick-info">
+            <span class="secondary-pick-symbol">{{ pick.symbol }}</span>
+            <span class="secondary-pick-company">{{ pick.company }}</span>
+          </div>
+          <span class="secondary-pick-score">{{ pick.score }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Page 2: Table of Contents -->
+  <div class="page">
+    <div class="page-header">
+      <span class="page-header-title">Inhalt</span>
+      <span class="page-header-date">{{ scan_date }}</span>
+    </div>
+
+    <h2 class="title-large" style="margin-bottom: var(--space-6);">Inhaltsverzeichnis</h2>
+
+    <div class="toc">
+      <div class="toc-item">
+        <span class="toc-number">01</span>
+        <span class="toc-title">Marktumfeld & VIX Analyse</span>
+        <span class="toc-page">3</span>
+      </div>
+      <div class="toc-item">
+        <span class="toc-number">02</span>
+        <span class="toc-title">Scan Ergebnisse</span>
+        <span class="toc-page">4</span>
+      </div>
+      <div class="toc-item">
+        <span class="toc-number">03</span>
+        <span class="toc-title">Earnings Filter</span>
+        <span class="toc-page">5</span>
+      </div>
+      <div class="toc-item">
+        <span class="toc-number">04</span>
+        <span class="toc-title">Support Analyse</span>
+        <span class="toc-page">6</span>
+      </div>
+      <div class="toc-item">
+        <span class="toc-number">05</span>
+        <span class="toc-title">Qualifizierte Kandidaten</span>
+        <span class="toc-page">7</span>
+      </div>
+      <div class="toc-item">
+        <span class="toc-number">06</span>
+        <span class="toc-title">Fundamentalanalyse - {{ top_pick.symbol }}</span>
+        <span class="toc-page">8</span>
+      </div>
+      <div class="toc-item">
+        <span class="toc-number">07</span>
+        <span class="toc-title">Trade Setup - {{ top_pick.symbol }}</span>
+        <span class="toc-page">9</span>
+      </div>
+      <div class="toc-item">
+        <span class="toc-number">08</span>
+        <span class="toc-title">Fundamentalanalyse - {{ secondary_picks[0].symbol }}</span>
+        <span class="toc-page">10</span>
+      </div>
+      <div class="toc-item">
+        <span class="toc-number">09</span>
+        <span class="toc-title">Trade Setup - {{ secondary_picks[0].symbol }}</span>
+        <span class="toc-page">11</span>
+      </div>
+      <div class="toc-item">
+        <span class="toc-number">10</span>
+        <span class="toc-title">Vergleich & Empfehlung</span>
+        <span class="toc-page">12</span>
+      </div>
+      <div class="toc-item">
+        <span class="toc-number">11</span>
+        <span class="toc-title">Risikomanagement</span>
+        <span class="toc-page">13</span>
+      </div>
+    </div>
+
+    <div class="spacer-xl"></div>
+
+    <!-- Strategy Parameters Card -->
+    <div class="card">
+      <h3 class="title-small" style="margin-bottom: var(--space-4);">Strategie Parameter</h3>
+      <div class="grid-4">
+        <div class="metric">
+          <span class="metric-label">Min Score</span>
+          <span class="metric-value">{{ min_score }}</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">Delta Range</span>
+          <span class="metric-value">{{ delta_range }}</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">DTE</span>
+          <span class="metric-value">{{ dte_range }}</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">Spread</span>
+          <span class="metric-value">${{ spread_width }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Page 3: Market Environment -->
+  <div class="page">
+    <div class="page-header">
+      <span class="page-header-title">Marktumfeld</span>
+      <span class="page-header-date">{{ scan_date }}</span>
+    </div>
+
+    <div class="section">
+      <h2 class="title-large">VIX Analyse</h2>
+      <p class="body-small" style="margin-bottom: var(--space-5);">
+        Volatilitätsindex und empfohlene Strategieparameter
+      </p>
+
+      <div class="vix-indicator">
+        <div class="vix-gauge">
+          <div class="vix-gauge-bg"></div>
+          <div class="vix-gauge-mask"></div>
+          <div class="vix-gauge-needle"></div>
+        </div>
+        <div class="vix-info">
+          <div class="vix-value">{{ vix_level }}</div>
+          <div class="vix-regime {{ vix_regime_class }}">{{ vix_regime }}</div>
+        </div>
+        <div style="flex: 1;">
+          <p class="body-small">{{ vix_interpretation }}</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="section">
+      <h3 class="title-medium" style="margin-bottom: var(--space-4);">Regime-basierte Anpassungen</h3>
+
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Parameter</th>
+              <th>Niedriger VIX (&lt;15)</th>
+              <th>Normaler VIX (15-20)</th>
+              <th>Erhöhter VIX (&gt;20)</th>
+              <th>Aktuell</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Short Delta</td>
+              <td class="col-numeric">0.25-0.30</td>
+              <td class="col-numeric">0.20-0.25</td>
+              <td class="col-numeric">0.15-0.20</td>
+              <td class="col-numeric"><strong>{{ current_delta }}</strong></td>
+            </tr>
+            <tr>
+              <td>Spread Width</td>
+              <td class="col-numeric">$2.50</td>
+              <td class="col-numeric">$5.00</td>
+              <td class="col-numeric">$5.00-$7.50</td>
+              <td class="col-numeric"><strong>${{ spread_width }}</strong></td>
+            </tr>
+            <tr>
+              <td>Min Score</td>
+              <td class="col-numeric">5</td>
+              <td class="col-numeric">6</td>
+              <td class="col-numeric">7</td>
+              <td class="col-numeric"><strong>{{ min_score }}</strong></td>
+            </tr>
+            <tr>
+              <td>DTE Range</td>
+              <td class="col-numeric">30-45</td>
+              <td class="col-numeric">45-60</td>
+              <td class="col-numeric">45-60</td>
+              <td class="col-numeric"><strong>{{ dte_range }}</strong></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="spacer-lg"></div>
+
+    <div class="section">
+      <h3 class="title-medium" style="margin-bottom: var(--space-4);">Aktivierte Strategien</h3>
+
+      <div class="grid-4">
+        {% for strategy in enabled_strategies %}
+        <div class="card-subtle" style="text-align: center;">
+          <span class="status-indicator">
+            <span class="status-dot {{ 'active' if strategy.enabled else 'inactive' }}"></span>
+            <span class="body-small">{{ strategy.name }}</span>
+          </span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Page 4: Scan Results -->
+  <div class="page">
+    <div class="page-header">
+      <span class="page-header-title">Scan Ergebnisse</span>
+      <span class="page-header-date">{{ scan_date }}</span>
+    </div>
+
+    <div class="section">
+      <h2 class="title-large">Top 20 Kandidaten</h2>
+      <p class="body-small" style="margin-bottom: var(--space-5);">
+        Sortiert nach Score, gefiltert nach Strategie: {{ strategy_name }}
+      </p>
+
+      <div class="table-container">
+        <table class="results-table">
+          <thead>
+            <tr>
+              <th style="width: 40px;">#</th>
+              <th>Symbol</th>
+              <th class="col-numeric">Preis</th>
+              <th class="col-numeric">Score</th>
+              <th class="col-numeric">RSI</th>
+              <th>Strategie</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for candidate in scan_results[:20] %}
+            <tr>
+              <td>
+                <span class="rank {{ 'rank-1' if loop.index == 1 else 'rank-2' if loop.index == 2 else 'rank-3' if loop.index == 3 else 'rank-default' }}">
+                  {{ loop.index }}
+                </span>
+              </td>
+              <td class="symbol-cell">{{ candidate.symbol }}</td>
+              <td class="col-numeric">${{ candidate.price }}</td>
+              <td class="col-numeric score-cell {{ 'score-high' if candidate.score >= 8 else 'score-medium' if candidate.score >= 5 else 'score-low' }}">
+                {{ candidate.score }}
+              </td>
+              <td class="col-numeric">{{ candidate.rsi }}</td>
+              <td><span class="tag">{{ candidate.strategy }}</span></td>
+              <td>
+                <span class="badge {{ 'badge-success' if candidate.qualified else 'badge-neutral' }}">
+                  {{ 'Qualifiziert' if candidate.qualified else 'Prüfen' }}
+                </span>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Page 5: Earnings Filter -->
+  <div class="page">
+    <div class="page-header">
+      <span class="page-header-title">Earnings Filter</span>
+      <span class="page-header-date">{{ scan_date }}</span>
+    </div>
+
+    <div class="section">
+      <h2 class="title-large">Earnings Sicherheitsprüfung</h2>
+      <p class="body-small" style="margin-bottom: var(--space-5);">
+        Mindestabstand zu Earnings: {{ earnings_buffer }} Tage
+      </p>
+
+      <div class="table-container">
+        <table class="results-table">
+          <thead>
+            <tr>
+              <th>Symbol</th>
+              <th class="col-numeric">Tage bis Earnings</th>
+              <th>Status</th>
+              <th>Bemerkung</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in earnings_data %}
+            <tr>
+              <td class="symbol-cell">{{ item.symbol }}</td>
+              <td class="col-numeric">{{ item.days if item.days else '—' }}</td>
+              <td>
+                <span class="badge {{ 'badge-success' if item.safe else 'badge-danger' if item.days else 'badge-neutral' }}">
+                  {{ item.status }}
+                </span>
+              </td>
+              <td class="body-small text-tertiary">{{ item.note }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="warning-box">
+      <div class="warning-box-title">Earnings Warnung</div>
+      <div class="warning-box-text">
+        Positionen mit Earnings innerhalb des Verfallzeitraums haben ein erhöhtes Risiko
+        durch Gap-Bewegungen. Diese Kandidaten wurden automatisch disqualifiziert.
+      </div>
+    </div>
+  </div>
+
+  <!-- Page 6: Support Analysis -->
+  <div class="page">
+    <div class="page-header">
+      <span class="page-header-title">Support Analyse</span>
+      <span class="page-header-date">{{ scan_date }}</span>
+    </div>
+
+    <div class="section">
+      <h2 class="title-large">Support Level Bewertung</h2>
+      <p class="body-small" style="margin-bottom: var(--space-5);">
+        12-Monats-Analyse der Unterstützungszonen
+      </p>
+
+      <div class="table-container">
+        <table class="results-table">
+          <thead>
+            <tr>
+              <th>Symbol</th>
+              <th class="col-numeric">Support</th>
+              <th class="col-numeric">Abstand</th>
+              <th class="col-numeric">Tests</th>
+              <th>Stärke</th>
+              <th class="col-numeric">52W Low</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in support_data %}
+            <tr>
+              <td class="symbol-cell">{{ item.symbol }}</td>
+              <td class="col-numeric">${{ item.support }}</td>
+              <td class="col-numeric text-{{ 'success' if item.distance > 5 else 'warning' if item.distance > 2 else 'danger' }}">
+                {{ item.distance }}%
+              </td>
+              <td class="col-numeric">{{ item.tests }}</td>
+              <td>
+                <span class="badge {{ 'badge-success' if item.strength == 'STARK' else 'badge-warning' if item.strength == 'MITTEL' else 'badge-neutral' }}">
+                  {{ item.strength }}
+                </span>
+              </td>
+              <td class="col-numeric">${{ item.low_52w }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Page 7: Qualified Candidates -->
+  <div class="page">
+    <div class="page-header">
+      <span class="page-header-title">Qualifizierte Kandidaten</span>
+      <span class="page-header-date">{{ scan_date }}</span>
+    </div>
+
+    <div class="section">
+      <h2 class="title-large">Top 10 Qualifiziert</h2>
+      <p class="body-small" style="margin-bottom: var(--space-5);">
+        Alle Filter bestanden, bereit für Trade Setup
+      </p>
+
+      <div class="table-container">
+        <table class="results-table">
+          <thead>
+            <tr>
+              <th style="width: 40px;">#</th>
+              <th>Symbol</th>
+              <th class="col-numeric">Score</th>
+              <th class="col-numeric">Volume</th>
+              <th class="col-numeric">Earnings</th>
+              <th class="col-numeric">Support Tests</th>
+              <th>Empfehlung</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for candidate in qualified_candidates[:10] %}
+            <tr>
+              <td>
+                <span class="rank {{ 'rank-1' if loop.index == 1 else 'rank-2' if loop.index == 2 else 'rank-3' if loop.index == 3 else 'rank-default' }}">
+                  {{ loop.index }}
+                </span>
+              </td>
+              <td class="symbol-cell">{{ candidate.symbol }}</td>
+              <td class="col-numeric score-cell score-high">{{ candidate.score }}</td>
+              <td class="col-numeric">{{ candidate.volume }}</td>
+              <td class="col-numeric">{{ candidate.earnings_days }}d</td>
+              <td class="col-numeric">{{ candidate.support_tests }}</td>
+              <td>
+                <span class="tag">{{ candidate.recommendation }}</span>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pages 8-11: Fundamental Analysis & Trade Setup (Template for 2 symbols) -->
+  {% for symbol_data in [top_pick_data, secondary_pick_data] %}
+  <!-- Fundamental Analysis -->
+  <div class="page">
+    <div class="page-header">
+      <span class="page-header-title">Fundamentalanalyse - {{ symbol_data.symbol }}</span>
+      <span class="page-header-date">{{ scan_date }}</span>
+    </div>
+
+    <div class="section">
+      <div class="flex-between" style="margin-bottom: var(--space-5);">
+        <div>
+          <h2 class="title-large">{{ symbol_data.symbol }}</h2>
+          <p class="body-small">{{ symbol_data.company }}</p>
+        </div>
+        <span class="badge {{ 'badge-success' if symbol_data.sentiment == 'BULLISH' else 'badge-danger' if symbol_data.sentiment == 'BEARISH' else 'badge-neutral' }}">
+          {{ symbol_data.sentiment }}
+        </span>
+      </div>
+
+      <div class="grid-3" style="margin-bottom: var(--space-5);">
+        <div class="card-subtle">
+          <span class="metric-label">Analyst Rating</span>
+          <div class="metric-value">{{ symbol_data.analyst_rating }}</div>
+          <span class="body-small">{{ symbol_data.analyst_count }} Analysten</span>
+        </div>
+        <div class="card-subtle">
+          <span class="metric-label">Kursziel (Median)</span>
+          <div class="metric-value">${{ symbol_data.price_target }}</div>
+          <span class="body-small text-{{ 'success' if symbol_data.upside > 0 else 'danger' }}">
+            {{ '+' if symbol_data.upside > 0 else '' }}{{ symbol_data.upside }}% Potenzial
+          </span>
+        </div>
+        <div class="card-subtle">
+          <span class="metric-label">Letztes Earnings</span>
+          <div class="metric-value">{{ symbol_data.last_earnings_result }}</div>
+          <span class="body-small">Surprise: {{ symbol_data.earnings_surprise }}%</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="section">
+      <h3 class="title-small" style="margin-bottom: var(--space-4);">News Assessment</h3>
+
+      <div class="table-container">
+        <table class="results-table">
+          <thead>
+            <tr>
+              <th>Datum</th>
+              <th>Headline</th>
+              <th>Sentiment</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for news in symbol_data.news[:5] %}
+            <tr>
+              <td class="body-small">{{ news.date }}</td>
+              <td>{{ news.headline }}</td>
+              <td>
+                <span class="badge {{ 'badge-success' if news.sentiment == 'Positiv' else 'badge-danger' if news.sentiment == 'Negativ' else 'badge-neutral' }}">
+                  {{ news.sentiment }}
+                </span>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="spacer-lg"></div>
+
+    <div class="card">
+      <h3 class="title-small" style="margin-bottom: var(--space-3);">Fazit</h3>
+      <p class="body-default">{{ symbol_data.conclusion }}</p>
+    </div>
+  </div>
+
+  <!-- Trade Setup -->
+  <div class="page">
+    <div class="page-header">
+      <span class="page-header-title">Trade Setup - {{ symbol_data.symbol }}</span>
+      <span class="page-header-date">{{ scan_date }}</span>
+    </div>
+
+    <div class="trade-setup">
+      <div class="trade-setup-header">
+        <div>
+          <div class="trade-setup-symbol">{{ symbol_data.symbol }}</div>
+          <div class="trade-setup-price">${{ symbol_data.price }}</div>
+        </div>
+        <div class="trade-setup-badges">
+          <span class="badge badge-info">Score: {{ symbol_data.score }}</span>
+          <span class="badge badge-success">RSI: {{ symbol_data.rsi }}</span>
+        </div>
+      </div>
+
+      <div class="trade-setup-grid">
+        <div class="trade-setup-metric">
+          <span class="metric-label">SMA 200</span>
+          <span class="metric-value">${{ symbol_data.sma200 }}</span>
+        </div>
+        <div class="trade-setup-metric">
+          <span class="metric-label">Support Tests</span>
+          <span class="metric-value">{{ symbol_data.support_tests }}</span>
+        </div>
+        <div class="trade-setup-metric">
+          <span class="metric-label">Earnings</span>
+          <span class="metric-value">{{ symbol_data.earnings_days }}d</span>
+        </div>
+        <div class="trade-setup-metric">
+          <span class="metric-label">IV Rank</span>
+          <span class="metric-value">{{ symbol_data.iv_rank }}%</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h3 class="title-medium" style="margin-bottom: var(--space-4);">Spread Struktur</h3>
+
+      <div class="grid-2">
+        <div class="card">
+          <h4 class="caption" style="margin-bottom: var(--space-3);">Short Put</h4>
+          <div class="metric-value-lg">${{ symbol_data.short_strike }}</div>
+          <div class="body-small">Delta: {{ symbol_data.short_delta }} | Premium: ${{ symbol_data.short_premium }}</div>
+        </div>
+        <div class="card">
+          <h4 class="caption" style="margin-bottom: var(--space-3);">Long Put</h4>
+          <div class="metric-value-lg">${{ symbol_data.long_strike }}</div>
+          <div class="body-small">Delta: {{ symbol_data.long_delta }} | Premium: ${{ symbol_data.long_premium }}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="spacer-md"></div>
+
+    <div class="metric-group">
+      <div class="metric">
+        <span class="metric-label">Net Credit</span>
+        <span class="metric-value text-success">${{ symbol_data.net_credit }}</span>
+      </div>
+      <div class="metric">
+        <span class="metric-label">Max Risk</span>
+        <span class="metric-value text-danger">${{ symbol_data.max_risk }}</span>
+      </div>
+      <div class="metric">
+        <span class="metric-label">Break-Even</span>
+        <span class="metric-value">${{ symbol_data.breakeven }}</span>
+      </div>
+      <div class="metric">
+        <span class="metric-label">ROI</span>
+        <span class="metric-value text-success">{{ symbol_data.roi }}%</span>
+      </div>
+      <div class="metric">
+        <span class="metric-label">Verfall</span>
+        <span class="metric-value">{{ symbol_data.expiry }}</span>
+      </div>
+      <div class="metric">
+        <span class="metric-label">DTE</span>
+        <span class="metric-value">{{ symbol_data.dte }}</span>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="section">
+      <h3 class="title-small" style="margin-bottom: var(--space-4);">Exit Regeln</h3>
+      <div class="table-container">
+        <table>
+          <tbody>
+            <tr>
+              <td><span class="status-dot active"></span></td>
+              <td>Take Profit</td>
+              <td class="col-numeric">50% des Credits</td>
+            </tr>
+            <tr>
+              <td><span class="status-dot warning"></span></td>
+              <td>Adjustment Zone</td>
+              <td class="col-numeric">${{ symbol_data.short_strike }} + $5</td>
+            </tr>
+            <tr>
+              <td><span class="status-dot inactive"></span></td>
+              <td>Stop Loss</td>
+              <td class="col-numeric">Unter ${{ symbol_data.short_strike }}</td>
+            </tr>
+            <tr>
+              <td><span class="status-dot neutral"></span></td>
+              <td>Time Exit</td>
+              <td class="col-numeric">14 DTE</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+
+  <!-- Page 12: Comparison -->
+  <div class="page">
+    <div class="page-header">
+      <span class="page-header-title">Vergleich</span>
+      <span class="page-header-date">{{ scan_date }}</span>
+    </div>
+
+    <div class="section">
+      <h2 class="title-large">Kandidaten Vergleich</h2>
+      <p class="body-small" style="margin-bottom: var(--space-5);">
+        Direkter Vergleich der Top 2 Kandidaten
+      </p>
+
+      <div class="comparison-grid">
+        <div class="comparison-card {{ 'winner' if top_pick.score >= secondary_picks[0].score else '' }}">
+          <div class="comparison-symbol">{{ top_pick.symbol }}</div>
+          <div class="comparison-row">
+            <span class="comparison-label">Score</span>
+            <span class="comparison-value">{{ top_pick.score }}/16</span>
+          </div>
+          <div class="comparison-row">
+            <span class="comparison-label">RSI</span>
+            <span class="comparison-value">{{ top_pick.rsi }}</span>
+          </div>
+          <div class="comparison-row">
+            <span class="comparison-label">Support Abstand</span>
+            <span class="comparison-value">{{ top_pick.support_distance }}%</span>
+          </div>
+          <div class="comparison-row">
+            <span class="comparison-label">Net Credit</span>
+            <span class="comparison-value">${{ top_pick.net_credit }}</span>
+          </div>
+          <div class="comparison-row">
+            <span class="comparison-label">ROI</span>
+            <span class="comparison-value">{{ top_pick.roi }}%</span>
+          </div>
+          <div class="comparison-row">
+            <span class="comparison-label">Earnings</span>
+            <span class="comparison-value">{{ top_pick.earnings_days }}d</span>
+          </div>
+        </div>
+
+        <div class="comparison-vs">VS</div>
+
+        <div class="comparison-card {{ 'winner' if secondary_picks[0].score > top_pick.score else '' }}">
+          <div class="comparison-symbol">{{ secondary_picks[0].symbol }}</div>
+          <div class="comparison-row">
+            <span class="comparison-label">Score</span>
+            <span class="comparison-value">{{ secondary_picks[0].score }}/16</span>
+          </div>
+          <div class="comparison-row">
+            <span class="comparison-label">RSI</span>
+            <span class="comparison-value">{{ secondary_picks[0].rsi }}</span>
+          </div>
+          <div class="comparison-row">
+            <span class="comparison-label">Support Abstand</span>
+            <span class="comparison-value">{{ secondary_picks[0].support_distance }}%</span>
+          </div>
+          <div class="comparison-row">
+            <span class="comparison-label">Net Credit</span>
+            <span class="comparison-value">${{ secondary_picks[0].net_credit }}</span>
+          </div>
+          <div class="comparison-row">
+            <span class="comparison-label">ROI</span>
+            <span class="comparison-value">{{ secondary_picks[0].roi }}%</span>
+          </div>
+          <div class="comparison-row">
+            <span class="comparison-label">Earnings</span>
+            <span class="comparison-value">{{ secondary_picks[0].earnings_days }}d</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="spacer-lg"></div>
+
+    <div class="grid-2">
+      <div class="top-pick-showcase" style="padding: var(--space-4);">
+        <span class="caption">Primäre Empfehlung</span>
+        <div class="top-pick-symbol" style="font-size: var(--font-size-2xl);">{{ top_pick.symbol }}</div>
+        <p class="body-small" style="color: rgba(255,255,255,0.7); margin-top: var(--space-2);">
+          {{ top_pick_recommendation }}
+        </p>
+      </div>
+      <div class="card">
+        <span class="caption">Sekundäre Empfehlung</span>
+        <div class="title-medium" style="margin-top: var(--space-2);">{{ secondary_picks[0].symbol }}</div>
+        <p class="body-small" style="margin-top: var(--space-2);">
+          {{ secondary_recommendation }}
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Page 13: Risk Management -->
+  <div class="page">
+    <div class="page-header">
+      <span class="page-header-title">Risikomanagement</span>
+      <span class="page-header-date">{{ scan_date }}</span>
+    </div>
+
+    <div class="section">
+      <h2 class="title-large">Positionsmanagement</h2>
+      <p class="body-small" style="margin-bottom: var(--space-5);">
+        Regeln für sichere Trade-Ausführung
+      </p>
+
+      <div class="risk-grid">
+        <div class="risk-card">
+          <div class="risk-card-title">Position Sizing</div>
+          <div class="risk-item">
+            <svg class="risk-icon" viewBox="0 0 16 16" fill="currentColor" style="color: var(--color-success);">
+              <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zm3.78 5.28-4.5 6a.75.75 0 0 1-1.18.02l-2-2.25a.75.75 0 1 1 1.12-1l1.38 1.55 3.9-5.2a.75.75 0 1 1 1.2.9z"/>
+            </svg>
+            <span class="risk-text">Max 2-5% des Portfolios pro Trade</span>
+          </div>
+          <div class="risk-item">
+            <svg class="risk-icon" viewBox="0 0 16 16" fill="currentColor" style="color: var(--color-success);">
+              <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zm3.78 5.28-4.5 6a.75.75 0 0 1-1.18.02l-2-2.25a.75.75 0 1 1 1.12-1l1.38 1.55 3.9-5.2a.75.75 0 1 1 1.2.9z"/>
+            </svg>
+            <span class="risk-text">Max Risiko = Spread Width - Credit</span>
+          </div>
+          <div class="risk-item">
+            <svg class="risk-icon" viewBox="0 0 16 16" fill="currentColor" style="color: var(--color-success);">
+              <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zm3.78 5.28-4.5 6a.75.75 0 0 1-1.18.02l-2-2.25a.75.75 0 1 1 1.12-1l1.38 1.55 3.9-5.2a.75.75 0 1 1 1.2.9z"/>
+            </svg>
+            <span class="risk-text">Nie mehr als 3 Positionen gleichzeitig</span>
+          </div>
+        </div>
+
+        <div class="risk-card">
+          <div class="risk-card-title">Diversifikation</div>
+          <div class="risk-item">
+            <svg class="risk-icon" viewBox="0 0 16 16" fill="currentColor" style="color: var(--color-success);">
+              <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zm3.78 5.28-4.5 6a.75.75 0 0 1-1.18.02l-2-2.25a.75.75 0 1 1 1.12-1l1.38 1.55 3.9-5.2a.75.75 0 1 1 1.2.9z"/>
+            </svg>
+            <span class="risk-text">Verschiedene Sektoren wählen</span>
+          </div>
+          <div class="risk-item">
+            <svg class="risk-icon" viewBox="0 0 16 16" fill="currentColor" style="color: var(--color-success);">
+              <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zm3.78 5.28-4.5 6a.75.75 0 0 1-1.18.02l-2-2.25a.75.75 0 1 1 1.12-1l1.38 1.55 3.9-5.2a.75.75 0 1 1 1.2.9z"/>
+            </svg>
+            <span class="risk-text">Unterschiedliche Verfallsdaten</span>
+          </div>
+          <div class="risk-item">
+            <svg class="risk-icon" viewBox="0 0 16 16" fill="currentColor" style="color: var(--color-success);">
+              <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zm3.78 5.28-4.5 6a.75.75 0 0 1-1.18.02l-2-2.25a.75.75 0 1 1 1.12-1l1.38 1.55 3.9-5.2a.75.75 0 1 1 1.2.9z"/>
+            </svg>
+            <span class="risk-text">Korrelationen beachten</span>
+          </div>
+        </div>
+
+        <div class="risk-card">
+          <div class="risk-card-title">Exit Regeln</div>
+          <div class="risk-item">
+            <svg class="risk-icon" viewBox="0 0 16 16" fill="currentColor" style="color: var(--color-success);">
+              <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zm3.78 5.28-4.5 6a.75.75 0 0 1-1.18.02l-2-2.25a.75.75 0 1 1 1.12-1l1.38 1.55 3.9-5.2a.75.75 0 1 1 1.2.9z"/>
+            </svg>
+            <span class="risk-text">Take Profit bei 50% Credit</span>
+          </div>
+          <div class="risk-item">
+            <svg class="risk-icon" viewBox="0 0 16 16" fill="currentColor" style="color: var(--color-success);">
+              <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zm3.78 5.28-4.5 6a.75.75 0 0 1-1.18.02l-2-2.25a.75.75 0 1 1 1.12-1l1.38 1.55 3.9-5.2a.75.75 0 1 1 1.2.9z"/>
+            </svg>
+            <span class="risk-text">Time Exit bei 14 DTE</span>
+          </div>
+          <div class="risk-item">
+            <svg class="risk-icon" viewBox="0 0 16 16" fill="currentColor" style="color: var(--color-success);">
+              <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zm3.78 5.28-4.5 6a.75.75 0 0 1-1.18.02l-2-2.25a.75.75 0 1 1 1.12-1l1.38 1.55 3.9-5.2a.75.75 0 1 1 1.2.9z"/>
+            </svg>
+            <span class="risk-text">Stop bei Unterschreitung Short Strike</span>
+          </div>
+        </div>
+
+        <div class="risk-card">
+          <div class="risk-card-title">Marktbedingungen</div>
+          <div class="risk-item">
+            <svg class="risk-icon" viewBox="0 0 16 16" fill="currentColor" style="color: var(--color-warning);">
+              <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zm-.5 4a.5.5 0 0 1 1 0v4a.5.5 0 0 1-1 0V4zm.5 8a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5z"/>
+            </svg>
+            <span class="risk-text">VIX > 30: Reduzierte Positionsgrösse</span>
+          </div>
+          <div class="risk-item">
+            <svg class="risk-icon" viewBox="0 0 16 16" fill="currentColor" style="color: var(--color-warning);">
+              <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zm-.5 4a.5.5 0 0 1 1 0v4a.5.5 0 0 1-1 0V4zm.5 8a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5z"/>
+            </svg>
+            <span class="risk-text">Fed Meetings: Keine neuen Positionen</span>
+          </div>
+          <div class="risk-item">
+            <svg class="risk-icon" viewBox="0 0 16 16" fill="currentColor" style="color: var(--color-warning);">
+              <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zm-.5 4a.5.5 0 0 1 1 0v4a.5.5 0 0 1-1 0V4zm.5 8a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5z"/>
+            </svg>
+            <span class="risk-text">Earnings Season: Erhöhte Vorsicht</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="warning-box">
+      <div class="warning-box-title">Wichtiger Hinweis</div>
+      <div class="warning-box-text">
+        Dieser Report dient ausschliesslich zu Informationszwecken und stellt keine Anlageberatung dar.
+        Alle Investitionen sind mit Risiken verbunden. Die Wertentwicklung in der Vergangenheit ist
+        keine Garantie für zukünftige Ergebnisse.
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="report-footer" style="margin-top: var(--space-8);">
+      <div class="footer-meta">
+        <span>OptionPlay {{ version }}</span>
+        <span>{{ scan_date }} {{ scan_time }}</span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

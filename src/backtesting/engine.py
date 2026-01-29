@@ -30,6 +30,11 @@ from enum import Enum
 from typing import List, Dict, Optional, Tuple, Callable
 import statistics
 
+import numpy as np
+
+from .options_simulator import OptionsSimulator, SpreadEntry, SpreadSnapshot, SimulatorConfig
+from ..pricing import batch_historical_volatility, batch_estimate_iv
+
 logger = logging.getLogger(__name__)
 
 
@@ -79,10 +84,22 @@ class BacktestConfig:
 
     # Entry-Kriterien
     min_pullback_score: float = 5.0
-    min_otm_pct: float = 8.0  # Minimum OTM% für Short Strike
-    target_delta: float = -0.20
-    dte_min: int = 45
-    dte_max: int = 75
+    min_otm_pct: float = 8.0  # Minimum OTM% für Short Strike (Fallback wenn kein Delta)
+    dte_min: int = 60
+    dte_max: int = 90
+
+    # Delta-basierte Strike-Auswahl (gemäß strategies.yaml Basisstrategie)
+    # Short Put: verkauft, Delta um -0.20
+    short_delta_target: float = -0.20
+    short_delta_min: float = -0.25
+    short_delta_max: float = -0.15
+    # Long Put: gekauft, Delta um -0.05
+    long_delta_target: float = -0.05
+    long_delta_min: float = -0.08
+    long_delta_max: float = -0.03
+
+    # Strike-Auswahl Methode
+    use_delta_based_strikes: bool = True  # True = Delta-basiert, False = OTM%-basiert
 
     # Exit-Kriterien (KORRIGIERT)
     profit_target_pct: float = 50.0  # % des Max Profits
@@ -102,6 +119,10 @@ class BacktestConfig:
 
     # Look-Ahead Bias Prevention (NEU)
     use_previous_day_signals: bool = True  # Signal von T-1, Entry am T
+
+    # Black-Scholes Pricing (NEU)
+    use_black_scholes: bool = True  # True = realistische Options-Pricing
+    default_iv: float = 0.25  # Default IV wenn keine historischen Daten
 
 
 @dataclass
@@ -397,12 +418,25 @@ class BacktestEngine:
         self.config = config
         self._historical_data: Dict[str, List[Dict]] = {}
         self._vix_data: List[Dict] = []
+        self._iv_data: Dict[str, List[Dict]] = {}  # Historical IV per symbol
+
+        # Options Simulator für realistische Pricing
+        if config.use_black_scholes:
+            sim_config = SimulatorConfig(
+                entry_slippage_pct=config.slippage_pct,
+                exit_slippage_pct=config.slippage_pct * 1.5,
+                commission_per_contract=config.commission_per_contract
+            )
+            self._simulator = OptionsSimulator(sim_config)
+        else:
+            self._simulator = None
 
     def run_sync(
         self,
         symbols: List[str],
         historical_data: Dict[str, List[Dict]],
         vix_data: Optional[List[Dict]] = None,
+        iv_data: Optional[Dict[str, List[Dict]]] = None,
         entry_filter: Optional[Callable] = None,
     ) -> BacktestResult:
         """
@@ -412,6 +446,7 @@ class BacktestEngine:
             symbols: Liste der zu testenden Symbole
             historical_data: Dict mit {symbol: [{date, open, high, low, close, volume}, ...]}
             vix_data: Optional VIX-Historie [{date, close}, ...]
+            iv_data: Optional IV-Historie {symbol: [{date, iv}, ...]}
             entry_filter: Optional Filter-Funktion für Entry-Signale
 
         Returns:
@@ -419,6 +454,7 @@ class BacktestEngine:
         """
         self._historical_data = historical_data
         self._vix_data = vix_data or []
+        self._iv_data = iv_data or {}
 
         trades: List[TradeResult] = []
         open_positions: List[Dict] = []
@@ -511,6 +547,60 @@ class BacktestEngine:
             if bar_date == target_date:
                 return bar.get("close")
         return None
+
+    def _get_iv_on_date(self, symbol: str, target_date: date) -> Optional[float]:
+        """Holt IV für ein Symbol an einem Datum"""
+        if symbol not in self._iv_data:
+            return None
+
+        for bar in self._iv_data[symbol]:
+            bar_date = bar.get("date")
+            if isinstance(bar_date, str):
+                bar_date = date.fromisoformat(bar_date)
+            if bar_date == target_date:
+                return bar.get("iv")
+        return None
+
+    def _estimate_iv_from_hv(self, symbol: str, target_date: date) -> float:
+        """
+        Schätzt IV aus historischer Volatilität.
+
+        Verwendet NumPy-optimierte 20-Tage HV mit VIX-Anpassung.
+        """
+        if symbol not in self._historical_data:
+            return self.config.default_iv
+
+        # Hole letzte 20+ Tage vor target_date
+        history = []
+        for bar in self._historical_data[symbol]:
+            bar_date = bar.get("date")
+            if isinstance(bar_date, str):
+                bar_date = date.fromisoformat(bar_date)
+            if bar_date < target_date:
+                history.append(bar)
+
+        if len(history) < 20:
+            return self.config.default_iv
+
+        # Sortiere und nimm letzte 21 Tage (für 20 Returns)
+        history = sorted(history, key=lambda x: x.get("date", ""), reverse=True)[:21]
+        closes = np.array([bar.get("close", 0) for bar in history if bar.get("close", 0) > 0])
+
+        if len(closes) < 2:
+            return self.config.default_iv
+
+        # NumPy-optimierte HV-Berechnung
+        hv = float(batch_historical_volatility(closes, window=min(20, len(closes) - 1)))
+
+        # VIX-basierte Anpassung mit batch_estimate_iv
+        vix = self._get_vix_on_date(target_date)
+        if vix is not None:
+            iv = float(batch_estimate_iv(np.array([hv]), np.array([vix]))[0])
+        else:
+            iv = hv * 1.1  # Default IV premium ohne VIX
+
+        # Bounds (10% - 80%)
+        return float(np.clip(iv, 0.10, 0.80))
 
     def _check_entry_signal(
         self,
@@ -759,15 +849,132 @@ class BacktestEngine:
         """Öffnet eine neue Position"""
         current_price = entry_signal["price"]
 
-        # Berechne Strikes
-        otm_pct = self.config.min_otm_pct / 100
-        short_strike = round(current_price * (1 - otm_pct), 0)
+        # =================================================================
+        # STRIKE-AUSWAHL: Delta-basiert oder OTM%-basiert
+        # =================================================================
+        # IV holen oder schätzen (wird für beide Methoden benötigt)
+        iv = None
+        if self._simulator:
+            iv = self._get_iv_on_date(symbol, entry_date)
+            if iv is None:
+                iv = self._estimate_iv_from_hv(symbol, entry_date)
+        if iv is None:
+            iv = self.config.default_iv
 
-        spread_width_pct = self.config.spread_width_pct / 100
-        spread_width = max(5.0, round(current_price * spread_width_pct / 5) * 5)
-        long_strike = short_strike - spread_width
+        short_strike = None
+        long_strike = None
+        entry_delta = None
 
-        # Berechne Credit (vereinfacht: ~25% der Spread-Width)
+        if self.config.use_delta_based_strikes:
+            # Delta-basierte Strike-Auswahl (Basisstrategie gemäß strategies.yaml)
+            from ..pricing import find_strike_for_delta
+
+            T = self.config.dte_max / 365.0  # Zeit bis Verfall in Jahren
+
+            # Short Put Strike (Delta ~ -0.20)
+            short_strike = find_strike_for_delta(
+                target_delta=self.config.short_delta_target,
+                S=current_price,
+                T=T,
+                sigma=iv,
+                option_type="P"
+            )
+
+            # Long Put Strike (Delta ~ -0.05)
+            long_strike = find_strike_for_delta(
+                target_delta=self.config.long_delta_target,
+                S=current_price,
+                T=T,
+                sigma=iv,
+                option_type="P"
+            )
+
+            entry_delta = self.config.short_delta_target
+
+            # Validierung: Long Strike muss unter Short Strike liegen
+            if short_strike and long_strike and long_strike >= short_strike:
+                logger.debug(f"Delta-based strikes invalid for {symbol}: "
+                           f"short={short_strike}, long={long_strike}. Using fallback.")
+                short_strike = None
+                long_strike = None
+
+        # Fallback: OTM%-basierte Strike-Auswahl (alte Methode)
+        if short_strike is None or long_strike is None:
+            otm_pct = self.config.min_otm_pct / 100
+            short_strike = round(current_price * (1 - otm_pct), 0)
+
+            spread_width_pct = self.config.spread_width_pct / 100
+            spread_width = max(5.0, round(current_price * spread_width_pct / 5) * 5)
+            long_strike = short_strike - spread_width
+
+        spread_width = short_strike - long_strike
+
+        # Black-Scholes Pricing für realistische Credits
+        if self._simulator and self.config.use_black_scholes:
+
+            vix = entry_signal.get("vix")
+
+            # Temporäres Sizing für Entry-Simulation (wird unten korrigiert)
+            temp_entry = self._simulator.simulate_entry(
+                symbol=symbol,
+                underlying_price=current_price,
+                short_strike=short_strike,
+                long_strike=long_strike,
+                dte=self.config.dte_max,
+                iv=iv,
+                entry_date=entry_date,
+                contracts=1,
+                vix=vix
+            )
+
+            net_credit = temp_entry.net_credit
+
+            # Position-Sizing basierend auf realistischem Pricing
+            max_loss_per_contract = temp_entry.max_loss
+            if max_loss_per_contract <= 0:
+                max_loss_per_contract = (spread_width - net_credit) * 100
+
+            contracts = max(1, int(max_risk / max_loss_per_contract))
+
+            # Finales Entry mit korrekter Contract-Anzahl
+            entry = self._simulator.simulate_entry(
+                symbol=symbol,
+                underlying_price=current_price,
+                short_strike=short_strike,
+                long_strike=long_strike,
+                dte=self.config.dte_max,
+                iv=iv,
+                entry_date=entry_date,
+                contracts=contracts,
+                vix=vix
+            )
+
+            return {
+                "symbol": symbol,
+                "entry_date": entry_date,
+                "entry_price": current_price,
+                "short_strike": short_strike,
+                "long_strike": long_strike,
+                "spread_width": spread_width,
+                "net_credit": entry.net_credit,
+                "contracts": contracts,
+                "max_profit": entry.max_profit,
+                "max_loss": entry.max_loss,
+                "entry_vix": vix,
+                "entry_iv": iv,
+                "pullback_score": entry_signal.get("score"),
+                "score_breakdown": entry_signal.get("score_breakdown"),
+                "dte_at_entry": self.config.dte_max,
+                "expiry_date": entry.expiry_date,
+                "commission": entry.commission,
+                "last_price": current_price,
+                "entry_delta": entry.entry_delta,
+                "entry_theta": entry.entry_theta,
+                # Store SpreadEntry for later calculations
+                "_spread_entry": entry,
+            }
+
+        # Fallback: Vereinfachte Berechnung (alte Methode)
         credit_pct = self.config.min_credit_pct / 100
         net_credit = spread_width * credit_pct
 
@@ -833,6 +1040,52 @@ class BacktestEngine:
         if current_date >= expiry:
             return (ExitReason.EXPIRATION, current_price)
 
+        # Black-Scholes basierte Exit-Prüfung
+        if self._simulator and self.config.use_black_scholes and "_spread_entry" in position:
+            spread_entry = position["_spread_entry"]
+
+            # IV für aktuellen Tag
+            current_iv = self._get_iv_on_date(symbol, current_date)
+            if current_iv is None:
+                current_iv = self._estimate_iv_from_hv(symbol, current_date)
+
+            vix = self._get_vix_on_date(current_date)
+
+            # Berechne aktuellen Snapshot
+            snapshot = self._simulator.calculate_snapshot(
+                entry=spread_entry,
+                current_date=current_date,
+                current_price=current_price,
+                current_iv=current_iv,
+                vix=vix
+            )
+
+            # Store snapshot for close calculation
+            position["_last_snapshot"] = snapshot
+
+            # Prüfe Exit-Bedingungen mit realistischem P&L
+            exit_reason = self._simulator.check_exit_conditions(
+                snapshot=snapshot,
+                entry=spread_entry,
+                profit_target_pct=self.config.profit_target_pct,
+                stop_loss_pct=self.config.stop_loss_pct,
+                dte_exit_threshold=self.config.dte_exit_threshold
+            )
+
+            if exit_reason == "profit_target":
+                return (ExitReason.PROFIT_TARGET_HIT, current_price)
+            elif exit_reason == "stop_loss":
+                return (ExitReason.STOP_LOSS_HIT, current_price)
+            elif exit_reason == "dte_threshold":
+                return (ExitReason.DTE_THRESHOLD, current_price)
+            elif exit_reason == "deep_itm":
+                return (ExitReason.BREACH_SHORT_STRIKE, current_price)
+            elif exit_reason == "expiration":
+                return (ExitReason.EXPIRATION, current_price)
+
+            return None
+
+        # Fallback: Vereinfachte Exit-Prüfung (alte Methode)
         # 2. Short Strike durchbrochen (simuliere Assignment-Risiko)
         if current_price < short_strike:
             # Simuliere erhöhte Spread-Kosten bei ITM
@@ -883,28 +1136,42 @@ class BacktestEngine:
         contracts = position["contracts"]
         commission = position["commission"]
 
-        # Berechne P&L basierend auf Exit-Preis
-        if exit_price >= short_strike:
-            # Beide Puts OTM - Max Profit
-            realized_pnl = position["max_profit"]
-            outcome = TradeOutcome.MAX_PROFIT
-        elif exit_price <= long_strike:
-            # Beide Puts ITM - Max Loss
-            realized_pnl = -position["max_loss"]
-            outcome = TradeOutcome.MAX_LOSS
-        else:
-            # Zwischen den Strikes
-            intrinsic_value = short_strike - exit_price
-            spread_cost = intrinsic_value * 100 * contracts
-            realized_pnl = (net_credit * 100 * contracts) - spread_cost - commission
+        # Black-Scholes basierte P&L-Berechnung
+        if self._simulator and self.config.use_black_scholes and "_spread_entry" in position:
+            # Verwende letzten Snapshot wenn vorhanden
+            if "_last_snapshot" in position:
+                snapshot = position["_last_snapshot"]
+                realized_pnl = snapshot.unrealized_pnl_total
+            else:
+                # Berechne finalen Snapshot
+                spread_entry = position["_spread_entry"]
+                current_iv = self._get_iv_on_date(position["symbol"], exit_date)
+                if current_iv is None:
+                    current_iv = self._estimate_iv_from_hv(position["symbol"], exit_date)
 
-            if realized_pnl > 0:
-                if realized_pnl >= position["max_profit"] * 0.9:
-                    outcome = TradeOutcome.MAX_PROFIT
-                elif exit_reason == ExitReason.PROFIT_TARGET_HIT:
+                vix = self._get_vix_on_date(exit_date)
+
+                snapshot = self._simulator.calculate_snapshot(
+                    entry=spread_entry,
+                    current_date=exit_date,
+                    current_price=exit_price,
+                    current_iv=current_iv,
+                    vix=vix
+                )
+                realized_pnl = snapshot.unrealized_pnl_total
+
+            # Bestimme Outcome basierend auf P&L
+            if realized_pnl >= position["max_profit"] * 0.95:
+                outcome = TradeOutcome.MAX_PROFIT
+            elif realized_pnl >= position["max_profit"] * 0.5:
+                if exit_reason == ExitReason.PROFIT_TARGET_HIT:
                     outcome = TradeOutcome.PROFIT_TARGET
                 else:
                     outcome = TradeOutcome.PARTIAL_PROFIT
+            elif realized_pnl > 0:
+                outcome = TradeOutcome.PARTIAL_PROFIT
+            elif realized_pnl <= -position["max_loss"] * 0.95:
+                outcome = TradeOutcome.MAX_LOSS
             elif realized_pnl < 0:
                 if exit_reason == ExitReason.STOP_LOSS_HIT:
                     outcome = TradeOutcome.STOP_LOSS
@@ -912,6 +1179,37 @@ class BacktestEngine:
                     outcome = TradeOutcome.PARTIAL_LOSS
             else:
                 outcome = TradeOutcome.PARTIAL_PROFIT
+
+        else:
+            # Fallback: Vereinfachte P&L-Berechnung (alte Methode)
+            if exit_price >= short_strike:
+                # Beide Puts OTM - Max Profit
+                realized_pnl = position["max_profit"]
+                outcome = TradeOutcome.MAX_PROFIT
+            elif exit_price <= long_strike:
+                # Beide Puts ITM - Max Loss
+                realized_pnl = -position["max_loss"]
+                outcome = TradeOutcome.MAX_LOSS
+            else:
+                # Zwischen den Strikes
+                intrinsic_value = short_strike - exit_price
+                spread_cost = intrinsic_value * 100 * contracts
+                realized_pnl = (net_credit * 100 * contracts) - spread_cost - commission
+
+                if realized_pnl > 0:
+                    if realized_pnl >= position["max_profit"] * 0.9:
+                        outcome = TradeOutcome.MAX_PROFIT
+                    elif exit_reason == ExitReason.PROFIT_TARGET_HIT:
+                        outcome = TradeOutcome.PROFIT_TARGET
+                    else:
+                        outcome = TradeOutcome.PARTIAL_PROFIT
+                elif realized_pnl < 0:
+                    if exit_reason == ExitReason.STOP_LOSS_HIT:
+                        outcome = TradeOutcome.STOP_LOSS
+                    else:
+                        outcome = TradeOutcome.PARTIAL_LOSS
+                else:
+                    outcome = TradeOutcome.PARTIAL_PROFIT
 
         dte_at_exit = (position["expiry_date"] - exit_date).days
         hold_days = (exit_date - position["entry_date"]).days
@@ -937,5 +1235,6 @@ class BacktestEngine:
             hold_days=max(1, hold_days),
             entry_vix=position.get("entry_vix"),
             pullback_score=position.get("pullback_score"),
+            short_delta_at_entry=position.get("entry_delta"),
             score_breakdown=position.get("score_breakdown"),
         )

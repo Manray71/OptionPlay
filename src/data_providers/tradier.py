@@ -32,10 +32,133 @@ from .interface import (
     OptionQuote,
     HistoricalBar
 )
+
 try:
     from ..earnings_cache import EarningsInfo, EarningsSource
 except ImportError:
     from earnings_cache import EarningsInfo, EarningsSource
+
+
+# =============================================================================
+# HISTORICAL OPTIONS DATA
+# =============================================================================
+
+@dataclass
+class HistoricalOptionBar:
+    """
+    Historischer Options-Preis-Datenpunkt von Tradier.
+
+    Tradier liefert OHLCV-Daten für Options via OCC-Symbol.
+    """
+    symbol: str           # OCC Symbol (z.B. AAPL240119P00150000)
+    date: date
+    open: float
+    high: float
+    low: float
+    close: float
+    volume: int
+    underlying_symbol: str
+    strike: float
+    expiry: date
+    option_type: str      # 'P' or 'C'
+
+    @classmethod
+    def from_occ_symbol(cls, occ_symbol: str, bar_data: Dict) -> 'HistoricalOptionBar':
+        """
+        Erstellt HistoricalOptionBar aus OCC-Symbol und Tradier Bar-Daten.
+
+        OCC Format: AAPL240119P00150000
+        - AAPL = Underlying (1-6 chars)
+        - 240119 = Expiry (YYMMDD)
+        - P = Put (or C = Call)
+        - 00150000 = Strike * 1000 (8 digits)
+        """
+        # Parse OCC Symbol
+        underlying, expiry, opt_type, strike = parse_occ_symbol(occ_symbol)
+
+        return cls(
+            symbol=occ_symbol,
+            date=datetime.strptime(bar_data["date"], "%Y-%m-%d").date(),
+            open=float(bar_data.get("open", 0)),
+            high=float(bar_data.get("high", 0)),
+            low=float(bar_data.get("low", 0)),
+            close=float(bar_data.get("close", 0)),
+            volume=int(bar_data.get("volume", 0)),
+            underlying_symbol=underlying,
+            strike=strike,
+            expiry=expiry,
+            option_type=opt_type
+        )
+
+
+def parse_occ_symbol(occ_symbol: str) -> Tuple[str, date, str, float]:
+    """
+    Parst ein OCC-Options-Symbol.
+
+    Format: AAPL240119P00150000
+    - Underlying: Variable Länge (1-6 Zeichen)
+    - Expiry: 6 Ziffern (YYMMDD)
+    - Type: 1 Zeichen (P oder C)
+    - Strike: 8 Ziffern (Strike * 1000)
+
+    Returns:
+        Tuple von (underlying, expiry_date, option_type, strike)
+    """
+    # OCC symbol is always 21 chars for standard options
+    # Last 15 chars are: YYMMDD + P/C + 8-digit strike
+    if len(occ_symbol) < 15:
+        raise ValueError(f"Invalid OCC symbol: {occ_symbol}")
+
+    # Extract from the end
+    strike_str = occ_symbol[-8:]  # Last 8 digits
+    opt_type = occ_symbol[-9]     # P or C
+    expiry_str = occ_symbol[-15:-9]  # YYMMDD
+    underlying = occ_symbol[:-15]  # Everything before
+
+    # Parse expiry
+    year = 2000 + int(expiry_str[:2])
+    month = int(expiry_str[2:4])
+    day = int(expiry_str[4:6])
+    expiry = date(year, month, day)
+
+    # Parse strike (divide by 1000)
+    strike = float(strike_str) / 1000
+
+    return (underlying, expiry, opt_type, strike)
+
+
+def build_occ_symbol(
+    underlying: str,
+    expiry: date,
+    option_type: str,
+    strike: float
+) -> str:
+    """
+    Erstellt ein OCC-Options-Symbol.
+
+    Args:
+        underlying: Ticker (z.B. "AAPL")
+        expiry: Verfallsdatum
+        option_type: "P" oder "C"
+        strike: Strike-Preis
+
+    Returns:
+        OCC Symbol (z.B. "AAPL240119P00150000")
+    """
+    # Underlying muss linksbündig sein (max 6 chars)
+    underlying = underlying.upper()[:6]
+
+    # Expiry als YYMMDD
+    expiry_str = expiry.strftime("%y%m%d")
+
+    # Option type
+    opt_type = option_type.upper()[0]
+
+    # Strike als 8-stellige Zahl (Strike * 1000)
+    strike_int = int(strike * 1000)
+    strike_str = f"{strike_int:08d}"
+
+    return f"{underlying}{expiry_str}{opt_type}{strike_str}"
 
 try:
     from ..iv_cache import IVData, IVSource, IVCache, get_iv_cache
@@ -158,9 +281,9 @@ class TradierProvider(DataProvider):
                 timeout=timeout
             )
         
-        # Verbindung testen mit Market Clock
+        # Verbindung testen mit Market Clock (skip connect check to avoid recursion)
         try:
-            clock = await self._get("/v1/markets/clock")
+            clock = await self._get("/v1/markets/clock", _skip_connect_check=True)
             self._connected = clock is not None
             
             if self._connected:
@@ -280,9 +403,32 @@ class TradierProvider(DataProvider):
         bars.sort(key=lambda x: x.date)
         if len(bars) > days:
             bars = bars[-days:]
-        
+
         return bars
-    
+
+    async def get_historical_for_scanner(
+        self,
+        symbol: str,
+        days: int = 260
+    ) -> Optional[Tuple[List[float], List[int], List[float], List[float]]]:
+        """
+        Historische Daten im Scanner-Format.
+
+        Returns:
+            Tuple von (prices, volumes, highs, lows) oder None
+        """
+        bars = await self.get_historical(symbol, days)
+
+        if not bars or len(bars) < 50:
+            return None
+
+        prices = [bar.close for bar in bars]
+        volumes = [bar.volume for bar in bars]
+        highs = [bar.high for bar in bars]
+        lows = [bar.low for bar in bars]
+
+        return prices, volumes, highs, lows
+
     async def get_option_chain(
         self,
         symbol: str,
@@ -456,9 +602,168 @@ class TradierProvider(DataProvider):
         return None
     
     # =========================================================================
+    # Historical Options Data (NEU)
+    # =========================================================================
+
+    async def get_option_history(
+        self,
+        occ_symbol: str,
+        days: int = 90,
+        interval: str = "daily"
+    ) -> List[HistoricalOptionBar]:
+        """
+        Historische Preisdaten für eine Option abrufen.
+
+        Args:
+            occ_symbol: OCC Options-Symbol (z.B. AAPL240119P00150000)
+            days: Anzahl Tage
+            interval: daily, weekly, monthly
+
+        Returns:
+            Liste von HistoricalOptionBar
+        """
+        end_date = date.today()
+        start_date = end_date - timedelta(days=int(days * 1.5))  # Buffer
+
+        params = {
+            "symbol": occ_symbol,
+            "interval": interval,
+            "start": start_date.isoformat(),
+            "end": end_date.isoformat()
+        }
+
+        data = await self._get("/v1/markets/history", params=params)
+
+        if not data or "history" not in data:
+            return []
+
+        history = data["history"]
+        if not history or "day" not in history:
+            return []
+
+        days_data = history["day"]
+        if isinstance(days_data, dict):
+            days_data = [days_data]
+
+        bars = []
+        for day in days_data:
+            try:
+                bar = HistoricalOptionBar.from_occ_symbol(occ_symbol, day)
+                bars.append(bar)
+            except (KeyError, ValueError) as e:
+                logger.warning(f"Fehler beim Parsen von Options-Bar: {e}")
+                continue
+
+        # Sortieren und begrenzen
+        bars.sort(key=lambda x: x.date)
+        if len(bars) > days:
+            bars = bars[-days:]
+
+        return bars
+
+    async def get_option_history_for_spread(
+        self,
+        underlying: str,
+        short_strike: float,
+        long_strike: float,
+        expiry: date,
+        days: int = 90
+    ) -> Dict[str, List[HistoricalOptionBar]]:
+        """
+        Historische Daten für einen Bull-Put-Spread.
+
+        Args:
+            underlying: Underlying Symbol (z.B. "AAPL")
+            short_strike: Strike des Short Put
+            long_strike: Strike des Long Put
+            expiry: Verfallsdatum
+            days: Anzahl Tage
+
+        Returns:
+            Dict mit {"short": [bars], "long": [bars]}
+        """
+        short_occ = build_occ_symbol(underlying, expiry, "P", short_strike)
+        long_occ = build_occ_symbol(underlying, expiry, "P", long_strike)
+
+        # Parallel abrufen
+        short_task = self.get_option_history(short_occ, days)
+        long_task = self.get_option_history(long_occ, days)
+
+        short_bars, long_bars = await asyncio.gather(short_task, long_task)
+
+        return {
+            "short": short_bars,
+            "long": long_bars,
+            "short_symbol": short_occ,
+            "long_symbol": long_occ
+        }
+
+    async def find_historical_options(
+        self,
+        underlying: str,
+        target_date: date,
+        strike_range: Tuple[float, float],
+        dte_range: Tuple[int, int] = (30, 60),
+        option_type: str = "P"
+    ) -> List[str]:
+        """
+        Findet verfügbare historische Options für ein Datum.
+
+        Da Tradier keine Lookup-API für historische Options hat,
+        konstruieren wir OCC-Symbole basierend auf den Parametern.
+
+        Args:
+            underlying: Ticker
+            target_date: Datum für das wir Options suchen
+            strike_range: (min_strike, max_strike)
+            dte_range: (min_dte, max_dte)
+            option_type: "P" oder "C"
+
+        Returns:
+            Liste von OCC-Symbolen die getestet werden sollten
+        """
+        symbols = []
+        min_strike, max_strike = strike_range
+        min_dte, max_dte = dte_range
+
+        # Generiere mögliche Expiries (monatlich, 3. Freitag)
+        for dte in range(min_dte, max_dte + 1, 7):  # Wöchentliche Schritte
+            expiry = target_date + timedelta(days=dte)
+
+            # Finde nächsten 3. Freitag (monatlicher Verfall)
+            # Vereinfacht: Nimm den 3. Freitag des Monats
+            year = expiry.year
+            month = expiry.month
+
+            # Erster Tag des Monats
+            first_day = date(year, month, 1)
+            # Finde ersten Freitag
+            days_until_friday = (4 - first_day.weekday()) % 7
+            first_friday = first_day + timedelta(days=days_until_friday)
+            # 3. Freitag
+            third_friday = first_friday + timedelta(weeks=2)
+
+            # Generiere Strikes (in $5 Schritten für höhere Preise, $2.50 für niedrigere)
+            strike = min_strike
+            while strike <= max_strike:
+                occ = build_occ_symbol(underlying, third_friday, option_type, strike)
+                if occ not in symbols:
+                    symbols.append(occ)
+
+                # Increment based on price level
+                if strike < 50:
+                    strike += 2.5
+                elif strike < 200:
+                    strike += 5
+                else:
+                    strike += 10
+
+        return symbols
+
+    # =========================================================================
     # Tradier-spezifische Methoden
     # =========================================================================
-    
+
     async def get_market_clock(self) -> Optional[Dict]:
         """Marktstatus und Handelszeiten"""
         data = await self._get("/v1/markets/clock")
@@ -668,11 +973,12 @@ class TradierProvider(DataProvider):
     # Private Helpers
     # =========================================================================
     
-    async def _get(self, endpoint: str, params: Optional[Dict] = None) -> Optional[Dict]:
+    async def _get(self, endpoint: str, params: Optional[Dict] = None, _skip_connect_check: bool = False) -> Optional[Dict]:
         """GET Request mit Retry-Logik"""
-        if not await self.is_connected():
+        # Skip connect check to avoid recursion when called from connect()
+        if not _skip_connect_check and not await self.is_connected():
             await self.connect()
-        
+
         url = f"{self.config.base_url}{endpoint}"
         
         for attempt in range(self.config.max_retries):

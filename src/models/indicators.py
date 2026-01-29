@@ -104,6 +104,49 @@ class ATRResult:
 
 
 @dataclass
+class RSIDivergenceResult:
+    """
+    RSI Divergenz Ergebnis
+
+    RSI-Divergenzen sind starke Signale der technischen Analyse:
+    - Bullische Divergenz: Kurs macht tieferes Tief, RSI macht höheres Tief
+      → Verkaufsdruck lässt nach, Bodenbildung wahrscheinlich
+    - Bärische Divergenz: Kurs macht höheres Hoch, RSI macht tieferes Hoch
+      → Kaufdruck lässt nach, Top-Bildung wahrscheinlich
+    """
+    divergence_type: str  # 'bullish', 'bearish', or 'none'
+
+    # Pivot-Punkte für Kurs
+    price_pivot_1: float  # Erster Pivot (älter)
+    price_pivot_2: float  # Zweiter Pivot (aktueller)
+
+    # Pivot-Punkte für RSI
+    rsi_pivot_1: float  # RSI beim ersten Pivot
+    rsi_pivot_2: float  # RSI beim zweiten Pivot
+
+    # Stärke der Divergenz (0-1)
+    strength: float
+
+    # Anzahl Tage zwischen den Pivots
+    formation_days: int
+
+    # Zusätzliche Infos
+    pivot_1_idx: int = 0  # Index des ersten Pivots
+    pivot_2_idx: int = 0  # Index des zweiten Pivots
+
+    def to_dict(self) -> Dict:
+        return {
+            'type': self.divergence_type,
+            'price_pivot_1': round(self.price_pivot_1, 2),
+            'price_pivot_2': round(self.price_pivot_2, 2),
+            'rsi_pivot_1': round(self.rsi_pivot_1, 2),
+            'rsi_pivot_2': round(self.rsi_pivot_2, 2),
+            'strength': round(self.strength, 3),
+            'formation_days': self.formation_days
+        }
+
+
+@dataclass
 class KeltnerChannelResult:
     """
     Keltner Channel Result

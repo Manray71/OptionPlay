@@ -1,0 +1,1668 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Market Scan Report Preview</title>
+  <style>
+/* ============================================
+   OptionPlay Report Design System
+   Apple-Inspired Minimal Design
+   SCAN REPORT PREVIEW
+   ============================================ */
+
+:root {
+  /* Typography Scale (Major Third - 1.25) */
+  --font-size-xs: 0.64rem;
+  --font-size-sm: 0.8rem;
+  --font-size-base: 1rem;
+  --font-size-md: 1.25rem;
+  --font-size-lg: 1.563rem;
+  --font-size-xl: 1.953rem;
+  --font-size-2xl: 2.441rem;
+  --font-size-3xl: 3.052rem;
+
+  /* Font Weights */
+  --font-light: 300;
+  --font-regular: 400;
+  --font-medium: 500;
+  --font-semibold: 600;
+  --font-bold: 700;
+
+  /* Line Heights */
+  --leading-tight: 1.2;
+  --leading-snug: 1.375;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.625;
+
+  /* Letter Spacing */
+  --tracking-tight: -0.025em;
+  --tracking-normal: 0;
+  --tracking-wide: 0.025em;
+
+  /* Spacing Scale (8px base) */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-8: 3rem;
+  --space-10: 4rem;
+  --space-12: 6rem;
+
+  /* Colors - Light Mode */
+  --color-bg-primary: #ffffff;
+  --color-bg-secondary: #f5f5f7;
+  --color-bg-tertiary: #fbfbfd;
+  --color-bg-elevated: #ffffff;
+
+  --color-text-primary: #1d1d1f;
+  --color-text-secondary: #6e6e73;
+  --color-text-tertiary: #86868b;
+  --color-text-quaternary: #aeaeb2;
+
+  --color-border-primary: #d2d2d7;
+  --color-border-secondary: #e8e8ed;
+  --color-border-tertiary: #f2f2f7;
+
+  /* Accent Colors */
+  --color-accent-blue: #007aff;
+  --color-success: #34c759;
+  --color-success-bg: rgba(52, 199, 89, 0.12);
+  --color-warning: #ff9500;
+  --color-warning-bg: rgba(255, 149, 0, 0.12);
+  --color-danger: #ff3b30;
+  --color-danger-bg: rgba(255, 59, 48, 0.12);
+  --color-info: #007aff;
+  --color-info-bg: rgba(0, 122, 255, 0.12);
+
+  /* Border Radius */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+
+  /* Page Dimensions */
+  --page-width: 210mm;
+  --page-height: 297mm;
+  --page-margin: 20mm;
+}
+
+@page {
+  size: A4;
+  margin: 20mm;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter',
+               'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-size: var(--font-size-base);
+  font-weight: var(--font-regular);
+  line-height: var(--leading-normal);
+  color: var(--color-text-primary);
+  background-color: #e5e5e5;
+}
+
+/* Page Container */
+.page {
+  width: var(--page-width);
+  min-height: var(--page-height);
+  padding: var(--page-margin);
+  background: var(--color-bg-primary);
+  margin: 20px auto;
+  box-shadow: var(--shadow-lg);
+  page-break-after: always;
+}
+
+.page:last-child {
+  page-break-after: avoid;
+}
+
+/* Typography */
+.title-large {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', sans-serif;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-semibold);
+  line-height: var(--leading-snug);
+}
+
+.title-medium {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', sans-serif;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-semibold);
+  line-height: var(--leading-snug);
+}
+
+.title-small {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-semibold);
+}
+
+.body-small {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.caption {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-medium);
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+}
+
+/* Layout */
+.section {
+  margin-bottom: var(--space-6);
+}
+
+.section-header {
+  margin-bottom: var(--space-5);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--color-border-secondary);
+}
+
+.grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-4); }
+.grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-4); }
+.grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-4); }
+
+.flex-between {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* Cards */
+.card {
+  background: var(--color-bg-elevated);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  border: 1px solid var(--color-border-tertiary);
+}
+
+.card-subtle {
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+}
+
+/* Metrics */
+.metric {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.metric-label {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-medium);
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+}
+
+.metric-value {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-semibold);
+  color: var(--color-text-primary);
+  letter-spacing: var(--tracking-tight);
+}
+
+.metric-group {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: var(--space-4);
+}
+
+/* Badges */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+}
+
+.badge-success { background: var(--color-success-bg); color: var(--color-success); }
+.badge-warning { background: var(--color-warning-bg); color: var(--color-warning); }
+.badge-danger { background: var(--color-danger-bg); color: var(--color-danger); }
+.badge-info { background: var(--color-info-bg); color: var(--color-info); }
+.badge-neutral { background: var(--color-bg-secondary); color: var(--color-text-secondary); }
+
+.tag {
+  display: inline-flex;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-medium);
+  background: var(--color-bg-secondary);
+  color: var(--color-text-secondary);
+}
+
+/* Tables */
+.table-container {
+  overflow-x: auto;
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-tertiary);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+}
+
+thead { background: var(--color-bg-secondary); }
+
+th {
+  font-weight: var(--font-semibold);
+  color: var(--color-text-secondary);
+  text-align: left;
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  border-bottom: 1px solid var(--color-border-secondary);
+}
+
+td {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-border-tertiary);
+}
+
+tr:last-child td { border-bottom: none; }
+.col-numeric { text-align: right; font-family: 'SF Mono', monospace; }
+
+/* Dividers & Spacers */
+.divider {
+  height: 1px;
+  background: var(--color-border-secondary);
+  margin: var(--space-6) 0;
+}
+
+.spacer-md { height: var(--space-4); }
+.spacer-lg { height: var(--space-6); }
+.spacer-xl { height: var(--space-8); }
+
+/* Utility */
+.text-success { color: var(--color-success); }
+.text-warning { color: var(--color-warning); }
+.text-danger { color: var(--color-danger); }
+.text-secondary { color: var(--color-text-secondary); }
+.text-tertiary { color: var(--color-text-tertiary); }
+
+/* ============================================
+   SCAN REPORT SPECIFIC STYLES
+   ============================================ */
+
+/* Cover Page */
+.scan-cover {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(var(--page-height) - 2 * var(--page-margin));
+}
+
+.scan-hero {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: var(--space-8) 0;
+}
+
+.scan-hero-eyebrow {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-semibold);
+  color: var(--color-accent-blue);
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  margin-bottom: var(--space-4);
+}
+
+.scan-hero-title {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+  font-size: 4.5rem;
+  font-weight: var(--font-bold);
+  line-height: 1;
+  letter-spacing: -0.04em;
+  margin-bottom: var(--space-3);
+}
+
+.scan-hero-subtitle {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-light);
+  color: var(--color-text-secondary);
+}
+
+/* Market Overview Cards */
+.market-cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-4);
+  margin: var(--space-8) 0;
+}
+
+.market-card {
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  text-align: center;
+}
+
+.market-card-icon {
+  width: 40px;
+  height: 40px;
+  margin: 0 auto var(--space-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg-elevated);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-lg);
+}
+
+.market-card-value {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-bold);
+}
+
+.market-card-label {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-medium);
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  margin-top: var(--space-1);
+}
+
+/* Top Pick Showcase */
+.top-pick-showcase {
+  background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+  border-radius: var(--radius-xl);
+  padding: var(--space-6);
+  color: #ffffff;
+  margin: var(--space-6) 0;
+}
+
+.top-pick-showcase .caption {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.top-pick-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: var(--space-4);
+}
+
+.top-pick-symbol {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+  font-size: var(--font-size-3xl);
+  font-weight: var(--font-bold);
+  letter-spacing: -0.02em;
+}
+
+.top-pick-company {
+  font-size: var(--font-size-md);
+  color: rgba(255, 255, 255, 0.7);
+  margin-top: var(--space-1);
+}
+
+.top-pick-badge {
+  background: var(--color-success);
+  color: #000;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-bold);
+  text-transform: uppercase;
+}
+
+.top-pick-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.top-pick-metric-value {
+  font-family: 'SF Mono', monospace;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-semibold);
+}
+
+.top-pick-metric-label {
+  font-size: var(--font-size-xs);
+  color: rgba(255, 255, 255, 0.5);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+}
+
+/* Secondary Picks */
+.secondary-picks {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-4);
+}
+
+.secondary-pick {
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.secondary-pick-info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.secondary-pick-symbol {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-bold);
+}
+
+.secondary-pick-company {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-tertiary);
+}
+
+.secondary-pick-score {
+  font-family: 'SF Mono', monospace;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-bold);
+  color: var(--color-accent-blue);
+}
+
+/* VIX Indicator */
+.vix-indicator {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-xl);
+  padding: var(--space-5);
+}
+
+.vix-gauge {
+  position: relative;
+  width: 120px;
+  height: 60px;
+  overflow: hidden;
+}
+
+.vix-gauge-bg {
+  position: absolute;
+  width: 120px;
+  height: 120px;
+  border-radius: 60px 60px 0 0;
+  background: conic-gradient(
+    from 180deg,
+    var(--color-success) 0deg,
+    var(--color-warning) 90deg,
+    var(--color-danger) 180deg
+  );
+  clip-path: polygon(0 50%, 100% 50%, 100% 100%, 0 100%);
+  transform: rotate(180deg);
+}
+
+.vix-gauge-mask {
+  position: absolute;
+  width: 90px;
+  height: 90px;
+  background: var(--color-bg-secondary);
+  border-radius: 50%;
+  top: 15px;
+  left: 15px;
+}
+
+.vix-gauge-needle {
+  position: absolute;
+  width: 4px;
+  height: 40px;
+  background: var(--color-text-primary);
+  border-radius: 2px;
+  bottom: 0;
+  left: 58px;
+  transform-origin: bottom center;
+  transform: rotate(-45deg);
+}
+
+.vix-info {
+  flex: 1;
+}
+
+.vix-value {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+  font-size: var(--font-size-3xl);
+  font-weight: var(--font-bold);
+}
+
+.vix-regime {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-medium);
+  margin-top: var(--space-1);
+}
+
+.vix-regime.low { color: var(--color-success); }
+.vix-regime.normal { color: var(--color-warning); }
+.vix-regime.elevated { color: var(--color-danger); }
+
+/* Rank indicator */
+.rank {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-bold);
+}
+
+.rank-1 { background: #ffd700; color: #000; }
+.rank-2 { background: #c0c0c0; color: #000; }
+.rank-3 { background: #cd7f32; color: #000; }
+.rank-default { background: var(--color-bg-secondary); color: var(--color-text-secondary); }
+
+/* Score colors */
+.score-high { color: var(--color-success); }
+.score-medium { color: var(--color-warning); }
+.score-low { color: var(--color-danger); }
+
+/* Symbol cell */
+.symbol-cell {
+  font-weight: var(--font-semibold);
+}
+
+/* Comparison Section */
+.comparison-grid {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.comparison-card {
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+}
+
+.comparison-card.winner {
+  background: linear-gradient(135deg, var(--color-success-bg) 0%, rgba(52, 199, 89, 0.05) 100%);
+  border: 2px solid var(--color-success);
+}
+
+.comparison-vs {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-bold);
+  color: var(--color-text-tertiary);
+  padding-top: var(--space-10);
+}
+
+.comparison-symbol {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-bold);
+  margin-bottom: var(--space-4);
+}
+
+.comparison-row {
+  display: flex;
+  justify-content: space-between;
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--color-border-tertiary);
+}
+
+.comparison-row:last-child { border-bottom: none; }
+
+.comparison-label {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.comparison-value {
+  font-family: 'SF Mono', monospace;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-semibold);
+}
+
+/* Trade Setup */
+.trade-setup {
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-xl);
+  padding: var(--space-5);
+  margin-bottom: var(--space-5);
+}
+
+.trade-setup-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: var(--space-4);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--color-border-secondary);
+}
+
+.trade-setup-symbol {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-bold);
+}
+
+.trade-setup-price {
+  font-family: 'SF Mono', monospace;
+  font-size: var(--font-size-lg);
+  color: var(--color-text-secondary);
+}
+
+.trade-setup-badges {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.trade-setup-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-4);
+}
+
+.trade-setup-metric {
+  text-align: center;
+  padding: var(--space-3);
+  background: var(--color-bg-elevated);
+  border-radius: var(--radius-md);
+}
+
+/* Risk Grid */
+.risk-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-4);
+}
+
+.risk-card {
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+}
+
+.risk-card-title {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-semibold);
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  margin-bottom: var(--space-3);
+}
+
+.risk-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+}
+
+.risk-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.risk-text {
+  font-size: var(--font-size-sm);
+  line-height: var(--leading-snug);
+}
+
+/* Warning Box */
+.warning-box {
+  background: var(--color-warning-bg);
+  border-left: 4px solid var(--color-warning);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  padding: var(--space-4);
+  margin: var(--space-5) 0;
+}
+
+.warning-box-title {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-semibold);
+  color: var(--color-warning);
+  margin-bottom: var(--space-2);
+}
+
+.warning-box-text {
+  font-size: var(--font-size-sm);
+}
+
+/* Table of Contents */
+.toc {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.toc-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--color-border-tertiary);
+}
+
+.toc-number {
+  font-family: 'SF Mono', monospace;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-bold);
+  color: var(--color-accent-blue);
+  min-width: 30px;
+}
+
+.toc-title {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-medium);
+  flex: 1;
+}
+
+.toc-page {
+  font-family: 'SF Mono', monospace;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-tertiary);
+}
+
+/* Page Header */
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: var(--space-4);
+  margin-bottom: var(--space-5);
+  border-bottom: 1px solid var(--color-border-secondary);
+}
+
+.page-header-title {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-semibold);
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+}
+
+.page-header-date {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-quaternary);
+}
+
+/* Footer */
+.report-footer {
+  margin-top: auto;
+  padding-top: var(--space-6);
+  border-top: 1px solid var(--color-border-secondary);
+}
+
+.footer-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-quaternary);
+}
+
+/* Status Indicator */
+.status-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.status-dot.active { background: var(--color-success); }
+.status-dot.warning { background: var(--color-warning); }
+.status-dot.inactive { background: var(--color-danger); }
+.status-dot.neutral { background: var(--color-text-quaternary); }
+
+/* Print */
+@media print {
+  body { background: white; }
+  .page {
+    margin: 0;
+    box-shadow: none;
+  }
+}
+  </style>
+</head>
+<body>
+  <!-- Page 1: Cover -->
+  <div class="page">
+    <div class="scan-cover">
+      <div class="scan-hero">
+        <div class="scan-hero-eyebrow">OptionPlay Scan Report</div>
+        <h1 class="scan-hero-title">Market<br>Analysis</h1>
+        <p class="scan-hero-subtitle">
+          Pullback Strategie<br>
+          28. Januar 2026
+        </p>
+      </div>
+
+      <!-- Market Overview -->
+      <div class="market-cards">
+        <div class="market-card">
+          <div class="market-card-icon">📊</div>
+          <div class="market-card-value">45</div>
+          <div class="market-card-label">Gescannt</div>
+        </div>
+        <div class="market-card">
+          <div class="market-card-icon">✓</div>
+          <div class="market-card-value">12</div>
+          <div class="market-card-label">Qualifiziert</div>
+        </div>
+        <div class="market-card">
+          <div class="market-card-icon">📈</div>
+          <div class="market-card-value">16.8</div>
+          <div class="market-card-label">VIX</div>
+        </div>
+        <div class="market-card">
+          <div class="market-card-icon">🎯</div>
+          <div class="market-card-value">8.2</div>
+          <div class="market-card-label">Avg Score</div>
+        </div>
+      </div>
+
+      <!-- Top Pick Showcase -->
+      <div class="top-pick-showcase">
+        <span class="caption">Top Pick</span>
+        <div class="top-pick-header">
+          <div>
+            <div class="top-pick-symbol">AAPL</div>
+            <div class="top-pick-company">Apple Inc.</div>
+          </div>
+          <span class="top-pick-badge">Empfohlen</span>
+        </div>
+        <div class="top-pick-metrics">
+          <div>
+            <div class="top-pick-metric-value">$178.25</div>
+            <div class="top-pick-metric-label">Preis</div>
+          </div>
+          <div>
+            <div class="top-pick-metric-value">11/16</div>
+            <div class="top-pick-metric-label">Score</div>
+          </div>
+          <div>
+            <div class="top-pick-metric-value">28.5</div>
+            <div class="top-pick-metric-label">RSI</div>
+          </div>
+          <div>
+            <div class="top-pick-metric-value">56.3%</div>
+            <div class="top-pick-metric-label">ROI</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Secondary Picks -->
+      <div class="secondary-picks">
+        <div class="secondary-pick">
+          <div class="secondary-pick-info">
+            <span class="secondary-pick-symbol">MSFT</span>
+            <span class="secondary-pick-company">Microsoft Corp.</span>
+          </div>
+          <span class="secondary-pick-score">10</span>
+        </div>
+        <div class="secondary-pick">
+          <div class="secondary-pick-info">
+            <span class="secondary-pick-symbol">GOOGL</span>
+            <span class="secondary-pick-company">Alphabet Inc.</span>
+          </div>
+          <span class="secondary-pick-score">9</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Page 2: Table of Contents -->
+  <div class="page">
+    <div class="page-header">
+      <span class="page-header-title">Inhalt</span>
+      <span class="page-header-date">28.01.2026</span>
+    </div>
+
+    <h2 class="title-large" style="margin-bottom: var(--space-6);">Inhaltsverzeichnis</h2>
+
+    <div class="toc">
+      <div class="toc-item">
+        <span class="toc-number">01</span>
+        <span class="toc-title">Marktumfeld & VIX Analyse</span>
+        <span class="toc-page">3</span>
+      </div>
+      <div class="toc-item">
+        <span class="toc-number">02</span>
+        <span class="toc-title">Scan Ergebnisse</span>
+        <span class="toc-page">4</span>
+      </div>
+      <div class="toc-item">
+        <span class="toc-number">03</span>
+        <span class="toc-title">Earnings Filter</span>
+        <span class="toc-page">5</span>
+      </div>
+      <div class="toc-item">
+        <span class="toc-number">04</span>
+        <span class="toc-title">Support Analyse</span>
+        <span class="toc-page">6</span>
+      </div>
+      <div class="toc-item">
+        <span class="toc-number">05</span>
+        <span class="toc-title">Qualifizierte Kandidaten</span>
+        <span class="toc-page">7</span>
+      </div>
+      <div class="toc-item">
+        <span class="toc-number">06</span>
+        <span class="toc-title">Fundamentalanalyse - AAPL</span>
+        <span class="toc-page">8</span>
+      </div>
+      <div class="toc-item">
+        <span class="toc-number">07</span>
+        <span class="toc-title">Trade Setup - AAPL</span>
+        <span class="toc-page">9</span>
+      </div>
+      <div class="toc-item">
+        <span class="toc-number">08</span>
+        <span class="toc-title">Fundamentalanalyse - MSFT</span>
+        <span class="toc-page">10</span>
+      </div>
+      <div class="toc-item">
+        <span class="toc-number">09</span>
+        <span class="toc-title">Trade Setup - MSFT</span>
+        <span class="toc-page">11</span>
+      </div>
+      <div class="toc-item">
+        <span class="toc-number">10</span>
+        <span class="toc-title">Vergleich & Empfehlung</span>
+        <span class="toc-page">12</span>
+      </div>
+      <div class="toc-item">
+        <span class="toc-number">11</span>
+        <span class="toc-title">Risikomanagement</span>
+        <span class="toc-page">13</span>
+      </div>
+    </div>
+
+    <div class="spacer-xl"></div>
+
+    <!-- Strategy Parameters Card -->
+    <div class="card">
+      <h3 class="title-small" style="margin-bottom: var(--space-4);">Strategie Parameter</h3>
+      <div class="grid-4">
+        <div class="metric">
+          <span class="metric-label">Min Score</span>
+          <span class="metric-value">6</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">Delta Range</span>
+          <span class="metric-value">0.20-0.25</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">DTE</span>
+          <span class="metric-value">45-60</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">Spread</span>
+          <span class="metric-value">$5.00</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Page 3: Market Environment -->
+  <div class="page">
+    <div class="page-header">
+      <span class="page-header-title">Marktumfeld</span>
+      <span class="page-header-date">28.01.2026</span>
+    </div>
+
+    <div class="section">
+      <h2 class="title-large">VIX Analyse</h2>
+      <p class="body-small" style="margin-bottom: var(--space-5);">
+        Volatilitätsindex und empfohlene Strategieparameter
+      </p>
+
+      <div class="vix-indicator">
+        <div class="vix-gauge">
+          <div class="vix-gauge-bg"></div>
+          <div class="vix-gauge-mask"></div>
+          <div class="vix-gauge-needle"></div>
+        </div>
+        <div class="vix-info">
+          <div class="vix-value">16.8</div>
+          <div class="vix-regime normal">Normale Volatilität</div>
+        </div>
+        <div style="flex: 1;">
+          <p class="body-small">
+            Der VIX liegt im normalen Bereich (15-20). Dies ist ein gutes Umfeld für
+            Bull-Put-Spreads mit moderatem Delta und Standard-Spread-Width.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="section">
+      <h3 class="title-medium" style="margin-bottom: var(--space-4);">Regime-basierte Anpassungen</h3>
+
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Parameter</th>
+              <th>Niedriger VIX (&lt;15)</th>
+              <th>Normaler VIX (15-20)</th>
+              <th>Erhöhter VIX (&gt;20)</th>
+              <th>Aktuell</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Short Delta</td>
+              <td class="col-numeric">0.25-0.30</td>
+              <td class="col-numeric">0.20-0.25</td>
+              <td class="col-numeric">0.15-0.20</td>
+              <td class="col-numeric"><strong>0.22</strong></td>
+            </tr>
+            <tr>
+              <td>Spread Width</td>
+              <td class="col-numeric">$2.50</td>
+              <td class="col-numeric">$5.00</td>
+              <td class="col-numeric">$5.00-$7.50</td>
+              <td class="col-numeric"><strong>$5.00</strong></td>
+            </tr>
+            <tr>
+              <td>Min Score</td>
+              <td class="col-numeric">5</td>
+              <td class="col-numeric">6</td>
+              <td class="col-numeric">7</td>
+              <td class="col-numeric"><strong>6</strong></td>
+            </tr>
+            <tr>
+              <td>DTE Range</td>
+              <td class="col-numeric">30-45</td>
+              <td class="col-numeric">45-60</td>
+              <td class="col-numeric">45-60</td>
+              <td class="col-numeric"><strong>45-60</strong></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="spacer-lg"></div>
+
+    <div class="section">
+      <h3 class="title-medium" style="margin-bottom: var(--space-4);">Aktivierte Strategien</h3>
+
+      <div class="grid-4">
+        <div class="card-subtle" style="text-align: center;">
+          <span class="status-indicator">
+            <span class="status-dot active"></span>
+            <span class="body-small">Pullback</span>
+          </span>
+        </div>
+        <div class="card-subtle" style="text-align: center;">
+          <span class="status-indicator">
+            <span class="status-dot active"></span>
+            <span class="body-small">Bounce</span>
+          </span>
+        </div>
+        <div class="card-subtle" style="text-align: center;">
+          <span class="status-indicator">
+            <span class="status-dot inactive"></span>
+            <span class="body-small">ATH Breakout</span>
+          </span>
+        </div>
+        <div class="card-subtle" style="text-align: center;">
+          <span class="status-indicator">
+            <span class="status-dot inactive"></span>
+            <span class="body-small">Earnings Dip</span>
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Page 4: Scan Results -->
+  <div class="page">
+    <div class="page-header">
+      <span class="page-header-title">Scan Ergebnisse</span>
+      <span class="page-header-date">28.01.2026</span>
+    </div>
+
+    <div class="section">
+      <h2 class="title-large">Top 20 Kandidaten</h2>
+      <p class="body-small" style="margin-bottom: var(--space-5);">
+        Sortiert nach Score, gefiltert nach Strategie: Pullback
+      </p>
+
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 40px;">#</th>
+              <th>Symbol</th>
+              <th class="col-numeric">Preis</th>
+              <th class="col-numeric">Score</th>
+              <th class="col-numeric">RSI</th>
+              <th>Strategie</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="rank rank-1">1</span></td>
+              <td class="symbol-cell">AAPL</td>
+              <td class="col-numeric">$178.25</td>
+              <td class="col-numeric score-high"><strong>11</strong></td>
+              <td class="col-numeric">28.5</td>
+              <td><span class="tag">Pullback</span></td>
+              <td><span class="badge badge-success">Qualifiziert</span></td>
+            </tr>
+            <tr>
+              <td><span class="rank rank-2">2</span></td>
+              <td class="symbol-cell">MSFT</td>
+              <td class="col-numeric">$385.60</td>
+              <td class="col-numeric score-high"><strong>10</strong></td>
+              <td class="col-numeric">31.2</td>
+              <td><span class="tag">Pullback</span></td>
+              <td><span class="badge badge-success">Qualifiziert</span></td>
+            </tr>
+            <tr>
+              <td><span class="rank rank-3">3</span></td>
+              <td class="symbol-cell">GOOGL</td>
+              <td class="col-numeric">$142.80</td>
+              <td class="col-numeric score-high"><strong>9</strong></td>
+              <td class="col-numeric">32.8</td>
+              <td><span class="tag">Pullback</span></td>
+              <td><span class="badge badge-success">Qualifiziert</span></td>
+            </tr>
+            <tr>
+              <td><span class="rank rank-default">4</span></td>
+              <td class="symbol-cell">AMZN</td>
+              <td class="col-numeric">$178.45</td>
+              <td class="col-numeric score-high"><strong>9</strong></td>
+              <td class="col-numeric">29.5</td>
+              <td><span class="tag">Pullback</span></td>
+              <td><span class="badge badge-success">Qualifiziert</span></td>
+            </tr>
+            <tr>
+              <td><span class="rank rank-default">5</span></td>
+              <td class="symbol-cell">META</td>
+              <td class="col-numeric">$512.30</td>
+              <td class="col-numeric score-high"><strong>8</strong></td>
+              <td class="col-numeric">34.1</td>
+              <td><span class="tag">Pullback</span></td>
+              <td><span class="badge badge-success">Qualifiziert</span></td>
+            </tr>
+            <tr>
+              <td><span class="rank rank-default">6</span></td>
+              <td class="symbol-cell">NVDA</td>
+              <td class="col-numeric">$725.80</td>
+              <td class="col-numeric score-high"><strong>8</strong></td>
+              <td class="col-numeric">35.6</td>
+              <td><span class="tag">Bounce</span></td>
+              <td><span class="badge badge-success">Qualifiziert</span></td>
+            </tr>
+            <tr>
+              <td><span class="rank rank-default">7</span></td>
+              <td class="symbol-cell">TSLA</td>
+              <td class="col-numeric">$248.90</td>
+              <td class="col-numeric score-medium"><strong>7</strong></td>
+              <td class="col-numeric">38.2</td>
+              <td><span class="tag">Pullback</span></td>
+              <td><span class="badge badge-success">Qualifiziert</span></td>
+            </tr>
+            <tr>
+              <td><span class="rank rank-default">8</span></td>
+              <td class="symbol-cell">AMD</td>
+              <td class="col-numeric">$142.15</td>
+              <td class="col-numeric score-medium"><strong>7</strong></td>
+              <td class="col-numeric">36.8</td>
+              <td><span class="tag">Pullback</span></td>
+              <td><span class="badge badge-success">Qualifiziert</span></td>
+            </tr>
+            <tr>
+              <td><span class="rank rank-default">9</span></td>
+              <td class="symbol-cell">CRM</td>
+              <td class="col-numeric">$285.40</td>
+              <td class="col-numeric score-medium"><strong>7</strong></td>
+              <td class="col-numeric">33.5</td>
+              <td><span class="tag">Pullback</span></td>
+              <td><span class="badge badge-success">Qualifiziert</span></td>
+            </tr>
+            <tr>
+              <td><span class="rank rank-default">10</span></td>
+              <td class="symbol-cell">ADBE</td>
+              <td class="col-numeric">$542.60</td>
+              <td class="col-numeric score-medium"><strong>6</strong></td>
+              <td class="col-numeric">39.2</td>
+              <td><span class="tag">Pullback</span></td>
+              <td><span class="badge badge-success">Qualifiziert</span></td>
+            </tr>
+            <tr>
+              <td><span class="rank rank-default">11</span></td>
+              <td class="symbol-cell">NFLX</td>
+              <td class="col-numeric">$625.30</td>
+              <td class="col-numeric score-medium"><strong>6</strong></td>
+              <td class="col-numeric">41.5</td>
+              <td><span class="tag">Pullback</span></td>
+              <td><span class="badge badge-success">Qualifiziert</span></td>
+            </tr>
+            <tr>
+              <td><span class="rank rank-default">12</span></td>
+              <td class="symbol-cell">INTC</td>
+              <td class="col-numeric">$38.45</td>
+              <td class="col-numeric score-medium"><strong>6</strong></td>
+              <td class="col-numeric">28.9</td>
+              <td><span class="tag">Pullback</span></td>
+              <td><span class="badge badge-success">Qualifiziert</span></td>
+            </tr>
+            <tr>
+              <td><span class="rank rank-default">13</span></td>
+              <td class="symbol-cell">JPM</td>
+              <td class="col-numeric">$195.20</td>
+              <td class="col-numeric score-low"><strong>5</strong></td>
+              <td class="col-numeric">42.3</td>
+              <td><span class="tag">Pullback</span></td>
+              <td><span class="badge badge-neutral">Prüfen</span></td>
+            </tr>
+            <tr>
+              <td><span class="rank rank-default">14</span></td>
+              <td class="symbol-cell">V</td>
+              <td class="col-numeric">$278.90</td>
+              <td class="col-numeric score-low"><strong>5</strong></td>
+              <td class="col-numeric">44.1</td>
+              <td><span class="tag">Pullback</span></td>
+              <td><span class="badge badge-neutral">Prüfen</span></td>
+            </tr>
+            <tr>
+              <td><span class="rank rank-default">15</span></td>
+              <td class="symbol-cell">MA</td>
+              <td class="col-numeric">$465.80</td>
+              <td class="col-numeric score-low"><strong>5</strong></td>
+              <td class="col-numeric">43.8</td>
+              <td><span class="tag">Pullback</span></td>
+              <td><span class="badge badge-neutral">Prüfen</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Page 5: Comparison -->
+  <div class="page">
+    <div class="page-header">
+      <span class="page-header-title">Vergleich</span>
+      <span class="page-header-date">28.01.2026</span>
+    </div>
+
+    <div class="section">
+      <h2 class="title-large">Kandidaten Vergleich</h2>
+      <p class="body-small" style="margin-bottom: var(--space-5);">
+        Direkter Vergleich der Top 2 Kandidaten
+      </p>
+
+      <div class="comparison-grid">
+        <div class="comparison-card winner">
+          <div class="comparison-symbol">AAPL</div>
+          <div class="comparison-row">
+            <span class="comparison-label">Score</span>
+            <span class="comparison-value">11/16</span>
+          </div>
+          <div class="comparison-row">
+            <span class="comparison-label">RSI</span>
+            <span class="comparison-value">28.5</span>
+          </div>
+          <div class="comparison-row">
+            <span class="comparison-label">Support Abstand</span>
+            <span class="comparison-value">-3.2%</span>
+          </div>
+          <div class="comparison-row">
+            <span class="comparison-label">Net Credit</span>
+            <span class="comparison-value">$1.80</span>
+          </div>
+          <div class="comparison-row">
+            <span class="comparison-label">ROI</span>
+            <span class="comparison-value">56.3%</span>
+          </div>
+          <div class="comparison-row">
+            <span class="comparison-label">Earnings</span>
+            <span class="comparison-value">68d</span>
+          </div>
+        </div>
+
+        <div class="comparison-vs">VS</div>
+
+        <div class="comparison-card">
+          <div class="comparison-symbol">MSFT</div>
+          <div class="comparison-row">
+            <span class="comparison-label">Score</span>
+            <span class="comparison-value">10/16</span>
+          </div>
+          <div class="comparison-row">
+            <span class="comparison-label">RSI</span>
+            <span class="comparison-value">31.2</span>
+          </div>
+          <div class="comparison-row">
+            <span class="comparison-label">Support Abstand</span>
+            <span class="comparison-value">-4.1%</span>
+          </div>
+          <div class="comparison-row">
+            <span class="comparison-label">Net Credit</span>
+            <span class="comparison-value">$2.15</span>
+          </div>
+          <div class="comparison-row">
+            <span class="comparison-label">ROI</span>
+            <span class="comparison-value">43.0%</span>
+          </div>
+          <div class="comparison-row">
+            <span class="comparison-label">Earnings</span>
+            <span class="comparison-value">52d</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="spacer-lg"></div>
+
+    <div class="grid-2">
+      <div class="top-pick-showcase" style="padding: var(--space-4);">
+        <span class="caption">Primäre Empfehlung</span>
+        <div class="top-pick-symbol" style="font-size: var(--font-size-2xl);">AAPL</div>
+        <p class="body-small" style="color: rgba(255,255,255,0.7); margin-top: var(--space-2);">
+          Höchster Score, niedrigster RSI, längster Earnings-Buffer. Idealer Pullback-Kandidat.
+        </p>
+      </div>
+      <div class="card">
+        <span class="caption">Sekundäre Empfehlung</span>
+        <div class="title-medium" style="margin-top: var(--space-2);">MSFT</div>
+        <p class="body-small" style="margin-top: var(--space-2);">
+          Solide Alternative mit höherem Net Credit. Gute Diversifikation zu AAPL.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Page 6: Trade Setup -->
+  <div class="page">
+    <div class="page-header">
+      <span class="page-header-title">Trade Setup - AAPL</span>
+      <span class="page-header-date">28.01.2026</span>
+    </div>
+
+    <div class="trade-setup">
+      <div class="trade-setup-header">
+        <div>
+          <div class="trade-setup-symbol">AAPL</div>
+          <div class="trade-setup-price">$178.25</div>
+        </div>
+        <div class="trade-setup-badges">
+          <span class="badge badge-info">Score: 11</span>
+          <span class="badge badge-success">RSI: 28.5</span>
+        </div>
+      </div>
+
+      <div class="trade-setup-grid">
+        <div class="trade-setup-metric">
+          <span class="metric-label">SMA 200</span>
+          <span class="metric-value">$172.40</span>
+        </div>
+        <div class="trade-setup-metric">
+          <span class="metric-label">Support Tests</span>
+          <span class="metric-value">4</span>
+        </div>
+        <div class="trade-setup-metric">
+          <span class="metric-label">Earnings</span>
+          <span class="metric-value">68d</span>
+        </div>
+        <div class="trade-setup-metric">
+          <span class="metric-label">IV Rank</span>
+          <span class="metric-value">42%</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h3 class="title-medium" style="margin-bottom: var(--space-4);">Spread Struktur</h3>
+
+      <div class="grid-2">
+        <div class="card">
+          <h4 class="caption" style="margin-bottom: var(--space-3);">Short Put</h4>
+          <div class="metric-value-lg">$170</div>
+          <div class="body-small">Delta: -0.22 | Premium: $2.85</div>
+        </div>
+        <div class="card">
+          <h4 class="caption" style="margin-bottom: var(--space-3);">Long Put</h4>
+          <div class="metric-value-lg">$165</div>
+          <div class="body-small">Delta: -0.12 | Premium: $1.05</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="spacer-md"></div>
+
+    <div class="metric-group">
+      <div class="metric">
+        <span class="metric-label">Net Credit</span>
+        <span class="metric-value text-success">$1.80</span>
+      </div>
+      <div class="metric">
+        <span class="metric-label">Max Risk</span>
+        <span class="metric-value text-danger">$3.20</span>
+      </div>
+      <div class="metric">
+        <span class="metric-label">Break-Even</span>
+        <span class="metric-value">$168.20</span>
+      </div>
+      <div class="metric">
+        <span class="metric-label">ROI</span>
+        <span class="metric-value text-success">56.3%</span>
+      </div>
+      <div class="metric">
+        <span class="metric-label">Verfall</span>
+        <span class="metric-value">21.03.26</span>
+      </div>
+      <div class="metric">
+        <span class="metric-label">DTE</span>
+        <span class="metric-value">52</span>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="section">
+      <h3 class="title-small" style="margin-bottom: var(--space-4);">Exit Regeln</h3>
+      <div class="table-container">
+        <table>
+          <tbody>
+            <tr>
+              <td><span class="status-dot active"></span></td>
+              <td>Take Profit</td>
+              <td class="col-numeric">50% des Credits ($0.90)</td>
+            </tr>
+            <tr>
+              <td><span class="status-dot warning"></span></td>
+              <td>Adjustment Zone</td>
+              <td class="col-numeric">$175 (Short + $5)</td>
+            </tr>
+            <tr>
+              <td><span class="status-dot inactive"></span></td>
+              <td>Stop Loss</td>
+              <td class="col-numeric">Unter $170</td>
+            </tr>
+            <tr>
+              <td><span class="status-dot neutral"></span></td>
+              <td>Time Exit</td>
+              <td class="col-numeric">14 DTE (07.03.26)</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Page 7: Risk Management -->
+  <div class="page">
+    <div class="page-header">
+      <span class="page-header-title">Risikomanagement</span>
+      <span class="page-header-date">28.01.2026</span>
+    </div>
+
+    <div class="section">
+      <h2 class="title-large">Positionsmanagement</h2>
+      <p class="body-small" style="margin-bottom: var(--space-5);">
+        Regeln für sichere Trade-Ausführung
+      </p>
+
+      <div class="risk-grid">
+        <div class="risk-card">
+          <div class="risk-card-title">Position Sizing</div>
+          <div class="risk-item">
+            <svg class="risk-icon" viewBox="0 0 16 16" fill="currentColor" style="color: var(--color-success);">
+              <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zm3.78 5.28-4.5 6a.75.75 0 0 1-1.18.02l-2-2.25a.75.75 0 1 1 1.12-1l1.38 1.55 3.9-5.2a.75.75 0 1 1 1.2.9z"/>
+            </svg>
+            <span class="risk-text">Max 2-5% des Portfolios pro Trade</span>
+          </div>
+          <div class="risk-item">
+            <svg class="risk-icon" viewBox="0 0 16 16" fill="currentColor" style="color: var(--color-success);">
+              <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zm3.78 5.28-4.5 6a.75.75 0 0 1-1.18.02l-2-2.25a.75.75 0 1 1 1.12-1l1.38 1.55 3.9-5.2a.75.75 0 1 1 1.2.9z"/>
+            </svg>
+            <span class="risk-text">Max Risiko = Spread Width - Credit</span>
+          </div>
+          <div class="risk-item">
+            <svg class="risk-icon" viewBox="0 0 16 16" fill="currentColor" style="color: var(--color-success);">
+              <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zm3.78 5.28-4.5 6a.75.75 0 0 1-1.18.02l-2-2.25a.75.75 0 1 1 1.12-1l1.38 1.55 3.9-5.2a.75.75 0 1 1 1.2.9z"/>
+            </svg>
+            <span class="risk-text">Nie mehr als 3 Positionen gleichzeitig</span>
+          </div>
+        </div>
+
+        <div class="risk-card">
+          <div class="risk-card-title">Diversifikation</div>
+          <div class="risk-item">
+            <svg class="risk-icon" viewBox="0 0 16 16" fill="currentColor" style="color: var(--color-success);">
+              <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zm3.78 5.28-4.5 6a.75.75 0 0 1-1.18.02l-2-2.25a.75.75 0 1 1 1.12-1l1.38 1.55 3.9-5.2a.75.75 0 1 1 1.2.9z"/>
+            </svg>
+            <span class="risk-text">Verschiedene Sektoren wählen</span>
+          </div>
+          <div class="risk-item">
+            <svg class="risk-icon" viewBox="0 0 16 16" fill="currentColor" style="color: var(--color-success);">
+              <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zm3.78 5.28-4.5 6a.75.75 0 0 1-1.18.02l-2-2.25a.75.75 0 1 1 1.12-1l1.38 1.55 3.9-5.2a.75.75 0 1 1 1.2.9z"/>
+            </svg>
+            <span class="risk-text">Unterschiedliche Verfallsdaten</span>
+          </div>
+          <div class="risk-item">
+            <svg class="risk-icon" viewBox="0 0 16 16" fill="currentColor" style="color: var(--color-success);">
+              <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zm3.78 5.28-4.5 6a.75.75 0 0 1-1.18.02l-2-2.25a.75.75 0 1 1 1.12-1l1.38 1.55 3.9-5.2a.75.75 0 1 1 1.2.9z"/>
+            </svg>
+            <span class="risk-text">Korrelationen beachten</span>
+          </div>
+        </div>
+
+        <div class="risk-card">
+          <div class="risk-card-title">Exit Regeln</div>
+          <div class="risk-item">
+            <svg class="risk-icon" viewBox="0 0 16 16" fill="currentColor" style="color: var(--color-success);">
+              <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zm3.78 5.28-4.5 6a.75.75 0 0 1-1.18.02l-2-2.25a.75.75 0 1 1 1.12-1l1.38 1.55 3.9-5.2a.75.75 0 1 1 1.2.9z"/>
+            </svg>
+            <span class="risk-text">Take Profit bei 50% Credit</span>
+          </div>
+          <div class="risk-item">
+            <svg class="risk-icon" viewBox="0 0 16 16" fill="currentColor" style="color: var(--color-success);">
+              <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zm3.78 5.28-4.5 6a.75.75 0 0 1-1.18.02l-2-2.25a.75.75 0 1 1 1.12-1l1.38 1.55 3.9-5.2a.75.75 0 1 1 1.2.9z"/>
+            </svg>
+            <span class="risk-text">Time Exit bei 14 DTE</span>
+          </div>
+          <div class="risk-item">
+            <svg class="risk-icon" viewBox="0 0 16 16" fill="currentColor" style="color: var(--color-success);">
+              <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zm3.78 5.28-4.5 6a.75.75 0 0 1-1.18.02l-2-2.25a.75.75 0 1 1 1.12-1l1.38 1.55 3.9-5.2a.75.75 0 1 1 1.2.9z"/>
+            </svg>
+            <span class="risk-text">Stop bei Unterschreitung Short Strike</span>
+          </div>
+        </div>
+
+        <div class="risk-card">
+          <div class="risk-card-title">Marktbedingungen</div>
+          <div class="risk-item">
+            <svg class="risk-icon" viewBox="0 0 16 16" fill="currentColor" style="color: var(--color-warning);">
+              <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zm-.5 4a.5.5 0 0 1 1 0v4a.5.5 0 0 1-1 0V4zm.5 8a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5z"/>
+            </svg>
+            <span class="risk-text">VIX > 30: Reduzierte Positionsgrösse</span>
+          </div>
+          <div class="risk-item">
+            <svg class="risk-icon" viewBox="0 0 16 16" fill="currentColor" style="color: var(--color-warning);">
+              <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zm-.5 4a.5.5 0 0 1 1 0v4a.5.5 0 0 1-1 0V4zm.5 8a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5z"/>
+            </svg>
+            <span class="risk-text">Fed Meetings: Keine neuen Positionen</span>
+          </div>
+          <div class="risk-item">
+            <svg class="risk-icon" viewBox="0 0 16 16" fill="currentColor" style="color: var(--color-warning);">
+              <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zm-.5 4a.5.5 0 0 1 1 0v4a.5.5 0 0 1-1 0V4zm.5 8a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5z"/>
+            </svg>
+            <span class="risk-text">Earnings Season: Erhöhte Vorsicht</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="warning-box">
+      <div class="warning-box-title">Wichtiger Hinweis</div>
+      <div class="warning-box-text">
+        Dieser Report dient ausschliesslich zu Informationszwecken und stellt keine Anlageberatung dar.
+        Alle Investitionen sind mit Risiken verbunden. Die Wertentwicklung in der Vergangenheit ist
+        keine Garantie für zukünftige Ergebnisse.
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="report-footer" style="margin-top: var(--space-8);">
+      <div class="footer-meta">
+        <span>OptionPlay v2.0</span>
+        <span>28.01.2026 15:45</span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

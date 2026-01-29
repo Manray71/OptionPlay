@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from collections import deque
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Tuple, Deque
+from typing import List, Dict, Optional, Tuple, Deque, Any
 import logging
 
 logger = logging.getLogger(__name__)
@@ -735,6 +735,147 @@ def analyze_support_resistance(
         nearest_support=support_result.nearest_support,
         nearest_resistance=resistance_result.nearest_resistance
     )
+
+
+def get_nearest_sr_levels(
+    current_price: float,
+    prices: List[float],
+    highs: List[float],
+    lows: List[float],
+    volumes: Optional[List[int]] = None,
+    lookback: int = 252,  # 12 months
+    num_levels: int = 3
+) -> Dict[str, Any]:
+    """
+    Get the nearest support and resistance levels relative to current price.
+
+    Returns the closest N support levels BELOW current price and
+    the closest N resistance levels ABOVE current price, with touch counts
+    and additional context (52-week high/low, Fibonacci, SMAs).
+
+    Args:
+        current_price: Current stock price
+        prices: Close prices
+        highs: High prices
+        lows: Low prices
+        volumes: Volume data (optional)
+        lookback: Days to look back (default 252 = 12 months)
+        num_levels: Number of levels to return per type (default 3)
+
+    Returns:
+        Dict with 'supports', 'resistances', and context data
+    """
+    result = {
+        'supports': [],
+        'resistances': [],
+        'current_price': current_price,
+        'context': {}
+    }
+
+    # Use effective lookback (max available data)
+    effective_lookback = min(lookback, len(lows))
+
+    if effective_lookback < 20:
+        return result
+
+    # Calculate context: 52-week high/low
+    week_52_high = max(highs[-effective_lookback:]) if effective_lookback > 0 else current_price
+    week_52_low = min(lows[-effective_lookback:]) if effective_lookback > 0 else current_price
+
+    # Calculate SMAs
+    sma_50 = sum(prices[-50:]) / 50 if len(prices) >= 50 else None
+    sma_100 = sum(prices[-100:]) / 100 if len(prices) >= 100 else None
+    sma_200 = sum(prices[-200:]) / 200 if len(prices) >= 200 else None
+
+    # Calculate Fibonacci retracement levels (from 52-week range)
+    fib_levels = calculate_fibonacci(week_52_high, week_52_low)
+
+    # Store context
+    result['context'] = {
+        'week_52_high': round(week_52_high, 2),
+        'week_52_low': round(week_52_low, 2),
+        'sma_50': round(sma_50, 2) if sma_50 else None,
+        'sma_100': round(sma_100, 2) if sma_100 else None,
+        'sma_200': round(sma_200, 2) if sma_200 else None,
+        'fib_levels': {k: round(v, 2) for k, v in fib_levels.items()}
+    }
+
+    # Get full S/R analysis with 12-month lookback
+    sr_result = analyze_support_resistance(
+        prices=prices,
+        highs=highs,
+        lows=lows,
+        volumes=volumes,
+        lookback=effective_lookback,
+        window=5,
+        max_levels=15,  # Get more to filter
+        tolerance_pct=1.5
+    )
+
+    # Helper function to describe a level
+    def describe_level(price: float, level_type: str) -> str:
+        """Generate description for a support/resistance level."""
+        descriptions = []
+
+        # Check 52-week extremes
+        if abs(price - week_52_low) / week_52_low < 0.02:
+            descriptions.append("52W-Tief")
+        elif abs(price - week_52_high) / week_52_high < 0.02:
+            descriptions.append("52W-Hoch")
+
+        # Check Fibonacci levels
+        for fib_name, fib_price in fib_levels.items():
+            if abs(price - fib_price) / fib_price < 0.015:  # 1.5% tolerance
+                descriptions.append(f"Fib {fib_name}")
+                break
+
+        # Check SMAs
+        if sma_50 and abs(price - sma_50) / sma_50 < 0.015:
+            descriptions.append("SMA50")
+        if sma_100 and abs(price - sma_100) / sma_100 < 0.015:
+            descriptions.append("SMA100")
+        if sma_200 and abs(price - sma_200) / sma_200 < 0.015:
+            descriptions.append("SMA200")
+
+        return ", ".join(descriptions) if descriptions else ""
+
+    # Filter supports: only those BELOW current price, sorted by distance (closest first)
+    supports_below = [
+        lvl for lvl in sr_result.support_levels
+        if lvl.price < current_price
+    ]
+    supports_below.sort(key=lambda x: current_price - x.price)  # Closest first
+
+    for lvl in supports_below[:num_levels]:
+        distance_pct = ((current_price - lvl.price) / current_price) * 100
+        result['supports'].append({
+            'price': round(lvl.price, 2),
+            'touches': lvl.touches,
+            'strength': round(lvl.strength, 3),
+            'distance_pct': round(distance_pct, 2),
+            'hold_rate': round(lvl.hold_rate, 2) if lvl.hold_rate else 0.0,
+            'description': describe_level(lvl.price, 'support')
+        })
+
+    # Filter resistances: only those ABOVE current price, sorted by distance (closest first)
+    resistances_above = [
+        lvl for lvl in sr_result.resistance_levels
+        if lvl.price > current_price
+    ]
+    resistances_above.sort(key=lambda x: x.price - current_price)  # Closest first
+
+    for lvl in resistances_above[:num_levels]:
+        distance_pct = ((lvl.price - current_price) / current_price) * 100
+        result['resistances'].append({
+            'price': round(lvl.price, 2),
+            'touches': lvl.touches,
+            'strength': round(lvl.strength, 3),
+            'distance_pct': round(distance_pct, 2),
+            'hold_rate': round(lvl.hold_rate, 2) if lvl.hold_rate else 0.0,
+            'description': describe_level(lvl.price, 'resistance')
+        })
+
+    return result
 
 
 # =============================================================================

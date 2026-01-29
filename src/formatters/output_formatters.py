@@ -360,28 +360,38 @@ class OptionsChainFormatter(BaseFormatter):
 
 class EarningsFormatter(BaseFormatter):
     """Formatiert Earnings-Info."""
-    
+
     def format(
         self,
         symbol: str,
         earnings_date: Optional[str],
         days_to_earnings: Optional[int],
         min_days: int = 60,
-        source: str = "unknown"
+        source: str = "unknown",
+        is_etf: bool = False
     ) -> str:
         b = self._builder()
-        
+
         b.h1(f"Earnings: {symbol}").blank()
-        
+
+        # ETFs haben keine Earnings
+        if is_etf:
+            b.kv("Type", "ETF")
+            b.kv("Earnings", "N/A (ETFs have no earnings)")
+            b.kv("Status", "SAFE - No earnings risk")
+            b.blank()
+            b.note("ETFs report no earnings. Trade at any time.")
+            return b.build()
+
         if earnings_date:
             is_safe = days_to_earnings >= min_days if days_to_earnings is not None else True
-            
+
             b.kv("Next Earnings", earnings_date)
             b.kv("Days to Earnings", days_to_earnings)
-            b.kv(f"Status for {min_days}d trade", "✅ SAFE" if is_safe else "⚠️ TOO CLOSE")
+            b.kv(f"Status for {min_days}d trade", "SAFE" if is_safe else "TOO CLOSE")
             b.kv("Source", source)
             b.blank()
-            
+
             if not is_safe:
                 b.warning_box(
                     f"Earnings in {days_to_earnings} days. "
@@ -392,7 +402,7 @@ class EarningsFormatter(BaseFormatter):
             b.blank()
             b.note("No earnings date found (Marketdata + Yahoo).")
             b.hint(f"Check manually: https://finance.yahoo.com/quote/{symbol}/analysis")
-        
+
         return b.build()
 
 
@@ -460,6 +470,10 @@ class HealthCheckData:
     ibkr_host: Optional[str] = None
     ibkr_port: Optional[int] = None
     metrics_stats: Optional[Dict[str, Any]] = None  # Application metrics
+    tradier_available: bool = False
+    tradier_connected: bool = False
+    tradier_api_key_masked: Optional[str] = None
+    tradier_environment: Optional[str] = None
 
 
 class HealthCheckFormatter(BaseFormatter):
@@ -530,6 +544,19 @@ class HealthCheckFormatter(BaseFormatter):
         b.kv_line("Avg Wait", f"{rl['avg_wait_time']:.3f}s")
         b.kv_line("Available Tokens", rl['available_tokens'])
         
+        # Tradier Provider
+        b.blank().h2("Tradier Provider")
+        if data.tradier_available:
+            status = "✅ Connected" if data.tradier_connected else "⚠️ Configured but not connected"
+            b.kv_line("Status", status)
+            if data.tradier_api_key_masked:
+                b.kv_line("API Key", data.tradier_api_key_masked)
+            if data.tradier_environment:
+                b.kv_line("Environment", data.tradier_environment.upper())
+            b.kv_line("Features", "Quotes, Options Chain, Historical Data")
+        else:
+            b.kv_line("Status", "❌ Not configured (set TRADIER_API_KEY)")
+
         # IBKR Bridge
         b.blank().h2("IBKR Bridge")
         if data.ibkr_available:

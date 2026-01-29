@@ -28,6 +28,7 @@ try:
     from ..analyzers.pool import AnalyzerPool, PoolConfig, get_analyzer_pool
     from ..models.base import TradeSignal, SignalType, SignalStrength
     from ..config.config_loader import PullbackScoringConfig
+    from ..config.liquidity_blacklist import is_illiquid, filter_liquid_symbols
     from ..backtesting.reliability import ReliabilityScorer, ScorerConfig
 except ImportError:
     from analyzers.base import BaseAnalyzer
@@ -39,6 +40,14 @@ except ImportError:
     from analyzers.pool import AnalyzerPool, PoolConfig, get_analyzer_pool
     from models.base import TradeSignal, SignalType, SignalStrength
     from config.config_loader import PullbackScoringConfig
+    try:
+        from config.liquidity_blacklist import is_illiquid, filter_liquid_symbols
+    except ImportError:
+        # Fallback wenn Blacklist nicht verfügbar
+        def is_illiquid(symbol: str) -> bool:
+            return False
+        def filter_liquid_symbols(symbols: list) -> list:
+            return symbols
     try:
         from backtesting.reliability import ReliabilityScorer, ScorerConfig
     except ImportError:
@@ -72,6 +81,9 @@ class ScanConfig:
     iv_rank_minimum: float = 30.0   # Min IV-Rank für ausreichend Prämie
     iv_rank_maximum: float = 80.0   # Max IV-Rank (zu hohe IV = erhöhtes Risiko)
     enable_iv_filter: bool = True   # IV-Filter aktivieren/deaktivieren
+
+    # Liquidity Filter (basiert auf historischen Options-Daten)
+    enable_liquidity_filter: bool = True  # Illiquide Symbole ausschließen
 
     # Output-Limits
     max_results_per_symbol: int = 3
@@ -385,8 +397,9 @@ class MultiStrategyScanner:
         Returns:
             Tuple (passes_filter, reason_if_failed)
         """
-        # IV-Filter nur für Credit-Spread-Strategien
-        if strategy in ['earnings_dip', 'ath_breakout']:
+        # IV-Filter nur für Credit-Spread-Strategien (pullback)
+        # Andere Strategien (bounce, ath_breakout, earnings_dip) sind keine Credit-Spreads
+        if strategy in ['earnings_dip', 'ath_breakout', 'bounce']:
             return True, None
         
         # Filter deaktiviert?
@@ -454,10 +467,10 @@ class MultiStrategyScanner:
 
         if not earnings_date:
             # Kein Datum im Scanner-Cache bekannt.
-            # Der MCP-Server sollte bereits vorgefiltert haben,
-            # aber für direkte Aufrufe: konservativ überspringen
-            logger.debug(f"Skipping {symbol} for {strategy}: no earnings date in scanner cache")
-            return True
+            # Statt konservativ zu überspringen, erlauben wir die Analyse.
+            # Der Benutzer wird in der Ausgabe über fehlende Earnings-Daten informiert.
+            logger.debug(f"No earnings date for {symbol}, allowing analysis (earnings unknown)")
+            return False
 
         days_to_earnings = (earnings_date - date.today()).days
 
@@ -676,6 +689,14 @@ class MultiStrategyScanner:
         errors: List[str] = []
         symbols_with_signals = 0
 
+        # Liquidity Filter: Entferne illiquide Symbole VOR dem Scan
+        original_count = len(symbols)
+        if self.config.enable_liquidity_filter:
+            symbols = filter_liquid_symbols(symbols)
+            filtered_count = original_count - len(symbols)
+            if filtered_count > 0:
+                logger.info(f"Liquidity filter: removed {filtered_count} illiquid symbols")
+
         # Strategien basierend auf Mode
         strategies = self._get_strategies_for_mode(mode)
 
@@ -782,13 +803,13 @@ class MultiStrategyScanner:
     ) -> ScanResult:
         """
         Scannt Symbole synchron.
-        
+
         Args:
             symbols: Liste der Symbole
             data_fetcher: Sync-Funktion zum Abrufen der Daten
             mode: Scan-Modus
             progress_callback: Optional: Callback für Fortschritt
-            
+
         Returns:
             ScanResult mit allen Signalen
         """
@@ -796,7 +817,15 @@ class MultiStrategyScanner:
         all_signals: List[TradeSignal] = []
         errors: List[str] = []
         symbols_with_signals = 0
-        
+
+        # Liquidity Filter: Entferne illiquide Symbole VOR dem Scan
+        original_count = len(symbols)
+        if self.config.enable_liquidity_filter:
+            symbols = filter_liquid_symbols(symbols)
+            filtered_count = original_count - len(symbols)
+            if filtered_count > 0:
+                logger.info(f"Liquidity filter: removed {filtered_count} illiquid symbols")
+
         strategies = self._get_strategies_for_mode(mode)
         
         for idx, symbol in enumerate(symbols):

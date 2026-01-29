@@ -21,9 +21,12 @@ logger = logging.getLogger(__name__)
 class WatchlistLoader:
     """
     Lädt und verwaltet Watchlists aus config/watchlists.yaml
+
+    Verwendet die `default_list` Einstellung aus settings.yaml um die
+    aktive Watchlist zu bestimmen.
     """
-    
-    def __init__(self, config_path: Optional[Path] = None):
+
+    def __init__(self, config_path: Optional[Path] = None, default_list: Optional[str] = None):
         if config_path is None:
             possible_paths = [
                 Path.home() / "OptionPlay" / "config" / "watchlists.yaml",
@@ -34,35 +37,72 @@ class WatchlistLoader:
                 if path.exists():
                     config_path = path
                     break
-        
+
         self.config_path = config_path
         self._watchlists: Dict = {}
         self._sectors: Dict[str, List[str]] = {}
         self._all_symbols: List[str] = []
-        
+        self._default_list = default_list or self._get_default_list_from_settings()
+
         if self.config_path and self.config_path.exists():
             self._load()
         else:
             logger.warning("watchlists.yaml nicht gefunden, nutze Fallback")
             self._use_fallback()
+
+    def _get_default_list_from_settings(self) -> str:
+        """Liest default_list aus settings.yaml"""
+        possible_paths = [
+            Path.home() / "OptionPlay" / "config" / "settings.yaml",
+            Path(__file__).parent.parent.parent / "config" / "settings.yaml",
+            Path.cwd() / "config" / "settings.yaml"
+        ]
+
+        for path in possible_paths:
+            if path.exists():
+                try:
+                    with open(path, 'r') as f:
+                        data = yaml.safe_load(f)
+                    if data and 'watchlist' in data:
+                        return data['watchlist'].get('default_list', 'default_275')
+                except Exception as e:
+                    logger.warning(f"Konnte settings.yaml nicht lesen: {e}")
+
+        return 'default_275'
     
     def _load(self) -> None:
         try:
             with open(self.config_path, 'r') as f:
                 data = yaml.safe_load(f)
-            
+
             self._watchlists = data.get('watchlists', {})
-            default_list = self._watchlists.get('default_275', {})
-            sectors_data = default_list.get('sectors', {})
-            
-            for sector_key, sector_info in sectors_data.items():
-                symbols = sector_info.get('symbols', [])
-                self._sectors[sector_key] = symbols
-                self._all_symbols.extend(symbols)
-            
+
+            # Verwende die konfigurierte default_list
+            default_list = self._watchlists.get(self._default_list, {})
+            if not default_list:
+                # Fallback auf default_275 wenn die konfigurierte Liste nicht existiert
+                logger.warning(f"Watchlist '{self._default_list}' nicht gefunden, nutze default_275")
+                default_list = self._watchlists.get('default_275', {})
+
+            # Lade Symbole aus 'sectors' oder direkt aus 'symbols'
+            if 'sectors' in default_list:
+                sectors_data = default_list.get('sectors', {})
+                for sector_key, sector_info in sectors_data.items():
+                    symbols = sector_info.get('symbols', [])
+                    # Filter nur echte Strings (keine booleans oder None)
+                    symbols = [s for s in symbols if isinstance(s, str)]
+                    self._sectors[sector_key] = symbols
+                    self._all_symbols.extend(symbols)
+            elif 'symbols' in default_list:
+                # Flat symbol list (sp500_complete, extended_600)
+                symbols = default_list.get('symbols', [])
+                # Filter nur echte Strings
+                self._all_symbols = [s for s in symbols if isinstance(s, str)]
+
+            # Deduplizieren
             seen = set()
             self._all_symbols = [x for x in self._all_symbols if not (x in seen or seen.add(x))]
-            logger.info(f"Watchlist geladen: {len(self._all_symbols)} Symbole")
+            logger.info(f"Watchlist '{self._default_list}' geladen: {len(self._all_symbols)} Symbole")
         except Exception as e:
             logger.error(f"Fehler beim Laden der Watchlist: {e}")
             self._use_fallback()
@@ -134,8 +174,20 @@ class WatchlistLoader:
 _loader_instance: Optional[WatchlistLoader] = None
 
 
-def get_watchlist_loader() -> WatchlistLoader:
+def get_watchlist_loader(force_reload: bool = False) -> WatchlistLoader:
+    """
+    Gibt den WatchlistLoader Singleton zurück.
+
+    Args:
+        force_reload: Wenn True, wird der Singleton neu erstellt (z.B. nach Config-Änderungen)
+    """
     global _loader_instance
-    if _loader_instance is None:
+    if _loader_instance is None or force_reload:
         _loader_instance = WatchlistLoader()
     return _loader_instance
+
+
+def reset_watchlist_loader() -> None:
+    """Setzt den Singleton zurück, damit die Config neu geladen wird."""
+    global _loader_instance
+    _loader_instance = None
