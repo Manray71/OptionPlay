@@ -17,20 +17,34 @@ from .context import AnalysisContext
 
 try:
     from ..models.base import TradeSignal, SignalType, SignalStrength
-    from ..models.indicators import MACDResult, StochasticResult, KeltnerChannelResult
+    from ..models.indicators import MACDResult, StochasticResult, KeltnerChannelResult, RSIDivergenceResult
     from ..models.strategy_breakdowns import BounceScoreBreakdown
     from ..config.config_loader import BounceScoringConfig
 except ImportError:
     from models.base import TradeSignal, SignalType, SignalStrength
-    from models.indicators import MACDResult, StochasticResult, KeltnerChannelResult
+    from models.indicators import MACDResult, StochasticResult, KeltnerChannelResult, RSIDivergenceResult
     from models.strategy_breakdowns import BounceScoreBreakdown
     from config.config_loader import BounceScoringConfig
+
+# Import RSI Divergence calculator
+try:
+    from ..indicators.momentum import calculate_rsi_divergence
+except ImportError:
+    from indicators.momentum import calculate_rsi_divergence
 
 # Import optimized support/resistance functions
 try:
     from ..indicators.support_resistance import find_support_levels as find_support_optimized
+    from ..indicators.support_resistance import get_nearest_sr_levels
 except ImportError:
     from indicators.support_resistance import find_support_levels as find_support_optimized
+    from indicators.support_resistance import get_nearest_sr_levels
+
+# Import Feature Scoring Mixin (NEW from Feature Engineering)
+try:
+    from .feature_scoring_mixin import FeatureScoringMixin
+except ImportError:
+    from analyzers.feature_scoring_mixin import FeatureScoringMixin
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +78,7 @@ class BounceConfig:
     min_score_for_signal: int = 6
 
 
-class BounceAnalyzer(BaseAnalyzer):
+class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
     """
     Analysiert Aktien auf Support-Bounces.
 
@@ -183,6 +197,30 @@ class BounceAnalyzer(BaseAnalyzer):
         else:
             warnings.append(f"RSI nicht oversold ({breakdown.rsi_value:.0f})")
 
+        # 2b. RSI Divergenz (0-3 Punkte) - NEU
+        # Bullische Divergenz ist starkes Signal für Bounce
+        divergence_result = calculate_rsi_divergence(
+            prices=prices,
+            lows=lows,
+            highs=highs,
+            rsi_period=self.config.rsi_period,
+            lookback=60,
+            swing_window=3,  # Relaxiert für bessere Swing-Erkennung
+            min_divergence_bars=5,
+            max_divergence_bars=50  # Längere Formationen erlauben
+        )
+        div_score_result = self._score_rsi_divergence(divergence_result)
+        breakdown.rsi_divergence_score = div_score_result[0]
+        breakdown.rsi_divergence_type = divergence_result.divergence_type if divergence_result else None
+        breakdown.rsi_divergence_strength = divergence_result.strength if divergence_result else 0
+        breakdown.rsi_divergence_formation_days = divergence_result.formation_days if divergence_result else 0
+        breakdown.rsi_divergence_reason = div_score_result[1]
+
+        if breakdown.rsi_divergence_score >= 2:
+            reasons.append(f"RSI Bullische Divergenz (Stärke: {breakdown.rsi_divergence_strength:.0%})")
+        elif breakdown.rsi_divergence_type == 'bearish':
+            warnings.append("RSI Bärische Divergenz - Vorsicht!")
+
         # 3. Candlestick Pattern (0-2 Punkte)
         candle_result = self._score_candlestick_pattern(prices, highs, lows)
         breakdown.candlestick_score = candle_result[0]
@@ -257,18 +295,25 @@ class BounceAnalyzer(BaseAnalyzer):
             elif breakdown.keltner_score > 0:
                 reasons.append("Near Keltner lower band")
 
+        # NEW: Apply Feature Engineering scores (VWAP, Market Context, Sector)
+        self._apply_feature_scores(breakdown, symbol, prices, volumes, context)
+
         # Total Score berechnen
         breakdown.total_score = (
             breakdown.support_score +
             breakdown.rsi_score +
+            breakdown.rsi_divergence_score +  # NEU: RSI Divergenz
             breakdown.candlestick_score +
             breakdown.volume_score +
             breakdown.trend_score +
             breakdown.macd_score +
             breakdown.stoch_score +
-            breakdown.keltner_score
+            breakdown.keltner_score +
+            breakdown.vwap_score +          # NEW from Feature Engineering
+            breakdown.market_context_score + # NEW from Feature Engineering
+            breakdown.sector_score          # NEW from Feature Engineering
         )
-        breakdown.max_possible = self.scoring_config.max_score
+        breakdown.max_possible = 26  # 3+2+3+2+2+2+2+2+2+3+2+1 = 26
 
         # Signal-Stärke bestimmen
         if breakdown.total_score >= 12:
@@ -285,6 +330,17 @@ class BounceAnalyzer(BaseAnalyzer):
         support = support_result[1].get('tested_support', current_low)
         stop_loss = support * (1 - self.config.stop_below_support_pct / 100)
         target_price = self._calculate_target(entry_price, stop_loss)
+
+        # Extended S/R analysis with 12-month lookback
+        sr_levels = get_nearest_sr_levels(
+            current_price=current_price,
+            prices=prices,
+            highs=highs,
+            lows=lows,
+            volumes=volumes,
+            lookback=252,  # 12 months
+            num_levels=3
+        )
 
         return TradeSignal(
             symbol=symbol,
@@ -303,7 +359,8 @@ class BounceAnalyzer(BaseAnalyzer):
                 'support_info': support_result[1],
                 'trend_info': trend_result[1],
                 'rsi': breakdown.rsi_value,
-                'candle_info': {'pattern': breakdown.candlestick_pattern, 'bullish': breakdown.candlestick_bullish}
+                'candle_info': {'pattern': breakdown.candlestick_pattern, 'bullish': breakdown.candlestick_bullish},
+                'sr_levels': sr_levels  # Extended S/R with 12-month lookback
             },
             warnings=warnings
         )
@@ -543,6 +600,49 @@ class BounceAnalyzer(BaseAnalyzer):
         else:
             info['trend'] = 'downtrend'
             return 0, info  # Downtrend = riskant
+
+    # =========================================================================
+    # RSI DIVERGENZ SCORING (NEU)
+    # =========================================================================
+
+    def _score_rsi_divergence(
+        self,
+        divergence: Optional[RSIDivergenceResult]
+    ) -> Tuple[float, str]:
+        """
+        RSI Divergenz Score (0-3 Punkte).
+
+        Bullische Divergenz ist ein starkes Signal für Bounce:
+        - Kurs macht tieferes Tief
+        - RSI macht höheres Tief
+        - Verkaufsdruck lässt nach → Bodenbildung wahrscheinlich
+
+        Bärische Divergenz ist ein Warnsignal (kein Punktabzug, aber Warning).
+        """
+        if not divergence:
+            return 0, "Keine RSI-Divergenz erkannt"
+
+        if divergence.divergence_type == 'bullish':
+            # Scoring basierend auf Stärke der Divergenz
+            strength = divergence.strength
+
+            if strength >= 0.7:
+                score = 3.0
+                reason = f"Starke bullische Divergenz (Stärke: {strength:.0%}, {divergence.formation_days} Tage)"
+            elif strength >= 0.4:
+                score = 2.0
+                reason = f"Moderate bullische Divergenz (Stärke: {strength:.0%}, {divergence.formation_days} Tage)"
+            else:
+                score = 1.0
+                reason = f"Schwache bullische Divergenz (Stärke: {strength:.0%}, {divergence.formation_days} Tage)"
+
+            return score, reason
+
+        elif divergence.divergence_type == 'bearish':
+            # Bärische Divergenz beim Bounce = Warnsignal, aber kein Abzug
+            return 0, f"Bärische Divergenz erkannt - Vorsicht! (Stärke: {divergence.strength:.0%})"
+
+        return 0, "Keine signifikante Divergenz"
 
     # =========================================================================
     # MACD SCORING (NEU)

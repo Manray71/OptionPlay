@@ -29,6 +29,12 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+# Import Feature Scoring Mixin (NEW from Feature Engineering)
+try:
+    from .feature_scoring_mixin import FeatureScoringMixin
+except ImportError:
+    from analyzers.feature_scoring_mixin import FeatureScoringMixin
+
 
 @dataclass
 class GapInfo:
@@ -86,7 +92,7 @@ class EarningsDipConfig:
     min_score_for_signal: int = 6
 
 
-class EarningsDipAnalyzer(BaseAnalyzer):
+class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
     """
     Analysiert Aktien auf Kaufgelegenheiten nach Earnings-Dips.
 
@@ -278,6 +284,9 @@ class EarningsDipAnalyzer(BaseAnalyzer):
             elif breakdown.keltner_score > 0:
                 reasons.append("Near Keltner lower band")
 
+        # NEW: Apply Feature Engineering scores (VWAP, Market Context, Sector)
+        self._apply_feature_scores(breakdown, symbol, prices, volumes, context)
+
         # Total Score berechnen
         breakdown.total_score = (
             breakdown.dip_score +
@@ -288,9 +297,12 @@ class EarningsDipAnalyzer(BaseAnalyzer):
             breakdown.trend_score +
             breakdown.macd_score +
             breakdown.stoch_score +
-            breakdown.keltner_score
+            breakdown.keltner_score +
+            breakdown.vwap_score +          # NEW from Feature Engineering
+            breakdown.market_context_score + # NEW from Feature Engineering
+            breakdown.sector_score          # NEW from Feature Engineering
         )
-        breakdown.max_possible = self.scoring_config.max_score
+        breakdown.max_possible = 24  # Updated for new features
 
         # Signal-Stärke bestimmen
         if breakdown.total_score >= 13:

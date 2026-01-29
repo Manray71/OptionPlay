@@ -1,0 +1,23 @@
+# OptionPlay Training Requirements
+# Minimal dependencies for distributed training (Python 3.9+ compatible)
+
+# Core
+numpy>=1.24.0,<2.0.0
+pandas>=2.0.0
+scipy>=1.10.0
+
+# Data fetching
+yfinance>=0.2.36
+requests>=2.31.0
+
+# Configuration
+pyyaml>=6.0
+
+# HTTP for API calls
+aiohttp>=3.9.0,<4.0.0
+
+# Date handling
+python-dateutil>=2.8.2
+
+# Progress bars
+tqdm>=4.66.0

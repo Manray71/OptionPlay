@@ -747,3 +747,394 @@ def create_sr_report_chart(
             saved_path = output_path
 
     return fig, saved_path
+
+
+def plot_volume_profile_with_buysell(
+    opens: List[float],
+    closes: List[float],
+    highs: List[float],
+    lows: List[float],
+    volumes: List[int],
+    symbol: str = "",
+    num_zones: int = 30,
+    buy_color: str = '#00C853',
+    sell_color: str = '#FF1744',
+    alpha: float = 0.4,
+    figsize: Tuple[float, float] = (14, 6),
+    dpi: int = 150,
+    show_price_line: bool = True,
+) -> Tuple[Any, Any]:
+    """
+    Erstellt ein Volume Profile mit Kauf/Verkauf-Trennung.
+
+    Kauf-Volumen (grün): Tage an denen Close > Open (bullish)
+    Verkauf-Volumen (rot): Tage an denen Close < Open (bearish)
+
+    Die Balken werden horizontal vom Preislevel nach rechts gezeichnet.
+
+    Args:
+        opens: Opening prices
+        closes: Closing prices
+        highs: High prices
+        lows: Low prices
+        volumes: Daily volumes
+        symbol: Ticker symbol für Titel
+        num_zones: Anzahl der Preiszonen
+        buy_color: Farbe für Kauf-Volumen (grün)
+        sell_color: Farbe für Verkauf-Volumen (rot)
+        alpha: Transparenz (0.4 = 40% Deckung)
+        figsize: Figure size (Breite, Höhe)
+        dpi: Auflösung
+        show_price_line: Zeige aktuellen Preis
+
+    Returns:
+        Tuple von (Figure, Axes)
+    """
+    if not _check_matplotlib():
+        return None, None
+
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    if len(opens) < 10:
+        logger.warning(f"Not enough data for volume profile: {len(opens)} bars")
+        return None, None
+
+    # Berechne Preis-Range
+    price_high = max(highs)
+    price_low = min(lows)
+
+    if price_high == price_low:
+        return None, None
+
+    zone_height = (price_high - price_low) / num_zones
+
+    # Initialisiere Zonen für Kauf und Verkauf
+    zone_buy_volumes = [0.0] * num_zones
+    zone_sell_volumes = [0.0] * num_zones
+    zone_centers = []
+
+    for i in range(num_zones):
+        zone_low = price_low + i * zone_height
+        zone_high = zone_low + zone_height
+        zone_centers.append((zone_low + zone_high) / 2)
+
+    # Verteile Volumen nach Kauf/Verkauf
+    for o, c, h, l, vol in zip(opens, closes, highs, lows, volumes):
+        is_buy = c > o  # Bullish candle = Kauf
+        bar_range = h - l if h > l else zone_height
+
+        for i, center in enumerate(zone_centers):
+            zone_low = center - zone_height / 2
+            zone_high = center + zone_height / 2
+
+            # Berechne Überlappung
+            overlap_low = max(zone_low, l)
+            overlap_high = min(zone_high, h)
+
+            if overlap_high > overlap_low:
+                overlap_ratio = (overlap_high - overlap_low) / bar_range
+                allocated_vol = vol * overlap_ratio
+
+                if is_buy:
+                    zone_buy_volumes[i] += allocated_vol
+                else:
+                    zone_sell_volumes[i] += allocated_vol
+
+    # Normalisiere für Darstellung
+    max_total_vol = max(
+        zone_buy_volumes[i] + zone_sell_volumes[i]
+        for i in range(num_zones)
+    )
+    if max_total_vol == 0:
+        max_total_vol = 1
+
+    norm_buy = [v / max_total_vol for v in zone_buy_volumes]
+    norm_sell = [v / max_total_vol for v in zone_sell_volumes]
+
+    # Erstelle Figure
+    fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
+    fig.patch.set_facecolor('#FAFAFA')
+    ax.set_facecolor('#FAFAFA')
+
+    # Zeichne Kauf-Balken (grün)
+    ax.barh(
+        zone_centers,
+        norm_buy,
+        height=zone_height * 0.9,
+        color=buy_color,
+        alpha=alpha,
+        label='Kauf (Close > Open)',
+        edgecolor='none'
+    )
+
+    # Zeichne Verkauf-Balken (rot) - gestapelt rechts neben Kauf
+    ax.barh(
+        zone_centers,
+        norm_sell,
+        height=zone_height * 0.9,
+        color=sell_color,
+        alpha=alpha,
+        left=norm_buy,
+        label='Verkauf (Close < Open)',
+        edgecolor='none'
+    )
+
+    # POC (Point of Control) - Zone mit höchstem Gesamtvolumen
+    total_volumes = [zone_buy_volumes[i] + zone_sell_volumes[i] for i in range(num_zones)]
+    poc_idx = total_volumes.index(max(total_volumes))
+    poc_price = zone_centers[poc_idx]
+
+    # POC Linie
+    ax.axhline(
+        y=poc_price,
+        color='#FF6F00',
+        linestyle='--',
+        linewidth=2,
+        alpha=0.8,
+        label=f'POC ${poc_price:.2f}'
+    )
+
+    # Aktueller Preis
+    if show_price_line and closes:
+        current_price = closes[-1]
+        ax.axhline(
+            y=current_price,
+            color='#1976D2',
+            linestyle='-',
+            linewidth=2,
+            alpha=0.9,
+            label=f'Preis ${current_price:.2f}'
+        )
+
+    # Styling
+    title = f"{symbol} Volume Profile (Buy/Sell)" if symbol else "Volume Profile (Buy/Sell)"
+    ax.set_title(title, fontsize=14, fontweight='bold')
+    ax.set_xlabel("Relatives Volumen", fontsize=10)
+    ax.set_ylabel("Preis ($)", fontsize=10)
+
+    ax.set_xlim(0, 1.1)
+    ax.set_ylim(price_low - zone_height, price_high + zone_height)
+
+    ax.grid(True, alpha=0.3, axis='y', linestyle='-', linewidth=0.5)
+    ax.legend(loc='upper right', fontsize=9)
+
+    plt.tight_layout()
+
+    return fig, ax
+
+
+def plot_price_with_volume_profile(
+    opens: List[float],
+    closes: List[float],
+    highs: List[float],
+    lows: List[float],
+    volumes: List[int],
+    dates: Optional[List[Any]] = None,
+    symbol: str = "",
+    num_zones: int = 30,
+    buy_color: str = '#00C853',
+    sell_color: str = '#FF1744',
+    alpha: float = 0.4,
+    figsize: Tuple[float, float] = (16, 8),
+    dpi: int = 150,
+    vp_width_pct: float = 20.0,
+) -> Tuple[Any, Tuple[Any, Any]]:
+    """
+    Erstellt kombinierten Chart: Preis-Chart links + Volume Profile rechts.
+
+    Layout:
+    +--------------------------------+--------+
+    |                                |        |
+    |   Candlestick / Price Chart    | Volume |
+    |   (Zeit auf X-Achse)           | Profile|
+    |                                |        |
+    +--------------------------------+--------+
+
+    Args:
+        opens: Opening prices
+        closes: Closing prices
+        highs: High prices
+        lows: Low prices
+        volumes: Daily volumes
+        dates: Optionale Datumsliste
+        symbol: Ticker symbol
+        num_zones: Anzahl der Preiszonen
+        buy_color: Farbe für Kauf-Volumen
+        sell_color: Farbe für Verkauf-Volumen
+        alpha: Transparenz
+        figsize: Figure size
+        dpi: Auflösung
+        vp_width_pct: Breite des Volume Profile (% der Gesamtbreite)
+
+    Returns:
+        Tuple von (Figure, (ax_price, ax_volume))
+    """
+    if not _check_matplotlib():
+        return None, (None, None)
+
+    import matplotlib.pyplot as plt
+    from matplotlib.gridspec import GridSpec
+    import numpy as np
+
+    if len(opens) < 10:
+        logger.warning(f"Not enough data: {len(opens)} bars")
+        return None, (None, None)
+
+    # Berechne Breiten-Verhältnis
+    vp_ratio = vp_width_pct / 100
+    price_ratio = 1.0 - vp_ratio
+
+    # Erstelle Figure mit GridSpec
+    fig = plt.figure(figsize=figsize, dpi=dpi)
+    fig.patch.set_facecolor('#FAFAFA')
+
+    gs = GridSpec(1, 2, width_ratios=[price_ratio, vp_ratio], wspace=0.02)
+
+    ax_price = fig.add_subplot(gs[0])
+    ax_volume = fig.add_subplot(gs[1], sharey=ax_price)
+
+    # === Linker Chart: Preis mit Candlesticks ===
+    ax_price.set_facecolor('#FAFAFA')
+
+    x = list(range(len(closes)))
+
+    # Zeichne Candlesticks (vereinfacht als Linien)
+    for i, (o, c, h, l) in enumerate(zip(opens, closes, highs, lows)):
+        color = buy_color if c >= o else sell_color
+
+        # High-Low Linie (Docht)
+        ax_price.plot([i, i], [l, h], color=color, linewidth=0.8, alpha=0.7)
+
+        # Body
+        body_bottom = min(o, c)
+        body_top = max(o, c)
+        ax_price.plot([i, i], [body_bottom, body_top], color=color, linewidth=3, alpha=0.9)
+
+    # Aktueller Preis
+    current_price = closes[-1]
+    ax_price.axhline(
+        y=current_price,
+        color='#1976D2',
+        linestyle='-',
+        linewidth=2,
+        alpha=0.8
+    )
+    ax_price.annotate(
+        f"${current_price:.2f}",
+        xy=(len(x) - 1, current_price),
+        fontsize=10,
+        color='#1976D2',
+        va='bottom',
+        ha='right',
+        fontweight='bold'
+    )
+
+    ax_price.grid(True, alpha=0.3, linestyle='-', linewidth=0.5)
+    title = f"{symbol} Price + Volume Profile" if symbol else "Price + Volume Profile"
+    ax_price.set_title(title, fontsize=14, fontweight='bold')
+    ax_price.set_xlabel("Trading Days", fontsize=10)
+    ax_price.set_ylabel("Preis ($)", fontsize=10)
+
+    # === Rechter Chart: Volume Profile ===
+    ax_volume.set_facecolor('#FAFAFA')
+
+    # Berechne Preis-Range
+    price_high = max(highs)
+    price_low = min(lows)
+    zone_height = (price_high - price_low) / num_zones
+
+    zone_buy_volumes = [0.0] * num_zones
+    zone_sell_volumes = [0.0] * num_zones
+    zone_centers = []
+
+    for i in range(num_zones):
+        zone_low = price_low + i * zone_height
+        zone_high = zone_low + zone_height
+        zone_centers.append((zone_low + zone_high) / 2)
+
+    # Verteile Volumen
+    for o, c, h, l, vol in zip(opens, closes, highs, lows, volumes):
+        is_buy = c > o
+        bar_range = h - l if h > l else zone_height
+
+        for i, center in enumerate(zone_centers):
+            zone_low = center - zone_height / 2
+            zone_high = center + zone_height / 2
+
+            overlap_low = max(zone_low, l)
+            overlap_high = min(zone_high, h)
+
+            if overlap_high > overlap_low:
+                overlap_ratio = (overlap_high - overlap_low) / bar_range
+                allocated_vol = vol * overlap_ratio
+
+                if is_buy:
+                    zone_buy_volumes[i] += allocated_vol
+                else:
+                    zone_sell_volumes[i] += allocated_vol
+
+    # Normalisiere
+    max_total_vol = max(
+        zone_buy_volumes[i] + zone_sell_volumes[i]
+        for i in range(num_zones)
+    )
+    if max_total_vol == 0:
+        max_total_vol = 1
+
+    norm_buy = [v / max_total_vol for v in zone_buy_volumes]
+    norm_sell = [v / max_total_vol for v in zone_sell_volumes]
+
+    # Zeichne Volume Profile
+    ax_volume.barh(
+        zone_centers,
+        norm_buy,
+        height=zone_height * 0.9,
+        color=buy_color,
+        alpha=alpha,
+        label='Kauf',
+        edgecolor='none'
+    )
+
+    ax_volume.barh(
+        zone_centers,
+        norm_sell,
+        height=zone_height * 0.9,
+        color=sell_color,
+        alpha=alpha,
+        left=norm_buy,
+        label='Verkauf',
+        edgecolor='none'
+    )
+
+    # POC
+    total_volumes = [zone_buy_volumes[i] + zone_sell_volumes[i] for i in range(num_zones)]
+    poc_idx = total_volumes.index(max(total_volumes))
+    poc_price = zone_centers[poc_idx]
+
+    ax_volume.axhline(y=poc_price, color='#FF6F00', linestyle='--', linewidth=2, alpha=0.8)
+    ax_volume.annotate(
+        "POC",
+        xy=(0.95, poc_price),
+        fontsize=9,
+        color='#FF6F00',
+        fontweight='bold',
+        va='center'
+    )
+
+    ax_volume.set_title("Volume Profile", fontsize=12, fontweight='bold')
+    ax_volume.set_xlabel("Vol", fontsize=9)
+    ax_volume.tick_params(labelleft=False)
+    ax_volume.set_xlim(0, 1.1)
+    ax_volume.grid(True, alpha=0.3, axis='y', linestyle='-', linewidth=0.5)
+    ax_volume.legend(loc='upper right', fontsize=8)
+
+    import warnings
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        try:
+            fig.tight_layout()
+        except Exception:
+            pass
+
+    return fig, (ax_price, ax_volume)

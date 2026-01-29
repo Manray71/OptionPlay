@@ -26,6 +26,7 @@ from typing import Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .data_providers.marketdata import MarketDataProvider
+    from .data_providers.tradier import TradierProvider
     from .cache.earnings_cache_impl import EarningsCache, EarningsFetcher
     from .cache.iv_cache_impl import IVCache, IVFetcher
     from .cache.historical_cache import HistoricalCache
@@ -79,8 +80,12 @@ class ServiceContainer:
     iv_cache: Optional['IVCache'] = None
     iv_fetcher: Optional['IVFetcher'] = None
 
-    # Data provider (lazy-loaded)
+    # Data providers (lazy-loaded)
     provider: Optional['MarketDataProvider'] = None
+    tradier_provider: Optional['TradierProvider'] = None
+
+    # Active provider name (for routing)
+    active_provider: str = field(default="marketdata", repr=False)
 
     # Internal state
     _initialized: bool = field(default=False, repr=False)
@@ -260,11 +265,70 @@ class ServiceContainer:
 
         return self.provider
 
+    async def ensure_tradier_provider(self, api_key: Optional[str] = None) -> 'TradierProvider':
+        """
+        Ensure Tradier provider is initialized and connected.
+
+        Lazy-loads the provider on first call.
+
+        Args:
+            api_key: Optional API key override
+
+        Returns:
+            Connected TradierProvider
+
+        Raises:
+            ConnectionError: If unable to connect
+            ValueError: If API key not found
+        """
+        if self.tradier_provider is None:
+            from .data_providers.tradier import TradierProvider, TradierEnvironment
+            from .utils.secure_config import get_api_key
+
+            resolved_key = api_key or get_api_key("TRADIER_API_KEY")
+            if not resolved_key:
+                raise ValueError(
+                    "TRADIER_API_KEY required for Tradier provider. "
+                    "Set environment variable or create .env file."
+                )
+
+            # Get environment from config
+            env = TradierEnvironment.SANDBOX
+            if self.config:
+                tradier_cfg = self.config.settings.tradier
+                if tradier_cfg.is_production:
+                    env = TradierEnvironment.PRODUCTION
+
+            self.tradier_provider = TradierProvider(
+                api_key=resolved_key,
+                environment=env
+            )
+
+        if not await self.tradier_provider.is_connected():
+            connected = await self.tradier_provider.connect()
+            if not connected:
+                raise ConnectionError("Failed to connect to Tradier API")
+
+        return self.tradier_provider
+
+    def is_tradier_configured(self) -> bool:
+        """Check if Tradier API key is configured."""
+        from .utils.secure_config import get_api_key
+        try:
+            key = get_api_key("TRADIER_API_KEY", required=False)
+            return bool(key)
+        except Exception:
+            return False
+
     async def disconnect(self) -> None:
         """Disconnect all services that have connections."""
         if self.provider and hasattr(self.provider, 'disconnect'):
             await self.provider.disconnect()
-            logger.debug("Provider disconnected")
+            logger.debug("Marketdata provider disconnected")
+
+        if self.tradier_provider and hasattr(self.tradier_provider, 'disconnect'):
+            await self.tradier_provider.disconnect()
+            logger.debug("Tradier provider disconnected")
 
     def get_stats(self) -> dict:
         """

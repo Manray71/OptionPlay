@@ -12,14 +12,34 @@ from .context import AnalysisContext
 
 try:
     from ..models.base import TradeSignal, SignalType, SignalStrength
-    from ..models.indicators import MACDResult, StochasticResult, TechnicalIndicators, KeltnerChannelResult
+    from ..models.indicators import MACDResult, StochasticResult, TechnicalIndicators, KeltnerChannelResult, RSIDivergenceResult
     from ..models.candidates import PullbackCandidate, ScoreBreakdown
     from ..config.config_loader import PullbackScoringConfig
 except ImportError:
     from models.base import TradeSignal, SignalType, SignalStrength
-    from models.indicators import MACDResult, StochasticResult, TechnicalIndicators, KeltnerChannelResult
+    from models.indicators import MACDResult, StochasticResult, TechnicalIndicators, KeltnerChannelResult, RSIDivergenceResult
     from models.candidates import PullbackCandidate, ScoreBreakdown
     from config.config_loader import PullbackScoringConfig
+
+# Import RSI Divergence calculator
+try:
+    from ..indicators.momentum import calculate_rsi_divergence
+except ImportError:
+    from indicators.momentum import calculate_rsi_divergence
+
+# Import Volume Profile indicators (NEW from Feature Engineering)
+try:
+    from ..indicators.volume_profile import (
+        calculate_vwap,
+        get_sector,
+        get_sector_adjustment,
+    )
+except ImportError:
+    from indicators.volume_profile import (
+        calculate_vwap,
+        get_sector,
+        get_sector_adjustment,
+    )
 
 # Import optimized support/resistance functions
 try:
@@ -285,6 +305,25 @@ class PullbackAnalyzer(BaseAnalyzer):
         breakdown.rsi_score, breakdown.rsi_reason = self._score_rsi(rsi)
         breakdown.rsi_value = rsi
 
+        # 1b. RSI Divergenz (0-3 Punkte) - NEU
+        # Bullische Divergenz ist starkes Signal für Pullback-Entry
+        divergence_result = calculate_rsi_divergence(
+            prices=prices,
+            lows=lows,
+            highs=highs,
+            rsi_period=self.config.rsi.period,
+            lookback=60,
+            swing_window=3,  # Relaxiert für bessere Swing-Erkennung
+            min_divergence_bars=5,
+            max_divergence_bars=50  # Längere Formationen erlauben
+        )
+        div_score_result = self._score_rsi_divergence(divergence_result)
+        breakdown.rsi_divergence_score = div_score_result[0]
+        breakdown.rsi_divergence_type = divergence_result.divergence_type if divergence_result else None
+        breakdown.rsi_divergence_strength = divergence_result.strength if divergence_result else 0
+        breakdown.rsi_divergence_formation_days = divergence_result.formation_days if divergence_result else 0
+        breakdown.rsi_divergence_reason = div_score_result[1]
+
         # 2. Support Score mit Stärke-Bewertung (0-2.5 Punkte)
         support_result = self._score_support_with_strength(
             current_price, support_levels, volumes, lows
@@ -348,9 +387,37 @@ class PullbackAnalyzer(BaseAnalyzer):
             breakdown.keltner_position = keltner_result.price_position
             breakdown.keltner_percent = keltner_result.percent_position
 
-        # Total Score (max ~16.5 Punkte)
+        # 10. VWAP Score (0-3 Punkte) - NEW from Feature Engineering
+        vwap_result = self._score_vwap(prices, volumes)
+        breakdown.vwap_score = vwap_result[0]
+        breakdown.vwap_value = vwap_result[1]
+        breakdown.vwap_distance_pct = vwap_result[2]
+        breakdown.vwap_position = vwap_result[3]
+        breakdown.vwap_reason = vwap_result[4]
+
+        # 11. Market Context Score (-1 to +2 Punkte) - NEW from Feature Engineering
+        # Note: spy_prices should be passed via context in production
+        # For now, we'll skip if no context provided
+        if context and hasattr(context, 'spy_prices') and context.spy_prices:
+            market_result = self._score_market_context(context.spy_prices)
+            breakdown.market_context_score = market_result[0]
+            breakdown.spy_trend = market_result[1]
+            breakdown.market_context_reason = market_result[2]
+        else:
+            breakdown.market_context_score = 0
+            breakdown.spy_trend = "unknown"
+            breakdown.market_context_reason = "No SPY data available"
+
+        # 12. Sector Score (-1 to +1 Punkte) - NEW from Feature Engineering
+        sector_result = self._score_sector(symbol)
+        breakdown.sector_score = sector_result[0]
+        breakdown.sector = sector_result[1]
+        breakdown.sector_reason = sector_result[2]
+
+        # Total Score (max ~25 Punkte)
         breakdown.total_score = (
             breakdown.rsi_score +           # 0-3
+            breakdown.rsi_divergence_score + # 0-3
             breakdown.support_score +       # 0-2.5
             breakdown.fibonacci_score +     # 0-2
             breakdown.ma_score +            # 0-2
@@ -358,9 +425,12 @@ class PullbackAnalyzer(BaseAnalyzer):
             breakdown.volume_score +        # 0-1
             breakdown.macd_score +          # 0-2
             breakdown.stoch_score +         # 0-2
-            breakdown.keltner_score         # 0-2
+            breakdown.keltner_score +       # 0-2
+            breakdown.vwap_score +          # 0-3 (NEW)
+            breakdown.market_context_score + # -1 to +2 (NEW)
+            breakdown.sector_score          # -1 to +1 (NEW)
         )
-        breakdown.max_possible = self.config.max_score
+        breakdown.max_possible = 25  # Updated for new features
         
         return PullbackCandidate(
             symbol=symbol,
@@ -383,6 +453,12 @@ class PullbackAnalyzer(BaseAnalyzer):
         # RSI
         if bd.rsi_score > 0:
             reasons.append(f"RSI oversold ({candidate.technicals.rsi_14:.1f})")
+
+        # RSI Divergenz (NEU)
+        if bd.rsi_divergence_score >= 2:
+            reasons.append(f"RSI Bullische Divergenz (Stärke: {bd.rsi_divergence_strength:.0%})")
+        elif bd.rsi_divergence_score > 0:
+            reasons.append("RSI Divergenz erkannt")
 
         # Support mit Stärke
         if bd.support_score > 0:
@@ -429,6 +505,28 @@ class PullbackAnalyzer(BaseAnalyzer):
             reasons.append("Below Keltner lower band")
         elif bd.keltner_score > 0:
             reasons.append("Near Keltner lower band")
+
+        # VWAP (NEW from Feature Engineering)
+        if bd.vwap_score >= 3:
+            reasons.append(f"Strong VWAP momentum (+{bd.vwap_distance_pct:.1f}%)")
+        elif bd.vwap_score >= 2:
+            reasons.append(f"Above VWAP ({bd.vwap_distance_pct:+.1f}%)")
+        elif bd.vwap_score >= 1:
+            reasons.append("Near VWAP")
+
+        # Market Context (NEW from Feature Engineering)
+        if bd.market_context_score >= 2:
+            reasons.append("Strong market uptrend")
+        elif bd.market_context_score >= 1:
+            reasons.append("Market uptrend")
+        elif bd.market_context_score < 0:
+            reasons.append(f"Market downtrend (CAUTION)")
+
+        # Sector (NEW from Feature Engineering)
+        if bd.sector_score >= 0.5:
+            reasons.append(f"{bd.sector} (favorable)")
+        elif bd.sector_score <= -0.5:
+            reasons.append(f"{bd.sector} (challenging)")
 
         return " | ".join(reasons) if reasons else "Weak setup"
     
@@ -652,7 +750,46 @@ class PullbackAnalyzer(BaseAnalyzer):
     # =========================================================================
     # SCORING
     # =========================================================================
-    
+
+    def _score_rsi_divergence(
+        self,
+        divergence: Optional[RSIDivergenceResult]
+    ) -> Tuple[float, str]:
+        """
+        RSI Divergenz Score (0-3 Punkte).
+
+        Bullische Divergenz ist ein starkes Signal für Pullback-Entry:
+        - Kurs macht tieferes Tief
+        - RSI macht höheres Tief
+        - Verkaufsdruck lässt nach → Bodenbildung wahrscheinlich
+
+        Bärische Divergenz ist ein Warnsignal (kein Punktabzug, aber Warning).
+        """
+        if not divergence:
+            return 0, "Keine RSI-Divergenz erkannt"
+
+        if divergence.divergence_type == 'bullish':
+            # Scoring basierend auf Stärke der Divergenz
+            strength = divergence.strength
+
+            if strength >= 0.7:
+                score = 3.0
+                reason = f"Starke bullische Divergenz (Stärke: {strength:.0%}, {divergence.formation_days} Tage)"
+            elif strength >= 0.4:
+                score = 2.0
+                reason = f"Moderate bullische Divergenz (Stärke: {strength:.0%}, {divergence.formation_days} Tage)"
+            else:
+                score = 1.0
+                reason = f"Schwache bullische Divergenz (Stärke: {strength:.0%}, {divergence.formation_days} Tage)"
+
+            return score, reason
+
+        elif divergence.divergence_type == 'bearish':
+            # Bärische Divergenz beim Pullback = Warnsignal, aber kein Abzug
+            return 0, f"Bärische Divergenz erkannt - Vorsicht! (Stärke: {divergence.strength:.0%})"
+
+        return 0, "Keine signifikante Divergenz"
+
     def _score_rsi(self, rsi: float) -> Tuple[float, str]:
         """RSI Score (0-3 Punkte)"""
         cfg = self.config.rsi
@@ -1068,3 +1205,130 @@ class PullbackAnalyzer(BaseAnalyzer):
             return 0, f"Preis über Keltner Upper Band ({pct:.2f}) - überkauft"
 
         return 0, f"Preis in neutraler Channel-Position ({pct:.2f})"
+
+    # =========================================================================
+    # NEW SCORING METHODS (from Feature Engineering Training)
+    # =========================================================================
+
+    def _score_vwap(
+        self,
+        prices: List[float],
+        volumes: List[int]
+    ) -> Tuple[float, float, float, str, str]:
+        """
+        VWAP Score (0-3 Punkte).
+
+        Based on Feature Engineering Training:
+        - Above VWAP >3%: 91.9% win rate → 3 points
+        - Above VWAP 1-3%: 87.6% win rate → 2 points
+        - Near VWAP: 78.3% win rate → 1 point
+        - Below VWAP: 51.7-66.1% win rate → 0 points
+
+        Returns:
+            (score, vwap_value, distance_pct, position, reason)
+        """
+        vwap_result = calculate_vwap(prices, volumes, period=20)
+
+        if not vwap_result:
+            return 0, 0, 0, "unknown", "Insufficient data for VWAP"
+
+        vwap = vwap_result.vwap
+        distance = vwap_result.distance_pct
+        position = vwap_result.position
+
+        # Scoring based on training results
+        if distance > 3.0:
+            score = 3.0
+            reason = f"Strong momentum: {distance:.1f}% above VWAP (91.9% win rate)"
+        elif distance > 1.0:
+            score = 2.0
+            reason = f"Above VWAP: {distance:.1f}% (87.6% win rate)"
+        elif distance > -1.0:
+            score = 1.0
+            reason = f"Near VWAP: {distance:.1f}% (78.3% win rate)"
+        elif distance > -3.0:
+            score = 0.0
+            reason = f"Below VWAP: {distance:.1f}% (66.1% win rate)"
+        else:
+            score = 0.0
+            reason = f"Weak: {distance:.1f}% below VWAP (51.7% win rate)"
+
+        return score, vwap, distance, position, reason
+
+    def _score_market_context(
+        self,
+        spy_prices: Optional[List[float]]
+    ) -> Tuple[float, str, str]:
+        """
+        Market Context Score (0-2 Punkte).
+
+        Based on Feature Engineering Training:
+        - Strong uptrend: 76.1% win rate, +$1.03M → 2 points
+        - Uptrend: 70.9% win rate → 1 point
+        - Sideways: neutral → 0 points
+        - Downtrend: 60.1% win rate, -$470k → -0.5 points (penalty)
+        - Strong downtrend: 59.3% win rate → -1 point (penalty)
+
+        Returns:
+            (score, spy_trend, reason)
+        """
+        if not spy_prices or len(spy_prices) < 50:
+            return 0, "unknown", "No SPY data for market context"
+
+        # Determine SPY trend
+        current = spy_prices[-1]
+        sma20 = float(np.mean(spy_prices[-20:]))
+        sma50 = float(np.mean(spy_prices[-50:]))
+
+        if current > sma20 > sma50:
+            trend = "strong_uptrend"
+            score = 2.0
+            reason = "Strong market uptrend (76.1% win rate)"
+        elif current > sma50 and current > sma20:
+            trend = "uptrend"
+            score = 1.0
+            reason = "Market uptrend (70.9% win rate)"
+        elif current > sma50:
+            trend = "sideways"
+            score = 0.0
+            reason = "Market sideways"
+        elif current < sma20 < sma50:
+            trend = "strong_downtrend"
+            score = -1.0
+            reason = "Strong market downtrend - CAUTION (59.3% win rate)"
+        else:
+            trend = "downtrend"
+            score = -0.5
+            reason = "Market downtrend - reduced expectation (60.1% win rate)"
+
+        return score, trend, reason
+
+    def _score_sector(self, symbol: str) -> Tuple[float, str, str]:
+        """
+        Sector Score (-1 to +1 Punkt).
+
+        Based on Feature Engineering Training:
+        - Consumer Staples: +9% win rate → +0.9 points
+        - Utilities: +6.8% → +0.7 points
+        - Financials: +6.4% → +0.6 points
+        - Technology: -10% → -1.0 points
+        - Materials: -7.5% → -0.75 points
+
+        Returns:
+            (score, sector_name, reason)
+        """
+        sector = get_sector(symbol)
+        adjustment = get_sector_adjustment(symbol)
+
+        if adjustment > 0.5:
+            reason = f"{sector}: strong sector (+{adjustment*10:.0f}% win rate)"
+        elif adjustment > 0:
+            reason = f"{sector}: favorable sector (+{adjustment*10:.0f}% win rate)"
+        elif adjustment < -0.5:
+            reason = f"{sector}: challenging sector ({adjustment*10:.0f}% win rate)"
+        elif adjustment < 0:
+            reason = f"{sector}: slightly unfavorable ({adjustment*10:.0f}% win rate)"
+        else:
+            reason = f"{sector}: neutral sector"
+
+        return adjustment, sector, reason

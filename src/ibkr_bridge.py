@@ -16,12 +16,8 @@ import json
 import logging
 import socket
 
-# Fix für nested event loops (ib_insync in async context)
-try:
-    import nest_asyncio
-    nest_asyncio.apply()
-except ImportError:
-    pass
+# Note: nest_asyncio removed - not compatible with Python 3.14
+# and not needed for MCP stdio server
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -634,12 +630,11 @@ class IBKRBridge:
             return []
         
         try:
-            # Portfolio-Positionen abrufen
-            self._ib.reqPositions()
-            await asyncio.sleep(1)  # Warte auf Daten
-            
+            # Portfolio-Positionen abrufen (async version)
+            raw_positions = await self._ib.reqPositionsAsync()
+
             positions = []
-            for pos in self._ib.positions():
+            for pos in raw_positions:
                 contract = pos.contract
                 
                 position_data = {

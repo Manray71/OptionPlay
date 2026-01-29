@@ -1,0 +1,1307 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AAPL - Trading Report Preview</title>
+  <style>
+/* ============================================
+   OptionPlay Report Design System
+   Apple-Inspired Minimal Design
+   INLINE VERSION FOR PREVIEW
+   ============================================ */
+
+:root {
+  /* Typography Scale (Major Third - 1.25) */
+  --font-size-xs: 0.64rem;
+  --font-size-sm: 0.8rem;
+  --font-size-base: 1rem;
+  --font-size-md: 1.25rem;
+  --font-size-lg: 1.563rem;
+  --font-size-xl: 1.953rem;
+  --font-size-2xl: 2.441rem;
+  --font-size-3xl: 3.052rem;
+
+  /* Font Weights */
+  --font-light: 300;
+  --font-regular: 400;
+  --font-medium: 500;
+  --font-semibold: 600;
+  --font-bold: 700;
+
+  /* Line Heights */
+  --leading-tight: 1.2;
+  --leading-snug: 1.375;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.625;
+
+  /* Letter Spacing */
+  --tracking-tight: -0.025em;
+  --tracking-normal: 0;
+  --tracking-wide: 0.025em;
+
+  /* Spacing Scale (8px base) */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-8: 3rem;
+  --space-10: 4rem;
+  --space-12: 6rem;
+
+  /* Colors - Light Mode */
+  --color-bg-primary: #ffffff;
+  --color-bg-secondary: #f5f5f7;
+  --color-bg-tertiary: #fbfbfd;
+  --color-bg-elevated: #ffffff;
+
+  --color-text-primary: #1d1d1f;
+  --color-text-secondary: #6e6e73;
+  --color-text-tertiary: #86868b;
+  --color-text-quaternary: #aeaeb2;
+
+  --color-border-primary: #d2d2d7;
+  --color-border-secondary: #e8e8ed;
+  --color-border-tertiary: #f2f2f7;
+
+  /* Accent Colors */
+  --color-accent-blue: #007aff;
+  --color-success: #34c759;
+  --color-success-bg: rgba(52, 199, 89, 0.12);
+  --color-warning: #ff9500;
+  --color-warning-bg: rgba(255, 149, 0, 0.12);
+  --color-danger: #ff3b30;
+  --color-danger-bg: rgba(255, 59, 48, 0.12);
+  --color-info: #007aff;
+  --color-info-bg: rgba(0, 122, 255, 0.12);
+
+  /* Border Radius */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+
+  /* Page Dimensions */
+  --page-width: 210mm;
+  --page-height: 297mm;
+  --page-margin: 20mm;
+}
+
+@page {
+  size: A4;
+  margin: 20mm;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter',
+               'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-size: var(--font-size-base);
+  font-weight: var(--font-regular);
+  line-height: var(--leading-normal);
+  color: var(--color-text-primary);
+  background-color: #e5e5e5;
+}
+
+/* Page Container */
+.page {
+  width: var(--page-width);
+  min-height: var(--page-height);
+  padding: var(--page-margin);
+  background: var(--color-bg-primary);
+  margin: 20px auto;
+  box-shadow: var(--shadow-lg);
+  page-break-after: always;
+}
+
+.page:last-child {
+  page-break-after: avoid;
+}
+
+/* Typography */
+.display-large {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', sans-serif;
+  font-size: var(--font-size-3xl);
+  font-weight: var(--font-bold);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tight);
+}
+
+.title-large {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', sans-serif;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-semibold);
+  line-height: var(--leading-snug);
+}
+
+.title-medium {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', sans-serif;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-semibold);
+  line-height: var(--leading-snug);
+}
+
+.title-small {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-semibold);
+}
+
+.body-small {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.caption {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-medium);
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+}
+
+/* Layout */
+.section {
+  margin-bottom: var(--space-8);
+}
+
+.section-header {
+  margin-bottom: var(--space-5);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--color-border-secondary);
+}
+
+.grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-4); }
+.grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-4); }
+.grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-4); }
+
+.flex-between {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* Cards */
+.card {
+  background: var(--color-bg-elevated);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  border: 1px solid var(--color-border-tertiary);
+}
+
+.card-subtle {
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+}
+
+/* Metrics */
+.metric {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.metric-label {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-medium);
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+}
+
+.metric-value {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-semibold);
+  color: var(--color-text-primary);
+  letter-spacing: var(--tracking-tight);
+}
+
+.metric-value-lg {
+  font-size: var(--font-size-2xl);
+}
+
+/* Badges */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+}
+
+.badge-success { background: var(--color-success-bg); color: var(--color-success); }
+.badge-warning { background: var(--color-warning-bg); color: var(--color-warning); }
+.badge-danger { background: var(--color-danger-bg); color: var(--color-danger); }
+.badge-info { background: var(--color-info-bg); color: var(--color-info); }
+.badge-neutral { background: var(--color-bg-secondary); color: var(--color-text-secondary); }
+
+.tag {
+  display: inline-flex;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-medium);
+  background: var(--color-bg-secondary);
+  color: var(--color-text-secondary);
+}
+
+/* Tables */
+.table-container {
+  overflow-x: auto;
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-tertiary);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+}
+
+thead { background: var(--color-bg-secondary); }
+
+th {
+  font-weight: var(--font-semibold);
+  color: var(--color-text-secondary);
+  text-align: left;
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  border-bottom: 1px solid var(--color-border-secondary);
+}
+
+td {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-border-tertiary);
+}
+
+tr:last-child td { border-bottom: none; }
+.col-numeric { text-align: right; font-family: 'SF Mono', monospace; }
+
+/* Dividers & Spacers */
+.divider {
+  height: 1px;
+  background: var(--color-border-secondary);
+  margin: var(--space-6) 0;
+}
+
+.spacer-md { height: var(--space-4); }
+.spacer-lg { height: var(--space-6); }
+
+/* Utility */
+.text-success { color: var(--color-success); }
+.text-warning { color: var(--color-warning); }
+.text-danger { color: var(--color-danger); }
+.text-secondary { color: var(--color-text-secondary); }
+.text-tertiary { color: var(--color-text-tertiary); }
+
+/* ============================================
+   SINGLE SYMBOL REPORT SPECIFIC STYLES
+   ============================================ */
+
+/* Cover */
+.cover {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(var(--page-height) - 2 * var(--page-margin));
+}
+
+.cover-header {
+  padding-top: var(--space-12);
+  padding-bottom: var(--space-8);
+}
+
+.cover-brand {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-semibold);
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  margin-bottom: var(--space-4);
+}
+
+.cover-title {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+  font-size: 3.5rem;
+  font-weight: var(--font-bold);
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  margin-bottom: var(--space-4);
+}
+
+.cover-subtitle {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-regular);
+  color: var(--color-text-secondary);
+}
+
+.cover-meta {
+  margin-top: auto;
+  padding-bottom: var(--space-6);
+  display: flex;
+  gap: var(--space-8);
+}
+
+.cover-meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+/* Hero Section */
+.hero {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--space-8);
+  align-items: start;
+  padding-bottom: var(--space-6);
+  border-bottom: 1px solid var(--color-border-secondary);
+  margin-bottom: var(--space-6);
+}
+
+.hero-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.hero-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.hero-symbol {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+  font-size: 4rem;
+  font-weight: var(--font-bold);
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+.hero-company {
+  font-size: var(--font-size-lg);
+  color: var(--color-text-secondary);
+}
+
+.hero-price-group {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}
+
+.hero-price {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-semibold);
+}
+
+.hero-score {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.hero-score-label {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-medium);
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+}
+
+/* Score Ring */
+.score-ring-lg {
+  position: relative;
+  width: 100px;
+  height: 100px;
+}
+
+.score-ring-lg svg {
+  transform: rotate(-90deg);
+}
+
+.score-ring-bg {
+  fill: none;
+  stroke: var(--color-border-secondary);
+  stroke-width: 6;
+}
+
+.score-ring-fill {
+  fill: none;
+  stroke-width: 6;
+  stroke-linecap: round;
+}
+
+.score-ring-value {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-bold);
+}
+
+/* Quick Stats */
+.quick-stats {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: var(--space-4);
+  padding: var(--space-4) 0;
+}
+
+.quick-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.quick-stat-value {
+  font-family: 'SF Mono', monospace;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-semibold);
+}
+
+/* Summary Card */
+.summary-card {
+  background: linear-gradient(135deg, var(--color-bg-secondary) 0%, var(--color-bg-tertiary) 100%);
+  border-radius: var(--radius-xl);
+  padding: var(--space-6);
+  margin-bottom: var(--space-6);
+}
+
+.summary-card p {
+  font-size: var(--font-size-base);
+  line-height: var(--leading-relaxed);
+  color: var(--color-text-secondary);
+}
+
+.summary-card strong {
+  color: var(--color-text-primary);
+  font-weight: var(--font-semibold);
+}
+
+/* Score Grid */
+.score-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-3);
+}
+
+.score-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-md);
+}
+
+.score-item-name {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-medium);
+}
+
+.score-item-value {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.score-item-points {
+  font-family: 'SF Mono', monospace;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-semibold);
+  min-width: 45px;
+  text-align: right;
+}
+
+.score-item-bar {
+  width: 60px;
+  height: 4px;
+  background: var(--color-border-secondary);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.score-item-bar-fill {
+  height: 100%;
+  border-radius: var(--radius-full);
+}
+
+/* Technical Levels */
+.levels-container {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-5);
+}
+
+.level-group {
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+}
+
+.level-group-title {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-semibold);
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  margin-bottom: var(--space-3);
+}
+
+.level-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--color-border-tertiary);
+}
+
+.level-row:last-child { border-bottom: none; }
+
+.level-label {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.level-value {
+  font-family: 'SF Mono', monospace;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-medium);
+}
+
+.level-distance {
+  font-size: var(--font-size-xs);
+  margin-left: var(--space-2);
+}
+
+/* Options Grid */
+.options-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-4);
+}
+
+.option-card {
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-secondary);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  text-align: center;
+}
+
+.option-card-highlight {
+  background: linear-gradient(135deg, var(--color-info-bg) 0%, rgba(0, 122, 255, 0.05) 100%);
+  border-color: var(--color-accent-blue);
+}
+
+.option-card-label {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-medium);
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  margin-bottom: var(--space-2);
+}
+
+.option-card-value {
+  font-family: 'SF Mono', monospace;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-bold);
+}
+
+.option-card-subtext {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+  margin-top: var(--space-1);
+}
+
+/* Spread Visual */
+.spread-visual {
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-xl);
+  padding: var(--space-6);
+  margin: var(--space-5) 0;
+}
+
+.spread-bar {
+  position: relative;
+  height: 40px;
+  background: linear-gradient(90deg,
+    var(--color-danger-bg) 0%,
+    var(--color-bg-tertiary) 50%,
+    var(--color-success-bg) 100%
+  );
+  border-radius: var(--radius-md);
+  margin: var(--space-4) 0;
+}
+
+.spread-marker {
+  position: absolute;
+  top: -8px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.spread-marker-line {
+  width: 2px;
+  height: 56px;
+}
+
+.spread-marker-label {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-semibold);
+  margin-top: var(--space-1);
+  white-space: nowrap;
+}
+
+.spread-marker-price {
+  font-family: 'SF Mono', monospace;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+/* Status Indicator */
+.status-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.status-dot.active { background: var(--color-success); }
+.status-dot.warning { background: var(--color-warning); }
+.status-dot.inactive { background: var(--color-danger); }
+.status-dot.neutral { background: var(--color-text-quaternary); }
+
+/* Chart Container */
+.chart-container {
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  min-height: 280px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-tertiary);
+}
+
+/* News List */
+.news-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.news-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: var(--space-4);
+  align-items: start;
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--color-border-tertiary);
+}
+
+.news-item:last-child { border-bottom: none; }
+
+.news-date {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+  min-width: 70px;
+}
+
+.news-headline {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-medium);
+  line-height: var(--leading-snug);
+}
+
+.news-source {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+}
+
+/* Footer */
+.report-footer {
+  margin-top: auto;
+  padding-top: var(--space-6);
+  border-top: 1px solid var(--color-border-secondary);
+}
+
+.disclaimer {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+  line-height: var(--leading-relaxed);
+}
+
+.footer-meta {
+  display: flex;
+  justify-content: space-between;
+  margin-top: var(--space-3);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-quaternary);
+}
+
+/* Metric Group */
+.metric-group {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--space-4);
+}
+
+/* Print */
+@media print {
+  body { background: white; }
+  .page {
+    margin: 0;
+    box-shadow: none;
+  }
+}
+  </style>
+</head>
+<body>
+  <!-- Page 1: Cover & Summary -->
+  <div class="page">
+    <div class="cover">
+      <!-- Header -->
+      <div class="cover-header">
+        <div class="cover-brand">OptionPlay</div>
+        <h1 class="cover-title">Trading Analysis</h1>
+        <p class="cover-subtitle">Bull-Put-Spread Opportunity Assessment</p>
+      </div>
+
+      <!-- Hero Section -->
+      <div class="hero">
+        <div class="hero-content">
+          <div class="hero-eyebrow">
+            <span class="badge badge-info">Pullback</span>
+            <span class="badge badge-success">Qualifiziert</span>
+          </div>
+          <div class="hero-symbol">AAPL</div>
+          <div class="hero-company">Apple Inc.</div>
+          <div class="hero-price-group">
+            <span class="hero-price">$178.25</span>
+            <span class="metric-change text-danger">-1.24%</span>
+          </div>
+        </div>
+
+        <div class="hero-score">
+          <div class="score-ring-lg">
+            <svg width="100" height="100" viewBox="0 0 100 100">
+              <circle class="score-ring-bg" cx="50" cy="50" r="42"/>
+              <circle
+                class="score-ring-fill"
+                cx="50" cy="50" r="42"
+                stroke-dasharray="264"
+                stroke-dashoffset="82"
+                style="stroke: #34c759"
+              />
+            </svg>
+            <span class="score-ring-value">11</span>
+          </div>
+          <span class="hero-score-label">Score / 16</span>
+        </div>
+      </div>
+
+      <!-- Quick Stats -->
+      <div class="quick-stats">
+        <div class="quick-stat">
+          <span class="metric-label">RSI</span>
+          <span class="quick-stat-value text-success">28.5</span>
+        </div>
+        <div class="quick-stat">
+          <span class="metric-label">Support</span>
+          <span class="quick-stat-value">$172.50</span>
+        </div>
+        <div class="quick-stat">
+          <span class="metric-label">Abstand</span>
+          <span class="quick-stat-value">-3.2%</span>
+        </div>
+        <div class="quick-stat">
+          <span class="metric-label">Earnings</span>
+          <span class="quick-stat-value text-success">68d</span>
+        </div>
+        <div class="quick-stat">
+          <span class="metric-label">IV Rank</span>
+          <span class="quick-stat-value">42%</span>
+        </div>
+      </div>
+
+      <!-- Summary -->
+      <div class="summary-card">
+        <p>
+          <strong>AAPL</strong> zeigt ein <strong>starkes</strong>
+          Setup für einen Bull-Put-Spread. Der RSI bei <strong>28.5</strong> signalisiert
+          überverkaufte Bedingungen.
+          Die nächste Unterstützung liegt bei <strong>$172.50</strong>
+          (3.2% unter aktuellem Kurs). Mit einem Score von 11/16 und 68 Tagen bis zu den
+          nächsten Earnings ist dies ein solides Setup.
+        </p>
+      </div>
+
+      <!-- Cover Meta -->
+      <div class="cover-meta">
+        <div class="cover-meta-item">
+          <span class="metric-label">Generiert</span>
+          <span class="body-small">28. Januar 2026</span>
+        </div>
+        <div class="cover-meta-item">
+          <span class="metric-label">VIX Level</span>
+          <span class="body-small">16.8 (Normal)</span>
+        </div>
+        <div class="cover-meta-item">
+          <span class="metric-label">Datenstand</span>
+          <span class="body-small">28.01.2026 15:45 EST</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Page 2: Score Analysis -->
+  <div class="page">
+    <div class="section">
+      <div class="section-header">
+        <h2 class="title-medium">Score Breakdown</h2>
+        <p class="body-small">Detaillierte Analyse der Bewertungskomponenten</p>
+      </div>
+
+      <div class="score-grid">
+        <div class="score-item">
+          <span class="score-item-name">RSI</span>
+          <div class="score-item-value">
+            <span class="score-item-points">2/2</span>
+            <div class="score-item-bar">
+              <div class="score-item-bar-fill" style="width: 100%; background: #34c759"></div>
+            </div>
+          </div>
+        </div>
+        <div class="score-item">
+          <span class="score-item-name">Support Level</span>
+          <div class="score-item-value">
+            <span class="score-item-points">3/3</span>
+            <div class="score-item-bar">
+              <div class="score-item-bar-fill" style="width: 100%; background: #34c759"></div>
+            </div>
+          </div>
+        </div>
+        <div class="score-item">
+          <span class="score-item-name">Fibonacci</span>
+          <div class="score-item-value">
+            <span class="score-item-points">1/2</span>
+            <div class="score-item-bar">
+              <div class="score-item-bar-fill" style="width: 50%; background: #ff9500"></div>
+            </div>
+          </div>
+        </div>
+        <div class="score-item">
+          <span class="score-item-name">Moving Averages</span>
+          <div class="score-item-value">
+            <span class="score-item-points">2/2</span>
+            <div class="score-item-bar">
+              <div class="score-item-bar-fill" style="width: 100%; background: #34c759"></div>
+            </div>
+          </div>
+        </div>
+        <div class="score-item">
+          <span class="score-item-name">Trend Strength</span>
+          <div class="score-item-value">
+            <span class="score-item-points">1/2</span>
+            <div class="score-item-bar">
+              <div class="score-item-bar-fill" style="width: 50%; background: #ff9500"></div>
+            </div>
+          </div>
+        </div>
+        <div class="score-item">
+          <span class="score-item-name">Volume</span>
+          <div class="score-item-value">
+            <span class="score-item-points">2/2</span>
+            <div class="score-item-bar">
+              <div class="score-item-bar-fill" style="width: 100%; background: #34c759"></div>
+            </div>
+          </div>
+        </div>
+        <div class="score-item">
+          <span class="score-item-name">MACD</span>
+          <div class="score-item-value">
+            <span class="score-item-points">0/1</span>
+            <div class="score-item-bar">
+              <div class="score-item-bar-fill" style="width: 0%; background: #e8e8ed"></div>
+            </div>
+          </div>
+        </div>
+        <div class="score-item">
+          <span class="score-item-name">Stochastic</span>
+          <div class="score-item-value">
+            <span class="score-item-points">1/1</span>
+            <div class="score-item-bar">
+              <div class="score-item-bar-fill" style="width: 100%; background: #34c759"></div>
+            </div>
+          </div>
+        </div>
+        <div class="score-item">
+          <span class="score-item-name">Keltner Channel</span>
+          <div class="score-item-value">
+            <span class="score-item-points">1/1</span>
+            <div class="score-item-bar">
+              <div class="score-item-bar-fill" style="width: 100%; background: #34c759"></div>
+            </div>
+          </div>
+        </div>
+        <div class="score-item">
+          <span class="score-item-name">RSI Divergence</span>
+          <div class="score-item-value">
+            <span class="score-item-points">0/1</span>
+            <div class="score-item-bar">
+              <div class="score-item-bar-fill" style="width: 0%; background: #e8e8ed"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="section">
+      <div class="section-header">
+        <h2 class="title-medium">Technische Levels</h2>
+      </div>
+
+      <div class="levels-container">
+        <div class="level-group">
+          <div class="level-group-title">Support Levels</div>
+          <div class="level-row">
+            <span class="level-label">S1</span>
+            <span class="level-value">$172.50 <span class="level-distance text-success">-3.2%</span></span>
+          </div>
+          <div class="level-row">
+            <span class="level-label">S2</span>
+            <span class="level-value">$168.00 <span class="level-distance text-success">-5.8%</span></span>
+          </div>
+          <div class="level-row">
+            <span class="level-label">S3</span>
+            <span class="level-value">$165.25 <span class="level-distance text-success">-7.3%</span></span>
+          </div>
+        </div>
+
+        <div class="level-group">
+          <div class="level-group-title">Resistance Levels</div>
+          <div class="level-row">
+            <span class="level-label">R1</span>
+            <span class="level-value">$182.00 <span class="level-distance text-warning">+2.1%</span></span>
+          </div>
+          <div class="level-row">
+            <span class="level-label">R2</span>
+            <span class="level-value">$186.50 <span class="level-distance text-danger">+4.6%</span></span>
+          </div>
+          <div class="level-row">
+            <span class="level-label">R3</span>
+            <span class="level-value">$192.00 <span class="level-distance text-danger">+7.7%</span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="spacer-lg"></div>
+
+    <div class="section">
+      <div class="section-header">
+        <h2 class="title-medium">Fibonacci Retracements</h2>
+      </div>
+
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Level</th>
+              <th class="col-numeric">Preis</th>
+              <th class="col-numeric">Abstand</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>23.6%</td>
+              <td class="col-numeric">$185.20</td>
+              <td class="col-numeric">+3.9%</td>
+              <td><span class="badge badge-neutral">über</span></td>
+            </tr>
+            <tr>
+              <td>38.2%</td>
+              <td class="col-numeric">$180.50</td>
+              <td class="col-numeric">+1.3%</td>
+              <td><span class="badge badge-neutral">über</span></td>
+            </tr>
+            <tr>
+              <td>50.0%</td>
+              <td class="col-numeric">$176.80</td>
+              <td class="col-numeric">-0.8%</td>
+              <td><span class="badge badge-success">nahe</span></td>
+            </tr>
+            <tr>
+              <td>61.8%</td>
+              <td class="col-numeric">$173.10</td>
+              <td class="col-numeric">-2.9%</td>
+              <td><span class="badge badge-neutral">unter</span></td>
+            </tr>
+            <tr>
+              <td>78.6%</td>
+              <td class="col-numeric">$168.50</td>
+              <td class="col-numeric">-5.5%</td>
+              <td><span class="badge badge-neutral">unter</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Page 3: Options Setup -->
+  <div class="page">
+    <div class="section">
+      <div class="section-header">
+        <h2 class="title-medium">Options Setup</h2>
+        <p class="body-small">Empfohlene Bull-Put-Spread Struktur</p>
+      </div>
+
+      <!-- Spread Visual -->
+      <div class="spread-visual">
+        <div class="flex-between">
+          <div><span class="caption">Max Verlust Zone</span></div>
+          <div><span class="caption">Break-Even</span></div>
+          <div><span class="caption">Max Profit Zone</span></div>
+        </div>
+        <div class="spread-bar">
+          <div class="spread-marker" style="left: 15%">
+            <div class="spread-marker-line" style="background: #ff3b30"></div>
+            <span class="spread-marker-label">Long Put</span>
+            <span class="spread-marker-price">$165</span>
+          </div>
+          <div class="spread-marker" style="left: 40%">
+            <div class="spread-marker-line" style="background: #ff9500"></div>
+            <span class="spread-marker-label">Break-Even</span>
+            <span class="spread-marker-price">$168.20</span>
+          </div>
+          <div class="spread-marker" style="left: 55%">
+            <div class="spread-marker-line" style="background: #34c759"></div>
+            <span class="spread-marker-label">Short Put</span>
+            <span class="spread-marker-price">$170</span>
+          </div>
+          <div class="spread-marker" style="left: 78%">
+            <div class="spread-marker-line" style="background: #007aff; height: 70px; margin-top: -8px;"></div>
+            <span class="spread-marker-label" style="color: #007aff">Aktuell</span>
+            <span class="spread-marker-price">$178.25</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Options Metrics Grid -->
+      <div class="options-grid">
+        <div class="option-card">
+          <div class="option-card-label">Short Strike</div>
+          <div class="option-card-value">$170</div>
+          <div class="option-card-subtext">Delta: -0.22</div>
+        </div>
+        <div class="option-card">
+          <div class="option-card-label">Long Strike</div>
+          <div class="option-card-value">$165</div>
+          <div class="option-card-subtext">Delta: -0.12</div>
+        </div>
+        <div class="option-card option-card-highlight">
+          <div class="option-card-label">Net Credit</div>
+          <div class="option-card-value text-success">$1.80</div>
+          <div class="option-card-subtext">pro Kontrakt</div>
+        </div>
+        <div class="option-card">
+          <div class="option-card-label">Max Risk</div>
+          <div class="option-card-value text-danger">$3.20</div>
+          <div class="option-card-subtext">Spread - Credit</div>
+        </div>
+        <div class="option-card">
+          <div class="option-card-label">Break-Even</div>
+          <div class="option-card-value">$168.20</div>
+          <div class="option-card-subtext">Short - Credit</div>
+        </div>
+        <div class="option-card option-card-highlight">
+          <div class="option-card-label">ROI</div>
+          <div class="option-card-value text-success">56.3%</div>
+          <div class="option-card-subtext">Credit / Risk</div>
+        </div>
+      </div>
+
+      <div class="spacer-lg"></div>
+
+      <div class="card-subtle">
+        <div class="grid-3">
+          <div class="metric">
+            <span class="metric-label">Verfall</span>
+            <span class="metric-value">21. März 2026</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">DTE</span>
+            <span class="metric-value">52</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Prob. of Profit</span>
+            <span class="metric-value text-success">~78%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="section">
+      <div class="section-header">
+        <h2 class="title-medium">Exit Strategie</h2>
+      </div>
+
+      <div class="table-container">
+        <table>
+          <tbody>
+            <tr>
+              <td>
+                <span class="status-indicator">
+                  <span class="status-dot active"></span>
+                  Take Profit
+                </span>
+              </td>
+              <td>Position schliessen</td>
+              <td class="col-numeric">50% des Credits erreicht</td>
+            </tr>
+            <tr>
+              <td>
+                <span class="status-indicator">
+                  <span class="status-dot warning"></span>
+                  Adjustment
+                </span>
+              </td>
+              <td>Spread anpassen</td>
+              <td class="col-numeric">Kurs unter $175</td>
+            </tr>
+            <tr>
+              <td>
+                <span class="status-indicator">
+                  <span class="status-dot inactive"></span>
+                  Stop Loss
+                </span>
+              </td>
+              <td>Position schliessen</td>
+              <td class="col-numeric">Kurs unter $170</td>
+            </tr>
+            <tr>
+              <td>
+                <span class="status-indicator">
+                  <span class="status-dot neutral"></span>
+                  Time Exit
+                </span>
+              </td>
+              <td>Position schliessen</td>
+              <td class="col-numeric">14 DTE</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Page 4: Chart & News -->
+  <div class="page">
+    <div class="section">
+      <div class="section-header">
+        <h2 class="title-medium">Volume Profile Chart</h2>
+      </div>
+
+      <div class="chart-container">
+        <span>[Volume Profile Chart wird hier eingebettet]</span>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="section">
+      <div class="section-header">
+        <h2 class="title-medium">Aktuelle News</h2>
+      </div>
+
+      <div class="news-list">
+        <div class="news-item">
+          <span class="news-date">27.01.2026</span>
+          <span class="news-headline">Apple Reports Strong Q4 Results, Services Revenue Hits Record</span>
+          <span class="news-source">Reuters</span>
+        </div>
+        <div class="news-item">
+          <span class="news-date">26.01.2026</span>
+          <span class="news-headline">iPhone 17 Production Ramps Up Ahead of Schedule</span>
+          <span class="news-source">Bloomberg</span>
+        </div>
+        <div class="news-item">
+          <span class="news-date">25.01.2026</span>
+          <span class="news-headline">Apple Vision Pro 2 Launch Expected in Spring</span>
+          <span class="news-source">CNBC</span>
+        </div>
+        <div class="news-item">
+          <span class="news-date">24.01.2026</span>
+          <span class="news-headline">Analysts Raise Price Targets Following AI Integration</span>
+          <span class="news-source">Barron's</span>
+        </div>
+        <div class="news-item">
+          <span class="news-date">23.01.2026</span>
+          <span class="news-headline">Apple Expands Retail Presence in India with 5 New Stores</span>
+          <span class="news-source">WSJ</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="report-footer">
+      <p class="disclaimer">
+        Dieser Report dient ausschliesslich zu Informationszwecken und stellt keine Anlageberatung dar.
+        Alle Investitionen sind mit Risiken verbunden. Die Wertentwicklung in der Vergangenheit ist
+        keine Garantie für zukünftige Ergebnisse. Vor jeder Anlageentscheidung sollten Sie Ihre
+        persönliche finanzielle Situation berücksichtigen.
+      </p>
+      <div class="footer-meta">
+        <span>OptionPlay v2.0</span>
+        <span>28.01.2026 15:45</span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

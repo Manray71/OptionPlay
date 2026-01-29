@@ -64,17 +64,30 @@ class ConnectionConfig:
     max_retries: int = 3
 
 
-@dataclass 
+@dataclass
 class TradierConfig:
     """Tradier API Konfiguration"""
     enabled: bool = True
-    sandbox: bool = True
-    base_url: str = "https://sandbox.tradier.com/v1"
+    environment: str = "sandbox"  # "sandbox" oder "production"
     api_key: str = ""
-    
+    timeout_seconds: int = 30
+    max_retries: int = 3
+    retry_delay_seconds: float = 1.0
+    rate_limit_per_minute: int = 120
+
     def __post_init__(self):
         if not self.api_key:
             self.api_key = os.environ.get("TRADIER_API_KEY", "")
+
+    @property
+    def is_production(self) -> bool:
+        return self.environment == "production"
+
+    @property
+    def base_url(self) -> str:
+        if self.is_production:
+            return "https://api.tradier.com"
+        return "https://sandbox.tradier.com"
 
 
 @dataclass
@@ -416,24 +429,42 @@ class OptionsConfig:
     dte_minimum: int = 30
     dte_maximum: int = 60
     dte_target: int = 45
-    delta_minimum: float = -0.35
-    delta_maximum: float = -0.20
-    delta_target: float = -0.30
+    # Short Put (verkauft) - Delta ±0.20
+    delta_minimum: float = -0.25
+    delta_maximum: float = -0.15
+    delta_target: float = -0.20
+    # Long Put (gekauft) - Delta ±0.05
+    long_delta_minimum: float = -0.08
+    long_delta_maximum: float = -0.03
+    long_delta_target: float = -0.05
     default_spread_width: float = 5.0
     min_credit_pct: float = 20.0
     min_open_interest: int = 100
-    
+
     # Aliases for compatibility
     @property
     def spread_width(self) -> float:
         return self.default_spread_width
-    
+
     @property
     def delta_min(self) -> float:
         return self.delta_minimum
-    
+
     @property
     def delta_max(self) -> float:
+        return self.delta_maximum
+
+    # Short put aliases
+    @property
+    def short_delta_target(self) -> float:
+        return self.delta_target
+
+    @property
+    def short_delta_min(self) -> float:
+        return self.delta_minimum
+
+    @property
+    def short_delta_max(self) -> float:
         return self.delta_maximum
 
 
@@ -542,14 +573,22 @@ class ConfigLoader:
                 max_retries=conn.get('max_retries', 3)
             )
             
-        # Tradier
+        # Tradier (can be under 'connection' or at root level)
+        trad = None
         if 'connection' in raw and 'tradier' in raw['connection']:
             trad = raw['connection']['tradier']
+        elif 'tradier' in raw:
+            trad = raw['tradier']
+
+        if trad:
             settings.tradier = TradierConfig(
                 enabled=trad.get('enabled', True),
-                sandbox=trad.get('sandbox', True),
-                base_url=trad.get('base_url', 'https://sandbox.tradier.com/v1'),
-                api_key=trad.get('api_key', '')
+                environment=trad.get('environment', 'sandbox'),
+                api_key=trad.get('api_key', ''),
+                timeout_seconds=trad.get('timeout_seconds', 30),
+                max_retries=trad.get('max_retries', 3),
+                retry_delay_seconds=trad.get('retry_delay_seconds', 1.0),
+                rate_limit_per_minute=trad.get('rate_limit_per_minute', 120)
             )
             
         # Pullback Scoring
@@ -629,9 +668,14 @@ class ConfigLoader:
                 dte_minimum=oa.get('expiration', {}).get('dte_minimum', 30),
                 dte_maximum=oa.get('expiration', {}).get('dte_maximum', 60),
                 dte_target=oa.get('expiration', {}).get('dte_target', 45),
-                delta_minimum=oa.get('short_put', {}).get('delta_minimum', -0.35),
-                delta_maximum=oa.get('short_put', {}).get('delta_maximum', -0.20),
-                delta_target=oa.get('short_put', {}).get('delta_target', -0.30),
+                # Short Put Delta ±0.20
+                delta_minimum=oa.get('short_put', {}).get('delta_minimum', -0.25),
+                delta_maximum=oa.get('short_put', {}).get('delta_maximum', -0.15),
+                delta_target=oa.get('short_put', {}).get('delta_target', -0.20),
+                # Long Put Delta ±0.05
+                long_delta_minimum=oa.get('long_put', {}).get('delta_minimum', -0.08),
+                long_delta_maximum=oa.get('long_put', {}).get('delta_maximum', -0.03),
+                long_delta_target=oa.get('long_put', {}).get('delta_target', -0.05),
                 default_spread_width=oa.get('spread', {}).get('preferred_width', 5.0),
                 min_credit_pct=oa.get('premium', {}).get('minimum_credit_percent', 20),
                 min_open_interest=oa.get('liquidity', {}).get('min_open_interest', 100)
@@ -800,12 +844,34 @@ class ConfigLoader:
                     'delta_target',
                     self._settings.options.delta_target
                 )
+                self._settings.options.delta_minimum = sp.get(
+                    'delta_minimum',
+                    self._settings.options.delta_minimum
+                )
+                self._settings.options.delta_maximum = sp.get(
+                    'delta_maximum',
+                    self._settings.options.delta_maximum
+                )
+            if 'long_put' in oa:
+                lp = oa['long_put']
+                self._settings.options.long_delta_target = lp.get(
+                    'delta_target',
+                    self._settings.options.long_delta_target
+                )
+                self._settings.options.long_delta_minimum = lp.get(
+                    'delta_minimum',
+                    self._settings.options.long_delta_minimum
+                )
+                self._settings.options.long_delta_maximum = lp.get(
+                    'delta_maximum',
+                    self._settings.options.long_delta_maximum
+                )
             if 'spread' in oa:
                 self._settings.options.default_spread_width = oa['spread'].get(
                     'preferred_width',
                     self._settings.options.default_spread_width
                 )
-                
+
         logger.info(f"Applied strategy: {profile_name}")
         return self._settings
 

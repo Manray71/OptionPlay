@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ symbol }} - Trading Report</title>
+  <link rel="stylesheet" href="base_styles.css">
+  <style>
+    /* Page-specific overrides and components */
+
+    /* Hero Section */
+    .hero {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: var(--space-8);
+      align-items: start;
+      padding-bottom: var(--space-6);
+      border-bottom: 1px solid var(--color-border-secondary);
+      margin-bottom: var(--space-6);
+    }
+
+    .hero-content {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+    }
+
+    .hero-eyebrow {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+    }
+
+    .hero-symbol {
+      font-family: 'SF Pro Display', 'Inter', -apple-system, sans-serif;
+      font-size: 4rem;
+      font-weight: var(--font-bold);
+      letter-spacing: -0.03em;
+      line-height: 1;
+      color: var(--color-text-primary);
+    }
+
+    .hero-company {
+      font-size: var(--font-size-lg);
+      color: var(--color-text-secondary);
+      font-weight: var(--font-regular);
+    }
+
+    .hero-price-group {
+      display: flex;
+      align-items: baseline;
+      gap: var(--space-3);
+      margin-top: var(--space-2);
+    }
+
+    .hero-price {
+      font-family: 'SF Pro Display', 'Inter', -apple-system, sans-serif;
+      font-size: var(--font-size-2xl);
+      font-weight: var(--font-semibold);
+      color: var(--color-text-primary);
+    }
+
+    .hero-score {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--space-2);
+    }
+
+    .hero-score-label {
+      font-size: var(--font-size-xs);
+      font-weight: var(--font-medium);
+      color: var(--color-text-tertiary);
+      text-transform: uppercase;
+      letter-spacing: var(--tracking-wide);
+    }
+
+    /* Score Ring (larger variant) */
+    .score-ring-lg {
+      position: relative;
+      width: 100px;
+      height: 100px;
+    }
+
+    .score-ring-lg svg {
+      transform: rotate(-90deg);
+    }
+
+    .score-ring-lg .score-ring-value {
+      font-size: var(--font-size-xl);
+    }
+
+    /* Quick Stats Bar */
+    .quick-stats {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: var(--space-4);
+      padding: var(--space-4) 0;
+    }
+
+    .quick-stat {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .quick-stat-value {
+      font-family: 'SF Mono', monospace;
+      font-size: var(--font-size-md);
+      font-weight: var(--font-semibold);
+      color: var(--color-text-primary);
+    }
+
+    /* Summary Card */
+    .summary-card {
+      background: linear-gradient(135deg, var(--color-bg-secondary) 0%, var(--color-bg-tertiary) 100%);
+      border-radius: var(--radius-xl);
+      padding: var(--space-6);
+      margin-bottom: var(--space-6);
+    }
+
+    .summary-card p {
+      font-size: var(--font-size-base);
+      line-height: var(--leading-relaxed);
+      color: var(--color-text-secondary);
+    }
+
+    .summary-card strong {
+      color: var(--color-text-primary);
+      font-weight: var(--font-semibold);
+    }
+
+    /* Score Breakdown Grid */
+    .score-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: var(--space-3);
+    }
+
+    .score-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--space-3) var(--space-4);
+      background: var(--color-bg-secondary);
+      border-radius: var(--radius-md);
+    }
+
+    .score-item-name {
+      font-size: var(--font-size-sm);
+      font-weight: var(--font-medium);
+      color: var(--color-text-primary);
+    }
+
+    .score-item-value {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+    }
+
+    .score-item-points {
+      font-family: 'SF Mono', monospace;
+      font-size: var(--font-size-sm);
+      font-weight: var(--font-semibold);
+      min-width: 45px;
+      text-align: right;
+    }
+
+    .score-item-bar {
+      width: 60px;
+      height: 4px;
+      background: var(--color-border-secondary);
+      border-radius: var(--radius-full);
+      overflow: hidden;
+    }
+
+    .score-item-bar-fill {
+      height: 100%;
+      border-radius: var(--radius-full);
+      background: var(--color-accent-blue);
+    }
+
+    /* Technical Levels */
+    .levels-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-5);
+    }
+
+    .level-group {
+      background: var(--color-bg-secondary);
+      border-radius: var(--radius-lg);
+      padding: var(--space-4);
+    }
+
+    .level-group-title {
+      font-size: var(--font-size-sm);
+      font-weight: var(--font-semibold);
+      color: var(--color-text-secondary);
+      text-transform: uppercase;
+      letter-spacing: var(--tracking-wide);
+      margin-bottom: var(--space-3);
+    }
+
+    .level-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: var(--space-2) 0;
+      border-bottom: 1px solid var(--color-border-tertiary);
+    }
+
+    .level-row:last-child {
+      border-bottom: none;
+    }
+
+    .level-label {
+      font-size: var(--font-size-sm);
+      color: var(--color-text-secondary);
+    }
+
+    .level-value {
+      font-family: 'SF Mono', monospace;
+      font-size: var(--font-size-sm);
+      font-weight: var(--font-medium);
+      color: var(--color-text-primary);
+    }
+
+    .level-distance {
+      font-size: var(--font-size-xs);
+      color: var(--color-text-tertiary);
+      margin-left: var(--space-2);
+    }
+
+    /* Options Setup */
+    .options-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: var(--space-4);
+    }
+
+    .option-card {
+      background: var(--color-bg-elevated);
+      border: 1px solid var(--color-border-secondary);
+      border-radius: var(--radius-lg);
+      padding: var(--space-4);
+      text-align: center;
+    }
+
+    .option-card-highlight {
+      background: linear-gradient(135deg, var(--color-info-bg) 0%, rgba(0, 122, 255, 0.05) 100%);
+      border-color: var(--color-accent-blue);
+    }
+
+    .option-card-label {
+      font-size: var(--font-size-xs);
+      font-weight: var(--font-medium);
+      color: var(--color-text-tertiary);
+      text-transform: uppercase;
+      letter-spacing: var(--tracking-wide);
+      margin-bottom: var(--space-2);
+    }
+
+    .option-card-value {
+      font-family: 'SF Mono', monospace;
+      font-size: var(--font-size-lg);
+      font-weight: var(--font-bold);
+      color: var(--color-text-primary);
+    }
+
+    .option-card-subtext {
+      font-size: var(--font-size-xs);
+      color: var(--color-text-tertiary);
+      margin-top: var(--space-1);
+    }
+
+    /* Spread Visual */
+    .spread-visual {
+      background: var(--color-bg-secondary);
+      border-radius: var(--radius-xl);
+      padding: var(--space-6);
+      margin: var(--space-5) 0;
+    }
+
+    .spread-bar {
+      position: relative;
+      height: 40px;
+      background: linear-gradient(90deg,
+        var(--color-danger-bg) 0%,
+        var(--color-bg-tertiary) 50%,
+        var(--color-success-bg) 100%
+      );
+      border-radius: var(--radius-md);
+      margin: var(--space-4) 0;
+    }
+
+    .spread-marker {
+      position: absolute;
+      top: -8px;
+      transform: translateX(-50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .spread-marker-line {
+      width: 2px;
+      height: 56px;
+      background: var(--color-text-primary);
+    }
+
+    .spread-marker-label {
+      font-size: var(--font-size-xs);
+      font-weight: var(--font-semibold);
+      color: var(--color-text-primary);
+      margin-top: var(--space-1);
+      white-space: nowrap;
+    }
+
+    .spread-marker-price {
+      font-family: 'SF Mono', monospace;
+      font-size: var(--font-size-sm);
+      color: var(--color-text-secondary);
+    }
+
+    /* News Section */
+    .news-list {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+    }
+
+    .news-item {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: var(--space-4);
+      align-items: start;
+      padding: var(--space-3) 0;
+      border-bottom: 1px solid var(--color-border-tertiary);
+    }
+
+    .news-item:last-child {
+      border-bottom: none;
+    }
+
+    .news-date {
+      font-size: var(--font-size-xs);
+      color: var(--color-text-tertiary);
+      min-width: 70px;
+    }
+
+    .news-headline {
+      font-size: var(--font-size-sm);
+      font-weight: var(--font-medium);
+      color: var(--color-text-primary);
+      line-height: var(--leading-snug);
+    }
+
+    .news-source {
+      font-size: var(--font-size-xs);
+      color: var(--color-text-tertiary);
+    }
+
+    /* Footer */
+    .report-footer {
+      margin-top: auto;
+      padding-top: var(--space-6);
+      border-top: 1px solid var(--color-border-secondary);
+    }
+
+    .disclaimer {
+      font-size: var(--font-size-xs);
+      color: var(--color-text-tertiary);
+      line-height: var(--leading-relaxed);
+    }
+
+    .footer-meta {
+      display: flex;
+      justify-content: space-between;
+      margin-top: var(--space-3);
+      font-size: var(--font-size-xs);
+      color: var(--color-text-quaternary);
+    }
+  </style>
+</head>
+<body>
+  <!-- Page 1: Cover & Summary -->
+  <div class="page">
+    <div class="cover">
+      <!-- Header -->
+      <div class="cover-header">
+        <div class="cover-brand">OptionPlay</div>
+        <h1 class="cover-title">Trading Analysis</h1>
+        <p class="cover-subtitle">Bull-Put-Spread Opportunity Assessment</p>
+      </div>
+
+      <!-- Hero Section -->
+      <div class="hero">
+        <div class="hero-content">
+          <div class="hero-eyebrow">
+            <span class="badge badge-info">{{ strategy }}</span>
+            <span class="badge {{ 'badge-success' if qualified else 'badge-neutral' }}">
+              {{ 'Qualifiziert' if qualified else 'Nicht qualifiziert' }}
+            </span>
+          </div>
+          <div class="hero-symbol">{{ symbol }}</div>
+          <div class="hero-company">{{ company_name }}</div>
+          <div class="hero-price-group">
+            <span class="hero-price">${{ price }}</span>
+            <span class="metric-change {{ 'positive' if change >= 0 else 'negative' }}">
+              {{ '+' if change >= 0 else '' }}{{ change }}%
+            </span>
+          </div>
+        </div>
+
+        <div class="hero-score">
+          <div class="score-ring-lg">
+            <svg width="100" height="100" viewBox="0 0 100 100">
+              <circle class="score-ring-bg" cx="50" cy="50" r="42"/>
+              <circle
+                class="score-ring-fill"
+                cx="50" cy="50" r="42"
+                stroke-dasharray="264"
+                stroke-dashoffset="{{ 264 - (score / max_score * 264) }}"
+                style="stroke: {{ '#34c759' if score >= 8 else '#ff9500' if score >= 5 else '#ff3b30' }}"
+              />
+            </svg>
+            <span class="score-ring-value">{{ score }}</span>
+          </div>
+          <span class="hero-score-label">Score / {{ max_score }}</span>
+        </div>
+      </div>
+
+      <!-- Quick Stats -->
+      <div class="quick-stats">
+        <div class="quick-stat">
+          <span class="metric-label">RSI</span>
+          <span class="quick-stat-value text-{{ 'success' if rsi < 30 else 'danger' if rsi > 70 else 'secondary' }}">
+            {{ rsi }}
+          </span>
+        </div>
+        <div class="quick-stat">
+          <span class="metric-label">Support</span>
+          <span class="quick-stat-value">${{ support_level }}</span>
+        </div>
+        <div class="quick-stat">
+          <span class="metric-label">Abstand</span>
+          <span class="quick-stat-value">{{ support_distance }}%</span>
+        </div>
+        <div class="quick-stat">
+          <span class="metric-label">Earnings</span>
+          <span class="quick-stat-value text-{{ 'success' if earnings_days > 45 else 'warning' if earnings_days > 21 else 'danger' }}">
+            {{ earnings_days }}d
+          </span>
+        </div>
+        <div class="quick-stat">
+          <span class="metric-label">IV Rank</span>
+          <span class="quick-stat-value">{{ iv_rank }}%</span>
+        </div>
+      </div>
+
+      <!-- Summary -->
+      <div class="summary-card">
+        <p>
+          <strong>{{ symbol }}</strong> zeigt ein {{ 'starkes' if score >= 8 else 'moderates' if score >= 5 else 'schwaches' }}
+          Setup für einen Bull-Put-Spread. Der RSI bei <strong>{{ rsi }}</strong> signalisiert
+          {{ 'überverkaufte Bedingungen' if rsi < 30 else 'überkaufte Bedingungen' if rsi > 70 else 'neutrale Bedingungen' }}.
+          Die nächste Unterstützung liegt bei <strong>${{ support_level }}</strong>
+          ({{ support_distance }}% unter aktuellem Kurs).
+          {% if earnings_days < 45 %}
+          <span class="text-warning">Achtung: Earnings in {{ earnings_days }} Tagen.</span>
+          {% endif %}
+        </p>
+      </div>
+
+      <!-- Cover Meta -->
+      <div class="cover-meta">
+        <div class="cover-meta-item">
+          <span class="metric-label">Generiert</span>
+          <span class="body-small">{{ generated_date }}</span>
+        </div>
+        <div class="cover-meta-item">
+          <span class="metric-label">VIX Level</span>
+          <span class="body-small">{{ vix_level }} ({{ vix_regime }})</span>
+        </div>
+        <div class="cover-meta-item">
+          <span class="metric-label">Datenstand</span>
+          <span class="body-small">{{ data_timestamp }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Page 2: Score Analysis -->
+  <div class="page">
+    <div class="section">
+      <div class="section-header">
+        <h2 class="title-medium">Score Breakdown</h2>
+        <p class="body-small">Detaillierte Analyse der Bewertungskomponenten</p>
+      </div>
+
+      <div class="score-grid">
+        {% for component in score_components %}
+        <div class="score-item no-break">
+          <span class="score-item-name">{{ component.name }}</span>
+          <div class="score-item-value">
+            <span class="score-item-points">{{ component.score }}/{{ component.max }}</span>
+            <div class="score-item-bar">
+              <div
+                class="score-item-bar-fill"
+                style="width: {{ (component.score / component.max * 100) }}%;
+                       background: {{ '#34c759' if component.score == component.max else '#ff9500' if component.score > 0 else '#e8e8ed' }}"
+              ></div>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="section">
+      <div class="section-header">
+        <h2 class="title-medium">Technische Levels</h2>
+      </div>
+
+      <div class="levels-container">
+        <div class="level-group">
+          <div class="level-group-title">Support Levels</div>
+          {% for level in support_levels %}
+          <div class="level-row">
+            <span class="level-label">S{{ loop.index }}</span>
+            <span class="level-value">
+              ${{ level.price }}
+              <span class="level-distance text-{{ 'success' if level.distance < -5 else 'warning' }}">
+                {{ level.distance }}%
+              </span>
+            </span>
+          </div>
+          {% endfor %}
+        </div>
+
+        <div class="level-group">
+          <div class="level-group-title">Resistance Levels</div>
+          {% for level in resistance_levels %}
+          <div class="level-row">
+            <span class="level-label">R{{ loop.index }}</span>
+            <span class="level-value">
+              ${{ level.price }}
+              <span class="level-distance text-{{ 'danger' if level.distance > 5 else 'warning' }}">
+                +{{ level.distance }}%
+              </span>
+            </span>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <div class="spacer-lg"></div>
+
+    <div class="section">
+      <div class="section-header">
+        <h2 class="title-medium">Fibonacci Retracements</h2>
+      </div>
+
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Level</th>
+              <th class="col-numeric">Preis</th>
+              <th class="col-numeric">Abstand</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for fib in fibonacci_levels %}
+            <tr>
+              <td>{{ fib.level }}%</td>
+              <td class="col-numeric">${{ fib.price }}</td>
+              <td class="col-numeric">{{ fib.distance }}%</td>
+              <td>
+                <span class="badge badge-{{ 'success' if fib.status == 'nahe' else 'neutral' }}">
+                  {{ fib.status }}
+                </span>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Page 3: Options Setup -->
+  <div class="page">
+    <div class="section">
+      <div class="section-header">
+        <h2 class="title-medium">Options Setup</h2>
+        <p class="body-small">Empfohlene Bull-Put-Spread Struktur</p>
+      </div>
+
+      <!-- Spread Visual -->
+      <div class="spread-visual">
+        <div class="flex-between">
+          <div>
+            <span class="caption">Max Verlust Zone</span>
+          </div>
+          <div>
+            <span class="caption">Break-Even</span>
+          </div>
+          <div>
+            <span class="caption">Max Profit Zone</span>
+          </div>
+        </div>
+        <div class="spread-bar">
+          <div class="spread-marker" style="left: {{ long_strike_position }}%">
+            <div class="spread-marker-line" style="background: var(--color-danger)"></div>
+            <span class="spread-marker-label">Long Put</span>
+            <span class="spread-marker-price">${{ long_strike }}</span>
+          </div>
+          <div class="spread-marker" style="left: {{ breakeven_position }}%">
+            <div class="spread-marker-line" style="background: var(--color-warning)"></div>
+            <span class="spread-marker-label">Break-Even</span>
+            <span class="spread-marker-price">${{ breakeven_price }}</span>
+          </div>
+          <div class="spread-marker" style="left: {{ short_strike_position }}%">
+            <div class="spread-marker-line" style="background: var(--color-success)"></div>
+            <span class="spread-marker-label">Short Put</span>
+            <span class="spread-marker-price">${{ short_strike }}</span>
+          </div>
+          <div class="spread-marker" style="left: {{ current_price_position }}%">
+            <div class="spread-marker-line" style="background: var(--color-accent-blue); height: 70px; top: -16px"></div>
+            <span class="spread-marker-label text-info">Aktuell</span>
+            <span class="spread-marker-price">${{ price }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Options Metrics Grid -->
+      <div class="options-grid">
+        <div class="option-card">
+          <div class="option-card-label">Short Strike</div>
+          <div class="option-card-value">${{ short_strike }}</div>
+          <div class="option-card-subtext">Delta: {{ short_delta }}</div>
+        </div>
+        <div class="option-card">
+          <div class="option-card-label">Long Strike</div>
+          <div class="option-card-value">${{ long_strike }}</div>
+          <div class="option-card-subtext">Delta: {{ long_delta }}</div>
+        </div>
+        <div class="option-card option-card-highlight">
+          <div class="option-card-label">Net Credit</div>
+          <div class="option-card-value text-success">${{ net_credit }}</div>
+          <div class="option-card-subtext">pro Kontrakt</div>
+        </div>
+        <div class="option-card">
+          <div class="option-card-label">Max Risk</div>
+          <div class="option-card-value text-danger">${{ max_risk }}</div>
+          <div class="option-card-subtext">Spread - Credit</div>
+        </div>
+        <div class="option-card">
+          <div class="option-card-label">Break-Even</div>
+          <div class="option-card-value">${{ breakeven_price }}</div>
+          <div class="option-card-subtext">Short - Credit</div>
+        </div>
+        <div class="option-card option-card-highlight">
+          <div class="option-card-label">ROI</div>
+          <div class="option-card-value text-success">{{ roi }}%</div>
+          <div class="option-card-subtext">Credit / Risk</div>
+        </div>
+      </div>
+
+      <div class="spacer-lg"></div>
+
+      <div class="card-subtle">
+        <div class="grid-3">
+          <div class="metric">
+            <span class="metric-label">Verfall</span>
+            <span class="metric-value">{{ expiry_date }}</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">DTE</span>
+            <span class="metric-value">{{ dte }}</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Prob. of Profit</span>
+            <span class="metric-value text-success">~{{ pop }}%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="section">
+      <div class="section-header">
+        <h2 class="title-medium">Exit Strategie</h2>
+      </div>
+
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Bedingung</th>
+              <th>Aktion</th>
+              <th>Trigger</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>
+                <span class="status-indicator">
+                  <span class="status-dot active"></span>
+                  Take Profit
+                </span>
+              </td>
+              <td>Position schliessen</td>
+              <td class="col-numeric">50% des Credits erreicht</td>
+            </tr>
+            <tr>
+              <td>
+                <span class="status-indicator">
+                  <span class="status-dot warning"></span>
+                  Adjustment
+                </span>
+              </td>
+              <td>Spread anpassen</td>
+              <td class="col-numeric">Kurs unter ${{ short_strike }} + $5</td>
+            </tr>
+            <tr>
+              <td>
+                <span class="status-indicator">
+                  <span class="status-dot inactive"></span>
+                  Stop Loss
+                </span>
+              </td>
+              <td>Position schliessen</td>
+              <td class="col-numeric">Kurs unter ${{ short_strike }}</td>
+            </tr>
+            <tr>
+              <td>
+                <span class="status-indicator">
+                  <span class="status-dot neutral"></span>
+                  Time Exit
+                </span>
+              </td>
+              <td>Position schliessen</td>
+              <td class="col-numeric">14 DTE</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Page 4: Chart & News -->
+  <div class="page">
+    <div class="section">
+      <div class="section-header">
+        <h2 class="title-medium">Volume Profile Chart</h2>
+      </div>
+
+      <div class="chart-container">
+        <!-- Chart wird als PNG eingebettet -->
+        <img src="{{ chart_path }}" alt="Volume Profile Chart für {{ symbol }}">
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="section">
+      <div class="section-header">
+        <h2 class="title-medium">Aktuelle News</h2>
+      </div>
+
+      <div class="news-list">
+        {% for item in news_items %}
+        <div class="news-item no-break">
+          <span class="news-date">{{ item.date }}</span>
+          <span class="news-headline">{{ item.headline }}</span>
+          <span class="news-source">{{ item.source }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="report-footer">
+      <p class="disclaimer">
+        Dieser Report dient ausschliesslich zu Informationszwecken und stellt keine Anlageberatung dar.
+        Alle Investitionen sind mit Risiken verbunden. Die Wertentwicklung in der Vergangenheit ist
+        keine Garantie für zukünftige Ergebnisse. Vor jeder Anlageentscheidung sollten Sie Ihre
+        persönliche finanzielle Situation berücksichtigen.
+      </p>
+      <div class="footer-meta">
+        <span>OptionPlay {{ version }}</span>
+        <span>{{ generated_date }} {{ generated_time }}</span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

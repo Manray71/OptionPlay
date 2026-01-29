@@ -21,6 +21,18 @@ from .simulator import (
     SimulatedTrade,
     PriceSimulator,
 )
+from .options_simulator import (
+    OptionsSimulator,
+    SpreadEntry,
+    SpreadSnapshot,
+    SimulatorConfig as OptionsSimulatorConfig,
+    quick_spread_pnl,
+    # NumPy batch functions
+    batch_calculate_spread_values,
+    batch_calculate_pnl,
+    batch_check_exit_signals,
+    EXIT_CODE_NAMES,
+)
 from .signal_validation import (
     SignalValidator,
     SignalValidationResult,
@@ -65,6 +77,67 @@ from .data_collector import (
     run_daily_collection,
     create_collector,
 )
+from .regime_config import (
+    RegimeConfig,
+    RegimeType,
+    RegimeBoundaryMethod,
+    RegimeState,
+    RegimeTransition,
+    FIXED_REGIMES,
+    create_percentile_regimes,
+    get_regime_for_vix,
+    save_regimes,
+    load_regimes,
+    format_regime_summary,
+    # Trained Model Support
+    TrainedModelLoader,
+    TrainedRegimeConfig,
+    TrainedStrategyConfig,
+    get_trained_model_loader,
+    load_trained_regimes,
+    REGIME_NAME_MAPPING,
+)
+from .regime_trainer import (
+    RegimeTrainer,
+    RegimeTrainingConfig,
+    RegimeTrainingResult,
+    FullRegimeTrainingResult,
+    RegimeEpochResult,
+    StrategyPerformance,
+)
+from .regime_model import (
+    RegimeModel,
+    TradingParameters,
+    TradeDecision,
+    RegimeStatus,
+    get_regime_recommendation,
+    format_regime_status,
+)
+from .ml_weight_optimizer import (
+    MLWeightOptimizer,
+    OptimizationMethod,
+    OptimizationResult,
+    WeightConfig,
+    ComponentStats,
+    WeightedScorer,
+    STRATEGY_COMPONENTS,
+    ALL_COMPONENTS,
+)
+from .ensemble_selector import (
+    EnsembleSelector,
+    MetaLearner,
+    StrategyRotationEngine,
+    StrategyScore,
+    EnsembleRecommendation,
+    SymbolPerformance,
+    RotationState,
+    SelectionMethod,
+    RotationTrigger,
+    create_strategy_score,
+    format_ensemble_summary,
+    STRATEGIES,
+    DEFAULT_REGIME_PREFERENCES,
+)
 
 __all__ = [
     # Engine
@@ -84,6 +157,17 @@ __all__ = [
     "TradeSimulator",
     "SimulatedTrade",
     "PriceSimulator",
+    # Options Simulator (Black-Scholes)
+    "OptionsSimulator",
+    "SpreadEntry",
+    "SpreadSnapshot",
+    "OptionsSimulatorConfig",
+    "quick_spread_pnl",
+    # NumPy batch functions
+    "batch_calculate_spread_values",
+    "batch_calculate_pnl",
+    "batch_check_exit_signals",
+    "EXIT_CODE_NAMES",
     # Signal Validation
     "SignalValidator",
     "SignalValidationResult",
@@ -123,4 +207,60 @@ __all__ = [
     "format_collection_status",
     "run_daily_collection",
     "create_collector",
+    # Regime Config
+    "RegimeConfig",
+    "RegimeType",
+    "RegimeBoundaryMethod",
+    "RegimeState",
+    "RegimeTransition",
+    "FIXED_REGIMES",
+    "create_percentile_regimes",
+    "get_regime_for_vix",
+    "save_regimes",
+    "load_regimes",
+    "format_regime_summary",
+    # Trained Model Support
+    "TrainedModelLoader",
+    "TrainedRegimeConfig",
+    "TrainedStrategyConfig",
+    "get_trained_model_loader",
+    "load_trained_regimes",
+    "REGIME_NAME_MAPPING",
+    # Regime Training
+    "RegimeTrainer",
+    "RegimeTrainingConfig",
+    "RegimeTrainingResult",
+    "FullRegimeTrainingResult",
+    "RegimeEpochResult",
+    "StrategyPerformance",
+    # Regime Model (Production)
+    "RegimeModel",
+    "TradingParameters",
+    "TradeDecision",
+    "RegimeStatus",
+    "get_regime_recommendation",
+    "format_regime_status",
+    # ML Weight Optimizer
+    "MLWeightOptimizer",
+    "OptimizationMethod",
+    "OptimizationResult",
+    "WeightConfig",
+    "ComponentStats",
+    "WeightedScorer",
+    "STRATEGY_COMPONENTS",
+    "ALL_COMPONENTS",
+    # Ensemble Strategy Selector
+    "EnsembleSelector",
+    "MetaLearner",
+    "StrategyRotationEngine",
+    "StrategyScore",
+    "EnsembleRecommendation",
+    "SymbolPerformance",
+    "RotationState",
+    "SelectionMethod",
+    "RotationTrigger",
+    "create_strategy_score",
+    "format_ensemble_summary",
+    "STRATEGIES",
+    "DEFAULT_REGIME_PREFERENCES",
 ]

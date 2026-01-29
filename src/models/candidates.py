@@ -26,6 +26,15 @@ class ScoreBreakdown:
     rsi_value: float = 0
     rsi_reason: str = ""
 
+    # RSI Divergenz Score (0-3) - NEU
+    # Bullische Divergenz: Kurs tieferes Tief, RSI höheres Tief → Verkaufsdruck lässt nach
+    # Bärische Divergenz: Kurs höheres Hoch, RSI tieferes Hoch → Kaufdruck lässt nach
+    rsi_divergence_score: float = 0
+    rsi_divergence_type: Optional[str] = None  # 'bullish', 'bearish', or None
+    rsi_divergence_strength: float = 0
+    rsi_divergence_formation_days: int = 0
+    rsi_divergence_reason: str = ""
+
     support_score: float = 0
     support_level: Optional[float] = None
     support_distance_pct: float = 0
@@ -72,9 +81,29 @@ class ScoreBreakdown:
     keltner_percent: float = 0  # -1 = lower, 0 = middle, +1 = upper
     keltner_reason: str = ""
 
+    # VWAP Score (NEW from Feature Engineering)
+    # Based on training: entries above VWAP have 91.9% win rate vs 51.7% below
+    vwap_score: float = 0
+    vwap_value: float = 0
+    vwap_distance_pct: float = 0  # Positive = above VWAP
+    vwap_position: str = ""  # 'above', 'near', 'below'
+    vwap_reason: str = ""
+
+    # Market Context Score (SPY Trend Filter)
+    # Strong uptrend: 76.1% WR, Strong downtrend: 59.3% WR
+    market_context_score: float = 0
+    spy_trend: str = ""  # 'strong_uptrend', 'uptrend', 'sideways', 'downtrend', 'strong_downtrend'
+    market_context_reason: str = ""
+
+    # Sector Score (NEW from Feature Engineering)
+    # Consumer Staples: +9%, Utilities: +6.8%, Technology: -10%
+    sector_score: float = 0
+    sector: str = ""
+    sector_reason: str = ""
+
     total_score: float = 0
-    max_possible: int = 16  # Erhöht von 14 auf 16 (Keltner = 0-2)
-    
+    max_possible: int = 25  # Erhöht: +3 VWAP, +2 Market, +1 Sector
+
     def to_dict(self) -> Dict:
         return {
             'total_score': self.total_score,
@@ -85,6 +114,13 @@ class ScoreBreakdown:
                     'score': self.rsi_score,
                     'value': round(self.rsi_value, 2),
                     'reason': self.rsi_reason
+                },
+                'rsi_divergence': {
+                    'score': self.rsi_divergence_score,
+                    'type': self.rsi_divergence_type,
+                    'strength': round(self.rsi_divergence_strength, 3),
+                    'formation_days': self.rsi_divergence_formation_days,
+                    'reason': self.rsi_divergence_reason
                 },
                 'support': {
                     'score': self.support_score,
@@ -135,6 +171,23 @@ class ScoreBreakdown:
                     'position': self.keltner_position,
                     'percent': round(self.keltner_percent, 3),
                     'reason': self.keltner_reason
+                },
+                'vwap': {
+                    'score': self.vwap_score,
+                    'value': round(self.vwap_value, 2),
+                    'distance_pct': round(self.vwap_distance_pct, 2),
+                    'position': self.vwap_position,
+                    'reason': self.vwap_reason
+                },
+                'market_context': {
+                    'score': self.market_context_score,
+                    'spy_trend': self.spy_trend,
+                    'reason': self.market_context_reason
+                },
+                'sector': {
+                    'score': self.sector_score,
+                    'name': self.sector,
+                    'reason': self.sector_reason
                 }
             }
         }

@@ -22,6 +22,15 @@ class BounceScoreBreakdown:
     rsi_value: float = 0
     rsi_reason: str = ""
 
+    # RSI Divergenz Score (0-3) - NEU
+    # Bullische Divergenz: Kurs tieferes Tief, RSI höheres Tief → Verkaufsdruck lässt nach
+    # Bärische Divergenz: Kurs höheres Hoch, RSI tieferes Hoch → Kaufdruck lässt nach
+    rsi_divergence_score: float = 0
+    rsi_divergence_type: Optional[str] = None  # 'bullish', 'bearish', or None
+    rsi_divergence_strength: float = 0
+    rsi_divergence_formation_days: int = 0
+    rsi_divergence_reason: str = ""
+
     # Candlestick Pattern Score (0-2)
     candlestick_score: float = 0
     candlestick_pattern: Optional[str] = None
@@ -58,8 +67,25 @@ class BounceScoreBreakdown:
     keltner_percent: float = 0
     keltner_reason: str = ""
 
+    # VWAP Score (0-3) - NEW from Feature Engineering
+    vwap_score: float = 0
+    vwap_value: float = 0
+    vwap_distance_pct: float = 0
+    vwap_position: str = ""
+    vwap_reason: str = ""
+
+    # Market Context Score (-1 to +2) - NEW from Feature Engineering
+    market_context_score: float = 0
+    spy_trend: str = ""
+    market_context_reason: str = ""
+
+    # Sector Score (-1 to +1) - NEW from Feature Engineering
+    sector_score: float = 0
+    sector: str = ""
+    sector_reason: str = ""
+
     total_score: float = 0
-    max_possible: int = 17  # 3+2+2+2+2+2+2+2 = 17
+    max_possible: int = 26  # 3+2+3+2+2+2+2+2+2+3+2+1 = 26
 
     def to_dict(self) -> Dict:
         return {
@@ -79,6 +105,13 @@ class BounceScoreBreakdown:
                     'score': self.rsi_score,
                     'value': round(self.rsi_value, 2),
                     'reason': self.rsi_reason
+                },
+                'rsi_divergence': {
+                    'score': self.rsi_divergence_score,
+                    'type': self.rsi_divergence_type,
+                    'strength': round(self.rsi_divergence_strength, 3),
+                    'formation_days': self.rsi_divergence_formation_days,
+                    'reason': self.rsi_divergence_reason
                 },
                 'candlestick': {
                     'score': self.candlestick_score,
@@ -115,6 +148,23 @@ class BounceScoreBreakdown:
                     'position': self.keltner_position,
                     'percent': round(self.keltner_percent, 3),
                     'reason': self.keltner_reason
+                },
+                'vwap': {
+                    'score': self.vwap_score,
+                    'value': round(self.vwap_value, 2),
+                    'distance_pct': round(self.vwap_distance_pct, 2),
+                    'position': self.vwap_position,
+                    'reason': self.vwap_reason
+                },
+                'market_context': {
+                    'score': self.market_context_score,
+                    'spy_trend': self.spy_trend,
+                    'reason': self.market_context_reason
+                },
+                'sector': {
+                    'score': self.sector_score,
+                    'name': self.sector,
+                    'reason': self.sector_reason
                 }
             }
         }
@@ -169,8 +219,25 @@ class ATHBreakoutScoreBreakdown:
     keltner_percent: float = 0
     keltner_reason: str = ""
 
+    # VWAP Score (0-3) - NEW from Feature Engineering
+    vwap_score: float = 0
+    vwap_value: float = 0
+    vwap_distance_pct: float = 0
+    vwap_position: str = ""
+    vwap_reason: str = ""
+
+    # Market Context Score (-1 to +2) - NEW from Feature Engineering
+    market_context_score: float = 0
+    spy_trend: str = ""
+    market_context_reason: str = ""
+
+    # Sector Score (-1 to +1) - NEW from Feature Engineering
+    sector_score: float = 0
+    sector: str = ""
+    sector_reason: str = ""
+
     total_score: float = 0
-    max_possible: int = 16  # 3+2+2+1+2+2+2+2 = 16
+    max_possible: int = 22  # 3+2+2+1+2+2+2+2+3+2+1 = 22
 
     def to_dict(self) -> Dict:
         return {
@@ -223,6 +290,23 @@ class ATHBreakoutScoreBreakdown:
                     'position': self.keltner_position,
                     'percent': round(self.keltner_percent, 3),
                     'reason': self.keltner_reason
+                },
+                'vwap': {
+                    'score': self.vwap_score,
+                    'value': round(self.vwap_value, 2),
+                    'distance_pct': round(self.vwap_distance_pct, 2),
+                    'position': self.vwap_position,
+                    'reason': self.vwap_reason
+                },
+                'market_context': {
+                    'score': self.market_context_score,
+                    'spy_trend': self.spy_trend,
+                    'reason': self.market_context_reason
+                },
+                'sector': {
+                    'score': self.sector_score,
+                    'name': self.sector,
+                    'reason': self.sector_reason
                 }
             }
         }
@@ -288,8 +372,25 @@ class EarningsDipScoreBreakdown:
     keltner_percent: float = 0
     keltner_reason: str = ""
 
+    # VWAP Score (0-3) - NEW from Feature Engineering
+    vwap_score: float = 0
+    vwap_value: float = 0
+    vwap_distance_pct: float = 0
+    vwap_position: str = ""
+    vwap_reason: str = ""
+
+    # Market Context Score (-1 to +2) - NEW from Feature Engineering
+    market_context_score: float = 0
+    spy_trend: str = ""
+    market_context_reason: str = ""
+
+    # Sector Score (-1 to +1) - NEW from Feature Engineering
+    sector_score: float = 0
+    sector: str = ""
+    sector_reason: str = ""
+
     total_score: float = 0
-    max_possible: int = 18  # 3+1+2+2+2+2+2+2+2 = 18
+    max_possible: int = 24  # 3+1+2+2+2+2+2+2+2+3+2+1 = 24
 
     def to_dict(self) -> Dict:
         return {
@@ -353,6 +454,23 @@ class EarningsDipScoreBreakdown:
                     'position': self.keltner_position,
                     'percent': round(self.keltner_percent, 3),
                     'reason': self.keltner_reason
+                },
+                'vwap': {
+                    'score': self.vwap_score,
+                    'value': round(self.vwap_value, 2),
+                    'distance_pct': round(self.vwap_distance_pct, 2),
+                    'position': self.vwap_position,
+                    'reason': self.vwap_reason
+                },
+                'market_context': {
+                    'score': self.market_context_score,
+                    'spy_trend': self.spy_trend,
+                    'reason': self.market_context_reason
+                },
+                'sector': {
+                    'score': self.sector_score,
+                    'name': self.sector,
+                    'reason': self.sector_reason
                 }
             }
         }

@@ -28,6 +28,18 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+# Import S/R analysis
+try:
+    from ..indicators.support_resistance import get_nearest_sr_levels
+except ImportError:
+    from indicators.support_resistance import get_nearest_sr_levels
+
+# Import Feature Scoring Mixin (NEW from Feature Engineering)
+try:
+    from .feature_scoring_mixin import FeatureScoringMixin
+except ImportError:
+    from analyzers.feature_scoring_mixin import FeatureScoringMixin
+
 
 @dataclass
 class ATHBreakoutConfig:
@@ -51,7 +63,7 @@ class ATHBreakoutConfig:
     min_score_for_signal: int = 6
 
 
-class ATHBreakoutAnalyzer(BaseAnalyzer):
+class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
     """
     Analysiert Aktien auf ATH-Breakouts.
 
@@ -225,6 +237,9 @@ class ATHBreakoutAnalyzer(BaseAnalyzer):
             elif breakdown.keltner_score > 0:
                 reasons.append("Near Keltner upper band")
 
+        # NEW: Apply Feature Engineering scores (VWAP, Market Context, Sector)
+        self._apply_feature_scores(breakdown, symbol, prices, volumes, context)
+
         # Total Score berechnen
         breakdown.total_score = (
             breakdown.ath_score +
@@ -234,9 +249,12 @@ class ATHBreakoutAnalyzer(BaseAnalyzer):
             breakdown.rs_score +
             breakdown.macd_score +
             breakdown.momentum_score +
-            breakdown.keltner_score
+            breakdown.keltner_score +
+            breakdown.vwap_score +          # NEW from Feature Engineering
+            breakdown.market_context_score + # NEW from Feature Engineering
+            breakdown.sector_score          # NEW from Feature Engineering
         )
-        breakdown.max_possible = self.scoring_config.max_score
+        breakdown.max_possible = 22  # Updated for new features
 
         # Signal-Stärke bestimmen
         if breakdown.total_score >= 12:
@@ -253,6 +271,17 @@ class ATHBreakoutAnalyzer(BaseAnalyzer):
         stop_loss = self._calculate_stop_loss(lows, current_price)
         target_price = self._calculate_target(current_price, stop_loss)
 
+        # Extended S/R analysis with 12-month lookback
+        sr_levels = get_nearest_sr_levels(
+            current_price=current_price,
+            prices=prices,
+            highs=highs,
+            lows=lows,
+            volumes=volumes,
+            lookback=252,  # 12 months
+            num_levels=3
+        )
+
         return TradeSignal(
             symbol=symbol,
             strategy=self.strategy_name,
@@ -268,7 +297,8 @@ class ATHBreakoutAnalyzer(BaseAnalyzer):
                 'score_breakdown': breakdown.to_dict(),
                 'ath_info': ath_result[1],
                 'trend_info': trend_result[1],
-                'rsi': breakdown.rsi_value
+                'rsi': breakdown.rsi_value,
+                'sr_levels': sr_levels  # Extended S/R with 12-month lookback
             },
             warnings=warnings
         )

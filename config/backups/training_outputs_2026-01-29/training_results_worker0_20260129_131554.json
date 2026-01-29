@@ -1,0 +1,233 @@
+{
+  "pullback_baseline": "StrategyPerformance(strategy=<StrategyType.PULLBACK: 'pullback'>, total_trades=1979, wins=1540, losses=439, win_rate=77.81707933299646, avg_pnl=np.float64(-2.672401515333808), total_pnl=np.float64(-5288.682598845606), avg_holding_days=np.float64(27.838302172814554), total_rolls=3496, avg_rolls_per_trade=np.float64(1.7665487620010105), roll_success_rate=46.00760456273764, avg_drawdown=np.float64(-87.4244986060427), sharpe_ratio=np.float64(-0.4558447652619095), by_regime={<VIXRegime.LOW: 'low'>: {'trades': 559, 'win_rate': 69.40966010733453, 'avg_pnl': np.float64(-19.829802709452867)}, <VIXRegime.NORMAL: 'normal'>: {'trades': 770, 'win_rate': 79.48051948051949, 'avg_pnl': np.float64(-1.3682915041784787)}, <VIXRegime.ELEVATED: 'elevated'>: {'trades': 556, 'win_rate': 81.4748201438849, 'avg_pnl': np.float64(5.759102062547352)}, <VIXRegime.HIGH: 'high'>: {'trades': 94, 'win_rate': 92.5531914893617, 'avg_pnl': np.float64(38.80532794871967)}})",
+  "pullback_weights": {
+    "rsi": 0.7126723218204492,
+    "support": 1.5526719947001388,
+    "fibonacci": 0.7127153001546588,
+    "moving_average": 0.5841171489885306,
+    "volume": 0.655497416140776,
+    "macd": 0.8226045462380271,
+    "stochastic": 1.8418101824405244,
+    "keltner": 1.0852821655476483,
+    "trend": 1.7101157025676472,
+    "momentum": 0.8145534870623439,
+    "relative_strength": 0.9820732403203183,
+    "candlestick": 0.7508246008019082,
+    "gap": 1.489696611253822,
+    "stabilization": 1.603692950399727,
+    "dip_magnitude": 1.1794831189673933,
+    "ath_breakout": 1.5285820813665423,
+    "vwap": 1.6140167746082894,
+    "market_context": 1.368234782697747
+  },
+  "pullback_roll_params": {
+    "trigger_pct": -64.91383126994107,
+    "dte_extension": 65,
+    "dte_extension_max": 74,
+    "max_rolls": 5,
+    "min_credit_recovery_pct": 0.7873684736287537,
+    "support_buffer_pct": 2.6863730437721025
+  },
+  "pullback_final": {
+    "total_trades": 1228,
+    "win_rate": 80.94462540716613,
+    "avg_pnl": 2.4567709349332203,
+    "sharpe_ratio": 0.42553675535276,
+    "roll_success_rate": 44.27860696517413,
+    "avg_rolls_per_trade": 1.456840390879479,
+    "by_regime": {
+      "low": {
+        "trades": 348,
+        "win_rate": 72.98850574712644,
+        "avg_pnl": -15.93280062638094
+      },
+      "normal": {
+        "trades": 477,
+        "win_rate": 82.80922431865828,
+        "avg_pnl": 5.481940698572159
+      },
+      "elevated": {
+        "trades": 358,
+        "win_rate": 84.63687150837988,
+        "avg_pnl": 12.86608021061075
+      },
+      "high": {
+        "trades": 45,
+        "win_rate": 93.33333333333333,
+        "avg_pnl": 29.790819943577663
+      }
+    }
+  },
+  "bounce_baseline": "StrategyPerformance(strategy=<StrategyType.BOUNCE: 'bounce'>, total_trades=2703, wins=2054, losses=649, win_rate=75.98964113947466, avg_pnl=np.float64(-4.920025698239245), total_pnl=np.float64(-13298.829462340658), avg_holding_days=np.float64(28.591564927857934), total_rolls=4920, avg_rolls_per_trade=np.float64(1.8201997780244172), roll_success_rate=42.778288868445266, avg_drawdown=np.float64(-92.31448652797415), sharpe_ratio=np.float64(-0.8228907594026308), by_regime={<VIXRegime.LOW: 'low'>: {'trades': 834, 'win_rate': 68.22541966426859, 'avg_pnl': np.float64(-20.51727494960254)}, <VIXRegime.NORMAL: 'normal'>: {'trades': 1061, 'win_rate': 76.90857681432611, 'avg_pnl': np.float64(-5.1822076980398695)}, <VIXRegime.ELEVATED: 'elevated'>: {'trades': 709, 'win_rate': 81.38222849083215, 'avg_pnl': np.float64(8.450852054569177)}, <VIXRegime.HIGH: 'high'>: {'trades': 99, 'win_rate': 92.92929292929293, 'avg_pnl': np.float64(33.52773845008682)}})",
+  "bounce_weights": {
+    "rsi": 0.6306399936995027,
+    "support": 0.510636924351034,
+    "fibonacci": 0.7958072787110517,
+    "moving_average": 0.6784542636112261,
+    "volume": 1.3660439562969109,
+    "macd": 1.3920052486007726,
+    "stochastic": 0.837324127837499,
+    "keltner": 1.7326433332734594,
+    "trend": 0.6393492400519829,
+    "momentum": 0.8408198324742496,
+    "relative_strength": 0.5954385988956326,
+    "candlestick": 0.5724379751805186,
+    "gap": 1.019101856495395,
+    "stabilization": 0.8192635630045962,
+    "dip_magnitude": 1.4041774762021118,
+    "ath_breakout": 1.1253629458587313,
+    "vwap": 0.9692881407634649,
+    "market_context": 0.651064898854246
+  },
+  "bounce_roll_params": {
+    "trigger_pct": -36.49123279815211,
+    "dte_extension": 52,
+    "dte_extension_max": 103,
+    "max_rolls": 6,
+    "min_credit_recovery_pct": 0.48999142156867337,
+    "support_buffer_pct": 4.06335491423148
+  },
+  "bounce_final": {
+    "total_trades": 102,
+    "win_rate": 87.25490196078431,
+    "avg_pnl": 19.694490552191592,
+    "sharpe_ratio": 4.212319338601759,
+    "roll_success_rate": 65.71428571428571,
+    "avg_rolls_per_trade": 1.7745098039215685,
+    "by_regime": {
+      "low": {
+        "trades": 29,
+        "win_rate": 79.3103448275862,
+        "avg_pnl": 15.530736273084592
+      },
+      "normal": {
+        "trades": 38,
+        "win_rate": 94.73684210526315,
+        "avg_pnl": 27.425140903110638
+      },
+      "elevated": {
+        "trades": 35,
+        "win_rate": 85.71428571428571,
+        "avg_pnl": 14.75118085959672
+      }
+    }
+  },
+  "ath_breakout_baseline": "StrategyPerformance(strategy=<StrategyType.ATH_BREAKOUT: 'ath_breakout'>, total_trades=2061, wins=1506, losses=555, win_rate=73.07132459970887, avg_pnl=np.float64(-14.643219706343716), total_pnl=np.float64(-30179.67581477438), avg_holding_days=np.float64(32.10771470160117), total_rolls=3900, avg_rolls_per_trade=np.float64(1.8922852983988354), roll_success_rate=41.031652989449, avg_drawdown=np.float64(-109.36225540042766), sharpe_ratio=np.float64(-2.1311044140860336), by_regime={<VIXRegime.LOW: 'low'>: {'trades': 789, 'win_rate': 67.0468948035488, 'avg_pnl': np.float64(-26.405376640830927)}, <VIXRegime.NORMAL: 'normal'>: {'trades': 887, 'win_rate': 74.85907553551297, 'avg_pnl': np.float64(-12.887833539249634)}, <VIXRegime.ELEVATED: 'elevated'>: {'trades': 375, 'win_rate': 80.80000000000001, 'avg_pnl': np.float64(4.439802931521199)}, <VIXRegime.HIGH: 'high'>: {'trades': 10, 'win_rate': 100.0, 'avg_pnl': np.float64(42.07486048351796)}})",
+  "ath_breakout_weights": {
+    "rsi": 1.1034095034434805,
+    "support": 0.8494302910117972,
+    "fibonacci": 0.8171882253171493,
+    "moving_average": 1.2516396172856172,
+    "volume": 0.7996146473296325,
+    "macd": 0.7350651225988641,
+    "stochastic": 0.9236960304485616,
+    "keltner": 1.6649874295351417,
+    "trend": 0.5490935572138025,
+    "momentum": 0.6222374240660483,
+    "relative_strength": 1.2433132084773537,
+    "candlestick": 1.5210788900250565,
+    "gap": 1.4026297493150597,
+    "stabilization": 1.3628438011206891,
+    "dip_magnitude": 1.6441925603165437,
+    "ath_breakout": 1.4647191166670672,
+    "vwap": 0.765698093737743,
+    "market_context": 1.5850993766218868
+  },
+  "ath_breakout_roll_params": {
+    "trigger_pct": -31.77719131879867,
+    "dte_extension": 88,
+    "dte_extension_max": 87,
+    "max_rolls": 5,
+    "min_credit_recovery_pct": 0.7786379819079936,
+    "support_buffer_pct": 2.483024761348884
+  },
+  "ath_breakout_final": {
+    "total_trades": 573,
+    "win_rate": 81.15183246073299,
+    "avg_pnl": -2.3650153993223144,
+    "sharpe_ratio": -0.35554333429880286,
+    "roll_success_rate": 62.19512195121951,
+    "avg_rolls_per_trade": 1.9232111692844678,
+    "by_regime": {
+      "low": {
+        "trades": 274,
+        "win_rate": 76.64233576642336,
+        "avg_pnl": -16.033381427623503
+      },
+      "normal": {
+        "trades": 235,
+        "win_rate": 84.68085106382979,
+        "avg_pnl": 7.723038985828132
+      },
+      "elevated": {
+        "trades": 63,
+        "win_rate": 87.3015873015873,
+        "avg_pnl": 18.43872204706235
+      },
+      "high": {
+        "trades": 1,
+        "win_rate": 100.0,
+        "avg_pnl": 61.43903672261537
+      }
+    }
+  },
+  "earnings_dip_baseline": "StrategyPerformance(strategy=<StrategyType.EARNINGS_DIP: 'earnings_dip'>, total_trades=5352, wins=4097, losses=1255, win_rate=76.550822122571, avg_pnl=np.float64(-5.351807262897329), total_pnl=np.float64(-28642.872471026454), avg_holding_days=np.float64(27.458520179372197), total_rolls=9660, avg_rolls_per_trade=np.float64(1.804932735426009), roll_success_rate=44.387990762124716, avg_drawdown=np.float64(-92.59475737416096), sharpe_ratio=np.float64(-0.8822018602980156), by_regime={<VIXRegime.LOW: 'low'>: {'trades': 1694, 'win_rate': 68.89020070838254, 'avg_pnl': np.float64(-22.6631238242985)}, <VIXRegime.NORMAL: 'normal'>: {'trades': 1989, 'win_rate': 76.01809954751131, 'avg_pnl': np.float64(-8.066960441232487)}, <VIXRegime.ELEVATED: 'elevated'>: {'trades': 1411, 'win_rate': 83.41601700921333, 'avg_pnl': np.float64(11.566493939225584)}, <VIXRegime.HIGH: 'high'>: {'trades': 258, 'win_rate': 93.4108527131783, 'avg_pnl': np.float64(36.71829711898943)}})",
+  "earnings_dip_weights": {
+    "rsi": 1.0327882473464087,
+    "support": 1.5176429140691048,
+    "fibonacci": 1.059198662027051,
+    "moving_average": 1.054166314474184,
+    "volume": 0.6619506181263146,
+    "macd": 1.343742790886679,
+    "stochastic": 1.3827672947321294,
+    "keltner": 0.9944281520468281,
+    "trend": 1.4342632078756221,
+    "momentum": 1.6661245168515895,
+    "relative_strength": 1.7903843453191142,
+    "candlestick": 1.225044604764464,
+    "gap": 1.8798830818048728,
+    "stabilization": 1.6263159019320386,
+    "dip_magnitude": 0.6382715590189629,
+    "ath_breakout": 1.4352962983186202,
+    "vwap": 0.7446423594935372,
+    "market_context": 1.0117704056894619
+  },
+  "earnings_dip_roll_params": {
+    "trigger_pct": -45.47586603775621,
+    "dte_extension": 76,
+    "dte_extension_max": 96,
+    "max_rolls": 6,
+    "min_credit_recovery_pct": 0.724653438296927,
+    "support_buffer_pct": 4.054845369993622
+  },
+  "earnings_dip_final": {
+    "total_trades": 5426,
+    "win_rate": 78.36343531146332,
+    "avg_pnl": -3.7474481812009013,
+    "sharpe_ratio": -0.5985527693979147,
+    "roll_success_rate": 50.7181328545781,
+    "avg_rolls_per_trade": 2.118134906008109,
+    "by_regime": {
+      "low": {
+        "trades": 1730,
+        "win_rate": 72.02312138728324,
+        "avg_pnl": -19.680127692717374
+      },
+      "normal": {
+        "trades": 2063,
+        "win_rate": 77.75084827920504,
+        "avg_pnl": -5.972750048853804
+      },
+      "elevated": {
+        "trades": 1383,
+        "win_rate": 84.30947216196674,
+        "avg_pnl": 11.968635542310691
+      },
+      "high": {
+        "trades": 250,
+        "win_rate": 94.39999999999999,
+        "avg_pnl": 37.928509891898685
+      }
+    }
+  }
+}

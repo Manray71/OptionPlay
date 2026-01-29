@@ -36,12 +36,14 @@ import os
 import sys
 import urllib.request
 import urllib.error
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 # Local imports
 from .data_providers.marketdata import MarketDataProvider
+from .data_providers.tradier import TradierProvider, TradierEnvironment
+from .utils.provider_orchestrator import get_orchestrator, ProviderType, DataType
 from .scanner.multi_strategy_scanner import MultiStrategyScanner, ScanConfig, ScanMode
 from .cache import EarningsFetcher, get_earnings_fetcher, EarningsInfo, get_historical_cache, CacheStatus
 from .vix_strategy import (
@@ -49,7 +51,7 @@ from .vix_strategy import (
     calculate_spread_width, get_spread_width_table, format_recommendation, MarketRegime
 )
 from .utils.rate_limiter import get_marketdata_limiter, AdaptiveRateLimiter
-from .utils.validation import validate_symbol, validate_symbols, validate_dte_range, ValidationError
+from .utils.validation import validate_symbol, validate_symbols, validate_dte_range, ValidationError, is_etf
 from .utils.secure_config import get_api_key, mask_api_key
 from .utils.circuit_breaker import CircuitBreaker, CircuitBreakerOpen, get_circuit_breaker
 from .utils.error_handler import mcp_endpoint, sync_endpoint, format_error_response, truncate_string
@@ -200,7 +202,22 @@ class OptionPlayServer:
         self._ibkr_bridge: Optional["IBKRBridge"] = None
         if IBKR_AVAILABLE:
             self._ibkr_bridge = get_ibkr_bridge()
-    
+
+        # Tradier Provider (optional - higher priority than Marketdata)
+        self._tradier_provider: Optional[TradierProvider] = None
+        self._tradier_api_key: Optional[str] = None
+        self._tradier_connected = False
+        self._orchestrator = get_orchestrator()
+
+        # Check if Tradier is configured and enable it
+        try:
+            tradier_key = get_api_key("TRADIER_API_KEY", required=False)
+            if tradier_key:
+                self._tradier_api_key = tradier_key
+                logger.info(f"Tradier API key found: {mask_api_key(tradier_key)}")
+        except Exception:
+            logger.debug("Tradier API key not configured")
+
     @property
     def api_key_masked(self) -> str:
         """Return masked API key for debugging/logging."""
@@ -240,18 +257,59 @@ class OptionPlayServer:
     # =========================================================================
     # CONNECTION MANAGEMENT
     # =========================================================================
-    
+
+    async def _ensure_tradier_connected(self) -> Optional[TradierProvider]:
+        """
+        Establish connection to Tradier API.
+
+        Returns:
+            Connected TradierProvider instance or None if not configured
+
+        Note:
+            Tradier connection failures are logged but don't raise exceptions.
+            Falls back to Marketdata.app if Tradier is unavailable.
+        """
+        if not self._tradier_api_key:
+            return None
+
+        if self._tradier_provider is None:
+            # Get environment from config
+            tradier_cfg = self._config.settings.tradier
+            env = TradierEnvironment.PRODUCTION if tradier_cfg.is_production else TradierEnvironment.SANDBOX
+
+            self._tradier_provider = TradierProvider(
+                api_key=self._tradier_api_key,
+                environment=env
+            )
+
+        if not self._tradier_connected:
+            try:
+                connected = await self._tradier_provider.connect()
+                if connected:
+                    self._tradier_connected = True
+                    self._orchestrator.enable_tradier(True)
+                    logger.info(f"Connected to Tradier ({self._config.settings.tradier.environment})")
+                else:
+                    logger.warning("Tradier connection failed, using Marketdata.app as fallback")
+            except Exception as e:
+                logger.warning(f"Tradier connection error: {e}, using Marketdata.app as fallback")
+
+        return self._tradier_provider if self._tradier_connected else None
+
     async def _ensure_connected(self) -> MarketDataProvider:
         """
         Establish connection to Marketdata.app with retry logic and circuit breaker.
-        
+
         Returns:
             Connected MarketDataProvider instance
-            
+
         Raises:
             CircuitBreakerOpen: If circuit breaker is open
             ConnectionError: If connection fails after retries
         """
+        # Try to connect Tradier first (non-blocking, for orchestrator)
+        await self._ensure_tradier_connected()
+
         # Check circuit breaker
         if not self._circuit_breaker.can_execute():
             retry_after = self._circuit_breaker.get_retry_after()
@@ -259,15 +317,15 @@ class OptionPlayServer:
                 self._circuit_breaker.name,
                 retry_after
             )
-        
+
         if self._provider is None:
             self._provider = MarketDataProvider(self._api_key)
-        
+
         if not self._connected:
             api_conn = self._config.settings.api_connection
             max_retries = api_conn.max_retries
             base_delay = api_conn.retry_base_delay
-            
+
             for attempt in range(max_retries):
                 try:
                     await self._rate_limiter.acquire()
@@ -285,13 +343,19 @@ class OptionPlayServer:
                     self._circuit_breaker.record_failure(e)
                     if attempt < max_retries - 1:
                         await asyncio.sleep(base_delay ** attempt)
-            
+
             if not self._connected:
                 raise ConnectionError(
                     f"Cannot connect to Marketdata.app after {max_retries} attempts"
                 )
-        
+
         return self._provider
+
+    def _get_active_provider_name(self) -> str:
+        """Get the name of the currently active provider."""
+        if self._tradier_connected:
+            return "Tradier"
+        return "Marketdata.app"
     
     def _get_scanner(
         self, 
@@ -340,12 +404,24 @@ class OptionPlayServer:
         Returns:
             Configured MultiStrategyScanner instance
         """
+        # Get IV filter setting from config (default: disabled if no IV data source)
+        # IV filter requires IV rank data which may not be available from all providers
+        scanner_cfg = self._config.settings.scanner
+        enable_iv = getattr(scanner_cfg, 'enable_iv_filter', False)
+
+        # Only enable IV filter if we have a connected provider that supports IV
+        if enable_iv and not self._tradier_connected:
+            # Tradier provides IV data via ORATS, Marketdata.app may not
+            logger.debug("IV filter disabled: no IV data provider connected")
+            enable_iv = False
+
         config = ScanConfig(
             min_score=min_score,
             enable_pullback=enable_pullback,
             enable_bounce=enable_bounce,
             enable_ath_breakout=enable_breakout,
             enable_earnings_dip=enable_earnings_dip,
+            enable_iv_filter=enable_iv,
         )
         return MultiStrategyScanner(config)
     
@@ -380,6 +456,18 @@ class OptionPlayServer:
 
         # Use deduplication for the actual API call
         async def fetch_historical():
+            # Try Tradier first if connected (higher priority for historical data)
+            tradier = await self._ensure_tradier_connected()
+            if tradier:
+                try:
+                    d = await tradier.get_historical_for_scanner(symbol, days=days)
+                    if d:
+                        logger.debug(f"Historical data for {symbol} from Tradier")
+                        return d
+                except Exception as e:
+                    logger.debug(f"Tradier historical failed for {symbol}: {e}")
+
+            # Fallback to Marketdata.app
             provider = await self._ensure_connected()
             await self._rate_limiter.acquire()
             d = await provider.get_historical_for_scanner(symbol, days=days)
@@ -429,6 +517,12 @@ class OptionPlayServer:
 
         for symbol in symbols:
             try:
+                # ETFs haben keine Earnings - direkt akzeptieren
+                if is_etf(symbol):
+                    safe_symbols.append(symbol)
+                    logger.debug(f"Including {symbol}: ETF (no earnings)")
+                    continue
+
                 # Check cache first
                 cached = self._earnings_fetcher.cache.get(symbol)
                 if cached:
@@ -457,13 +551,13 @@ class OptionPlayServer:
                             logger.debug(f"Excluding {symbol} for earnings_dip: earnings {abs(days_to)} days ago (too old)")
                 else:
                     # Für normale Strategien: Symbole mit bevorstehenden Earnings ausschließen
-                    # Konservativ: None = nicht sicher
                     if days_to is not None and days_to >= min_days:
                         safe_symbols.append(symbol)
                     elif days_to is None:
-                        # Unbekannte Earnings = ausschließen (konservativ)
-                        excluded_count += 1
-                        logger.debug(f"Excluding {symbol}: unknown earnings date")
+                        # Unbekannte Earnings = akzeptieren (weniger konservativ)
+                        # User kann manuell mit /prefilter filtern wenn gewünscht
+                        safe_symbols.append(symbol)
+                        logger.debug(f"Including {symbol}: unknown earnings date (use /prefilter for stricter filtering)")
                     else:
                         excluded_count += 1
 
@@ -481,6 +575,7 @@ class OptionPlayServer:
         Features:
         - TTL-based cache (cache_ttl_intraday, default 5 minutes)
         - Request deduplication for concurrent identical requests
+        - Automatic provider selection (Tradier > Marketdata)
 
         Args:
             symbol: Ticker symbol
@@ -502,10 +597,23 @@ class OptionPlayServer:
 
         # Use deduplication for the actual API call
         async def fetch_quote():
+            # Prefer Tradier if connected, otherwise use Marketdata
+            if self._tradier_connected and self._tradier_provider:
+                try:
+                    q = await self._tradier_provider.get_quote(symbol)
+                    if q and q.last:
+                        self._orchestrator.record_request(ProviderType.TRADIER, success=True)
+                        return q
+                except Exception as e:
+                    logger.debug(f"Tradier quote failed for {symbol}, falling back to Marketdata: {e}")
+                    self._orchestrator.record_request(ProviderType.TRADIER, success=False, error=str(e))
+
+            # Fallback to Marketdata
             provider = await self._ensure_connected()
             await self._rate_limiter.acquire()
             q = await provider.get_quote(symbol)
             self._rate_limiter.record_success()
+            self._orchestrator.record_request(ProviderType.MARKETDATA, success=True)
             return q
 
         quote = await self._deduplicator.deduplicated_call(
@@ -766,11 +874,17 @@ class OptionPlayServer:
         return b.build()
 
     async def disconnect(self):
-        """Disconnect from data provider."""
+        """Disconnect from all data providers."""
         if self._provider and self._connected:
             await self._provider.disconnect()
             self._connected = False
-            logger.info("Disconnected")
+            logger.info("Marketdata.app disconnected")
+
+        if self._tradier_provider and self._tradier_connected:
+            await self._tradier_provider.disconnect()
+            self._tradier_connected = False
+            self._orchestrator.enable_tradier(False)
+            logger.info("Tradier disconnected")
     
     # =========================================================================
     # VIX & STRATEGY
@@ -876,6 +990,344 @@ class OptionPlayServer:
         vix = await self.get_vix()
         recommendation = get_strategy_for_vix(vix)
         return formatters.strategy.format(recommendation, vix)
+
+    @mcp_endpoint(operation="regime status")
+    async def get_regime_status(self) -> str:
+        """
+        Get current VIX regime status with trained model recommendations.
+
+        Uses trained regime model if available, otherwise falls back to defaults.
+        Shows current regime, trading parameters, and enabled strategies.
+
+        Returns:
+            Formatted Markdown regime status
+        """
+        from .backtesting.regime_model import RegimeModel, format_regime_status
+        from .backtesting.regime_config import get_trained_model_loader
+
+        vix = await self.get_vix()
+
+        if vix is None:
+            return "❌ Could not fetch VIX - unable to determine regime"
+
+        try:
+            # Try to load trained model
+            model = RegimeModel.load_latest()
+            model.initialize(vix)
+            status = model.get_status()
+            params = status.parameters
+
+            b = MarkdownBuilder()
+            b.h1("📊 VIX Regime Status").blank()
+
+            # Current Status
+            b.h2("Current Regime")
+            regime_emoji = {
+                "low_vol": "🟢",
+                "normal": "🟡",
+                "elevated": "🟠",
+                "high_vol": "🔴",
+            }.get(status.current_regime, "⚪")
+
+            b.kv_line("VIX", f"{vix:.2f}")
+            b.kv_line("Regime", f"{regime_emoji} {status.current_regime.upper()}")
+            b.kv_line("VIX Range", f"{params.vix_range[0]:.0f} - {params.vix_range[1]:.0f}")
+            b.kv_line("Days in Regime", str(status.days_in_regime))
+
+            if status.pending_transition:
+                b.kv_line("⚠️ Pending", f"{status.pending_transition} ({status.pending_days} days)")
+
+            b.blank()
+
+            # Per-Strategy Min Scores (if trained model available)
+            loader = get_trained_model_loader()
+            if loader.is_loaded:
+                b.h2("Strategy Min Scores (Trained)")
+                for strategy in params.strategies_enabled:
+                    min_score = model.get_min_score_for_strategy(strategy, params.regime)
+                    b.kv_line(f"  {strategy.capitalize()}", f"{min_score:.1f}")
+                b.blank()
+
+            # General Trading Parameters
+            b.h2("Trading Parameters")
+            b.kv_line("Base Min Score", f"{params.min_score:.1f}")
+            b.kv_line("Profit Target", f"{params.profit_target_pct:.0f}%")
+            b.kv_line("Stop Loss", f"{params.stop_loss_pct:.0f}%")
+            b.kv_line("Position Size", f"{params.position_size_pct:.1f}%")
+            b.kv_line("Max Positions", str(params.max_concurrent_positions))
+            b.blank()
+
+            # Strategies
+            b.h2("Enabled Strategies")
+            strategies_list = ", ".join(params.strategies_enabled) if params.strategies_enabled else "None"
+            b.text(strategies_list)
+            b.blank()
+
+            # Model Info
+            b.h2("Model Info")
+            trained_icon = "✅" if params.is_trained else "⚠️"
+            b.kv_line("Trained Model", f"{trained_icon} {'Yes' if params.is_trained else 'No (using defaults)'}")
+            b.kv_line("Confidence", params.confidence_level.upper())
+
+            # Training stats if available
+            if loader.is_loaded and loader.summary:
+                summary = loader.summary
+                b.blank()
+                b.h2("Training Stats")
+                b.kv_line("Total Trades", f"{summary.get('total_trades', 0):,}")
+                b.kv_line("Win Rate", f"{summary.get('win_rate', 0):.1f}%")
+                b.kv_line("Total P&L", f"${summary.get('total_pnl', 0):,.0f}")
+
+            return b.build()
+
+        except FileNotFoundError:
+            # No trained model available - use defaults
+            from .backtesting.regime_config import get_regime_for_vix, FIXED_REGIMES
+
+            regime_name, config = get_regime_for_vix(vix, FIXED_REGIMES)
+
+            b = MarkdownBuilder()
+            b.h1("📊 VIX Regime Status (Default)").blank()
+
+            b.h2("Current Regime")
+            regime_emoji = {
+                "low_vol": "🟢",
+                "normal": "🟡",
+                "elevated": "🟠",
+                "high_vol": "🔴",
+            }.get(regime_name, "⚪")
+
+            b.kv_line("VIX", f"{vix:.2f}")
+            b.kv_line("Regime", f"{regime_emoji} {regime_name.upper()}")
+            b.kv_line("VIX Range", f"{config.vix_lower:.0f} - {config.vix_upper:.0f}")
+            b.blank()
+
+            b.h2("Default Parameters")
+            b.kv_line("Min Score", f"{config.min_score:.1f}")
+            b.kv_line("Profit Target", f"{config.profit_target_pct:.0f}%")
+            b.kv_line("Stop Loss", f"{config.stop_loss_pct:.0f}%")
+            b.blank()
+
+            b.h2("Enabled Strategies")
+            b.text(", ".join(config.strategies_enabled))
+            b.blank()
+
+            b.text("⚠️ **Note**: Using default parameters. Run `train_regime_model.py` to train a model.")
+
+            return b.build()
+
+        except Exception as e:
+            logger.error(f"Regime status error: {e}")
+            return f"❌ Error getting regime status: {e}"
+
+    @mcp_endpoint(operation="ensemble recommendation", symbol_param="symbol")
+    async def get_ensemble_recommendation(self, symbol: str) -> str:
+        """
+        Get ensemble strategy recommendation for a symbol.
+
+        Uses the trained ensemble selector to recommend the best strategy
+        by combining:
+        - Meta-learner predictions (symbol/regime-specific history)
+        - Regime-weighted preferences
+        - Confidence-weighted scoring
+        - Strategy rotation engine
+
+        Args:
+            symbol: Ticker symbol to analyze
+
+        Returns:
+            Formatted Markdown ensemble recommendation
+        """
+        from .backtesting.ensemble_selector import (
+            EnsembleSelector,
+            StrategyScore,
+            create_strategy_score,
+        )
+
+        symbol = validate_symbol(symbol)
+
+        # Get current VIX for regime context
+        vix = await self.get_vix()
+
+        # Run multi-strategy analysis to get scores
+        scanner = await self._get_scanner()
+        results = await scanner.analyze_symbol(symbol)
+
+        if not results:
+            return f"❌ No analysis results for {symbol}"
+
+        # Convert to StrategyScore format
+        strategy_scores = {}
+        for result in results:
+            breakdown = {}
+            if result.score_breakdown:
+                for comp, data in result.score_breakdown.items():
+                    if isinstance(data, dict):
+                        score_val = data.get("score", data.get("value", 0))
+                    else:
+                        score_val = data
+                    breakdown[f"{comp}_score"] = float(score_val) if score_val else 0
+
+            strategy_scores[result.strategy] = create_strategy_score(
+                strategy=result.strategy,
+                raw_score=result.score,
+                breakdown=breakdown,
+                confidence=min(1.0, result.score / 10.0) if result.score else 0.5,
+            )
+
+        if not strategy_scores:
+            return f"❌ No valid strategy scores for {symbol}"
+
+        # Load trained ensemble selector (with symbol preferences from training)
+        try:
+            selector = EnsembleSelector.load_trained_model()
+        except Exception as e:
+            logger.warning(f"Could not load trained ensemble model: {e}")
+            # Fallback to default selector
+            selector = EnsembleSelector()
+
+        # Get recommendation
+        rec = selector.get_recommendation(symbol, strategy_scores, vix=vix)
+
+        # Format output
+        b = MarkdownBuilder()
+        b.h1(f"🎯 Ensemble Recommendation: {symbol}").blank()
+
+        # Primary Recommendation
+        b.h2("Recommended Strategy")
+        strategy_emoji = {
+            "pullback": "📉",
+            "bounce": "🔄",
+            "ath_breakout": "🚀",
+            "earnings_dip": "📊",
+        }.get(rec.recommended_strategy, "📈")
+
+        b.kv_line("Strategy", f"{strategy_emoji} **{rec.recommended_strategy.upper()}**")
+        b.kv_line("Score", f"{rec.recommended_score:.1f}")
+        b.kv_line("Confidence", f"{rec.ensemble_confidence:.0%}")
+        b.kv_line("Method", rec.selection_method.value)
+        b.blank()
+
+        # Reason
+        b.kv_line("Reason", rec.selection_reason)
+        b.blank()
+
+        # All Strategy Scores
+        b.h2("All Strategies")
+        b.text("| Strategy | Score | Confidence | Adjusted |")
+        b.text("|----------|-------|------------|----------|")
+
+        for strat, score in sorted(
+            rec.strategy_scores.items(),
+            key=lambda x: x[1].adjusted_score,
+            reverse=True
+        ):
+            marker = " ⭐" if strat == rec.recommended_strategy else ""
+            b.text(
+                f"| {strat}{marker} | {score.weighted_score:.1f} | "
+                f"{score.confidence:.0%} | {score.adjusted_score:.1f} |"
+            )
+
+        b.blank()
+
+        # Context
+        b.h2("Context")
+        b.kv_line("VIX", f"{vix:.2f}" if vix else "N/A")
+        b.kv_line("Regime", rec.regime or "unknown")
+        b.kv_line("Diversification", f"{rec.diversification_benefit:.0%}")
+        b.blank()
+
+        # Alternatives
+        if rec.alternative_strategies:
+            b.h2("Alternatives")
+            b.text(", ".join(rec.alternative_strategies))
+            b.blank()
+
+        # Symbol Insights
+        insights = selector.get_insights(symbol)
+        if insights and insights.get("best_strategy"):
+            b.h2("Symbol History")
+            b.kv_line("Historical Best", insights["best_strategy"])
+            b.kv_line("Confidence", f"{insights.get('confidence', 0):.0%}")
+
+            # Win rates
+            win_rates = insights.get("win_rates", {})
+            if win_rates:
+                best_wr = max(win_rates.values()) if win_rates else 0
+                b.kv_line("Best Win Rate", f"{best_wr:.0%}")
+
+        return b.build()
+
+    async def get_ensemble_status(self) -> str:
+        """
+        Get ensemble selector and rotation engine status.
+
+        Shows current strategy preferences, rotation status,
+        and meta-learner insights.
+
+        Returns:
+            Formatted Markdown status
+        """
+        from .backtesting.ensemble_selector import EnsembleSelector
+
+        vix = await self.get_vix()
+
+        try:
+            selector = EnsembleSelector.load_trained_model()
+        except Exception as e:
+            logger.warning(f"Could not load ensemble model: {e}")
+            return "⚠️ No trained ensemble model. Run `train_ensemble_v2.py` to train."
+
+        b = MarkdownBuilder()
+        b.h1("🎭 Ensemble Strategy Status").blank()
+
+        # Current regime
+        if vix:
+            regime = "low_vol" if vix < 15 else "normal" if vix < 20 else "elevated" if vix < 30 else "high_vol"
+            b.h2("Current Context")
+            b.kv_line("VIX", f"{vix:.2f}")
+            b.kv_line("Regime", regime.upper())
+            b.blank()
+
+        # Rotation Status
+        rotation = selector.get_rotation_status()
+        if rotation:
+            b.h2("Strategy Rotation")
+            b.kv_line("Days Since Rotation", str(rotation.get("days_since_rotation", 0)))
+            b.kv_line("Total Rotations", str(rotation.get("rotation_count", 0)))
+
+            if rotation.get("last_rotation_reason"):
+                b.kv_line("Last Trigger", rotation["last_rotation_reason"])
+
+            b.blank()
+
+            # Current Preferences
+            b.h3("Current Preferences")
+            prefs = rotation.get("current_preferences", {})
+            for strat, pref in sorted(prefs.items(), key=lambda x: -x[1]):
+                bar = "█" * int(pref * 20)
+                b.text(f"{strat:<15} {pref:>5.1%} {bar}")
+
+            b.blank()
+
+            # Recent Performance
+            b.h3("Recent Performance")
+            perf = rotation.get("recent_performance", {})
+            for strat, rate in sorted(perf.items()):
+                if rate is not None:
+                    b.text(f"{strat:<15} {rate:>6.1%}")
+                else:
+                    b.text(f"{strat:<15} {'N/A':>6}")
+
+            b.blank()
+
+        # Method info
+        b.h2("Selector Info")
+        b.kv_line("Method", selector.method.value)
+        b.kv_line("Rotation Enabled", "Yes" if selector.enable_rotation else "No")
+        b.kv_line("Min Score Threshold", f"{selector.min_score_threshold:.1f}")
+
+        return b.build()
 
     @mcp_endpoint(operation="strategy for stock", symbol_param="symbol")
     async def get_strategy_for_stock(self, symbol: str) -> str:
@@ -1393,13 +1845,27 @@ class OptionPlayServer:
             enable_earnings_dip=True,
         )
         scanner.config.max_total_results = max_results * 2
-        
+
+        # Load earnings dates into scanner cache for per-symbol filtering
+        if self._earnings_fetcher is None:
+            self._earnings_fetcher = get_earnings_fetcher()
+
+        for symbol in symbols:
+            cached = self._earnings_fetcher.cache.get(symbol)
+            if cached and cached.earnings_date:
+                from datetime import date as date_type
+                try:
+                    earnings_date = date_type.fromisoformat(cached.earnings_date)
+                    scanner.set_earnings_date(symbol, earnings_date)
+                except (ValueError, TypeError):
+                    pass
+
         historical_days = max(self._config.settings.performance.historical_days, 260)
         async def data_fetcher(symbol: str):
             return await self._fetch_historical_cached(symbol, days=historical_days)
-        
+
         vix = await self.get_vix()
-        
+
         start_time = datetime.now()
         result = await scanner.scan_async(
             symbols=symbols,
@@ -1485,10 +1951,24 @@ class OptionPlayServer:
         quote = await self._get_quote_cached(symbol)
 
         vix = await self.get_vix()
-        
+
+        # Initialize scanner with earnings data
         scanner = self._get_multi_scanner(min_score=0)
+
+        # Load earnings date for this symbol into scanner cache
+        if self._earnings_fetcher is None:
+            self._earnings_fetcher = get_earnings_fetcher()
+        cached_earnings = self._earnings_fetcher.cache.get(symbol)
+        if cached_earnings and cached_earnings.earnings_date:
+            from datetime import date as date_type
+            try:
+                earnings_date = date_type.fromisoformat(cached_earnings.earnings_date)
+                scanner.set_earnings_date(symbol, earnings_date)
+            except (ValueError, TypeError):
+                pass
+
         signals = scanner.analyze_symbol(symbol, prices, volumes, highs, lows)
-        
+
         strategy_icons = {
             'pullback': '📊', 'bounce': '🔄',
             'ath_breakout': '🚀', 'earnings_dip': '📉',
@@ -1497,7 +1977,7 @@ class OptionPlayServer:
             'pullback': 'Bull-Put-Spread', 'bounce': 'Support Bounce',
             'ath_breakout': 'ATH Breakout', 'earnings_dip': 'Earnings Dip',
         }
-        
+
         b = MarkdownBuilder()
         b.h1(f"📊 Multi-Strategy Analysis: {symbol}").blank()
 
@@ -1576,23 +2056,44 @@ class OptionPlayServer:
         right: str = "P",
         max_options: int = 15,
     ) -> str:
-        """Get options chain for a symbol."""
+        """Get options chain for a symbol with automatic provider selection."""
         symbol = validate_symbol(symbol)
         dte_min, dte_max = validate_dte_range(dte_min, dte_max)
-        provider = await self._ensure_connected()
 
         quote = await self._get_quote_cached(symbol)
         underlying_price = quote.last if quote else None
 
-        await self._rate_limiter.acquire()
-        options = await provider.get_option_chain(
-            symbol,
-            dte_min=dte_min,
-            dte_max=dte_max,
-            right=right.upper()
-        )
-        self._rate_limiter.record_success()
-        
+        options = None
+
+        # Try Tradier first if connected (better Greeks from ORATS)
+        if self._tradier_connected and self._tradier_provider:
+            try:
+                options = await self._tradier_provider.get_option_chain(
+                    symbol,
+                    dte_min=dte_min,
+                    dte_max=dte_max,
+                    right=right.upper()
+                )
+                if options:
+                    self._orchestrator.record_request(ProviderType.TRADIER, success=True)
+                    logger.debug(f"Options chain from Tradier: {len(options)} options")
+            except Exception as e:
+                logger.debug(f"Tradier options chain failed for {symbol}, falling back: {e}")
+                self._orchestrator.record_request(ProviderType.TRADIER, success=False, error=str(e))
+
+        # Fallback to Marketdata
+        if not options:
+            provider = await self._ensure_connected()
+            await self._rate_limiter.acquire()
+            options = await provider.get_option_chain(
+                symbol,
+                dte_min=dte_min,
+                dte_max=dte_max,
+                right=right.upper()
+            )
+            self._rate_limiter.record_success()
+            self._orchestrator.record_request(ProviderType.MARKETDATA, success=True)
+
         return formatters.options_chain.format(
             symbol=symbol,
             options=options or [],
@@ -1647,10 +2148,22 @@ class OptionPlayServer:
     async def get_earnings(self, symbol: str, min_days: int = 60) -> str:
         """Check earnings date for a symbol with multi-source fallback."""
         symbol = validate_symbol(symbol)
+
+        # ETFs haben keine Earnings
+        if is_etf(symbol):
+            return formatters.earnings.format(
+                symbol=symbol,
+                earnings_date=None,
+                days_to_earnings=None,
+                min_days=min_days,
+                source="etf",
+                is_etf=True
+            )
+
         earnings_date = None
         days_to_earnings = None
         source_used = "unknown"
-        
+
         # 1. Try Marketdata.app
         try:
             provider = await self._ensure_connected()
@@ -1816,11 +2329,18 @@ class OptionPlayServer:
         safe_symbols: List[str] = []
         excluded_symbols: List[tuple] = []  # (symbol, earnings_date, days_to)
         unknown_symbols: List[str] = []
+        etf_symbols: List[str] = []
         cache_hits = 0
         api_calls = 0
 
         for symbol in symbols:
             try:
+                # ETFs haben keine Earnings - direkt als safe markieren
+                if is_etf(symbol):
+                    etf_symbols.append(symbol)
+                    safe_symbols.append(symbol)
+                    continue
+
                 # Check cache first
                 cached = self._earnings_fetcher.cache.get(symbol)
                 if cached:
@@ -1836,7 +2356,7 @@ class OptionPlayServer:
                     )
                     earnings_date = fetched.earnings_date if fetched else None
                     days_to = fetched.days_to_earnings if fetched else None
-                
+
                 # Classify symbol
                 if days_to is None:
                     unknown_symbols.append(symbol)
@@ -1861,9 +2381,11 @@ class OptionPlayServer:
         b.h2("Summary")
         b.kv_line("Total Symbols", len(symbols))
         b.kv_line("Min Days to Earnings", min_days)
-        b.kv_line("✅ Safe (>= min_days)", len(safe_symbols) - len(unknown_symbols))
-        b.kv_line("❌ Excluded (< min_days)", len(excluded_symbols))
-        b.kv_line("⚠️ Unknown (no date)", len(unknown_symbols))
+        safe_count = len(safe_symbols) - len(unknown_symbols) - len(etf_symbols)
+        b.kv_line("Safe (>= min_days)", safe_count)
+        b.kv_line("ETFs (no earnings)", len(etf_symbols))
+        b.kv_line("Excluded (< min_days)", len(excluded_symbols))
+        b.kv_line("Unknown (no date)", len(unknown_symbols))
         b.blank()
         
         # Cache stats
@@ -2114,8 +2636,8 @@ class OptionPlayServer:
                     "bid": opt.bid,
                     "ask": opt.ask,
                     "delta": opt.delta,
-                    "iv": opt.iv,
-                    "dte": opt.dte,
+                    "iv": opt.implied_volatility,
+                    "dte": (opt.expiry - date.today()).days,
                 }
                 for opt in options
             ]
@@ -2234,6 +2756,283 @@ class OptionPlayServer:
                     f"{q_icon} {alt.confidence_score:.0f}"
                 ])
             b.table(["#", "Strikes", "Width", "Credit", "Score"], rows)
+
+        return b.build()
+
+    # =========================================================================
+    # DETAILED REPORT
+    # =========================================================================
+
+    @mcp_endpoint(operation="detailed report generation", symbol_param="symbol")
+    async def generate_report(
+        self,
+        symbol: str,
+        strategy: Optional[str] = None,
+        include_options: bool = True,
+        include_news: bool = True,
+    ) -> str:
+        """
+        Generate a detailed PDF report for a trading candidate.
+
+        Creates a comprehensive PDF with:
+        - Summary header with key findings
+        - Full score breakdown for all components
+        - Technical levels (Support/Resistance/Fibonacci)
+        - Options setup (Strikes, Greeks, P(Profit))
+        - News section (via Yahoo Finance)
+
+        Args:
+            symbol: Ticker symbol
+            strategy: Specific strategy to analyze (pullback, bounce, breakout, earnings_dip)
+                     If not specified, uses best matching strategy
+            include_options: Include options strike recommendations (default: True)
+            include_news: Include recent news (default: True)
+
+        Returns:
+            Path to generated PDF file
+        """
+        symbol = validate_symbol(symbol)
+
+        # 1. Get historical data
+        provider = await self._ensure_connected()
+        historical_days = max(self._config.settings.performance.historical_days, 260)
+        data = await self._fetch_historical_cached(symbol, days=historical_days)
+
+        if not data:
+            return f"❌ No historical data available for {symbol}"
+
+        prices, volumes, highs, lows = data
+
+        # 2. Analyze with multi-strategy scanner
+        scanner = self._get_multi_scanner(min_score=0)
+
+        # Load earnings date into scanner cache
+        if self._earnings_fetcher is None:
+            self._earnings_fetcher = get_earnings_fetcher()
+        cached_earnings = self._earnings_fetcher.cache.get(symbol)
+        earnings_days = None
+        if cached_earnings and cached_earnings.earnings_date:
+            try:
+                earnings_date = date.fromisoformat(cached_earnings.earnings_date)
+                scanner.set_earnings_date(symbol, earnings_date)
+                earnings_days = (earnings_date - date.today()).days
+            except (ValueError, TypeError):
+                pass
+
+        signals = scanner.analyze_symbol(symbol, prices, volumes, highs, lows)
+
+        if not signals:
+            return f"❌ No signals found for {symbol}"
+
+        # 3. Select best signal (or specific strategy)
+        if strategy:
+            strategy = strategy.lower().replace('-', '_')
+            matching = [s for s in signals if s.strategy == strategy]
+            if not matching:
+                available = ", ".join(set(s.strategy for s in signals))
+                return f"❌ Strategy '{strategy}' not found. Available: {available}"
+            candidate = matching[0]
+        else:
+            candidate = max(signals, key=lambda x: x.score)
+
+        # 4. Get quote for current price
+        quote = await self._get_quote_cached(symbol)
+
+        # 5. Build PullbackCandidate-like object for PDF generator
+        # Get breakdown from signal details
+        breakdown = candidate.details.get('breakdown') if hasattr(candidate, 'details') else None
+
+        # Create a simple candidate object with the data we have
+        from dataclasses import dataclass, field
+        from typing import Dict, List
+
+        @dataclass
+        class ReportCandidate:
+            symbol: str
+            strategy: str
+            score: float
+            current_price: float
+            score_breakdown: Any = None
+            support_levels: List[float] = field(default_factory=list)
+            resistance_levels: List[float] = field(default_factory=list)
+            fib_levels: Dict[str, float] = field(default_factory=dict)
+
+        # Extract support/resistance from historical data
+        support_levels_raw = find_support_levels(lows=lows, lookback=90, window=10, max_levels=5)
+        current_price = quote.last if quote else prices[-1]
+        support_levels = [s for s in support_levels_raw if s < current_price]
+        resistance_levels = [s for s in support_levels_raw if s > current_price]
+
+        # Calculate Fibonacci
+        recent_high = max(highs[-60:]) if len(highs) >= 60 else max(highs)
+        recent_low = min(lows[-60:]) if len(lows) >= 60 else min(lows)
+        fib_levels = calculate_fibonacci(recent_high, recent_low)
+
+        # Build score breakdown from signal details
+        score_breakdown = None
+        if hasattr(candidate, 'details') and isinstance(candidate.details, dict):
+            bd = candidate.details.get('breakdown', {})
+            if bd:
+                from .models.candidates import ScoreBreakdown
+                score_breakdown = ScoreBreakdown(
+                    rsi_score=bd.get('rsi', {}).get('score', 0),
+                    rsi_value=bd.get('rsi', {}).get('value', 0),
+                    rsi_reason=bd.get('rsi', {}).get('reason', ''),
+                    support_score=bd.get('support', {}).get('score', 0),
+                    support_level=bd.get('support', {}).get('level'),
+                    support_distance_pct=bd.get('support', {}).get('distance_pct', 0),
+                    support_strength=bd.get('support', {}).get('strength', ''),
+                    support_touches=bd.get('support', {}).get('touches', 0),
+                    support_reason=bd.get('support', {}).get('reason', ''),
+                    fibonacci_score=bd.get('fibonacci', {}).get('score', 0),
+                    fib_level=bd.get('fibonacci', {}).get('level'),
+                    fib_reason=bd.get('fibonacci', {}).get('reason', ''),
+                    ma_score=bd.get('moving_averages', {}).get('score', 0),
+                    price_vs_sma20=bd.get('moving_averages', {}).get('vs_sma20', ''),
+                    price_vs_sma200=bd.get('moving_averages', {}).get('vs_sma200', ''),
+                    ma_reason=bd.get('moving_averages', {}).get('reason', ''),
+                    trend_strength_score=bd.get('trend_strength', {}).get('score', 0),
+                    trend_alignment=bd.get('trend_strength', {}).get('alignment', ''),
+                    sma20_slope=bd.get('trend_strength', {}).get('sma20_slope', 0),
+                    trend_reason=bd.get('trend_strength', {}).get('reason', ''),
+                    volume_score=bd.get('volume', {}).get('score', 0),
+                    volume_ratio=bd.get('volume', {}).get('ratio', 0),
+                    volume_trend=bd.get('volume', {}).get('trend', ''),
+                    volume_reason=bd.get('volume', {}).get('reason', ''),
+                    macd_score=bd.get('macd', {}).get('score', 0),
+                    macd_signal=bd.get('macd', {}).get('signal'),
+                    macd_histogram=bd.get('macd', {}).get('histogram', 0),
+                    macd_reason=bd.get('macd', {}).get('reason', ''),
+                    stoch_score=bd.get('stochastic', {}).get('score', 0),
+                    stoch_signal=bd.get('stochastic', {}).get('signal'),
+                    stoch_k=bd.get('stochastic', {}).get('k', 0),
+                    stoch_d=bd.get('stochastic', {}).get('d', 0),
+                    stoch_reason=bd.get('stochastic', {}).get('reason', ''),
+                    keltner_score=bd.get('keltner', {}).get('score', 0),
+                    keltner_position=bd.get('keltner', {}).get('position', ''),
+                    keltner_percent=bd.get('keltner', {}).get('percent', 0),
+                    keltner_reason=bd.get('keltner', {}).get('reason', ''),
+                    total_score=candidate.score,
+                )
+
+        report_candidate = ReportCandidate(
+            symbol=symbol,
+            strategy=candidate.strategy,
+            score=candidate.score,
+            current_price=current_price,
+            score_breakdown=score_breakdown,
+            support_levels=support_levels,
+            resistance_levels=resistance_levels,
+            fib_levels=fib_levels,
+        )
+
+        # 6. Get options data (if requested)
+        options_data = None
+        if include_options:
+            try:
+                # Use StrikeRecommender for options data
+                recommender = StrikeRecommender()
+
+                # Get options chain
+                await self._rate_limiter.acquire()
+                options = await provider.get_option_chain(symbol, dte_min=30, dte_max=60, right="P")
+                self._rate_limiter.record_success()
+
+                options_dict = None
+                if options:
+                    options_dict = [
+                        {
+                            "strike": opt.strike,
+                            "right": "P",
+                            "bid": opt.bid,
+                            "ask": opt.ask,
+                            "delta": opt.delta,
+                            "iv": opt.implied_volatility,
+                            "dte": (opt.expiry - date.today()).days,
+                        }
+                        for opt in options
+                    ]
+
+                vix = await self.get_vix()
+                regime = self._vix_selector.get_regime(vix) if vix else None
+
+                rec = recommender.get_recommendation(
+                    symbol=symbol,
+                    current_price=current_price,
+                    support_levels=support_levels,
+                    options_data=options_dict,
+                    fib_levels=[{"level": v, "fib": k} for k, v in fib_levels.items() if v < current_price],
+                    dte=45,
+                    regime=regime,
+                )
+
+                if rec:
+                    options_data = {
+                        'recommendations': [{
+                            'short_strike': rec.short_strike,
+                            'long_strike': rec.long_strike,
+                            'width': rec.spread_width,
+                            'credit': rec.estimated_credit or 0,
+                            'short_delta': rec.estimated_delta or 0,
+                            'short_premium': 0,  # Not available from recommender
+                            'long_delta': 0,
+                            'long_premium': 0,
+                            'probability_of_profit': rec.prob_profit or 0,
+                            'dte': 45,
+                        }]
+                    }
+            except Exception as e:
+                logger.warning(f"Failed to get options data for {symbol}: {e}")
+
+        # 7. Get news (if requested)
+        news = None
+        if include_news:
+            try:
+                from .data_providers.yahoo_news import get_stock_news
+                news = get_stock_news(symbol, max_items=5)
+            except Exception as e:
+                logger.warning(f"Failed to get news for {symbol}: {e}")
+
+        # 8. Prepare historical data for Volume Profile chart
+        import pandas as pd
+
+        # Fetch full historical bars (with Open prices) for Volume Profile
+        full_bars = await provider.get_historical(symbol, days=130)
+        if full_bars and len(full_bars) >= 10:
+            # Use actual OHLCV data from bars
+            historical_df = pd.DataFrame({
+                'Open': [bar.open for bar in full_bars],
+                'High': [bar.high for bar in full_bars],
+                'Low': [bar.low for bar in full_bars],
+                'Close': [bar.close for bar in full_bars],
+                'Volume': [bar.volume for bar in full_bars],
+            })
+        else:
+            # Fallback: Create DataFrame with Close as Open approximation
+            chart_days = min(130, len(prices))
+            historical_df = pd.DataFrame({
+                'Open': prices[-chart_days:],
+                'High': highs[-chart_days:],
+                'Low': lows[-chart_days:],
+                'Close': prices[-chart_days:],
+                'Volume': volumes[-chart_days:],
+            })
+
+        # 9. Generate PDF
+        # TODO: Implement new WeasyPrint-based report generator
+        # Old ReportLab implementation removed - new Apple-style HTML/PDF system pending
+
+        # Return placeholder message until new system is implemented
+        b = MarkdownBuilder()
+        b.h1(f"📄 Report: {symbol}").blank()
+        b.status_warn("PDF generation temporarily disabled - new report system in development")
+        b.blank()
+        b.kv_line("Strategy", candidate.strategy.replace('_', ' ').title())
+        b.kv_line("Score", f"{candidate.score:.1f}/16")
+        if earnings_days:
+            b.kv_line("Earnings", f"{earnings_days} days")
+        b.blank()
+        b.hint("Open the PDF to view the detailed analysis.")
 
         return b.build()
 
@@ -2849,13 +3648,19 @@ class OptionPlayServer:
         cfg = get_config()
         scanner_cfg = cfg.settings.scanner
         loader = get_watchlist_loader()
-        
+
         ibkr_host = None
         ibkr_port = None
         if IBKR_AVAILABLE and self._ibkr_bridge:
             ibkr_host = self._ibkr_bridge.host
             ibkr_port = self._ibkr_bridge.port
-        
+
+        # Tradier info
+        tradier_available = bool(self._tradier_api_key)
+        tradier_environment = None
+        if tradier_available:
+            tradier_environment = cfg.settings.tradier.environment
+
         data = HealthCheckData(
             version=self.VERSION,
             api_key_masked=self.api_key_masked,
@@ -2872,8 +3677,12 @@ class OptionPlayServer:
             ibkr_host=ibkr_host,
             ibkr_port=ibkr_port,
             metrics_stats=metrics.to_dict(),
+            tradier_available=tradier_available,
+            tradier_connected=self._tradier_connected,
+            tradier_api_key_masked=mask_api_key(self._tradier_api_key) if self._tradier_api_key else None,
+            tradier_environment=tradier_environment,
         )
-        
+
         return formatters.health_check.format(data)
     
     # =========================================================================
@@ -3201,6 +4010,920 @@ class OptionPlayServer:
         b.text(f"This limits your loss to ${result['max_loss']:.2f} per spread.")
 
         return b.build()
+
+    # =========================================================================
+    # SCAN REPORT
+    # =========================================================================
+
+    @mcp_endpoint(operation="scan report generation")
+    async def generate_scan_report(
+        self,
+        strategy: str = "multi",
+        symbols: Optional[List[str]] = None,
+        min_score: float = 5.0,
+        max_candidates: int = 20,
+    ) -> str:
+        """
+        Generate a comprehensive multi-symbol PDF scan report.
+
+        Creates a professional 13-page PDF report including:
+        - Cover page with VIX and top picks
+        - Table of contents
+        - Market environment & strategy analysis
+        - Scan results with all candidates
+        - Earnings filter analysis
+        - Support test analysis
+        - Qualified candidates summary
+        - Detailed fundamental analysis (top 2)
+        - Trade setup with Volume Profile (top 2)
+        - Comparison & recommendation
+        - Risk management rules
+
+        Args:
+            strategy: Scan strategy ("multi", "pullback", "bounce", "breakout", "earnings_dip")
+            symbols: List of symbols to scan (uses default watchlist if not provided)
+            min_score: Minimum score for qualification (default: 5.0)
+            max_candidates: Maximum candidates to include in report (default: 20)
+
+        Returns:
+            Path to generated PDF file with summary
+        """
+        import pandas as pd
+
+        # 1. Get VIX and strategy recommendation
+        vix_value = await self.get_vix()
+        regime = self._vix_selector.get_regime(vix_value) if vix_value else None
+        strategy_rec = self._vix_selector.get_recommendation(vix_value) if vix_value else None
+
+        vix_data = {
+            "value": vix_value or "N/A",
+            "regime": regime.name if regime else "Unknown",
+            "recommended_strategy": strategy_rec.profile_name.title() if strategy_rec else 'Standard',
+            "parameters": {
+                "delta": strategy_rec.delta_target if strategy_rec else -0.20,
+                "spread_width": strategy_rec.spread_width if strategy_rec else 5,
+                "min_score": min_score,
+                "min_dte": strategy_rec.dte_min if strategy_rec else 60,
+                "max_dte": strategy_rec.dte_max if strategy_rec else 90,
+            }
+        }
+
+        # 2. Get symbols list
+        if not symbols:
+            watchlist_loader = get_watchlist_loader()
+            symbols = watchlist_loader.get_all_symbols()
+
+        # 3. Pre-filter by earnings
+        safe_symbols = []
+        earnings_data = {}
+
+        if self._earnings_fetcher is None:
+            self._earnings_fetcher = get_earnings_fetcher()
+
+        for symbol in symbols[:100]:  # Limit to 100 for performance
+            try:
+                earnings_info = await self._check_earnings_async(symbol)
+                days = earnings_info.get('days_to_earnings')
+                earnings_data[symbol] = {
+                    'days_to_earnings': days,
+                    'next_date': earnings_info.get('next_date'),
+                    'safe': days is None or days > 45,
+                }
+                if earnings_data[symbol]['safe']:
+                    safe_symbols.append(symbol)
+            except Exception as e:
+                logger.debug(f"Earnings check failed for {symbol}: {e}")
+                safe_symbols.append(symbol)  # Include if earnings unknown
+                earnings_data[symbol] = {'days_to_earnings': None, 'next_date': 'Unknown', 'safe': True}
+
+        # 4. Run scan
+        scanner = self._get_multi_scanner(min_score=0)  # Get all results
+        scan_results = []
+
+        provider = await self._ensure_connected()
+
+        for symbol in safe_symbols[:50]:  # Scan top 50 safe symbols
+            try:
+                data = await self._fetch_historical_cached(symbol, days=260)
+                if not data:
+                    continue
+
+                prices, volumes, highs, lows = data
+
+                # Set earnings date if known
+                e_info = earnings_data.get(symbol, {})
+                if e_info.get('next_date') and e_info['next_date'] != 'Unknown':
+                    try:
+                        earnings_date = date.fromisoformat(e_info['next_date'])
+                        scanner.set_earnings_date(symbol, earnings_date)
+                    except (ValueError, TypeError):
+                        pass
+
+                signals = scanner.analyze_symbol(symbol, prices, volumes, highs, lows)
+                if signals:
+                    # Take best signal for each symbol
+                    best = max(signals, key=lambda x: x.score)
+                    scan_results.append(best)
+
+            except Exception as e:
+                logger.debug(f"Scan failed for {symbol}: {e}")
+
+        # Sort by score
+        scan_results = sorted(scan_results, key=lambda x: x.score, reverse=True)[:max_candidates]
+
+        if not scan_results:
+            return "❌ No scan results found. Check your watchlist and data connection."
+
+        # 5. Get fundamentals for top 7 candidates (for scorecards)
+        fundamentals = {}
+        try:
+            from .data_providers.fundamentals import get_fundamentals
+            for signal in scan_results[:7]:
+                fundamentals[signal.symbol] = get_fundamentals(signal.symbol)
+        except Exception as e:
+            logger.warning(f"Failed to get fundamentals: {e}")
+
+        # 6. Get options data for top 7 candidates (for scorecards)
+        options_data = {}
+        recommender = StrikeRecommender()
+
+        for signal in scan_results[:7]:
+            try:
+                # Get support levels
+                data = await self._fetch_historical_cached(signal.symbol, days=260)
+                if data:
+                    prices, volumes, highs, lows = data
+                    support_levels = find_support_levels(lows=lows, lookback=90, window=10, max_levels=5)
+                    support_levels = [s for s in support_levels if s < signal.current_price]
+
+                    # Calculate Fibonacci
+                    recent_high = max(highs[-60:]) if len(highs) >= 60 else max(highs)
+                    recent_low = min(lows[-60:]) if len(lows) >= 60 else min(lows)
+                    fib_levels = calculate_fibonacci(recent_high, recent_low)
+
+                    # Get options chain
+                    await self._rate_limiter.acquire()
+                    options = await provider.get_option_chain(signal.symbol, dte_min=30, dte_max=60, right="P")
+                    self._rate_limiter.record_success()
+
+                    options_dict = None
+                    if options:
+                        options_dict = [
+                            {
+                                "strike": opt.strike,
+                                "right": "P",
+                                "bid": opt.bid,
+                                "ask": opt.ask,
+                                "delta": opt.delta,
+                                "iv": opt.implied_volatility,
+                                "dte": (opt.expiry - date.today()).days,
+                            }
+                            for opt in options
+                        ]
+
+                    rec = recommender.get_recommendation(
+                        symbol=signal.symbol,
+                        current_price=signal.current_price,
+                        support_levels=support_levels,
+                        options_data=options_dict,
+                        fib_levels=[{"level": v, "fib": k} for k, v in fib_levels.items() if v < signal.current_price],
+                        dte=45,
+                        regime=regime,
+                    )
+
+                    if rec:
+                        options_data[signal.symbol] = {
+                            'recommendations': [{
+                                'short_strike': rec.short_strike,
+                                'long_strike': rec.long_strike,
+                                'width': rec.spread_width,
+                                'credit': rec.estimated_credit or 0,
+                                'short_delta': rec.estimated_delta or 0,
+                                'short_premium': 0,
+                                'long_delta': 0,
+                                'long_premium': 0,
+                                'probability_of_profit': rec.prob_profit or 0,
+                                'dte': 45,
+                            }]
+                        }
+            except Exception as e:
+                logger.debug(f"Options data failed for {signal.symbol}: {e}")
+
+        # 7. Get historical data for Volume Profile (top 7 for scorecards)
+        historical_data = {}
+        for signal in scan_results[:7]:
+            try:
+                full_bars = await provider.get_historical(signal.symbol, days=130)
+                if full_bars and len(full_bars) >= 10:
+                    historical_data[signal.symbol] = pd.DataFrame({
+                        'Open': [bar.open for bar in full_bars],
+                        'High': [bar.high for bar in full_bars],
+                        'Low': [bar.low for bar in full_bars],
+                        'Close': [bar.close for bar in full_bars],
+                        'Volume': [bar.volume for bar in full_bars],
+                    })
+            except Exception as e:
+                logger.debug(f"Historical data failed for {signal.symbol}: {e}")
+
+        # 8. Generate PDF using new report generator
+        pdf_path = None
+        try:
+            pdf_path = await self._generate_pdf_report(
+                vix_value=vix_value,
+                vix_data=vix_data,
+                scan_results=scan_results,
+                earnings_data=earnings_data,
+                fundamentals=fundamentals,
+                options_data=options_data,
+                historical_data=historical_data,
+                safe_symbols=safe_symbols,
+                min_score=min_score,
+            )
+        except Exception as e:
+            logger.warning(f"PDF generation failed: {e}")
+            pdf_path = None
+
+        # 9. Build response
+        qualified = [s for s in scan_results if s.score >= min_score]
+
+        b = MarkdownBuilder()
+        b.h1("📊 Scan Results").blank()
+
+        if pdf_path:
+            b.status_ok(f"PDF Report generated: {pdf_path}")
+        else:
+            b.status_warn("PDF generation failed - see logs for details")
+        b.blank()
+
+        b.h2("Summary")
+        b.kv_line("Total Scanned", len(safe_symbols))
+        b.kv_line("Results", len(scan_results))
+        b.kv_line("Qualified (>={min_score})", len(qualified))
+        b.kv_line("VIX", f"{vix_value:.1f}" if vix_value else "N/A")
+        b.kv_line("Strategy", vix_data['recommended_strategy'])
+        b.blank()
+
+        if qualified:
+            b.h2("Top Picks")
+            for i, sig in enumerate(qualified[:3], 1):
+                b.bullet(f"**#{i} {sig.symbol}**: Score {sig.score:.1f}/16, ${sig.current_price:.2f}")
+            b.blank()
+
+        return b.build()
+
+    async def _check_earnings_async(self, symbol: str) -> Dict[str, Any]:
+        """Async helper to check earnings for a symbol."""
+        try:
+            if self._earnings_fetcher is None:
+                self._earnings_fetcher = get_earnings_fetcher()
+
+            cached = self._earnings_fetcher.cache.get(symbol)
+            if cached and cached.earnings_date:
+                try:
+                    earnings_date = date.fromisoformat(cached.earnings_date)
+                    days = (earnings_date - date.today()).days
+                    return {
+                        'days_to_earnings': days,
+                        'next_date': cached.earnings_date,
+                    }
+                except (ValueError, TypeError):
+                    pass
+
+            # Fetch if not cached
+            result = await asyncio.to_thread(
+                self._earnings_fetcher.fetch_earnings_date,
+                symbol
+            )
+            if result and result.earnings_date:
+                try:
+                    earnings_date = date.fromisoformat(result.earnings_date)
+                    days = (earnings_date - date.today()).days
+                    return {
+                        'days_to_earnings': days,
+                        'next_date': result.earnings_date,
+                    }
+                except (ValueError, TypeError):
+                    pass
+
+            return {'days_to_earnings': None, 'next_date': None}
+        except Exception as e:
+            logger.debug(f"Earnings check error for {symbol}: {e}")
+            return {'days_to_earnings': None, 'next_date': None}
+
+    async def _generate_pdf_report(
+        self,
+        vix_value: float,
+        vix_data: Dict[str, Any],
+        scan_results: List[Any],
+        earnings_data: Dict[str, Dict],
+        fundamentals: Dict[str, Dict],
+        options_data: Dict[str, Dict],
+        historical_data: Dict[str, Any],
+        safe_symbols: List[str],
+        min_score: float,
+    ) -> str:
+        """
+        Generate PDF report from scan data.
+
+        Returns:
+            Path to generated PDF file
+        """
+        from .formatters.pdf_report_generator import (
+            PDFReportGenerator,
+            CoverPageData,
+            ScanResultRow,
+            ScorecardData,
+            ScoreItem,
+            TradeLeg,
+            TradeSetup,
+            SupportResistanceLevel,
+            VolumeProfileBar,
+            VolumeProfileData,
+            FundamentalsData,
+            NewsItem,
+            PriceLevel,
+            ReportData,
+        )
+        from .data_providers.yahoo_news import get_stock_news
+        from .indicators.volume_profile import calculate_volume_profile_poc, get_sector
+
+        generator = PDFReportGenerator()
+        now = datetime.now()
+
+        # Determine market sentiment based on VIX
+        if vix_value and vix_value < 15:
+            sentiment = "Bullish"
+        elif vix_value and vix_value < 20:
+            sentiment = "Neutral"
+        elif vix_value and vix_value < 30:
+            sentiment = "Cautious"
+        else:
+            sentiment = "Bearish"
+
+        # Build cover page data
+        cover = CoverPageData(
+            date=now.strftime("%d. %B %Y").replace(
+                "January", "Januar"
+            ).replace(
+                "February", "Februar"
+            ).replace(
+                "March", "März"
+            ).replace(
+                "May", "Mai"
+            ).replace(
+                "June", "Juni"
+            ).replace(
+                "July", "Juli"
+            ).replace(
+                "October", "Oktober"
+            ).replace(
+                "December", "Dezember"
+            ),
+            time=now.strftime("%H:%M"),
+            title="Bull-Put Spread",
+            subtitle=f"{len([s for s in scan_results if s.score >= min_score])} Kandidaten gefunden · {min(7, len(scan_results))} detailliert analysiert",
+            symbols_after_filter=len(safe_symbols),
+            symbols_with_signals=len(scan_results),
+            vix_level=vix_value or 0,
+            market_sentiment=sentiment,
+            dte_range=f"{vix_data['parameters'].get('min_dte', 60)}-{vix_data['parameters'].get('max_dte', 90)} DTE",
+            delta_short="0.15-0.25",
+            spread_width=f"${vix_data['parameters'].get('spread_width', 5):.0f}",
+            min_roi=">30%",
+            vix_regime=vix_data.get('regime', 'Normal'),
+        )
+
+        # Convert scan results to rows
+        results_rows = []
+        for i, sig in enumerate(scan_results[:12], 1):
+            # Calculate ROI from options data if available
+            roi = 0.0
+            if sig.symbol in options_data:
+                recs = options_data[sig.symbol].get('recommendations', [])
+                if recs:
+                    credit = recs[0].get('credit', 0)
+                    width = recs[0].get('width', 5)
+                    if width > 0:
+                        roi = (credit / (width - credit)) * 100 if credit < width else 0
+
+            results_rows.append(ScanResultRow(
+                rank=i,
+                symbol=sig.symbol,
+                price=sig.current_price,
+                change_pct=getattr(sig, 'change_pct', 0) or 0,
+                score=sig.score,
+                max_score=16,
+                strategy=sig.strategy.replace('_', ' ').title(),
+                roi=roi,
+                analyzed=i <= 7,
+            ))
+
+        # Build scorecards for top 7
+        scorecards = []
+        for sig in scan_results[:7]:
+            try:
+                scorecard = await self._build_scorecard_data(
+                    signal=sig,
+                    fundamentals=fundamentals.get(sig.symbol, {}),
+                    options_data=options_data.get(sig.symbol, {}),
+                    historical_data=historical_data.get(sig.symbol),
+                    earnings_data=earnings_data.get(sig.symbol, {}),
+                )
+                if scorecard:
+                    scorecards.append(scorecard)
+            except Exception as e:
+                logger.debug(f"Scorecard build failed for {sig.symbol}: {e}")
+
+        # Create report data
+        report_data = ReportData(
+            cover=cover,
+            scan_results=results_rows,
+            scorecards=scorecards,
+        )
+
+        # Generate PDF
+        pdf_path = generator.generate_pdf(report_data)
+        return str(pdf_path)
+
+    async def _build_scorecard_data(
+        self,
+        signal: Any,
+        fundamentals: Dict[str, Any],
+        options_data: Dict[str, Any],
+        historical_data: Any,
+        earnings_data: Dict[str, Any],
+    ) -> Optional[Any]:
+        """Build scorecard data for a single symbol."""
+        from .formatters.pdf_report_generator import (
+            ScorecardData,
+            ScoreItem,
+            TradeLeg,
+            TradeSetup,
+            SupportResistanceLevel,
+            VolumeProfileBar,
+            VolumeProfileData,
+            FundamentalsData,
+            NewsItem,
+            PriceLevel,
+        )
+        from .data_providers.yahoo_news import get_stock_news
+        from .indicators.volume_profile import get_sector
+
+        symbol = signal.symbol
+        now = datetime.now()
+
+        # Get company name via yfinance
+        company_name = symbol
+        try:
+            import yfinance as yf
+            ticker = yf.Ticker(symbol)
+            info = ticker.info or {}
+            company_name = info.get('shortName', info.get('longName', symbol))
+        except Exception:
+            pass
+
+        # Score items from signal breakdown
+        score_items = []
+        # Extract breakdown from signal.details['score_breakdown'] if available
+        details = getattr(signal, 'details', {}) or {}
+        breakdown = details.get('score_breakdown', {}) or {}
+
+        # Map breakdown to score items
+        # Note: Some values are nested (e.g., keltner.position, macd.signal)
+        score_mappings = [
+            ('rsi', 'RSI', lambda v: f"{v:.1f}" if v else "N/A"),
+            ('rsi_divergence.type', 'RSI Div', lambda v: v.title() if v else "None"),
+            ('support_distance', 'Support', lambda v: f"{v:+.1f}%" if v else "N/A"),
+            ('fib_level', 'Fib', lambda v: f"{v:.1f}%" if v else "N/A"),
+            ('ma50_distance', 'MA 50', lambda v: f"{v:+.1f}%" if v else "N/A"),
+            ('trend', 'Trend', lambda v: v.title() if v else "N/A"),
+            ('volume_ratio', 'Volume', lambda v: f"{v:.1f}x" if v else "N/A"),
+            ('macd.signal', 'MACD', lambda v: v.replace('_', ' ').title() if v else "N/A"),
+            ('stochastic.signal', 'Stoch', lambda v: v.replace('_', ' ').title() if v else "N/A"),
+            ('vwap.position', 'VWAP', lambda v: v.title() if v else "N/A"),
+            ('keltner.position', 'Keltner', lambda v: v.replace('_', ' ').title() if v else "N/A"),
+            ('iv_rank', 'IV Rank', lambda v: f"{v:.0f}" if v else "N/A"),
+        ]
+
+        for key, label, formatter in score_mappings:
+            # Handle nested keys like 'keltner.position'
+            if '.' in key:
+                parts = key.split('.')
+                value = breakdown.get(parts[0], {}).get(parts[1]) if breakdown else None
+            else:
+                value = breakdown.get(key)
+            formatted = formatter(value) if value is not None else "N/A"
+
+            # Determine color based on key (use base key for nested keys)
+            base_key = key.split('.')[0] if '.' in key else key
+            color = "gray"
+            if base_key == 'rsi' and value:
+                color = "green" if value < 35 else ("orange" if value < 50 else "gray")
+            elif base_key == 'rsi_divergence' and value:
+                # Bullish divergence = strong buy signal
+                color = "green" if value == 'bullish' else ("red" if value == 'bearish' else "gray")
+            elif base_key in ('support_distance', 'ma50_distance') and value:
+                color = "green" if value < 0 else "orange"
+            elif base_key == 'volume_ratio' and value:
+                color = "green" if value > 1.2 else "gray"
+            elif base_key == 'trend':
+                color = "green" if value == 'up' else ("orange" if value == 'down' else "gray")
+            elif base_key == 'macd' and value:
+                color = "green" if 'bull' in str(value).lower() else "gray"
+            elif base_key == 'stochastic' and value:
+                # oversold signals are bullish
+                color = "green" if 'oversold' in str(value).lower() else "gray"
+            elif base_key == 'vwap' and value:
+                # above VWAP = bullish (91.9% win rate per training)
+                color = "green" if value == 'above' else ("orange" if value == 'below' else "gray")
+            elif base_key == 'iv_rank' and value:
+                color = "green" if 30 <= value <= 60 else "orange"
+            elif base_key == 'keltner' and value:
+                # below_lower/near_lower = bullish for pullback/bounce, above_upper = bullish for breakout
+                if 'below' in str(value) or 'near_lower' in str(value):
+                    color = "green"  # Oversold - bullish signal
+                elif 'above' in str(value) or 'near_upper' in str(value):
+                    color = "orange"  # Overbought
+                else:
+                    color = "gray"  # In channel
+
+            score_items.append(ScoreItem(label=label, value=formatted, color=color))
+
+        # Trade setup from options data
+        recs = options_data.get('recommendations', [{}])
+        rec = recs[0] if recs else {}
+
+        short_strike = rec.get('short_strike', signal.current_price * 0.95)
+        long_strike = rec.get('long_strike', signal.current_price * 0.90)
+        credit = rec.get('credit', 1.50)
+        width = rec.get('width', 5)
+        dte = rec.get('dte', 60)
+
+        expiry = (date.today() + timedelta(days=dte))
+        max_risk = (width - credit) * 100 if width > credit else width * 100
+        roi = (credit / (width - credit)) * 100 if width > credit else 0
+        breakeven = short_strike - credit
+
+        trade_setup = TradeSetup(
+            short_leg=TradeLeg(
+                leg_type="Short Put",
+                strike=short_strike,
+                delta=rec.get('short_delta', -0.20),
+                premium=rec.get('short_premium', credit + 0.5),
+            ),
+            long_leg=TradeLeg(
+                leg_type="Long Put",
+                strike=long_strike,
+                delta=rec.get('long_delta', -0.05),
+                premium=rec.get('long_premium', 0.5),
+            ),
+            net_credit=credit,
+            max_risk=max_risk,
+            roi=roi,
+            breakeven=breakeven,
+            prob_profit=rec.get('probability_of_profit', 75),
+            expiry_date=expiry.strftime("%d. %b %Y"),
+            dte=dte,
+            earnings_days=earnings_data.get('days_to_earnings'),
+        )
+
+        # =================================================================
+        # REAL S/R LEVELS from historical data
+        # =================================================================
+        support_levels = []
+        resistance_levels = []
+        week_52_high = signal.current_price * 1.15  # Fallback
+        week_52_low = signal.current_price * 0.85   # Fallback
+
+        if historical_data is not None and len(historical_data) > 0:
+            from .indicators.support_resistance import get_nearest_sr_levels
+
+            closes = historical_data['Close'].tolist()
+            highs = historical_data['High'].tolist()
+            lows = historical_data['Low'].tolist()
+            volumes = historical_data['Volume'].tolist()
+
+            # Calculate real 52W High/Low
+            week_52_high = max(highs) if highs else signal.current_price * 1.15
+            week_52_low = min(lows) if lows else signal.current_price * 0.85
+
+            # Get real S/R levels
+            try:
+                sr_data = get_nearest_sr_levels(
+                    current_price=signal.current_price,
+                    prices=closes,
+                    highs=highs,
+                    lows=lows,
+                    volumes=volumes,
+                    lookback=252,  # 12 months
+                    num_levels=3
+                )
+
+                # Convert supports
+                for i, sup in enumerate(sr_data.get('supports', [])[:3], 1):
+                    distance_pct = ((sup['price'] - signal.current_price) / signal.current_price) * 100
+                    support_levels.append(SupportResistanceLevel(
+                        rank=f"S{i}",
+                        price=sup['price'],
+                        distance_pct=distance_pct,
+                        tests=sup.get('touches', 1),
+                        strength=min(sup.get('touches', 1) * 25, 100),
+                    ))
+
+                # Convert resistances
+                for i, res in enumerate(sr_data.get('resistances', [])[:3], 1):
+                    distance_pct = ((res['price'] - signal.current_price) / signal.current_price) * 100
+                    resistance_levels.append(SupportResistanceLevel(
+                        rank=f"R{i}",
+                        price=res['price'],
+                        distance_pct=distance_pct,
+                        tests=res.get('touches', 1),
+                        strength=min(res.get('touches', 1) * 25, 100),
+                    ))
+            except Exception as e:
+                logger.debug(f"S/R calculation failed for {symbol}: {e}")
+
+        # Fallback if no real levels found
+        if not support_levels:
+            support_levels = [
+                SupportResistanceLevel(rank="S1", price=signal.current_price * 0.97, distance_pct=-3.0, tests=2, strength=50),
+                SupportResistanceLevel(rank="S2", price=signal.current_price * 0.94, distance_pct=-6.0, tests=3, strength=75),
+            ]
+        if not resistance_levels:
+            resistance_levels = [
+                SupportResistanceLevel(rank="R1", price=signal.current_price * 1.03, distance_pct=3.0, tests=2, strength=50),
+                SupportResistanceLevel(rank="R2", price=signal.current_price * 1.06, distance_pct=6.0, tests=3, strength=75),
+            ]
+
+        # =================================================================
+        # REAL VOLUME PROFILE with POC, HVN, LVN
+        # =================================================================
+        vp_bars = []
+        poc_price = signal.current_price * 0.98  # Fallback
+        value_area_low = signal.current_price * 0.95
+        value_area_high = signal.current_price * 1.02
+        hvn_support = signal.current_price * 0.96
+        lvn_resistance = signal.current_price * 1.05
+
+        if historical_data is not None and len(historical_data) > 0:
+            from .indicators.volume_profile import calculate_volume_profile_poc
+
+            closes = historical_data['Close'].tolist()
+            volumes = historical_data['Volume'].tolist()
+            opens = historical_data['Open'].tolist()
+
+            # Calculate real Volume Profile POC
+            try:
+                vp_result = calculate_volume_profile_poc(closes, volumes, num_bins=20, period=min(130, len(closes)))
+                if vp_result:
+                    poc_price = vp_result.poc
+                    value_area_low = vp_result.value_area_low
+                    value_area_high = vp_result.value_area_high
+            except Exception as e:
+                logger.debug(f"Volume profile calculation failed: {e}")
+
+            price_min = min(closes)
+            price_max = max(closes)
+            price_range = price_max - price_min
+
+            if price_range > 0:
+                num_bins = 10
+                step = price_range / num_bins
+
+                # Track bin volumes for HVN/LVN detection
+                bin_data = []
+                highs_list = historical_data['High'].tolist()
+                lows_list = historical_data['Low'].tolist()
+
+                for i in range(num_bins):
+                    bin_price = price_max - (i * step)
+                    bin_low = bin_price - step
+                    bin_high = bin_price
+
+                    # Count volume in this bin with improved buy/sell classification
+                    bin_volume = 0
+                    weighted_buy_volume = 0
+
+                    for j in range(len(closes)):
+                        close = closes[j]
+                        if bin_low <= close <= bin_high:
+                            volume = volumes[j]
+                            open_p = opens[j]
+                            high = highs_list[j]
+                            low = lows_list[j]
+                            prev_close = closes[j - 1] if j > 0 else close
+
+                            bin_volume += volume
+
+                            # =================================================
+                            # IMPROVED BUY/SELL CLASSIFICATION
+                            # Combines multiple factors for better accuracy
+                            # =================================================
+
+                            # Factor 1: Intraday direction (Close vs Open)
+                            intraday_up = close > open_p
+
+                            # Factor 2: Day-over-day direction (Close vs Previous Close)
+                            day_over_day_up = close > prev_close
+
+                            # Factor 3: Close position in daily range (0=low, 1=high)
+                            daily_range = high - low
+                            if daily_range > 0:
+                                close_position = (close - low) / daily_range
+                            else:
+                                close_position = 0.5
+
+                            # Calculate buy confidence (0.0 to 1.0)
+                            if intraday_up and day_over_day_up and close_position > 0.6:
+                                # Strong buying: up intraday, up vs yesterday, closed near high
+                                buy_confidence = 0.85
+                            elif intraday_up and day_over_day_up:
+                                # Good buying: up on both measures
+                                buy_confidence = 0.75
+                            elif intraday_up or (day_over_day_up and close_position > 0.5):
+                                # Moderate buying: one positive factor
+                                buy_confidence = 0.60
+                            elif close_position > 0.5:
+                                # Weak buying: closed in upper half despite down day
+                                buy_confidence = 0.45
+                            elif not intraday_up and not day_over_day_up and close_position < 0.4:
+                                # Strong selling: down everywhere, closed near low
+                                buy_confidence = 0.15
+                            else:
+                                # Default: slight selling bias
+                                buy_confidence = 0.35
+
+                            weighted_buy_volume += volume * buy_confidence
+
+                    total_vol = sum(volumes) or 1
+                    vol_pct = (bin_volume / total_vol) * 100
+
+                    buy_pct = (weighted_buy_volume / bin_volume * 100) if bin_volume > 0 else 50
+                    sell_pct = 100 - buy_pct
+
+                    # Check if this is POC (real POC from calculation)
+                    is_poc = abs(bin_price - poc_price) < step
+
+                    vp_bars.append(VolumeProfileBar(
+                        price=bin_price,
+                        volume_pct=min(vol_pct * 7, 100),  # Scale for display
+                        buy_pct=buy_pct,
+                        sell_pct=sell_pct,
+                        is_poc=is_poc,
+                        is_current=abs(bin_price - signal.current_price) < step,
+                    ))
+                    bin_data.append((bin_price, vol_pct))
+
+                # Find HVN (High Volume Node) below current price = Support
+                # Find LVN (Low Volume Node) above current price = Resistance
+                bins_below = [(p, v) for p, v in bin_data if p < signal.current_price]
+                bins_above = [(p, v) for p, v in bin_data if p > signal.current_price]
+
+                if bins_below:
+                    hvn_support = max(bins_below, key=lambda x: x[1])[0]  # Highest volume below
+                if bins_above:
+                    lvn_resistance = min(bins_above, key=lambda x: x[1])[0]  # Lowest volume above
+
+        # Fallback empty profile
+        if not vp_bars:
+            for i in range(8):
+                vp_bars.append(VolumeProfileBar(
+                    price=signal.current_price * (1.05 - i * 0.02),
+                    volume_pct=50,
+                    buy_pct=55,
+                    sell_pct=45,
+                    is_poc=(i == 4),
+                    is_current=(i == 3),
+                ))
+
+        volume_profile = VolumeProfileData(
+            bars=vp_bars,
+            poc_price=poc_price,
+            value_area=f"${value_area_low:.0f}-${value_area_high:.0f}",
+            hvn_support=hvn_support,
+            lvn_resistance=lvn_resistance,
+            price_step="$2" if signal.current_price < 100 else ("$5" if signal.current_price < 300 else "$10"),
+        )
+
+        # =================================================================
+        # PRICE LEVELS with real 52W High/Low
+        # =================================================================
+        pct_to_52w_high = ((week_52_high - signal.current_price) / signal.current_price) * 100
+        pct_to_52w_low = ((week_52_low - signal.current_price) / signal.current_price) * 100
+        pct_to_short = ((short_strike - signal.current_price) / signal.current_price) * 100
+        pct_to_long = ((long_strike - signal.current_price) / signal.current_price) * 100
+        pct_to_support = ((support_levels[0].price - signal.current_price) / signal.current_price) * 100 if support_levels else -10.0
+
+        price_levels = [
+            PriceLevel(label="52W High", price=week_52_high, pct_from_current=pct_to_52w_high, level_type="resistance"),
+            PriceLevel(label="Resistance", price=resistance_levels[0].price if resistance_levels else signal.current_price * 1.05, pct_from_current=resistance_levels[0].distance_pct if resistance_levels else 5.0, level_type="normal"),
+            PriceLevel(label="Current", price=signal.current_price, pct_from_current=0.0, level_type="current"),
+            PriceLevel(label="Short Strike", price=short_strike, pct_from_current=pct_to_short, level_type="short-strike"),
+            PriceLevel(label="Long Strike", price=long_strike, pct_from_current=pct_to_long, level_type="long-strike"),
+            PriceLevel(label="Support", price=support_levels[0].price if support_levels else signal.current_price * 0.95, pct_from_current=pct_to_support, level_type="support"),
+            PriceLevel(label="52W Low", price=week_52_low, pct_from_current=pct_to_52w_low, level_type="support"),
+        ]
+
+        # Fundamentals
+        fund_data = FundamentalsData(
+            pe_ratio=fundamentals.get('current_price', 0) / max(fundamentals.get('eps', 1), 0.01) if fundamentals.get('eps') else None,
+            market_cap=self._format_market_cap(fundamentals.get('market_cap')),
+            div_yield=f"{fundamentals.get('dividend_yield', 0) * 100:.2f}%" if fundamentals.get('dividend_yield') else "0.00%",
+            iv_rank=breakdown.get('iv_rank', 0) or 0,
+            earnings_in_days=earnings_data.get('days_to_earnings'),
+            sector=get_sector(symbol),
+        )
+
+        # News - IBKR primary, Yahoo fallback
+        news_items = []
+        raw_news = []
+        news_source = "none"
+
+        # Try IBKR first (better quality: Dow Jones, Briefing)
+        if IBKR_AVAILABLE and self._ibkr_bridge:
+            try:
+                ibkr_available = await self._ibkr_bridge.is_available()
+                if ibkr_available:
+                    ibkr_news = await self._ibkr_bridge.get_news([symbol], days=7, max_per_symbol=3)
+                    if ibkr_news:
+                        raw_news = [
+                            {
+                                'title': n.headline,
+                                'date': n.time[:10] if n.time else 'Unknown',
+                                'publisher': n.provider or 'IBKR'
+                            }
+                            for n in ibkr_news
+                        ]
+                        news_source = "ibkr"
+                        logger.debug(f"Got {len(raw_news)} news from IBKR for {symbol}")
+            except Exception as e:
+                logger.debug(f"IBKR news failed for {symbol}: {e}")
+
+        # Fallback to Yahoo if no IBKR news
+        if not raw_news:
+            try:
+                raw_news = get_stock_news(symbol, max_items=3)
+                if raw_news:
+                    news_source = "yahoo"
+                    logger.debug(f"Got {len(raw_news)} news from Yahoo for {symbol}")
+            except Exception as e:
+                logger.debug(f"Yahoo news failed for {symbol}: {e}")
+
+        # Process news items with sentiment analysis
+        for n in raw_news:
+            title = n.get('title', '').lower()
+            sentiment = "neutral"
+
+            # Positive indicators
+            positive_words = ['beat', 'surge', 'jump', 'gain', 'up', 'strong', 'record',
+                            'upgrade', 'buy', 'outperform', 'raises', 'growth', 'profit']
+            # Negative indicators
+            negative_words = ['miss', 'drop', 'fall', 'down', 'weak', 'decline', 'cut',
+                            'downgrade', 'sell', 'underperform', 'lowers', 'loss', 'warning']
+
+            if any(w in title for w in positive_words):
+                sentiment = "positive"
+            elif any(w in title for w in negative_words):
+                sentiment = "negative"
+
+            news_items.append(NewsItem(
+                text=n.get('title', 'No title')[:80],
+                time=n.get('date', 'Unknown'),
+                sentiment=sentiment,
+            ))
+
+        return ScorecardData(
+            symbol=symbol,
+            company_name=company_name,
+            strategy=signal.strategy.replace('_', ' ').title(),
+            date=now.strftime("%d. %b %Y"),
+            dte=dte,
+            price=signal.current_price,
+            price_change=signal.current_price * (breakdown.get('change_pct', 0) / 100) if breakdown.get('change_pct') else 0,
+            price_change_pct=breakdown.get('change_pct', 0) or 0,
+            score=signal.score,
+            max_score=16,
+            score_items=score_items,
+            trade_setup=trade_setup,
+            support_levels=support_levels,
+            resistance_levels=resistance_levels,
+            volume_profile=volume_profile,
+            price_levels=price_levels,
+            fundamentals=fund_data,
+            news=news_items,
+        )
+
+    def _format_market_cap(self, value: Optional[float]) -> str:
+        """Format market cap to readable string."""
+        if not value:
+            return "N/A"
+        if value >= 1e12:
+            return f"${value / 1e12:.2f}T"
+        if value >= 1e9:
+            return f"${value / 1e9:.1f}B"
+        if value >= 1e6:
+            return f"${value / 1e6:.0f}M"
+        return f"${value:.0f}"
 
 
 # =============================================================================

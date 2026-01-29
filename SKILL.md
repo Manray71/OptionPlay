@@ -3,9 +3,74 @@ name: optionplay
 description: "MCP-Server für Options-Trading-Analyse mit Bull-Put-Spread Strategien. Verwendet Marketdata.app API und optionale IBKR-Bridge. Trigger: 'Options-Analyse', 'Pullback-Scan', 'Bull-Put-Spread', 'VIX-Strategie', 'Earnings-Check', 'Options-Chain', 'Max Pain', 'IV-Rank', 'Spread-Kandidaten', 'was sagt der Markt', 'Trading-Setup'. Startet den MCP-Server bei ~/OptionPlay und verwendet dessen Tools."
 ---
 
-# OptionPlay - Options Trading MCP Server v3.4.0
+# OptionPlay - Options Trading MCP Server v3.5.0
 
 Bull-Put-Spread Analyse-System mit VIX-basierter automatischer Strategie-Auswahl.
+
+## 🚀 Schnellstart
+
+### Installation
+```bash
+cd ~/OptionPlay
+python3 scripts/setup_claude.py
+```
+Das Setup-Skript:
+- Prüft Python und Abhängigkeiten
+- Konfiguriert Claude Desktop automatisch
+- Validiert die Installation
+
+### Claude Desktop neu starten
+Nach dem Setup Claude Desktop neu starten.
+
+---
+
+## 📝 Workflow-Prompts (NEU!)
+
+Vordefinierte Workflows für häufige Aufgaben:
+
+| Prompt | Beschreibung |
+|--------|-------------|
+| `morning_scan` | Vollständiger Morgen-Workflow |
+| `quick_scan` | Schneller Scan nach Kandidaten |
+| `analyze_symbol` | Vollständige Symbol-Analyse |
+| `earnings_check` | Earnings-Situation prüfen |
+| `portfolio_review` | Portfolio-Übersicht |
+| `setup_trade` | Vollständiges Trade-Setup |
+
+### Verwendung in Claude Desktop
+```
+Führe den morning_scan Workflow aus
+```
+oder
+```
+Analysiere AAPL mit dem analyze_symbol Workflow
+```
+
+---
+
+## 🔧 Tool-Aliase (NEU!)
+
+Kürzere Namen für schnelleres Tippen:
+
+| Alias | Voller Name |
+|-------|-------------|
+| `vix` | optionplay_vix |
+| `scan` | optionplay_scan |
+| `quote` | optionplay_quote |
+| `options` | optionplay_options |
+| `earnings` | optionplay_earnings |
+| `analyze` | optionplay_analyze |
+| `multi` | optionplay_scan_multi |
+| `bounce` | optionplay_scan_bounce |
+| `breakout` | optionplay_scan_breakout |
+| `dip` | optionplay_scan_earnings_dip |
+| `prefilter` | optionplay_earnings_prefilter |
+| `strikes` | optionplay_recommend_strikes |
+| `report` | optionplay_report |
+| `portfolio` | optionplay_portfolio |
+| `health` | optionplay_health |
+
+---
 
 ## Projektstruktur
 
@@ -15,9 +80,11 @@ Bull-Put-Spread Analyse-System mit VIX-basierter automatischer Strategie-Auswahl
 │   ├── settings.yaml      # Haupt-Konfiguration
 │   ├── strategies.yaml    # VIX-basierte Profile
 │   └── watchlists.yaml    # 275 Symbole nach GICS-Sektoren
+├── scripts/
+│   └── setup_claude.py    # Automatisches Setup
 ├── src/
-│   ├── mcp_server.py      # MCP Server v3.4.0
-│   └── strike_recommender.py  # Strike-Empfehlungen
+│   ├── mcp_main.py        # MCP Server mit Prompts & Aliases
+│   └── mcp_server.py      # Tool-Implementierungen
 ├── .env                   # MARKETDATA_API_KEY
 └── docs/ARCHITECTURE.md   # Vollständige Dokumentation
 ```
@@ -26,177 +93,100 @@ Bull-Put-Spread Analyse-System mit VIX-basierter automatischer Strategie-Auswahl
 
 ### Kern-Funktionen
 
-| Tool | Beschreibung |
-|------|-------------|
-| `optionplay_earnings_prefilter` | Vorfilter nach Earnings (>45d) - ERSTER Schritt! |
-| `optionplay_vix` | Aktueller VIX mit Strategie-Empfehlung |
-| `optionplay_scan` | VIX-aware Pullback-Scan |
-| `optionplay_scan_multi` | Multi-Strategie-Scan (alle Strategien) |
-| `optionplay_quote` | Stock-Quote für Symbol |
-| `optionplay_options` | Options-Chain (DTE, Delta, IV) |
-| `optionplay_earnings` | Earnings-Check für einzelnes Symbol |
-| `optionplay_analyze` | Vollständige Einzelanalyse |
-| `optionplay_analyze_multi` | Multi-Strategie-Analyse für Symbol |
-| `optionplay_recommend_strikes` | **NEU** Strike-Empfehlungen für Bull-Put-Spreads |
+| Tool | Alias | Beschreibung |
+|------|-------|-------------|
+| `optionplay_earnings_prefilter` | `prefilter` | Vorfilter nach Earnings (>45d) |
+| `optionplay_vix` | `vix` | VIX mit Strategie-Empfehlung |
+| `optionplay_scan` | `scan` | VIX-aware Pullback-Scan |
+| `optionplay_scan_multi` | `multi` | Multi-Strategie-Scan |
+| `optionplay_quote` | `quote` | Stock-Quote |
+| `optionplay_options` | `options` | Options-Chain |
+| `optionplay_earnings` | `earnings` | Earnings-Check |
+| `optionplay_analyze` | `analyze` | Einzelanalyse |
+| `optionplay_analyze_multi` | `analyze_multi` | Multi-Strategie-Analyse |
+| `optionplay_recommend_strikes` | `strikes` | Strike-Empfehlungen |
+| `optionplay_report` | `report` | PDF-Report mit Score-Breakdown, Options, News |
 
-### IBKR Bridge (optional, wenn TWS läuft)
+### IBKR Bridge (optional)
 
-| Tool | Beschreibung |
-|------|-------------|
-| `optionplay_ibkr_status` | IBKR-Verbindungsstatus |
-| `optionplay_ibkr_portfolio` | Portfolio-Positionen |
-| `optionplay_ibkr_spreads` | Identifizierte Spread-Positionen |
-| `optionplay_ibkr_vix` | Live VIX von IBKR |
-| `optionplay_ibkr_quotes` | Batch-Quotes für Watchlist |
+| Tool | Alias | Beschreibung |
+|------|-------|-------------|
+| `optionplay_ibkr_status` | `ibkr` | Verbindungsstatus |
+| `optionplay_ibkr_portfolio` | `ibkr_portfolio` | Positionen |
+| `optionplay_ibkr_spreads` | `ibkr_spreads` | Spread-Positionen |
+| `optionplay_ibkr_vix` | `ibkr_vix` | Live VIX |
+| `optionplay_ibkr_quotes` | `ibkr_quotes` | Batch-Quotes |
 
 ---
 
-## ⭐ OPTIMIERTER WORKFLOW (NEU)
+## ⭐ OPTIMIERTER WORKFLOW
 
 ### Phase 1: Earnings Pre-Filter (IMMER ZUERST!)
 ```
-> optionplay_earnings_prefilter min_days=45
+> prefilter min_days=45
 📅 Earnings Pre-Filter
-Summary:
-  Total Symbols: 275
-  ✅ Safe (>= 45d): 180
-  ❌ Excluded (< 45d): 85
-  ⚠️ Unknown: 10
-Cache: 4 Wochen TTL
-```
-**Wichtig:** Dieser Schritt verwendet gecachte Earnings-Daten (4 Wochen gültig) und filtert Symbole mit bevorstehenden Earnings aus, BEVOR teure API-Calls für Kursdaten gemacht werden.
-
-### Phase 2: VIX & Strategie-Check
-```
-> optionplay_vix
-VIX: 18.5 → Profil: STANDARD
-Delta: -0.30, Spread: $5, Min-Score: 5, Earnings-Buffer: 60d
+  ✅ Safe: 180  |  ❌ Excluded: 85
 ```
 
-### Phase 3: Multi-Strategie-Scan (mit gefilterter Liste)
+### Phase 2: VIX & Strategie
 ```
-> optionplay_scan_multi symbols=[gefilterte_symbole] min_score=5
-📊 Multi-Strategy Scan
-Strategy Summary:
-  📊 Bull-Put-Spread: 12 candidates
-  🔄 Support Bounce: 8 candidates
-  🚀 ATH Breakout: 3 candidates
+> vix
+VIX: 18.5 → STANDARD Profile
 ```
 
-### Phase 4: Detaillierte Analyse der Top-Kandidaten
+### Phase 3: Multi-Strategie-Scan
 ```
-> optionplay_analyze_multi symbol="AAPL"
-📊 Multi-Strategy Analysis: AAPL
-  📊 Bull-Put-Spread: 8.5/10 ✅ Strong
-  🔄 Support Bounce: 6.2/10 🟡 Moderate
+> multi symbols=[gefilterte] min_score=5
+📊 Bull-Put-Spread: 12  |  🔄 Bounce: 8  |  🚀 Breakout: 3
 ```
 
-### Phase 5: Earnings-Verifikation (>60 Tage)
+### Phase 4: Detailanalyse
 ```
-> optionplay_earnings symbol="AAPL" min_days=60
-✅ SAFE: 86 Tage bis Earnings
-```
-
-### Phase 6: Options-Chain
-```
-> optionplay_options symbol="AAPL" dte_min=30 dte_max=60 right="P"
-Strikes nahe ATM mit Bid/Ask, IV, Delta, OI
+> analyze_multi symbol="AAPL"
+📊 Bull-Put-Spread: 8.5/10 ✅
 ```
 
-### Phase 7: Strike-Empfehlung (NEU!)
+### Phase 5: Strike-Empfehlung
 ```
-> optionplay_recommend_strikes symbol="AAPL" dte_min=30 dte_max=60
-🎯 Strike Recommendation: AAPL
-Current Price: $182.50
-
-📊 Support Levels: $175.00, $170.00, $165.00
-📐 Fibonacci: 38.2%: $173.50, 50%: $168.00
-
-⭐ Primary Recommendation:
-Short Strike: $170.00
-Long Strike: $165.00
-Spread Width: $5.00
-Reason: Support @ $170.00 + Fib-bestätigt
-
-Expected Metrics:
-Est. Credit: $1.25
-Max Profit: $125.00
-Max Loss: $375.00
-P(Profit): 72%
-
-Quality: 🟢 EXCELLENT (78/100)
+> strikes symbol="AAPL"
+⭐ Short: $170 / Long: $165
+   Credit: $1.25 | P(Profit): 72%
 ```
-
----
-
-## Workflow-Regeln
-
-### Earnings-Filter-Kriterien
-1. **Pre-Filter (Phase 1):** min_days=45 (Vorfilter)
-2. **Finaler Check (Phase 5):** min_days=60 (hartes Kriterium für Trade)
-
-### Warum zwei Filter?
-- **45 Tage Pre-Filter:** Reduziert Watchlist von 275 auf ~180 Symbole
-- **60 Tage Final-Check:** Stellt sicher, dass kein Trade mit Earnings < 60 Tagen eingegangen wird
-- Symbole zwischen 45-60 Tagen werden gescannt, aber beim finalen Check aussortiert
-
-### Cache-Strategie
-| Daten | Cache-Dauer | Grund |
-|-------|-------------|-------|
-| Earnings | 4 Wochen | Ändern sich selten |
-| VIX | 5 Minuten | Volatil |
-| Quotes | 5 Minuten | Marktdaten |
-| Historical | 5 Minuten | Für technische Analyse |
 
 ---
 
 ## VIX-Strategie-Profile
 
-| VIX | Profil | Delta | Spread | Min-Score | Earnings |
-|-----|--------|-------|--------|-----------|----------|
-| <15 | Conservative | -0.20 | $2.50 | 6 | 90d |
-| 15-20 | Standard | -0.30 | $5.00 | 5 | 60d |
-| 20-30 | Aggressive | -0.35 | $5.00 | 4 | 45d |
-| >30 | High Vol | -0.20 | $10.00 | 7 | 90d |
-
-## Pullback-Score (0-10)
-
-| Komponente | Max | Kriterien |
-|------------|-----|-----------|
-| RSI | 3 | <30=3, <40=2, <50=1 |
-| Support-Nähe | 2 | ±3%=2, ±5%=1 |
-| Fibonacci | 2 | 61.8%/50%=2, 38.2%=1 |
-| MA-Trend | 2 | Preis > SMA200 aber < SMA20 |
-| Volumen | 1 | >1.5x Durchschnitt |
-
-## Wichtige Filter
-
-- **Earnings**: Keine Trades innerhalb X Tage vor Earnings (VIX-abhängig)
-- **IV-Rank**: 30-80% (konfigurierbar in settings.yaml)
-- **Preis**: $20-$500
-- **Volumen**: >500k täglich
-
-## Konfiguration anpassen
-
-Alle Parameter in `~/OptionPlay/config/settings.yaml`:
-- Scanner: `scanner.min_score`, `scanner.enable_iv_filter`
-- Earnings: `filters.earnings.exclude_days_before`
-- Options: `options_analysis.short_put.delta_target`
+| VIX | Profil | Delta | Spread | Min-Score |
+|-----|--------|-------|--------|-----------|
+| <15 | Conservative | -0.20 | $2.50 | 6 |
+| 15-20 | Standard | -0.30 | $5.00 | 5 |
+| 20-30 | Aggressive | -0.35 | $5.00 | 4 |
+| >30 | High Vol | -0.20 | $10.00 | 7 |
 
 ## Datenquellen
 
 | Quelle | Daten | Priorität |
 |--------|-------|-----------|
-| Marketdata.app | Quotes, Options, Historical | Primär |
-| Yahoo Finance | VIX (Fallback), Earnings | Sekundär |
-| IBKR (optional) | News, Max Pain, Live VIX | Premium |
+| Tradier | Historical, Options, Quotes | Primär |
+| Marketdata.app | Fallback, VIX | Sekundär |
+| Yahoo Finance | VIX, Earnings | Fallback |
+| IBKR (optional) | Live Data, Portfolio | Premium |
 
-## Detaillierte Referenzen
+---
 
-- **Score-Breakdown**: `references/scoring.md`
-- **Strategy-Profile**: `references/profiles/`
-- **Spread-Typen**: `references/spread-types.md`
-- **API-Dokumentation**: `~/OptionPlay/docs/ARCHITECTURE.md`
+## ⏰ ERINNERUNG: Marketdata.app entfernen
+
+**Datum: 16. Februar 2026**
+
+Nach 3 Wochen (ab 26. Januar 2026) kann Marketdata.app entfernt werden:
+- [ ] Tradier als alleiniger Daten-Provider für Quotes, Options, Historical
+- [ ] VIX nur über Yahoo Finance + IBKR
+- [ ] Marketdata.app API-Key und Code entfernen
+- [ ] `_ensure_connected()` auf Tradier umstellen
+- [ ] Rate Limiter auf Tradier anpassen (120/min statt 100/min)
+
+---
 
 ## Disclaimer
 
