@@ -16,6 +16,16 @@ from .pool import (
     reset_analyzer_pool,
     configure_default_pool,
 )
+from .score_normalization import (
+    normalize_score,
+    denormalize_score,
+    get_signal_strength,
+    get_max_possible,
+    compare_scores,
+    ScoreNormalizer,
+    StrategyScoreConfig,
+    STRATEGY_SCORE_CONFIGS,
+)
 
 __all__ = [
     # Base
@@ -40,4 +50,14 @@ __all__ = [
     'get_analyzer_pool',
     'reset_analyzer_pool',
     'configure_default_pool',
+
+    # Score Normalization
+    'normalize_score',
+    'denormalize_score',
+    'get_signal_strength',
+    'get_max_possible',
+    'compare_scores',
+    'ScoreNormalizer',
+    'StrategyScoreConfig',
+    'STRATEGY_SCORE_CONFIGS',
 ]
