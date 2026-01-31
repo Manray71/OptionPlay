@@ -30,6 +30,16 @@ try:
     from ..config.config_loader import PullbackScoringConfig
     from ..config.liquidity_blacklist import is_illiquid, filter_liquid_symbols
     from ..backtesting.reliability import ReliabilityScorer, ScorerConfig
+    from ..backtesting.real_options_backtester import (
+        calculate_symbol_stability,
+        get_symbol_stability_score,
+        OUTCOME_DB_PATH,
+    )
+    from ..cache.symbol_fundamentals import (
+        SymbolFundamentalsManager,
+        get_fundamentals_manager,
+        SymbolFundamentals,
+    )
 except ImportError:
     from analyzers.base import BaseAnalyzer
     from analyzers.context import AnalysisContext
@@ -53,6 +63,26 @@ except ImportError:
     except ImportError:
         ReliabilityScorer = None
         ScorerConfig = None
+    try:
+        from backtesting.real_options_backtester import (
+            calculate_symbol_stability,
+            get_symbol_stability_score,
+            OUTCOME_DB_PATH,
+        )
+    except ImportError:
+        calculate_symbol_stability = None
+        get_symbol_stability_score = None
+        OUTCOME_DB_PATH = None
+    try:
+        from cache.symbol_fundamentals import (
+            SymbolFundamentalsManager,
+            get_fundamentals_manager,
+            SymbolFundamentals,
+        )
+    except ImportError:
+        SymbolFundamentalsManager = None
+        get_fundamentals_manager = None
+        SymbolFundamentals = None
 
 logger = logging.getLogger(__name__)
 
@@ -70,9 +100,9 @@ class ScanMode(Enum):
 @dataclass
 class ScanConfig:
     """Konfiguration für den Scanner"""
-    # Score-Filter
-    min_score: float = 5.0
-    min_actionable_score: float = 6.0
+    # Score-Filter (normalized 0-10 scale)
+    min_score: float = 3.5  # Minimum score for signal (normalized)
+    min_actionable_score: float = 5.0  # Strong actionable signal
 
     # Earnings-Filter
     exclude_earnings_within_days: int = 60
@@ -88,6 +118,10 @@ class ScanConfig:
     # Output-Limits
     max_results_per_symbol: int = 3
     max_total_results: int = 50
+
+    # Portfolio Concentration (verhindert zu viel Exposure auf ein Symbol)
+    max_symbol_appearances: int = 2  # Max Anzahl ein Symbol in Multi-Strategy Results
+    warn_on_concentration: bool = True  # Warnung bei hoher Symbol-Konzentration
 
     # Parallel Processing
     max_concurrent: int = 10
@@ -109,6 +143,76 @@ class ScanConfig:
     enable_reliability_scoring: bool = True  # Reliability-Grades berechnen
     reliability_model_path: Optional[str] = None  # Pfad zum trainierten Modell
     reliability_min_grade: str = "D"  # Mindest-Grade für Signale (A-F)
+
+    # Symbol Stability Filtering (Phase 4 - Outcome-basierte Filterung)
+    enable_stability_scoring: bool = True  # Stability Scores aus Backtest-DB
+    stability_min_score: float = 50.0  # Mindest-Stabilität (0-100)
+    stability_boost_threshold: float = 70.0  # Ab diesem Score wird Score erhöht
+    stability_boost_amount: float = 1.0  # Score-Boost für stabile Symbole (LEGACY)
+    warn_on_volatile_symbols: bool = True  # Warnung bei volatilen Symbolen
+
+    # Win Rate Integration (Phase 5 - Proportionale Integration)
+    # Formel: adjusted_score = base_score * (base_multiplier + win_rate/win_rate_divisor)
+    # Beispiel: base=0.7, divisor=300, WR=90% => Multiplier = 0.7 + 0.30 = 1.0
+    # Beispiel: base=0.7, divisor=300, WR=70% => Multiplier = 0.7 + 0.23 = 0.93
+    enable_win_rate_integration: bool = True
+    win_rate_base_multiplier: float = 0.7  # Basis-Multiplikator
+    win_rate_divisor: float = 300.0  # Divisor für Win Rate (WR/Divisor = Bonus)
+
+    # Drawdown Risk Adjustment (Phase 5 - Risk-basierte Filterung)
+    enable_drawdown_adjustment: bool = True
+    drawdown_penalty_threshold: float = 10.0  # Ab diesem Avg-Drawdown: Penalty
+    drawdown_penalty_per_pct: float = 0.02  # Score-Reduktion pro % über Threshold
+
+    # =========================================================================
+    # FUNDAMENTALS PRE-FILTER (Phase 6 - symbol_fundamentals Integration)
+    # =========================================================================
+    # Filtert Symbole VOR dem Scan basierend auf Fundamentaldaten
+    enable_fundamentals_filter: bool = True  # Master-Schalter
+
+    # Stability-basierte Filterung (aus outcomes.db)
+    fundamentals_min_stability: float = 50.0  # Mindest Stability Score
+    fundamentals_min_win_rate: float = 70.0   # Mindest historische Win Rate
+
+    # Volatility-basierte Filterung
+    fundamentals_max_volatility: float = 70.0  # Max HV (annualisiert %)
+    fundamentals_max_beta: float = 2.0         # Max Beta zu SPY
+
+    # IV Rank aus Fundamentals (symbol_fundamentals.iv_rank_252d)
+    fundamentals_iv_rank_min: float = 20.0
+    fundamentals_iv_rank_max: float = 80.0
+
+    # SPY Correlation Filter
+    fundamentals_max_spy_correlation: Optional[float] = None  # z.B. 0.7
+    fundamentals_min_spy_correlation: Optional[float] = None  # z.B. 0.3
+
+    # Sector/Market Cap Filter
+    fundamentals_exclude_sectors: List[str] = field(default_factory=list)
+    fundamentals_include_sectors: List[str] = field(default_factory=list)
+    fundamentals_exclude_market_caps: List[str] = field(default_factory=list)
+    fundamentals_include_market_caps: List[str] = field(default_factory=list)
+
+    # Blacklist/Whitelist
+    # Blacklist ist zentral in fundamentals_constants.py definiert
+    fundamentals_blacklist: List[str] = field(default_factory=lambda: _get_default_blacklist_scanner())
+    fundamentals_whitelist: List[str] = field(default_factory=list)  # Überschreibt alle Filter
+
+
+def _get_default_blacklist_scanner() -> List[str]:
+    """Lädt die Default-Blacklist aus fundamentals_constants."""
+    try:
+        from ..config.fundamentals_constants import DEFAULT_BLACKLIST
+        return DEFAULT_BLACKLIST.copy()
+    except ImportError:
+        try:
+            from config.fundamentals_constants import DEFAULT_BLACKLIST
+            return DEFAULT_BLACKLIST.copy()
+        except ImportError:
+            # Fallback wenn Import fehlschlägt
+            return [
+                "ROKU", "SNAP", "UPST", "AFRM", "MRNA", "RUN", "MSTR", "TSLA", "COIN", "SQ",
+                "DAVE", "IONQ", "QBTS", "QMCO", "QUBT", "RDW", "RGTI"
+            ]
 
 
 @dataclass
@@ -166,9 +270,9 @@ class MultiStrategyScanner:
     Verwendung:
         scanner = MultiStrategyScanner()
 
-        # Mit async Data Fetcher
+        # Mit async Data Fetcher (mit Opens für Gap-Analyse)
         async def fetch_data(symbol):
-            return prices, volumes, highs, lows
+            return prices, volumes, highs, lows, opens
 
         result = await scanner.scan_async(
             symbols=["AAPL", "MSFT", "GOOGL"],
@@ -211,6 +315,211 @@ class MultiStrategyScanner:
         self._reliability_scorer: Optional['ReliabilityScorer'] = None
         if self.config.enable_reliability_scoring and ReliabilityScorer is not None:
             self._reliability_scorer = reliability_scorer or self._create_reliability_scorer()
+
+        # Symbol Stability Cache (Phase 4 - Outcome-basiert)
+        self._stability_cache: Dict[str, Dict] = {}
+        if self.config.enable_stability_scoring and calculate_symbol_stability is not None:
+            self._load_stability_cache()
+
+        # Fundamentals Cache (Phase 6 - symbol_fundamentals Integration)
+        self._fundamentals_cache: Dict[str, 'SymbolFundamentals'] = {}
+        self._fundamentals_manager: Optional['SymbolFundamentalsManager'] = None
+        if self.config.enable_fundamentals_filter and get_fundamentals_manager is not None:
+            self._load_fundamentals_cache()
+
+    def _load_stability_cache(self) -> None:
+        """Lädt Symbol-Stabilitätsdaten aus der Outcome-Datenbank"""
+        if calculate_symbol_stability is None:
+            return
+
+        try:
+            if OUTCOME_DB_PATH and OUTCOME_DB_PATH.exists():
+                self._stability_cache = calculate_symbol_stability(OUTCOME_DB_PATH)
+                if self._stability_cache:
+                    stable_count = sum(1 for d in self._stability_cache.values() if d.get('recommended'))
+                    volatile_count = sum(1 for d in self._stability_cache.values() if d.get('blacklisted'))
+                    logger.info(
+                        f"Loaded stability data for {len(self._stability_cache)} symbols "
+                        f"({stable_count} stable, {volatile_count} volatile)"
+                    )
+        except Exception as e:
+            logger.warning(f"Could not load stability cache: {e}")
+
+    def _load_fundamentals_cache(self) -> None:
+        """Lädt Fundamentaldaten aus der symbol_fundamentals Tabelle"""
+        if get_fundamentals_manager is None:
+            return
+
+        try:
+            self._fundamentals_manager = get_fundamentals_manager()
+            all_fundamentals = self._fundamentals_manager.get_all_fundamentals()
+
+            for f in all_fundamentals:
+                self._fundamentals_cache[f.symbol] = f
+
+            # Statistiken loggen
+            with_stability = sum(1 for f in all_fundamentals if f.stability_score is not None)
+            with_iv_rank = sum(1 for f in all_fundamentals if f.iv_rank_252d is not None)
+
+            logger.info(
+                f"Loaded fundamentals for {len(self._fundamentals_cache)} symbols "
+                f"({with_stability} with stability, {with_iv_rank} with IV rank)"
+            )
+        except Exception as e:
+            logger.warning(f"Could not load fundamentals cache: {e}")
+
+    def get_symbol_fundamentals(self, symbol: str) -> Optional['SymbolFundamentals']:
+        """
+        Gibt Fundamentaldaten für ein Symbol zurück.
+
+        Returns:
+            SymbolFundamentals oder None
+        """
+        return self._fundamentals_cache.get(symbol.upper())
+
+    def filter_symbols_by_fundamentals(
+        self,
+        symbols: List[str],
+        log_filtered: bool = True
+    ) -> Tuple[List[str], Dict[str, str]]:
+        """
+        Filtert Symbole basierend auf Fundamentaldaten aus symbol_fundamentals.
+
+        Diese Methode wird VOR dem Scan aufgerufen, um Symbole auszuschließen,
+        die die Fundamentals-Kriterien nicht erfüllen.
+
+        Args:
+            symbols: Liste der zu filternden Symbole
+            log_filtered: Ob gefilterte Symbole geloggt werden sollen
+
+        Returns:
+            Tuple: (gefilterte_symbole, filter_grund_dict)
+        """
+        if not self.config.enable_fundamentals_filter:
+            return symbols, {}
+
+        if not self._fundamentals_cache:
+            logger.debug("Fundamentals cache is empty - skipping fundamentals filter")
+            return symbols, {}
+
+        passed: List[str] = []
+        filtered: Dict[str, str] = {}
+
+        # Defensive None-Checks für Listen
+        whitelist = self.config.fundamentals_whitelist or []
+        blacklist = self.config.fundamentals_blacklist or []
+
+        for symbol in symbols:
+            symbol_upper = symbol.upper()
+
+            # Whitelist überschreibt alles
+            if whitelist and symbol_upper in whitelist:
+                passed.append(symbol)
+                continue
+
+            # Blacklist
+            if blacklist and symbol_upper in blacklist:
+                filtered[symbol] = "Blacklisted (historisch schlechte Performance)"
+                continue
+
+            # Fundamentals abrufen
+            f = self._fundamentals_cache.get(symbol_upper)
+
+            # Kein Eintrag → durchlassen (konservativ)
+            if f is None:
+                passed.append(symbol)
+                continue
+
+            # Stability Score Filter
+            if f.stability_score is not None:
+                if f.stability_score < self.config.fundamentals_min_stability:
+                    filtered[symbol] = f"Stability zu niedrig ({f.stability_score:.0f} < {self.config.fundamentals_min_stability:.0f})"
+                    continue
+
+            # Historical Win Rate Filter
+            if f.historical_win_rate is not None:
+                if f.historical_win_rate < self.config.fundamentals_min_win_rate:
+                    filtered[symbol] = f"Win Rate zu niedrig ({f.historical_win_rate:.0f}% < {self.config.fundamentals_min_win_rate:.0f}%)"
+                    continue
+
+            # Historical Volatility Filter
+            if f.historical_volatility_30d is not None:
+                if f.historical_volatility_30d > self.config.fundamentals_max_volatility:
+                    filtered[symbol] = f"HV zu hoch ({f.historical_volatility_30d:.0f}% > {self.config.fundamentals_max_volatility:.0f}%)"
+                    continue
+
+            # Beta Filter
+            if f.beta is not None:
+                if f.beta > self.config.fundamentals_max_beta:
+                    filtered[symbol] = f"Beta zu hoch ({f.beta:.1f} > {self.config.fundamentals_max_beta:.1f})"
+                    continue
+
+            # IV Rank Filter (aus symbol_fundamentals)
+            if f.iv_rank_252d is not None:
+                if f.iv_rank_252d < self.config.fundamentals_iv_rank_min:
+                    filtered[symbol] = f"IV Rank zu niedrig ({f.iv_rank_252d:.0f} < {self.config.fundamentals_iv_rank_min:.0f})"
+                    continue
+                if f.iv_rank_252d > self.config.fundamentals_iv_rank_max:
+                    filtered[symbol] = f"IV Rank zu hoch ({f.iv_rank_252d:.0f} > {self.config.fundamentals_iv_rank_max:.0f})"
+                    continue
+
+            # SPY Correlation Filter
+            if f.spy_correlation_60d is not None:
+                if self.config.fundamentals_max_spy_correlation is not None:
+                    if f.spy_correlation_60d > self.config.fundamentals_max_spy_correlation:
+                        filtered[symbol] = f"SPY Korrelation zu hoch ({f.spy_correlation_60d:.2f})"
+                        continue
+                if self.config.fundamentals_min_spy_correlation is not None:
+                    if f.spy_correlation_60d < self.config.fundamentals_min_spy_correlation:
+                        filtered[symbol] = f"SPY Korrelation zu niedrig ({f.spy_correlation_60d:.2f})"
+                        continue
+
+            # Sector Filter
+            if f.sector:
+                if self.config.fundamentals_exclude_sectors:
+                    if f.sector in self.config.fundamentals_exclude_sectors:
+                        filtered[symbol] = f"Sektor ausgeschlossen ({f.sector})"
+                        continue
+                if self.config.fundamentals_include_sectors:
+                    if f.sector not in self.config.fundamentals_include_sectors:
+                        filtered[symbol] = f"Sektor nicht in Whitelist ({f.sector})"
+                        continue
+
+            # Market Cap Filter
+            if f.market_cap_category:
+                if self.config.fundamentals_exclude_market_caps:
+                    if f.market_cap_category in self.config.fundamentals_exclude_market_caps:
+                        filtered[symbol] = f"Market Cap ausgeschlossen ({f.market_cap_category})"
+                        continue
+                if self.config.fundamentals_include_market_caps:
+                    if f.market_cap_category not in self.config.fundamentals_include_market_caps:
+                        filtered[symbol] = f"Market Cap nicht in Whitelist ({f.market_cap_category})"
+                        continue
+
+            # Alle Filter bestanden
+            passed.append(symbol)
+
+        if log_filtered and filtered:
+            logger.info(
+                f"Fundamentals filter: {len(filtered)} symbols removed, "
+                f"{len(passed)} remaining"
+            )
+            # Detail-Log für erste 5 gefilterte
+            for i, (sym, reason) in enumerate(list(filtered.items())[:5]):
+                logger.debug(f"  Filtered {sym}: {reason}")
+            if len(filtered) > 5:
+                logger.debug(f"  ... and {len(filtered) - 5} more")
+
+        return passed, filtered
+
+    def get_symbol_stability(self, symbol: str) -> Optional[Dict]:
+        """
+        Gibt Stabilitätsdaten für ein Symbol zurück.
+
+        Returns:
+            Dict mit stability_score, win_rate, avg_drawdown etc. oder None
+        """
+        return self._stability_cache.get(symbol)
 
     def _create_reliability_scorer(self) -> Optional['ReliabilityScorer']:
         """Erstellt den Reliability Scorer"""
@@ -487,6 +796,7 @@ class MultiStrategyScanner:
         volumes: List[int],
         highs: List[float],
         lows: List[float],
+        opens: Optional[List[float]] = None,
         strategies: Optional[List[str]] = None,
         context: Optional[AnalysisContext] = None,
         **kwargs
@@ -500,6 +810,7 @@ class MultiStrategyScanner:
             volumes: Volumen
             highs: Tageshochs
             lows: Tagestiefs
+            opens: Eröffnungskurse (optional, für Gap-Analyse)
             strategies: Optional: Nur diese Strategien verwenden
             context: Optional: Pre-calculated AnalysisContext for performance
             **kwargs: Zusätzliche Parameter für Analyzer
@@ -517,7 +828,7 @@ class MultiStrategyScanner:
 
         # Pre-calculate context once if not provided (shared across all analyzers)
         if context is None and len(strategies_to_use) > 1:
-            context = AnalysisContext.from_data(symbol, prices, volumes, highs, lows)
+            context = AnalysisContext.from_data(symbol, prices, volumes, highs, lows, opens=opens)
 
         for strategy_name in strategies_to_use:
             try:
@@ -560,6 +871,10 @@ class MultiStrategyScanner:
                 # Reliability Scoring (Phase 3)
                 if self._reliability_scorer and signal.score >= self.config.min_score:
                     self._add_reliability_to_signal(signal)
+
+                # Stability Scoring (Phase 4 - Outcome-basiert)
+                if self.config.enable_stability_scoring:
+                    self._add_stability_to_signal(signal)
 
                 # Nur Signale über min_score
                 if signal.score >= self.config.min_score:
@@ -621,6 +936,111 @@ class MultiStrategyScanner:
 
         except Exception as e:
             logger.debug(f"Could not add reliability to signal: {e}")
+
+    def _add_stability_to_signal(self, signal: TradeSignal) -> None:
+        """
+        Fügt Symbol-Stabilitätsinformationen zu einem Signal hinzu und
+        passt den Score basierend auf historischen Backtest-Ergebnissen an.
+
+        Anpassungen:
+        1. Win Rate Integration: Score wird proportional zur historischen Win Rate skaliert
+        2. Drawdown Penalty: Hohe Drawdowns reduzieren den Score
+        3. Stability Boost: Stabile Symbole erhalten zusätzlichen Bonus
+
+        Formel: adjusted_score = base_score * win_rate_multiplier * drawdown_factor
+
+        Args:
+            signal: TradeSignal das erweitert werden soll
+        """
+        stability_data = self._stability_cache.get(signal.symbol)
+        original_score = signal.score
+
+        if stability_data:
+            stability_score = stability_data.get('stability_score', 0)
+            historical_wr = stability_data.get('win_rate', 0)  # 0-100
+            avg_drawdown = stability_data.get('avg_drawdown', 0)
+
+            # 1. Win Rate Integration (proportional)
+            # Formel: multiplier = base + (win_rate / divisor)
+            # Bei WR=90%: 0.7 + 0.30 = 1.0 (kein Boost, volle Stärke)
+            # Bei WR=70%: 0.7 + 0.23 = 0.93 (leichte Reduktion)
+            # Bei WR=50%: 0.7 + 0.17 = 0.87 (stärkere Reduktion)
+            if self.config.enable_win_rate_integration and historical_wr > 0:
+                win_rate_multiplier = (
+                    self.config.win_rate_base_multiplier +
+                    historical_wr / self.config.win_rate_divisor
+                )
+                signal.score = signal.score * win_rate_multiplier
+
+            # 2. Drawdown Penalty
+            # Hoher Drawdown = höheres Risiko = Score-Reduktion
+            if self.config.enable_drawdown_adjustment and avg_drawdown > self.config.drawdown_penalty_threshold:
+                excess_drawdown = avg_drawdown - self.config.drawdown_penalty_threshold
+                drawdown_penalty = excess_drawdown * self.config.drawdown_penalty_per_pct
+                signal.score = signal.score * (1.0 - min(drawdown_penalty, 0.3))  # Max 30% Reduktion
+
+            # 3. Legacy Stability Boost (für rückwärts Kompatibilität)
+            # Jetzt: Nur zusätzlich für SEHR stabile Symbole (Score >= 80)
+            if stability_score >= 80:
+                signal.score = signal.score + (self.config.stability_boost_amount * 0.5)
+            elif stability_score >= self.config.stability_boost_threshold:
+                signal.score = signal.score + (self.config.stability_boost_amount * 0.25)
+
+            # Round to 1 decimal
+            signal.score = round(signal.score, 1)
+
+            # Warnung für volatile Symbole
+            if self.config.warn_on_volatile_symbols and stability_data.get('blacklisted'):
+                if not hasattr(signal, 'reliability_warnings') or signal.reliability_warnings is None:
+                    signal.reliability_warnings = []
+                signal.reliability_warnings.append(
+                    f"⚠️ Volatile Symbol: Historische WR nur {historical_wr:.0f}%, "
+                    f"Avg Drawdown {avg_drawdown:.1f}%"
+                )
+
+            # Stability-Info in Details speichern (erweitert)
+            if signal.details is not None:
+                signal.details['stability'] = {
+                    'score': stability_score,
+                    'historical_win_rate': historical_wr,
+                    'avg_drawdown': avg_drawdown,
+                    'avg_days_below_short': stability_data.get('avg_days_below', 0),
+                    'total_backtest_trades': stability_data.get('total_trades', 0),
+                    'recommended': stability_data.get('recommended', False),
+                    'blacklisted': stability_data.get('blacklisted', False),
+                    # Neue Felder für Transparenz
+                    'original_score': original_score,
+                    'score_adjustment': round(signal.score - original_score, 2),
+                    'adjustment_reason': self._get_adjustment_reason(
+                        historical_wr, avg_drawdown, stability_score
+                    ),
+                }
+
+    def _get_adjustment_reason(
+        self,
+        win_rate: float,
+        avg_drawdown: float,
+        stability_score: float
+    ) -> str:
+        """Erklärt die Score-Anpassung für Transparenz."""
+        reasons = []
+
+        if win_rate >= 90:
+            reasons.append(f"Exzellente WR ({win_rate:.0f}%)")
+        elif win_rate >= 85:
+            reasons.append(f"Sehr gute WR ({win_rate:.0f}%)")
+        elif win_rate < 75:
+            reasons.append(f"Niedrige WR ({win_rate:.0f}%) → Score reduziert")
+
+        if avg_drawdown > 15:
+            reasons.append(f"Hoher Drawdown ({avg_drawdown:.1f}%) → Penalty")
+        elif avg_drawdown < 5:
+            reasons.append(f"Niedriger Drawdown ({avg_drawdown:.1f}%)")
+
+        if stability_score >= 80:
+            reasons.append(f"Sehr stabil (Score {stability_score:.0f})")
+
+        return " | ".join(reasons) if reasons else "Standard"
 
     def _run_analysis(
         self,
@@ -697,6 +1117,16 @@ class MultiStrategyScanner:
             if filtered_count > 0:
                 logger.info(f"Liquidity filter: removed {filtered_count} illiquid symbols")
 
+        # Fundamentals Filter: Entferne Symbole basierend auf Fundamentaldaten
+        if self.config.enable_fundamentals_filter:
+            pre_filter_count = len(symbols)
+            symbols, filtered_reasons = self.filter_symbols_by_fundamentals(symbols)
+            if len(filtered_reasons) > 0:
+                logger.info(
+                    f"Fundamentals filter: {len(filtered_reasons)} removed, "
+                    f"{len(symbols)} remaining (from {pre_filter_count})"
+                )
+
         # Strategien basierend auf Mode
         strategies = self._get_strategies_for_mode(mode)
 
@@ -721,14 +1151,19 @@ class MultiStrategyScanner:
                 if not data or len(data[0]) < self.config.min_data_points:
                     return []
 
-                prices, volumes, highs, lows = data
+                # Support both 4-tuple (legacy) and 5-tuple (with opens)
+                if len(data) == 5:
+                    prices, volumes, highs, lows, opens = data
+                else:
+                    prices, volumes, highs, lows = data
+                    opens = None
 
                 # PERFORMANCE: Only acquire semaphore for CPU-intensive analysis
                 async with semaphore:
                     # PERFORMANCE: Create context once and cache it
                     context = context_cache.get(symbol)
                     if context is None:
-                        context = AnalysisContext.from_data(symbol, prices, volumes, highs, lows)
+                        context = AnalysisContext.from_data(symbol, prices, volumes, highs, lows, opens=opens)
                         context_cache[symbol] = context
 
                     # Analysieren mit gecachtem Context
@@ -738,6 +1173,7 @@ class MultiStrategyScanner:
                         volumes=volumes,
                         highs=highs,
                         lows=lows,
+                        opens=opens,
                         strategies=strategies,
                         context=context
                     )
@@ -773,7 +1209,14 @@ class MultiStrategyScanner:
         # Best Signal Mode: Nur bestes pro Symbol
         if mode == ScanMode.BEST_SIGNAL:
             all_signals = self._keep_best_per_symbol(all_signals)
-        
+
+        # Apply concentration filter to limit symbol appearances
+        if mode != ScanMode.BEST_SIGNAL and self.config.max_symbol_appearances > 0:
+            all_signals, concentration_stats = self._limit_symbol_concentration(
+                all_signals,
+                max_appearances=self.config.max_symbol_appearances
+            )
+
         duration = (datetime.now() - start_time).total_seconds()
         
         result = ScanResult(
@@ -826,8 +1269,18 @@ class MultiStrategyScanner:
             if filtered_count > 0:
                 logger.info(f"Liquidity filter: removed {filtered_count} illiquid symbols")
 
+        # Fundamentals Filter: Entferne Symbole basierend auf Fundamentaldaten
+        if self.config.enable_fundamentals_filter:
+            pre_filter_count = len(symbols)
+            symbols, filtered_reasons = self.filter_symbols_by_fundamentals(symbols)
+            if len(filtered_reasons) > 0:
+                logger.info(
+                    f"Fundamentals filter: {len(filtered_reasons)} removed, "
+                    f"{len(symbols)} remaining (from {pre_filter_count})"
+                )
+
         strategies = self._get_strategies_for_mode(mode)
-        
+
         for idx, symbol in enumerate(symbols):
             try:
                 if progress_callback:
@@ -838,8 +1291,8 @@ class MultiStrategyScanner:
                 if not data or len(data[0]) < self.config.min_data_points:
                     continue
                 
-                prices, volumes, highs, lows = data
-                
+                prices, volumes, highs, lows, *_ = data
+
                 # Analysieren
                 signals = self.analyze_symbol(
                     symbol=symbol,
@@ -896,15 +1349,60 @@ class MultiStrategyScanner:
     def _keep_best_per_symbol(self, signals: List[TradeSignal]) -> List[TradeSignal]:
         """Behält nur das beste Signal pro Symbol"""
         best_by_symbol: Dict[str, TradeSignal] = {}
-        
+
         for signal in signals:
             if signal.symbol not in best_by_symbol or \
                signal.score > best_by_symbol[signal.symbol].score:
                 best_by_symbol[signal.symbol] = signal
-        
+
         result = list(best_by_symbol.values())
         result.sort(key=lambda x: x.score, reverse=True)
         return result
+
+    def _limit_symbol_concentration(
+        self,
+        signals: List[TradeSignal],
+        max_appearances: int = 2
+    ) -> Tuple[List[TradeSignal], Dict[str, int]]:
+        """
+        Begrenzt die Anzahl der Signale pro Symbol für Portfolio-Diversifikation.
+
+        Verhindert zu hohe Konzentration auf einzelne Symbole in Multi-Strategy Scans.
+        Behält die besten N Signale pro Symbol basierend auf Score.
+
+        Args:
+            signals: Liste aller Signale (bereits nach Score sortiert)
+            max_appearances: Max Anzahl Signale pro Symbol (default: 2)
+
+        Returns:
+            Tuple of (filtered_signals, concentration_stats)
+        """
+        if max_appearances <= 0:
+            return signals, {}
+
+        symbol_counts: Dict[str, int] = {}
+        filtered: List[TradeSignal] = []
+        removed_count = 0
+
+        # Signals sollten bereits nach Score sortiert sein
+        for signal in signals:
+            symbol = signal.symbol
+            current_count = symbol_counts.get(symbol, 0)
+
+            if current_count < max_appearances:
+                filtered.append(signal)
+                symbol_counts[symbol] = current_count + 1
+            else:
+                removed_count += 1
+
+        # Log wenn viele Signale entfernt wurden
+        if removed_count > 0 and self.config.warn_on_concentration:
+            logger.info(
+                f"Concentration filter: Removed {removed_count} signals "
+                f"(max {max_appearances} per symbol)"
+            )
+
+        return filtered, symbol_counts
     
     def get_summary(self, result: Optional[ScanResult] = None) -> str:
         """
@@ -1000,7 +1498,7 @@ def create_scanner(
     enable_breakout: bool = True,
     enable_bounce: bool = True,
     enable_earnings_dip: bool = True,
-    min_score: float = 5.0,
+    min_score: float = 3.5,  # Normalized 0-10 scale
     exclude_earnings_days: int = 60
 ) -> MultiStrategyScanner:
     """
@@ -1025,7 +1523,7 @@ def quick_scan(
     symbols: List[str],
     data_fetcher: DataFetcher,
     mode: ScanMode = ScanMode.ALL,
-    min_score: float = 5.0
+    min_score: float = 3.5  # Normalized 0-10 scale
 ) -> List[TradeSignal]:
     """
     Schneller Scan ohne Scanner-Instanz.

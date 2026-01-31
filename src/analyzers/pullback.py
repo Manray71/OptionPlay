@@ -9,6 +9,7 @@ import logging
 
 from .base import BaseAnalyzer
 from .context import AnalysisContext
+from .score_normalization import normalize_score, get_signal_strength, STRATEGY_SCORE_CONFIGS
 
 try:
     from ..models.base import TradeSignal, SignalType, SignalStrength
@@ -52,6 +53,12 @@ except ImportError:
         find_support_levels as find_support_optimized,
         find_resistance_levels as find_resistance_optimized,
     )
+
+# Import Gap Analysis (validated with 174k+ events)
+try:
+    from ..indicators.gap_analysis import analyze_gap
+except ImportError:
+    from indicators.gap_analysis import analyze_gap
 
 logger = logging.getLogger(__name__)
 
@@ -113,13 +120,17 @@ class PullbackAnalyzer(BaseAnalyzer):
         """
         # Vollständige Analyse durchführen
         candidate = self.analyze_detailed(symbol, prices, volumes, highs, lows, context=context)
-        
-        # In TradeSignal konvertieren
-        if candidate.is_qualified():
+
+        # Normalize score to 0-10 scale for fair cross-strategy comparison
+        max_possible = candidate.score_breakdown.max_possible if hasattr(candidate.score_breakdown, 'max_possible') else 26
+        normalized_score = (candidate.score / max_possible) * 10 if max_possible > 0 else 0
+
+        # In TradeSignal konvertieren (based on normalized 0-10 scale)
+        if normalized_score >= 3.5:
             signal_type = SignalType.LONG
-            if candidate.score >= 7:
+            if normalized_score >= 7:
                 strength = SignalStrength.STRONG
-            elif candidate.score >= 5:
+            elif normalized_score >= 5:
                 strength = SignalStrength.MODERATE
             else:
                 strength = SignalStrength.WEAK
@@ -153,7 +164,7 @@ class PullbackAnalyzer(BaseAnalyzer):
             strategy=self.strategy_name,
             signal_type=signal_type,
             strength=strength,
-            score=candidate.score,
+            score=round(normalized_score, 1),  # Normalized 0-10 score
             current_price=candidate.current_price,
             entry_price=entry_price,
             stop_loss=stop_loss,
@@ -163,7 +174,9 @@ class PullbackAnalyzer(BaseAnalyzer):
                 'rsi': candidate.technicals.rsi_14,
                 'trend': candidate.technicals.trend,
                 'support_levels': candidate.support_levels,
-                'score_breakdown': candidate.score_breakdown.to_dict()
+                'score_breakdown': candidate.score_breakdown.to_dict(),
+                'raw_score': candidate.score,
+                'max_possible': max_possible
             }
         )
     
@@ -414,7 +427,15 @@ class PullbackAnalyzer(BaseAnalyzer):
         breakdown.sector = sector_result[1]
         breakdown.sector_reason = sector_result[2]
 
-        # Total Score (max ~25 Punkte)
+        # 13. Gap Score (0-1 für down-gaps, -0.5 bis 0 für up-gaps) - Validated with 174k+ events
+        gap_result = self._score_gap(prices, highs, lows, context)
+        breakdown.gap_score = gap_result[0]
+        breakdown.gap_type = gap_result[1]
+        breakdown.gap_size_pct = gap_result[2]
+        breakdown.gap_filled = gap_result[3]
+        breakdown.gap_reason = gap_result[4]
+
+        # Total Score (max ~26 Punkte)
         breakdown.total_score = (
             breakdown.rsi_score +           # 0-3
             breakdown.rsi_divergence_score + # 0-3
@@ -426,12 +447,16 @@ class PullbackAnalyzer(BaseAnalyzer):
             breakdown.macd_score +          # 0-2
             breakdown.stoch_score +         # 0-2
             breakdown.keltner_score +       # 0-2
-            breakdown.vwap_score +          # 0-3 (NEW)
-            breakdown.market_context_score + # -1 to +2 (NEW)
-            breakdown.sector_score          # -1 to +1 (NEW)
+            breakdown.vwap_score +          # 0-3
+            breakdown.market_context_score + # -1 to +2
+            breakdown.sector_score +        # -1 to +1
+            breakdown.gap_score             # 0 to +1 (NEW - validated)
         )
-        breakdown.max_possible = 25  # Updated for new features
-        
+        breakdown.max_possible = STRATEGY_SCORE_CONFIGS['pullback'].max_possible
+
+        # Normalize score to 0-10 scale for fair cross-strategy comparison
+        normalized_score = normalize_score(breakdown.total_score, 'pullback')
+
         return PullbackCandidate(
             symbol=symbol,
             current_price=current_price,
@@ -527,6 +552,14 @@ class PullbackAnalyzer(BaseAnalyzer):
             reasons.append(f"{bd.sector} (favorable)")
         elif bd.sector_score <= -0.5:
             reasons.append(f"{bd.sector} (challenging)")
+
+        # Gap (NEW - validated with 174k+ events)
+        if bd.gap_score >= 0.5:
+            reasons.append(f"Down-gap entry ({bd.gap_size_pct:.1f}%)")
+        elif bd.gap_score > 0:
+            reasons.append(f"Small down-gap")
+        elif bd.gap_score <= -0.3:
+            reasons.append(f"Up-gap caution")
 
         return " | ".join(reasons) if reasons else "Weak setup"
     
@@ -1332,3 +1365,86 @@ class PullbackAnalyzer(BaseAnalyzer):
             reason = f"{sector}: neutral sector"
 
         return adjustment, sector, reason
+
+    def _score_gap(
+        self,
+        prices: List[float],
+        highs: List[float],
+        lows: List[float],
+        context: Optional[AnalysisContext] = None
+    ) -> Tuple[float, str, float, bool, str]:
+        """
+        Gap Score (0-1 für down-gaps, -0.5 bis 0 für up-gaps).
+
+        Validated with 174k+ Gap Events (907 symbols, 5 years):
+        - Down-gaps: +0.43% better 30d returns, +1.9pp higher win rate
+        - Large down-gaps (>3%): +1.21% outperformance at 5d
+        - 30-Day Win Rate: 56.7% (down) vs 54.8% (up)
+
+        Returns:
+            (score, gap_type, gap_size_pct, is_filled, reason)
+        """
+        # Use context if available (already calculated)
+        if context and hasattr(context, 'gap_result') and context.gap_result:
+            gap = context.gap_result
+            gap_type = gap.gap_type
+            gap_size = gap.gap_size_pct
+            is_filled = gap.is_filled
+            quality_score = gap.quality_score
+
+            # Convert quality_score (-1 to +1) to display score
+            if gap_type in ('down', 'partial_down'):
+                score = max(0, quality_score)  # 0 to 1
+                if abs(gap_size) >= 3.0:
+                    reason = f"Large down-gap: {gap_size:.1f}% - strong entry (+1.21% outperformance)"
+                elif abs(gap_size) >= 1.0:
+                    reason = f"Down-gap: {gap_size:.1f}% - favorable entry (+0.43% 30d)"
+                else:
+                    reason = f"Small down-gap: {gap_size:.1f}% - mild positive"
+            elif gap_type in ('up', 'partial_up'):
+                score = min(0, quality_score)  # -0.5 to 0
+                if abs(gap_size) >= 3.0:
+                    reason = f"Large up-gap: {gap_size:+.1f}% - caution, overbought risk"
+                elif abs(gap_size) >= 1.0:
+                    reason = f"Up-gap: {gap_size:+.1f}% - short-term momentum"
+                else:
+                    reason = f"Small up-gap: {gap_size:+.1f}% - neutral"
+            else:
+                score = 0.0
+                gap_type = "none"
+                gap_size = 0.0
+                is_filled = False
+                reason = "No significant gap"
+
+            return score, gap_type, gap_size, is_filled, reason
+
+        # Calculate directly if context not available
+        if len(prices) < 2:
+            return 0.0, "none", 0.0, False, "Insufficient data"
+
+        try:
+            # Approximate opens from closes (previous close)
+            opens = [prices[0]] + prices[:-1]
+
+            gap_result = analyze_gap(
+                opens=opens,
+                highs=highs,
+                lows=lows,
+                closes=prices,
+                lookback_days=20,
+                min_gap_pct=0.5,
+            )
+
+            if gap_result and gap_result.gap_type != 'none':
+                # Recursively call with context
+                class TempContext:
+                    pass
+                temp_ctx = TempContext()
+                temp_ctx.gap_result = gap_result
+                return self._score_gap(prices, highs, lows, temp_ctx)
+            else:
+                return 0.0, "none", 0.0, False, "No significant gap"
+
+        except Exception as e:
+            logger.debug(f"Gap scoring error: {e}")
+            return 0.0, "none", 0.0, False, "Gap analysis error"

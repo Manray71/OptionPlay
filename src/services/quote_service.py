@@ -27,8 +27,9 @@ Verwendung:
 
 import asyncio
 import logging
+from collections import OrderedDict
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Tuple
 
 from .base import BaseService, ServiceContext
 from ..models.result import ServiceResult
@@ -53,10 +54,14 @@ class QuoteService(BaseService):
         _cache_ttl_seconds: Cache TTL in Sekunden
     """
 
+    # Maximum cache size to prevent memory leaks
+    MAX_CACHE_SIZE = 500
+
     def __init__(
         self,
         context: ServiceContext,
-        cache_ttl_seconds: int = 60
+        cache_ttl_seconds: int = 60,
+        max_cache_size: int = MAX_CACHE_SIZE
     ):
         """
         Initialisiert den Quote Service.
@@ -64,12 +69,16 @@ class QuoteService(BaseService):
         Args:
             context: Shared ServiceContext
             cache_ttl_seconds: TTL für Quote Cache (default: 60s)
+            max_cache_size: Maximum cache entries (LRU eviction, default: 500)
         """
         super().__init__(context)
-        self._quote_cache: Dict[str, tuple] = {}  # symbol -> (quote, timestamp)
+        # Use OrderedDict for LRU behavior - most recently used at end
+        self._quote_cache: OrderedDict[str, Tuple[Dict[str, Any], datetime]] = OrderedDict()
         self._cache_ttl_seconds = cache_ttl_seconds
+        self._max_cache_size = max_cache_size
         self._cache_hits = 0
         self._cache_misses = 0
+        self._cache_evictions = 0
 
     async def get_quote(
         self,
@@ -257,14 +266,18 @@ class QuoteService(BaseService):
         return self._format_batch_quotes(result.data)
 
     def get_cache_stats(self) -> Dict[str, Any]:
-        """Gibt Cache-Statistiken zurück."""
+        """Gibt Cache-Statistiken zurück inkl. LRU-Metriken."""
         total = self._cache_hits + self._cache_misses
         hit_rate = (self._cache_hits / total * 100) if total > 0 else 0
+        usage_pct = (len(self._quote_cache) / self._max_cache_size * 100)
 
         return {
             "entries": len(self._quote_cache),
+            "max_size": self._max_cache_size,
+            "usage_pct": round(usage_pct, 1),
             "hits": self._cache_hits,
             "misses": self._cache_misses,
+            "evictions": self._cache_evictions,
             "hit_rate_pct": round(hit_rate, 2),
             "ttl_seconds": self._cache_ttl_seconds,
         }
@@ -280,7 +293,11 @@ class QuoteService(BaseService):
     # =========================================================================
 
     def _get_from_cache(self, symbol: str) -> Optional[Dict[str, Any]]:
-        """Holt Quote aus Cache wenn nicht expired."""
+        """
+        Holt Quote aus Cache wenn nicht expired.
+
+        LRU: Moves accessed entry to end (most recently used).
+        """
         if symbol not in self._quote_cache:
             return None
 
@@ -291,10 +308,30 @@ class QuoteService(BaseService):
             del self._quote_cache[symbol]
             return None
 
+        # LRU: Move to end (most recently used)
+        self._quote_cache.move_to_end(symbol)
         return quote_data
 
     def _set_cache(self, symbol: str, quote_data: Dict[str, Any]) -> None:
-        """Setzt Quote im Cache."""
+        """
+        Setzt Quote im Cache mit LRU eviction.
+
+        When cache is full, evicts least recently used entries.
+        """
+        # If already in cache, update and move to end
+        if symbol in self._quote_cache:
+            self._quote_cache[symbol] = (quote_data, datetime.now())
+            self._quote_cache.move_to_end(symbol)
+            return
+
+        # Evict oldest entries if cache is full
+        while len(self._quote_cache) >= self._max_cache_size:
+            # Remove oldest (first) item
+            oldest_key = next(iter(self._quote_cache))
+            del self._quote_cache[oldest_key]
+            self._cache_evictions += 1
+
+        # Add new entry at end
         self._quote_cache[symbol] = (quote_data, datetime.now())
 
     async def _fetch_single_quote(
