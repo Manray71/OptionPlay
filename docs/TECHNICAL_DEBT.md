@@ -3,7 +3,7 @@
 **Erstellt:** 2026-02-04
 **Status:** Aktiv
 **Quelle:** Code Audit nach v3.7.0
-**Aktualisiert:** 2026-02-04 (Phase 0 Hygiene)
+**Aktualisiert:** 2026-02-04 (Phase 0 + Phase 1 abgeschlossen)
 
 ---
 
@@ -12,8 +12,8 @@
 | ID | Titel | Prio | Aufwand | Status |
 |----|-------|------|---------|--------|
 | DEBT-001 | Black-Scholes Duplikation | HIGH | Mittel | Offen |
-| DEBT-002 | Unsichere Exception-Handler | HIGH | Klein | Teilweise (bare except behoben, 15x silent pass verbleiben) |
-| DEBT-003 | SQLite blockiert Async Event Loop | HIGH | Gross | Offen |
+| DEBT-002 | Unsichere Exception-Handler | HIGH | Klein | **Erledigt** (0 bare except, 0 silent pass) |
+| DEBT-003 | SQLite blockiert Async Event Loop | HIGH | Gross | **Erledigt** (Hot-Path Module mit asyncio.to_thread) |
 | DEBT-004 | Monolith-Dateien >1000 LOC | MEDIUM | Gross | Offen |
 | DEBT-005 | Parallele Earnings-Systeme | MEDIUM | Mittel | Offen |
 | DEBT-006 | Config-Sprawl | MEDIUM | Mittel | Offen |
