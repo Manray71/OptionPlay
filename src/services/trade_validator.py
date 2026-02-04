@@ -39,6 +39,8 @@ from ..constants.trading_rules import (
     ENTRY_IV_RANK_MIN,
     ENTRY_IV_RANK_MAX,
     BLACKLIST_SYMBOLS,
+    is_blacklisted,
+    get_adjusted_stability_min,
     SPREAD_DTE_MIN,
     SPREAD_DTE_MAX,
     SPREAD_SHORT_DELTA_TARGET,
@@ -269,9 +271,7 @@ class TradeValidator:
 
     def _check_blacklist(self, symbol: str) -> ValidationCheck:
         """Check 1: Blacklist (PLAYBOOK §1)."""
-        is_blacklisted = symbol.upper() in [s.upper() for s in BLACKLIST_SYMBOLS]
-
-        if is_blacklisted:
+        if is_blacklisted(symbol):
             return ValidationCheck(
                 name="blacklist",
                 passed=False,
@@ -306,10 +306,7 @@ class TradeValidator:
         stability = fundamentals.stability_score
 
         # VIX-adjusted minimum (PLAYBOOK §3)
-        min_stability = ENTRY_STABILITY_MIN  # Default: 70
-        if current_vix is not None:
-            regime_rules = get_regime_rules(current_vix)
-            min_stability = regime_rules.stability_min
+        min_stability = get_adjusted_stability_min(current_vix)
 
         if stability < min_stability:
             return ValidationCheck(

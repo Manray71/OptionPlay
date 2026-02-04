@@ -1,13 +1,21 @@
 # OptionPlay - Black-Scholes Options Pricing Model
 # =================================================
 """
-Implementiert das Black-Scholes-Merton Modell für europäische Optionen.
+Black-Scholes OOP-Modul — Interaktive Analyse und Spread-Bewertung
+=====================================================================
+
+Klassenbasierte Implementierung fuer einzelne Optionen und Bull-Put-Spreads.
+Verwendet von: strike_recommender, spread_analyzer, backtesting/simulator.
+
+HINWEIS: Fuer Batch-Operationen und Backtesting (vektorisiert, kalibrierte IV)
+siehe ``src/pricing/black_scholes.py``.
 
 Features:
-- Theoretischer Optionspreis (Call & Put)
-- Greeks: Delta, Gamma, Theta, Vega, Rho
-- Implied Volatility Berechnung (Newton-Raphson)
-- Spread-Pricing für Bull-Put-Spreads
+- BlackScholes Klasse mit vorberechneten d1/d2
+- BullPutSpread Dataclass mit Wahrscheinlichkeiten
+- Greeks (Delta, Gamma, Theta, Vega, Rho)
+- Implied Volatility (Newton-Raphson)
+- Probability ITM/OTM/Touch
 
 Mathematische Grundlagen:
     C = S*N(d1) - K*e^(-rT)*N(d2)

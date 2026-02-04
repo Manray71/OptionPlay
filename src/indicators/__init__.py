@@ -12,7 +12,12 @@ from .momentum import (
     find_swing_highs,
 )
 from .trend import calculate_sma, calculate_ema, calculate_adx
-from .volatility import calculate_atr, calculate_bollinger_bands
+from .volatility import (
+    calculate_atr,
+    calculate_atr_simple,
+    calculate_bollinger_bands,
+    calculate_keltner_channel,
+)
 from .support_resistance import find_support_levels, find_resistance_levels, calculate_fibonacci
 from .volume_profile import (
     calculate_vwap,
@@ -51,7 +56,9 @@ __all__ = [
     
     # Volatility
     'calculate_atr',
+    'calculate_atr_simple',
     'calculate_bollinger_bands',
+    'calculate_keltner_channel',
     
     # Support/Resistance
     'find_support_levels',

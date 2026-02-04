@@ -60,6 +60,8 @@ try:
         ENTRY_EARNINGS_MIN_DAYS,
         ENTRY_VIX_MAX_NEW_TRADES,
         BLACKLIST_SYMBOLS,
+        is_blacklisted,
+        get_adjusted_stability_min,
         SIZING_MAX_PER_SECTOR,
         SPREAD_DTE_MIN,
         SPREAD_DTE_MAX,
@@ -561,10 +563,9 @@ class DailyRecommendationEngine:
         Returns:
             Filtered signal list without blacklisted symbols
         """
-        blacklist_upper = {s.upper() for s in BLACKLIST_SYMBOLS}
         filtered = []
         for signal in signals:
-            if signal.symbol.upper() in blacklist_upper:
+            if is_blacklisted(signal.symbol):
                 logger.debug(f"Blacklist-filtered: {signal.symbol}")
             else:
                 filtered.append(signal)
@@ -590,13 +591,7 @@ class DailyRecommendationEngine:
             Filtered signal list
         """
         # VIX-adjusted stability minimum (PLAYBOOK §3)
-        effective_min = min_stability
-        if vix is not None:
-            try:
-                regime_rules = get_regime_rules(vix)
-                effective_min = max(min_stability, regime_rules.stability_min)
-            except Exception as e:
-                logger.debug(f"get_regime_rules failed for VIX={vix}: {e}")
+        effective_min = max(min_stability, get_adjusted_stability_min(vix))
 
         # Collect symbols that need fundamentals lookup (batch query instead of N+1)
         symbols_needing_lookup = []

@@ -279,6 +279,10 @@ from .trading_rules import (
     get_vix_regime,
     get_regime_rules,
 
+    # Helper Functions
+    is_blacklisted,
+    get_adjusted_stability_min,
+
     # Exit Rules (PLAYBOOK §4)
     EXIT_PROFIT_PCT_NORMAL,
     EXIT_PROFIT_PCT_HIGH_VIX,
@@ -351,6 +355,8 @@ __all__ = [
     'VIX_REGIME_RULES',
     'get_vix_regime',
     'get_regime_rules',
+    'is_blacklisted',
+    'get_adjusted_stability_min',
     'BLACKLIST_SYMBOLS',
     'PRIMARY_WATCHLIST',
 

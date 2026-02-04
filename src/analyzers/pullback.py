@@ -22,11 +22,15 @@ except ImportError:
     from models.candidates import PullbackCandidate, ScoreBreakdown
     from config.config_loader import PullbackScoringConfig
 
-# Import RSI Divergence calculator
+# Import shared indicators
 try:
-    from ..indicators.momentum import calculate_rsi_divergence
+    from ..indicators.momentum import calculate_rsi_divergence, calculate_macd, calculate_stochastic
+    from ..indicators.trend import calculate_ema
+    from ..indicators.volatility import calculate_atr_simple, calculate_keltner_channel
 except ImportError:
-    from indicators.momentum import calculate_rsi_divergence
+    from indicators.momentum import calculate_rsi_divergence, calculate_macd, calculate_stochastic
+    from indicators.trend import calculate_ema
+    from indicators.volatility import calculate_atr_simple, calculate_keltner_channel
 
 # Import central constants (with alias to avoid naming conflicts)
 try:
@@ -690,60 +694,16 @@ class PullbackAnalyzer(BaseAnalyzer):
         return float(np.mean(prices[-period:]))
     
     def _calculate_ema(self, prices: List[float], period: int) -> List[float]:
-        """Exponential Moving Average"""
-        if len(prices) < period:
-            return prices
-        
-        multiplier = 2 / (period + 1)
-        ema_values = [np.mean(prices[:period])]
-        
-        for price in prices[period:]:
-            ema = (price * multiplier) + (ema_values[-1] * (1 - multiplier))
-            ema_values.append(ema)
-        
-        return ema_values
+        """Calculates EMA. Delegates to shared indicators library."""
+        return calculate_ema(prices, period)
     
     def _calculate_macd(self, prices: List[float]) -> Optional[MACDResult]:
-        """MACD (Moving Average Convergence Divergence)"""
-        min_required = self.MACD_SLOW + self.MACD_SIGNAL
-        if len(prices) < min_required:
-            return None
-        
-        ema_fast = self._calculate_ema(prices, self.MACD_FAST)
-        ema_slow = self._calculate_ema(prices, self.MACD_SLOW)
-        
-        offset = self.MACD_SLOW - self.MACD_FAST
-        
-        macd_line = []
-        for i in range(len(ema_slow)):
-            fast_idx = i + offset
-            if fast_idx < len(ema_fast):
-                macd_line.append(ema_fast[fast_idx] - ema_slow[i])
-        
-        if len(macd_line) < self.MACD_SIGNAL:
-            return None
-        
-        signal_line = self._calculate_ema(macd_line, self.MACD_SIGNAL)
-        
-        current_macd = macd_line[-1]
-        current_signal = signal_line[-1]
-        histogram = current_macd - current_signal
-        
-        crossover = None
-        if len(signal_line) >= 2:
-            prev_diff = macd_line[-2] - signal_line[-2]
-            curr_diff = current_macd - current_signal
-            
-            if prev_diff < 0 and curr_diff > 0:
-                crossover = 'bullish'
-            elif prev_diff > 0 and curr_diff < 0:
-                crossover = 'bearish'
-        
-        return MACDResult(
-            macd_line=current_macd,
-            signal_line=current_signal,
-            histogram=histogram,
-            crossover=crossover
+        """Calculates MACD. Delegates to shared indicators library."""
+        return calculate_macd(
+            prices,
+            fast_period=self.MACD_FAST,
+            slow_period=self.MACD_SLOW,
+            signal_period=self.MACD_SIGNAL
         )
     
     def _calculate_stochastic(
@@ -752,65 +712,12 @@ class PullbackAnalyzer(BaseAnalyzer):
         lows: List[float],
         closes: List[float]
     ) -> Optional[StochasticResult]:
-        """Stochastic Oscillator"""
-        if len(highs) != len(lows) or len(lows) != len(closes):
-            logger.warning(
-                f"Stochastic: Input arrays must have same length. "
-                f"Got highs={len(highs)}, lows={len(lows)}, closes={len(closes)}"
-            )
-            return None
-        
-        min_required = self.STOCH_K + self.STOCH_D + self.STOCH_SMOOTH
-        if len(closes) < min_required:
-            return None
-        
-        raw_k = []
-        for i in range(self.STOCH_K - 1, len(closes)):
-            period_high = max(highs[i - self.STOCH_K + 1:i + 1])
-            period_low = min(lows[i - self.STOCH_K + 1:i + 1])
-            
-            if period_high == period_low:
-                raw_k.append(50.0)
-            else:
-                k = 100 * (closes[i] - period_low) / (period_high - period_low)
-                raw_k.append(k)
-        
-        smooth_k = []
-        for i in range(self.STOCH_SMOOTH - 1, len(raw_k)):
-            smooth_k.append(np.mean(raw_k[i - self.STOCH_SMOOTH + 1:i + 1]))
-        
-        d_values = []
-        for i in range(self.STOCH_D - 1, len(smooth_k)):
-            d_values.append(np.mean(smooth_k[i - self.STOCH_D + 1:i + 1]))
-        
-        if not smooth_k or not d_values:
-            return None
-        
-        current_k = smooth_k[-1]
-        current_d = d_values[-1]
-        
-        crossover = None
-        if len(smooth_k) >= 2 and len(d_values) >= 2:
-            prev_diff = smooth_k[-2] - d_values[-2]
-            curr_diff = smooth_k[-1] - d_values[-1]
-            
-            if prev_diff < 0 and curr_diff > 0:
-                crossover = 'bullish'
-            elif prev_diff > 0 and curr_diff < 0:
-                crossover = 'bearish'
-        
-        if current_k < self.STOCH_OVERSOLD:
-            zone = 'oversold'
-        elif current_k > self.STOCH_OVERBOUGHT:
-            zone = 'overbought'
-        else:
-            zone = 'neutral'
-        
-        return StochasticResult(
-            k=current_k,
-            d=current_d,
-            crossover=crossover,
-            zone=zone
+        """Calculates Stochastic Oscillator. Delegates to shared indicators library."""
+        return calculate_stochastic(
+            highs=highs, lows=lows, closes=closes,
+            k_period=self.STOCH_K, d_period=self.STOCH_D,
+            smooth=self.STOCH_SMOOTH,
+            oversold=self.STOCH_OVERSOLD, overbought=self.STOCH_OVERBOUGHT
         )
     
     def _calculate_fibonacci(self, high: float, low: float) -> Dict[str, float]:
@@ -1140,77 +1047,12 @@ class PullbackAnalyzer(BaseAnalyzer):
         highs: List[float],
         lows: List[float]
     ) -> Optional[KeltnerChannelResult]:
-        """
-        Calculates Keltner Channel.
-
-        Keltner Channel = EMA +/- (ATR x Multiplier)
-        - Middle: EMA(20)
-        - Upper: EMA + ATR(10) x 2
-        - Lower: EMA - ATR(10) x 2
-
-        Args:
-            prices: Closing prices
-            highs: Daily highs
-            lows: Daily lows
-
-        Returns:
-            KeltnerChannelResult or None if insufficient data
-        """
+        """Calculates Keltner Channel. Delegates to shared indicators library."""
         cfg = self.config.keltner
-        min_required = max(cfg.ema_period, cfg.atr_period) + 1
-
-        if len(prices) < min_required:
-            return None
-
-        # Calculate EMA (middle line)
-        ema_values = self._calculate_ema(prices, cfg.ema_period)
-        if not ema_values:
-            return None
-        current_ema = ema_values[-1]
-
-        # Calculate ATR
-        atr = self._calculate_atr(highs, lows, prices, cfg.atr_period)
-        if atr is None or atr <= 0:
-            return None
-
-        # Calculate bands
-        band_width = atr * cfg.atr_multiplier
-        upper = current_ema + band_width
-        lower = current_ema - band_width
-
-        # Determine current price position
-        current_price = prices[-1]
-        channel_range = upper - lower
-
-        if channel_range <= 0:
-            return None
-
-        # Percent Position: -1 = lower, 0 = middle, +1 = upper
-        percent_position = (current_price - current_ema) / band_width if band_width > 0 else 0
-
-        # Position Label
-        if current_price > upper:
-            price_position = 'above_upper'
-        elif current_price < lower:
-            price_position = 'below_lower'
-        elif percent_position < -0.5:
-            price_position = 'near_lower'
-        elif percent_position > 0.5:
-            price_position = 'near_upper'
-        else:
-            price_position = 'in_channel'
-
-        # Channel width as % of price (volatility indicator)
-        channel_width_pct = (channel_range / current_price) * 100 if current_price > 0 else 0
-
-        return KeltnerChannelResult(
-            upper=upper,
-            middle=current_ema,
-            lower=lower,
-            atr=atr,
-            price_position=price_position,
-            percent_position=percent_position,
-            channel_width_pct=channel_width_pct
+        return calculate_keltner_channel(
+            prices=prices, highs=highs, lows=lows,
+            ema_period=cfg.ema_period, atr_period=cfg.atr_period,
+            atr_multiplier=cfg.atr_multiplier
         )
 
     def _calculate_atr(
@@ -1220,32 +1062,8 @@ class PullbackAnalyzer(BaseAnalyzer):
         closes: List[float],
         period: int = 14
     ) -> Optional[float]:
-        """
-        Calculates Average True Range (ATR).
-
-        True Range = max(H-L, |H-Pc|, |L-Pc|)
-        ATR = SMA(TR, period)
-        """
-        if len(highs) < period + 1:
-            return None
-
-        true_ranges = []
-        for i in range(1, len(highs)):
-            high = highs[i]
-            low = lows[i]
-            prev_close = closes[i - 1]
-
-            tr = max(
-                high - low,
-                abs(high - prev_close),
-                abs(low - prev_close)
-            )
-            true_ranges.append(tr)
-
-        if len(true_ranges) < period:
-            return None
-
-        return float(np.mean(true_ranges[-period:]))
+        """Calculates ATR (SMA-based). Delegates to shared indicators library."""
+        return calculate_atr_simple(highs, lows, closes, period)
 
     def _score_keltner(
         self,
