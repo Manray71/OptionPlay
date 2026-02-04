@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Any
 import logging
 import os
+import threading
 
 try:
     from ..constants.trading_rules import (
@@ -1393,6 +1394,7 @@ class ConfigLoader:
 # =============================================================================
 
 _config: Optional[ConfigLoader] = None
+_config_lock = threading.Lock()
 
 # A/B Test Weight Selection
 # Set via environment variable or config
@@ -1430,16 +1432,18 @@ def get_config(config_dir: Optional[str] = None) -> ConfigLoader:
     warn_singleton_usage("get_config", "container.config")
 
     global _config
-    if _config is None:
-        _config = ConfigLoader(config_dir)
-        _config.load_all()
-    return _config
+    with _config_lock:
+        if _config is None:
+            _config = ConfigLoader(config_dir)
+            _config.load_all()
+        return _config
 
 
 def reset_config() -> None:
     """Setzt den Singleton zurück."""
     global _config
-    _config = None
+    with _config_lock:
+        _config = None
 
 
 def get_scan_config(
