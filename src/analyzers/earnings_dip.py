@@ -29,6 +29,16 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+# Import shared indicators
+try:
+    from ..indicators.momentum import calculate_macd, calculate_stochastic
+    from ..indicators.trend import calculate_ema
+    from ..indicators.volatility import calculate_atr_simple, calculate_keltner_channel
+except ImportError:
+    from indicators.momentum import calculate_macd, calculate_stochastic
+    from indicators.trend import calculate_ema
+    from indicators.volatility import calculate_atr_simple, calculate_keltner_channel
+
 # Import Feature Scoring Mixin (NEW from Feature Engineering)
 try:
     from .feature_scoring_mixin import FeatureScoringMixin
@@ -631,42 +641,8 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         slow: int = 26,
         signal: int = 9
     ) -> Optional[MACDResult]:
-        """Calculates MACD"""
-        if len(prices) < slow + signal:
-            return None
-
-        ema_fast = self._calculate_ema(prices, fast)
-        ema_slow = self._calculate_ema(prices, slow)
-
-        if not ema_fast or not ema_slow:
-            return None
-
-        macd_line = [f - s for f, s in zip(ema_fast[-len(ema_slow):], ema_slow)]
-        signal_line = self._calculate_ema(macd_line, signal)
-
-        if not signal_line:
-            return None
-
-        current_macd = macd_line[-1]
-        current_signal = signal_line[-1]
-        histogram = current_macd - current_signal
-
-        crossover = None
-        if len(macd_line) >= 2 and len(signal_line) >= 2:
-            prev_macd = macd_line[-2]
-            prev_signal = signal_line[-2]
-
-            if prev_macd < prev_signal and current_macd > current_signal:
-                crossover = 'bullish'
-            elif prev_macd > prev_signal and current_macd < current_signal:
-                crossover = 'bearish'
-
-        return MACDResult(
-            macd_line=current_macd,
-            signal_line=current_signal,
-            histogram=histogram,
-            crossover=crossover
-        )
+        """Calculates MACD. Delegates to shared indicators library."""
+        return calculate_macd(prices, fast_period=fast, slow_period=slow, signal_period=signal)
 
     def _score_macd_recovery(
         self,
@@ -709,59 +685,12 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         k_period: int = 14,
         d_period: int = 3
     ) -> Optional[StochasticResult]:
-        """Calculates Stochastic Oscillator"""
-        if len(prices) < k_period + d_period:
-            return None
-
-        k_values = []
-        for i in range(k_period, len(prices) + 1):
-            period_highs = highs[i-k_period:i]
-            period_lows = lows[i-k_period:i]
-            period_close = prices[i-1]
-
-            highest_high = max(period_highs)
-            lowest_low = min(period_lows)
-
-            if highest_high == lowest_low:
-                k_values.append(50.0)
-            else:
-                k = ((period_close - lowest_low) / (highest_high - lowest_low)) * 100
-                k_values.append(k)
-
-        if len(k_values) < d_period:
-            return None
-
-        d_values = []
-        for i in range(d_period, len(k_values) + 1):
-            d = sum(k_values[i-d_period:i]) / d_period
-            d_values.append(d)
-
-        current_k = k_values[-1]
-        current_d = d_values[-1] if d_values else current_k
-
+        """Calculates Stochastic Oscillator. Delegates to shared indicators library."""
         cfg = self.scoring_config.stochastic
-        if current_k < cfg.oversold_threshold:
-            zone = 'oversold'
-        elif current_k > cfg.overbought_threshold:
-            zone = 'overbought'
-        else:
-            zone = 'neutral'
-
-        crossover = None
-        if len(k_values) >= 2 and len(d_values) >= 2:
-            prev_k = k_values[-2]
-            prev_d = d_values[-2]
-
-            if prev_k < prev_d and current_k > current_d:
-                crossover = 'bullish'
-            elif prev_k > prev_d and current_k < current_d:
-                crossover = 'bearish'
-
-        return StochasticResult(
-            k=current_k,
-            d=current_d,
-            crossover=crossover,
-            zone=zone
+        return calculate_stochastic(
+            highs=highs, lows=lows, closes=prices,
+            k_period=k_period, d_period=d_period, smooth=1,
+            oversold=cfg.oversold_threshold, overbought=cfg.overbought_threshold
         )
 
     def _score_stochastic(self, stoch: Optional[StochasticResult]) -> Tuple[float, str, str]:
@@ -791,55 +720,12 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         highs: List[float],
         lows: List[float]
     ) -> Optional[KeltnerChannelResult]:
-        """Calculates Keltner Channel"""
+        """Calculates Keltner Channel. Delegates to shared indicators library."""
         cfg = self.scoring_config.keltner
-        min_required = max(cfg.ema_period, cfg.atr_period) + 1
-
-        if len(prices) < min_required:
-            return None
-
-        ema_values = self._calculate_ema(prices, cfg.ema_period)
-        if not ema_values:
-            return None
-        current_ema = ema_values[-1]
-
-        atr = self._calculate_atr(highs, lows, prices, cfg.atr_period)
-        if atr is None or atr <= 0:
-            return None
-
-        band_width = atr * cfg.atr_multiplier
-        upper = current_ema + band_width
-        lower = current_ema - band_width
-
-        current_price = prices[-1]
-        channel_range = upper - lower
-
-        if channel_range <= 0:
-            return None
-
-        percent_position = (current_price - current_ema) / band_width if band_width > 0 else 0
-
-        if current_price > upper:
-            price_position = 'above_upper'
-        elif current_price < lower:
-            price_position = 'below_lower'
-        elif percent_position < -0.5:
-            price_position = 'near_lower'
-        elif percent_position > 0.5:
-            price_position = 'near_upper'
-        else:
-            price_position = 'in_channel'
-
-        channel_width_pct = (channel_range / current_price) * 100 if current_price > 0 else 0
-
-        return KeltnerChannelResult(
-            upper=upper,
-            middle=current_ema,
-            lower=lower,
-            atr=atr,
-            price_position=price_position,
-            percent_position=percent_position,
-            channel_width_pct=channel_width_pct
+        return calculate_keltner_channel(
+            prices=prices, highs=highs, lows=lows,
+            ema_period=cfg.ema_period, atr_period=cfg.atr_period,
+            atr_multiplier=cfg.atr_multiplier
         )
 
     def _score_keltner(
@@ -871,17 +757,10 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
     # =========================================================================
 
     def _calculate_ema(self, values: List[float], period: int) -> Optional[List[float]]:
-        """Calculates Exponential Moving Average"""
+        """Calculates EMA. Delegates to shared indicators library."""
         if len(values) < period:
             return None
-
-        multiplier = 2 / (period + 1)
-        ema = [sum(values[:period]) / period]
-
-        for value in values[period:]:
-            ema.append((value - ema[-1]) * multiplier + ema[-1])
-
-        return ema
+        return calculate_ema(values, period)
 
     def _calculate_atr(
         self,
@@ -890,24 +769,5 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         closes: List[float],
         period: int = 14
     ) -> Optional[float]:
-        """Calculates Average True Range (ATR)"""
-        if len(highs) < period + 1:
-            return None
-
-        true_ranges = []
-        for i in range(1, len(highs)):
-            high = highs[i]
-            low = lows[i]
-            prev_close = closes[i - 1]
-
-            tr = max(
-                high - low,
-                abs(high - prev_close),
-                abs(low - prev_close)
-            )
-            true_ranges.append(tr)
-
-        if len(true_ranges) < period:
-            return None
-
-        return float(np.mean(true_ranges[-period:]))
+        """Calculates ATR (SMA-based). Delegates to shared indicators library."""
+        return calculate_atr_simple(highs, lows, closes, period)

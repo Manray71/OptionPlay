@@ -18,7 +18,7 @@ from ..vix_strategy import get_strategy_for_vix
 from ..cache import get_earnings_fetcher
 from ..strike_recommender import StrikeRecommender
 from ..indicators.support_resistance import find_support_levels, calculate_fibonacci
-from ..constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS, BLACKLIST_SYMBOLS, ENTRY_STABILITY_MIN
+from ..constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS, BLACKLIST_SYMBOLS, ENTRY_STABILITY_MIN, is_blacklisted
 from ..cache.symbol_fundamentals import get_fundamentals_manager
 from .base import BaseHandlerMixin
 
@@ -44,7 +44,7 @@ class AnalysisHandlerMixin(BaseHandlerMixin):
         symbol = validate_symbol(symbol)
 
         # Blacklist-Check (PLAYBOOK §1, Filter #1) — vor allen API-Calls
-        if symbol.upper() in [s.upper() for s in BLACKLIST_SYMBOLS]:
+        if is_blacklisted(symbol):
             b = MarkdownBuilder()
             b.h1(f"Analysis: {symbol}").blank()
             b.status_error(f"**BLACKLISTED** — {symbol} darf nicht getradet werden (PLAYBOOK §7)")
@@ -157,7 +157,7 @@ class AnalysisHandlerMixin(BaseHandlerMixin):
         symbol = validate_symbol(symbol)
 
         # Blacklist-Check (PLAYBOOK §1, Filter #1)
-        if symbol.upper() in [s.upper() for s in BLACKLIST_SYMBOLS]:
+        if is_blacklisted(symbol):
             b = MarkdownBuilder()
             b.h1(f"Multi-Strategy Analysis: {symbol}").blank()
             b.status_error(f"**BLACKLISTED** — {symbol} darf nicht getradet werden (PLAYBOOK §7)")

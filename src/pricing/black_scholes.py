@@ -1,15 +1,21 @@
 #!/usr/bin/env python3
 """
-Black-Scholes Options Pricing Model
-====================================
+Black-Scholes Options Pricing Model — Batch/Backtesting Module
+================================================================
 
-Implementiert das Black-Scholes-Merton Modell für europäische Optionen.
+NumPy-vektorisierte Implementierung fuer Batch-Operationen und Backtesting.
+Enthaelt kalibrierte IV-Schaetzungen mit symbol-spezifischen Multiplikatoren.
+
+HINWEIS: Fuer interaktive Analyse und Spread-Bewertung siehe
+``src/options/black_scholes.py`` (OOP-basiert, ``BlackScholes`` Klasse).
 
 Features:
-- Put und Call Pricing
+- NumPy-vektorisiertes Pricing (batch_spread_credit, batch_spread_pnl)
+- Kalibrierte IV-Schaetzung (estimate_iv_calibrated) mit 347 Symbolen
+- OptionPricer Klasse fuer Spread-Bewertung
 - Greeks (Delta, Gamma, Theta, Vega, Rho)
-- Implied Volatility Berechnung (Newton-Raphson)
-- Bull-Put-Spread Bewertung
+- Implied Volatility (Newton-Raphson + Bisection Fallback)
+- find_strike_for_delta() fuer Strike-Empfehlungen
 
 Verwendung:
     from src.pricing import OptionPricer, black_scholes_put

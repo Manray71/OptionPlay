@@ -11,11 +11,11 @@
 
 | ID | Titel | Prio | Aufwand | Status |
 |----|-------|------|---------|--------|
-| DEBT-001 | Black-Scholes Duplikation | HIGH | Mittel | Offen |
+| DEBT-001 | Black-Scholes Duplikation | HIGH | Mittel | **Geloest** (bewusste Trennung: Batch vs. OOP) |
 | DEBT-002 | Unsichere Exception-Handler | HIGH | Klein | **Erledigt** (0 bare except, 0 silent pass) |
 | DEBT-003 | SQLite blockiert Async Event Loop | HIGH | Gross | **Erledigt** (Hot-Path Module mit asyncio.to_thread) |
 | DEBT-004 | Monolith-Dateien >1000 LOC | MEDIUM | Gross | Offen |
-| DEBT-005 | Parallele Earnings-Systeme | MEDIUM | Mittel | Offen |
+| DEBT-005 | Parallele Earnings-Systeme | MEDIUM | Mittel | **Geloest** (DB-first + API-Fallback Strategie) |
 | DEBT-006 | Config-Sprawl | MEDIUM | Mittel | Offen |
 | DEBT-007 | Test-Coverage-Luecken | MEDIUM | Mittel | Offen |
 | DEBT-008 | 111 Untracked Files | LOW | Klein | **Erledigt** (v4.0.0 Commit) |
@@ -23,33 +23,26 @@
 
 ---
 
-## DEBT-001: Black-Scholes Duplikation
+## DEBT-001: Black-Scholes Duplikation — GELOEST
 
-**Prioritaet:** HIGH
-**Aufwand:** Mittel
+**Status:** Geloest (2026-02-04) — Bewusste Trennung, dokumentiert
 
-### Problem
+### Analyse-Ergebnis
 
-Zwei separate Black-Scholes-Implementierungen mit ueberlappender Funktionalitaet:
+Detaillierter Vergleich ergab: Die zwei Implementierungen dienen **unterschiedlichen Zwecken**
+und haben nur minimale echte Duplikation:
 
-| Datei | LOC | Inhalt |
-|-------|-----|--------|
-| `src/pricing/black_scholes.py` | 1,419 | Umfangreiche Implementierung |
-| `src/options/black_scholes.py` | 937 | Zweite Implementierung |
+| Datei | LOC | Zweck | Nutzer |
+|-------|-----|-------|--------|
+| `src/pricing/black_scholes.py` | 1,420 | NumPy-vektorisiert, Batch-Backtesting, kalibrierte IV (347 Symbole) | Scripts, Backtesting |
+| `src/options/black_scholes.py` | 938 | OOP-basiert, interaktive Analyse, BullPutSpread-Klasse | Strike Recommender, Spread Analyzer |
 
-### Risiko
+### Loesung
 
-- Divergierende Berechnungsergebnisse moeglich
-- Doppelter Wartungsaufwand bei Bugfixes
-- Unklar welches Modul die "richtige" Quelle ist
-
-### Empfohlene Loesung
-
-1. Beide Implementierungen vergleichen und Feature-Differenz identifizieren
-2. Eine kanonische Implementierung waehlen (vermutlich `src/pricing/`)
-3. Fehlende Features portieren
-4. Zweite Datei durch Re-Exports ersetzen, dann entfernen
-5. Alle Imports anpassen
+- Module-Docstrings mit klarer Abgrenzung und Querverweis hinzugefuegt
+- `src/pricing/`: "Fuer Batch-Operationen und Backtesting"
+- `src/options/`: "Fuer interaktive Analyse und Spread-Bewertung"
+- Merge wuerde 1,050 Zeilen kalibrierte IV-Daten riskieren, ohne echten Gewinn
 
 ---
 
@@ -179,33 +172,30 @@ Schrittweises Refactoring der groessten Dateien:
 
 ---
 
-## DEBT-005: Parallele Earnings-Systeme
+## DEBT-005: Parallele Earnings-Systeme — GELOEST
 
-**Prioritaet:** MEDIUM
-**Aufwand:** Mittel
+**Status:** Geloest (2026-02-04) — DB-first + API-Fallback mit Write-Through
 
-### Problem
+### Analyse-Ergebnis
 
-Zwei separate Earnings-Systeme mit unterschiedlicher Datenquelle:
+Die zwei Systeme dienen unterschiedlichen Zwecken und sind korrekt integriert:
 
-| System | Datei | Datenquelle |
-|--------|-------|-------------|
-| `EarningsCache` | `src/cache/earnings_cache.py` | Live APIs (yfinance, Yahoo) |
-| `EarningsHistoryManager` | `src/cache/earnings_history.py` | SQLite DB |
+| System | Datei | Zweck | Nutzer |
+|--------|-------|-------|--------|
+| `EarningsHistoryManager` | `src/cache/earnings_history.py` | SQLite DB, historisch + BMO/AMC | TradeValidator, PositionMonitor, MCP Server (Batch) |
+| `EarningsCache/Fetcher` | `src/cache/earnings_cache_impl.py` | Live APIs, Zukunfts-Earnings | TradeValidator (Fallback), QuoteHandler |
 
-Der `TradeValidator` nutzt `EarningsHistoryManager` (DB), der `QuoteHandler` nutzt `EarningsCache` (API).
-Dies fuehrte zu Bug #1: Validator zeigte "Earnings unbekannt" weil DB keine Zukunfts-Earnings hatte.
+### Etablierte Strategie
 
-### Aktueller Workaround
+1. **DB-First**: Schnell, offline, BMO/AMC-Handling
+2. **API-Fallback**: Wenn DB "no_earnings_data" liefert (fehlende Zukunfts-Earnings)
+3. **Write-Through**: API-Ergebnisse werden automatisch in DB gespeichert (`TradeValidator._save_earnings_to_db`)
+4. **Batch-Queries**: MCP Server nutzt `is_earnings_day_safe_batch_async()` fuer Effizienz
 
-Fix vom 2026-02-04: API-Fallback im TradeValidator wenn DB keine Daten hat.
+### Implementierung
 
-### Empfohlene Loesung
-
-1. Ein einheitliches Earnings-Interface definieren
-2. Strategie: DB first, API fallback (bereits teilweise implementiert)
-3. Langfristig: `EarningsCache` und `EarningsHistoryManager` zu einem `EarningsService` zusammenfuehren
-4. Write-Through: API-Ergebnisse immer in DB speichern
+- `src/services/trade_validator.py:335-482`: `_check_earnings()` + `_fetch_earnings_from_api()`
+- Separater `EarningsService` nicht noetig — TradeValidator-Pattern ist ausreichend
 
 ---
 

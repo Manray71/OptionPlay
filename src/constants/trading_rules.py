@@ -226,6 +226,24 @@ def get_regime_rules(vix: float) -> VIXRegimeRules:
     return VIX_REGIME_RULES[regime]
 
 
+def is_blacklisted(symbol: str) -> bool:
+    """Check if symbol is on the blacklist (PLAYBOOK §1, Check 1)."""
+    return symbol.upper() in {s.upper() for s in BLACKLIST_SYMBOLS}
+
+
+def get_adjusted_stability_min(vix: Optional[float] = None) -> float:
+    """Get VIX-adjusted stability minimum threshold (PLAYBOOK §1 + §3).
+
+    Default: ENTRY_STABILITY_MIN (70.0).
+    Under elevated VIX: Regime may require higher stability.
+    """
+    min_stability = ENTRY_STABILITY_MIN
+    if vix is not None:
+        regime_rules = get_regime_rules(vix)
+        min_stability = max(min_stability, regime_rules.stability_min)
+    return min_stability
+
+
 # =============================================================================
 # EXIT RULES (PLAYBOOK §4)
 # =============================================================================
