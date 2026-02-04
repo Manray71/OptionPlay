@@ -877,7 +877,7 @@ class TradeValidator:
             from ..cache.vix_cache import get_latest_vix
             return get_latest_vix()
         except ImportError:
-            pass
+            logger.debug("vix_cache module not available, trying DB fallback")
 
         try:
             # Fallback: read from vix_data table directly
