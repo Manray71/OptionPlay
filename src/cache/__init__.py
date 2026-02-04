@@ -30,6 +30,7 @@ from .earnings_cache import (
     # Functions
     get_earnings_cache,
     get_earnings_fetcher,
+    reset_earnings_cache,
     get_earnings,
     is_earnings_safe,
 )
@@ -48,9 +49,11 @@ from .iv_cache import (
     calculate_iv_percentile,
     get_iv_cache,
     get_iv_fetcher,
+    reset_iv_cache,
     get_iv_rank,
     is_iv_elevated,
     get_historical_iv_fetcher,
+    reset_historical_iv_fetcher,
     fetch_iv_history,
     update_iv_cache,
 )
@@ -120,6 +123,7 @@ __all__ = [
     # Earnings Functions
     'get_earnings_cache',
     'get_earnings_fetcher',
+    'reset_earnings_cache',
     'get_earnings',
     'is_earnings_safe',
     
@@ -136,9 +140,11 @@ __all__ = [
     'calculate_iv_percentile',
     'get_iv_cache',
     'get_iv_fetcher',
+    'reset_iv_cache',
     'get_iv_rank',
     'is_iv_elevated',
     'get_historical_iv_fetcher',
+    'reset_historical_iv_fetcher',
     'fetch_iv_history',
     'update_iv_cache',
     

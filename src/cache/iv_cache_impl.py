@@ -699,6 +699,13 @@ def get_iv_fetcher() -> IVFetcher:
     return _default_fetcher
 
 
+def reset_iv_cache() -> None:
+    """Setzt die globalen IV Cache/Fetcher-Instanzen zurück (für Tests)."""
+    global _default_cache, _default_fetcher
+    _default_cache = None
+    _default_fetcher = None
+
+
 def get_iv_rank(symbol: str, current_iv: float) -> IVData:
     """
     Convenience-Funktion für IV-Rank Berechnung.
@@ -1044,6 +1051,12 @@ def get_historical_iv_fetcher() -> HistoricalIVFetcher:
     if _historical_iv_fetcher is None:
         _historical_iv_fetcher = HistoricalIVFetcher()
     return _historical_iv_fetcher
+
+
+def reset_historical_iv_fetcher() -> None:
+    """Setzt die globale HistoricalIVFetcher-Instanz zurück (für Tests)."""
+    global _historical_iv_fetcher
+    _historical_iv_fetcher = None
 
 
 def fetch_iv_history(symbol: str, days: int = 252) -> List[float]:
