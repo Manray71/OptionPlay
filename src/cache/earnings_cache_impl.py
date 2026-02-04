@@ -685,6 +685,13 @@ def get_earnings_fetcher() -> EarningsFetcher:
     return _default_fetcher
 
 
+def reset_earnings_cache() -> None:
+    """Setzt die globalen Cache/Fetcher-Instanzen zurück (für Tests)."""
+    global _default_cache, _default_fetcher
+    _default_cache = None
+    _default_fetcher = None
+
+
 def get_earnings(symbol: str) -> EarningsInfo:
     """
     Convenience-Funktion für schnelle Earnings-Abfrage.

@@ -18,6 +18,7 @@ from .earnings_cache_impl import (
     # Functions
     get_earnings_cache,
     get_earnings_fetcher,
+    reset_earnings_cache,
     get_earnings,
     is_earnings_safe,
     retry_on_failure,
@@ -38,6 +39,7 @@ __all__ = [
     # Functions
     'get_earnings_cache',
     'get_earnings_fetcher',
+    'reset_earnings_cache',
     'get_earnings',
     'is_earnings_safe',
     'retry_on_failure',
