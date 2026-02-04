@@ -28,6 +28,7 @@ Created: 2026-02-01
 
 import logging
 import sqlite3
+import threading
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -70,6 +71,7 @@ class VixCacheManager:
         self.db_path = db_path or DB_PATH
         self._cache: Dict[date, float] = {}
         self._cache_loaded = False
+        self._lock = threading.RLock()
 
     def _ensure_db_exists(self) -> bool:
         """Check if database exists."""
@@ -340,17 +342,20 @@ class VixCacheManager:
 
 # Singleton instance
 _vix_manager: Optional[VixCacheManager] = None
+_vix_manager_lock = threading.Lock()
 
 
 def get_vix_manager() -> VixCacheManager:
-    """Get singleton VIX Cache Manager instance."""
+    """Get singleton VIX Cache Manager instance. Thread-safe."""
     global _vix_manager
-    if _vix_manager is None:
-        _vix_manager = VixCacheManager()
-    return _vix_manager
+    with _vix_manager_lock:
+        if _vix_manager is None:
+            _vix_manager = VixCacheManager()
+        return _vix_manager
 
 
 def reset_vix_manager():
     """Reset VIX Cache Manager (for testing)."""
     global _vix_manager
-    _vix_manager = None
+    with _vix_manager_lock:
+        _vix_manager = None

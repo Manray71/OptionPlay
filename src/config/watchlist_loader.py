@@ -16,6 +16,7 @@ Verwendung:
 
 import yaml
 import logging
+import threading
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -376,22 +377,25 @@ class WatchlistLoader:
 
 
 _loader_instance: Optional[WatchlistLoader] = None
+_loader_lock = threading.Lock()
 
 
 def get_watchlist_loader(force_reload: bool = False) -> WatchlistLoader:
     """
-    Gibt den WatchlistLoader Singleton zurück.
+    Gibt den WatchlistLoader Singleton zurück. Thread-safe.
 
     Args:
         force_reload: Wenn True, wird der Singleton neu erstellt (z.B. nach Config-Änderungen)
     """
     global _loader_instance
-    if _loader_instance is None or force_reload:
-        _loader_instance = WatchlistLoader()
-    return _loader_instance
+    with _loader_lock:
+        if _loader_instance is None or force_reload:
+            _loader_instance = WatchlistLoader()
+        return _loader_instance
 
 
 def reset_watchlist_loader() -> None:
     """Setzt den Singleton zurück, damit die Config neu geladen wird."""
     global _loader_instance
-    _loader_instance = None
+    with _loader_lock:
+        _loader_instance = None
