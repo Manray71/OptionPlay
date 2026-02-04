@@ -3,6 +3,7 @@
 **Erstellt:** 2026-02-04
 **Status:** Aktiv
 **Quelle:** Code Audit nach v3.7.0
+**Aktualisiert:** 2026-02-04 (Phase 0 Hygiene)
 
 ---
 
@@ -11,14 +12,14 @@
 | ID | Titel | Prio | Aufwand | Status |
 |----|-------|------|---------|--------|
 | DEBT-001 | Black-Scholes Duplikation | HIGH | Mittel | Offen |
-| DEBT-002 | Unsichere Exception-Handler | HIGH | Klein | Offen |
+| DEBT-002 | Unsichere Exception-Handler | HIGH | Klein | Teilweise (bare except behoben, 15x silent pass verbleiben) |
 | DEBT-003 | SQLite blockiert Async Event Loop | HIGH | Gross | Offen |
 | DEBT-004 | Monolith-Dateien >1000 LOC | MEDIUM | Gross | Offen |
 | DEBT-005 | Parallele Earnings-Systeme | MEDIUM | Mittel | Offen |
 | DEBT-006 | Config-Sprawl | MEDIUM | Mittel | Offen |
 | DEBT-007 | Test-Coverage-Luecken | MEDIUM | Mittel | Offen |
-| DEBT-008 | 111 Untracked Files | LOW | Klein | Offen |
-| DEBT-009 | Archive-Verzeichnis (Dead Code) | LOW | Klein | Offen |
+| DEBT-008 | 111 Untracked Files | LOW | Klein | **Erledigt** (v4.0.0 Commit) |
+| DEBT-009 | Archive-Verzeichnis (Dead Code) | LOW | Klein | **Erledigt** (geloescht) |
 
 ---
 
@@ -59,17 +60,18 @@ Zwei separate Black-Scholes-Implementierungen mit ueberlappender Funktionalitaet
 
 ### Problem
 
-**5x Bare `except:` (faengt SystemExit, KeyboardInterrupt):**
-- `src/ibkr_bridge.py` (mehrere Stellen)
-- `src/options/max_pain.py`
+**Bare `except:` — BEHOBEN** (keine mehr in src/)
 
-**13x Silent `except Exception: pass`:**
-- `src/indicators/sr_chart.py`
-- `src/handlers/validate.py`
-- `src/services/vix_service.py`
-- `src/services/recommendation_engine.py`
-- `src/strike_recommender.py`
-- `src/utils/secure_config.py`
+**15x Silent `except ...: pass` verbleiben (Stand 2026-02-04):**
+- `src/ibkr_bridge.py` (2x)
+- `src/strike_recommender.py` (2x, davon 1x ImportError)
+- `src/visualization/sr_chart.py` (3x)
+- `src/services/vix_service.py` (3x)
+- `src/services/recommendation_engine.py` (1x)
+- `src/backtesting/ml_weight_optimizer.py` (1x ValueError)
+- `src/config/watchlist_loader.py` (1x ImportError)
+- `src/utils/earnings_aggregator.py` (1x ValueError)
+- `src/services/trade_validator.py` (1x ImportError)
 
 ### Risiko
 
@@ -276,64 +278,31 @@ Mehrere Module in `src/indicators/` und `src/models/` haben keine oder minimale 
 
 ---
 
-## DEBT-008: 111 Untracked Files
+## DEBT-008: 111 Untracked Files — ERLEDIGT
 
-**Prioritaet:** LOW
-**Aufwand:** Klein
+**Status:** Erledigt (2026-02-04, v4.0.0 Commit)
 
-### Problem
-
-111 Dateien (davon 57 Test-Dateien) sind nicht im Git-Repository getrackt.
-
-### Risiko
-
-- Neuer Code geht bei Rechner-Wechsel verloren
-- Kein Code-Review moeglich
-- Keine Versionierung
-
-### Empfohlene Loesung
-
-1. Alle relevanten Dateien reviewen
-2. Tests und produktiven Code committen
-3. Scripts die nicht mehr benoetigt werden loeschen
-4. `.gitignore` pruefen und anpassen
+Alle 255 Dateien (neue + modifizierte + geloeschte) committed. `.gitignore` aktualisiert.
 
 ---
 
-## DEBT-009: Archive-Verzeichnis (Dead Code)
+## DEBT-009: Archive-Verzeichnis (Dead Code) — ERLEDIGT
 
-**Prioritaet:** LOW
-**Aufwand:** Klein
+**Status:** Erledigt (2026-02-04)
 
-### Problem
-
-`archive/` Verzeichnis mit ~20MB altem Code (Pre-v3.6.0):
-- Alte Analyzer-Versionen
-- Entfernte Training-Scripts
-- Backup-Templates
-
-### Risiko
-
-- Verwechslungsgefahr mit aktivem Code
-- Vergroessert Repository unnoetig
-- Veraltete Patterns koennten versehentlich kopiert werden
-
-### Empfohlene Loesung
-
-1. Pruefen ob etwas davon noch gebraucht wird
-2. Wenn nicht: `archive/` komplett loeschen
-3. Git-Historie enthaelt den alten Code weiterhin
+`archive/` (20 MB) geloescht. Keine Referenzen im aktiven Code. In `.gitignore` aufgenommen.
+Git-Historie behaelt den Code.
 
 ---
 
 ## Arbeitsreihenfolge (Empfehlung)
 
-1. **DEBT-002** (Exception-Handler) — Schneller Gewinn, verhindert verschluckte Fehler
+1. **DEBT-002** (Exception-Handler) — 15x silent pass verbleiben, schneller Gewinn
 2. **DEBT-001** (Black-Scholes) — Duplikation entfernen reduziert Wartung
 3. **DEBT-005** (Earnings) — Bereits teilweise gefixt, zu Ende fuehren
 4. **DEBT-003** (SQLite async) — Schrittweise mit `asyncio.to_thread()`
 5. **DEBT-006** (Config) — Bei naechstem Config-Change anpacken
 6. **DEBT-007** (Tests) — Laufend bei jedem Feature-Ticket
-7. **DEBT-008** (Untracked) — Einmaliger Commit
-8. **DEBT-009** (Archive) — Einmaliges Aufraeumen
+7. ~~**DEBT-008** (Untracked)~~ — **Erledigt**
+8. ~~**DEBT-009** (Archive)~~ — **Erledigt**
 9. **DEBT-004** (Monolithen) — Langfristig, bei Gelegenheit
