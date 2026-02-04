@@ -20,6 +20,7 @@ Usage:
         print("Trade is valid!")
 """
 
+import asyncio
 import logging
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
@@ -871,29 +872,35 @@ class TradeValidator:
     # HELPERS
     # =========================================================================
 
+    @staticmethod
+    def _read_vix_from_db() -> Optional[float]:
+        """Sync DB read for VIX value. Runs in thread pool."""
+        import sqlite3
+        import os
+
+        db_path = os.path.expanduser("~/.optionplay/trades.db")
+        if not os.path.exists(db_path):
+            return None
+        conn = sqlite3.connect(db_path)
+        cursor = conn.execute(
+            "SELECT value FROM vix_data ORDER BY date DESC LIMIT 1"
+        )
+        row = cursor.fetchone()
+        conn.close()
+        if row:
+            return float(row[0])
+        return None
+
     async def _get_current_vix(self) -> Optional[float]:
         """Get current VIX from cache or DB."""
         try:
             from ..cache.vix_cache import get_latest_vix
-            return get_latest_vix()
+            return await asyncio.to_thread(get_latest_vix)
         except ImportError:
             logger.debug("vix_cache module not available, trying DB fallback")
 
         try:
-            # Fallback: read from vix_data table directly
-            import sqlite3
-            import os
-
-            db_path = os.path.expanduser("~/.optionplay/trades.db")
-            if os.path.exists(db_path):
-                conn = sqlite3.connect(db_path)
-                cursor = conn.execute(
-                    "SELECT value FROM vix_data ORDER BY date DESC LIMIT 1"
-                )
-                row = cursor.fetchone()
-                conn.close()
-                if row:
-                    return float(row[0])
+            return await asyncio.to_thread(self._read_vix_from_db)
         except Exception as e:
             logger.debug(f"VIX fallback read failed: {e}")
 

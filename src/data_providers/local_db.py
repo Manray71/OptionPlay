@@ -13,12 +13,15 @@
 #     if provider.is_available():
 #         data = provider.get_historical_for_scanner("AAPL", days=260)
 
+import asyncio
 import logging
 import sqlite3
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import List, Optional, Dict, Any, Tuple
+from typing import List, Optional, Dict, Any, Tuple, Callable, TypeVar
 from contextlib import contextmanager
+
+T = TypeVar('T')
 
 from .interface import DataProvider, HistoricalBar, PriceQuote, DataQuality
 
@@ -73,13 +76,8 @@ class LocalDBProvider(DataProvider):
     def supported_features(self) -> List[str]:
         return ["historical", "quotes"]
 
-    async def connect(self) -> bool:
-        """Connect to the database (verify it exists and has data)."""
-        if not self.db_path.exists():
-            logger.warning(f"Database not found: {self.db_path}")
-            self._connected = False
-            return False
-
+    def _connect_sync(self) -> bool:
+        """Sync connect logic. Runs in thread pool."""
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
@@ -94,6 +92,14 @@ class LocalDBProvider(DataProvider):
             self._connected = False
             return False
 
+    async def connect(self) -> bool:
+        """Connect to the database (verify it exists and has data)."""
+        if not self.db_path.exists():
+            logger.warning(f"Database not found: {self.db_path}")
+            self._connected = False
+            return False
+        return await self._run_sync(self._connect_sync)
+
     async def disconnect(self) -> None:
         """Disconnect from the database."""
         self._connected = False
@@ -104,15 +110,8 @@ class LocalDBProvider(DataProvider):
         """Check if connected."""
         return self._connected
 
-    async def get_quote(self, symbol: str) -> Optional[PriceQuote]:
-        """
-        Get the latest quote for a symbol.
-
-        Returns the most recent underlying_price from options_prices.
-        Note: This is end-of-day data, not real-time.
-        """
-        symbol = symbol.upper()
-
+    def _get_quote_sync(self, symbol: str) -> Optional[PriceQuote]:
+        """Sync quote logic. Runs in thread pool."""
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
@@ -141,6 +140,15 @@ class LocalDBProvider(DataProvider):
         except Exception as e:
             logger.error(f"Failed to get quote for {symbol}: {e}")
             return None
+
+    async def get_quote(self, symbol: str) -> Optional[PriceQuote]:
+        """
+        Get the latest quote for a symbol.
+
+        Returns the most recent underlying_price from options_prices.
+        Note: This is end-of-day data, not real-time.
+        """
+        return await self._run_sync(self._get_quote_sync, symbol.upper())
 
     async def get_quotes(self, symbols: List[str]) -> Dict[str, PriceQuote]:
         """
@@ -190,18 +198,11 @@ class LocalDBProvider(DataProvider):
         logger.debug(f"get_iv_data not supported by local DB for {symbol}")
         return None
 
-    async def get_earnings_date(self, symbol: str) -> Optional[Any]:
-        """
-        Get earnings date from earnings_history table.
-
-        Returns the next upcoming or most recent earnings date.
-        """
-        symbol = symbol.upper()
-
+    def _get_earnings_date_sync(self, symbol: str) -> Optional[Any]:
+        """Sync earnings date query. Runs in thread pool."""
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
-                # Get next upcoming earnings
                 cursor.execute("""
                     SELECT earnings_date, time_of_day
                     FROM earnings_history
@@ -225,20 +226,16 @@ class LocalDBProvider(DataProvider):
             logger.error(f"Failed to get earnings for {symbol}: {e}")
             return None
 
-    async def get_historical(
-        self,
-        symbol: str,
-        days: int = 90,
-        interval: str = "daily"
-    ) -> List[HistoricalBar]:
+    async def get_earnings_date(self, symbol: str) -> Optional[Any]:
         """
-        Get historical price bars.
+        Get earnings date from earnings_history table.
 
-        Note: Only daily interval is supported from local DB.
-        Only close prices are available (OHLC are all set to close).
+        Returns the next upcoming or most recent earnings date.
         """
-        symbol = symbol.upper()
+        return await self._run_sync(self._get_earnings_date_sync, symbol.upper())
 
+    def _get_historical_sync(self, symbol: str, days: int) -> List[HistoricalBar]:
+        """Sync historical query. Runs in thread pool."""
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
@@ -256,7 +253,6 @@ class LocalDBProvider(DataProvider):
                 if not rows:
                     return []
 
-                # Reverse to oldest-first
                 rows = list(reversed(rows))
 
                 bars = []
@@ -278,6 +274,62 @@ class LocalDBProvider(DataProvider):
         except Exception as e:
             logger.error(f"Failed to get historical for {symbol}: {e}")
             return []
+
+    async def get_historical(
+        self,
+        symbol: str,
+        days: int = 90,
+        interval: str = "daily"
+    ) -> List[HistoricalBar]:
+        """
+        Get historical price bars.
+
+        Note: Only daily interval is supported from local DB.
+        Only close prices are available (OHLC are all set to close).
+        """
+        return await self._run_sync(self._get_historical_sync, symbol.upper(), days)
+
+    def _get_historical_for_scanner_sync(
+        self, symbol: str, days: int
+    ) -> Optional[Tuple[List[float], List[int], List[float], List[float], List[float]]]:
+        """Sync scanner data query. Runs in thread pool."""
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT quote_date, underlying_price
+                    FROM options_prices
+                    WHERE underlying = ?
+                      AND underlying_price IS NOT NULL
+                    GROUP BY quote_date
+                    ORDER BY quote_date DESC
+                    LIMIT ?
+                """, (symbol, days))
+
+                rows = cursor.fetchall()
+
+                if not rows:
+                    logger.debug(f"No price data for {symbol} in local DB")
+                    return None
+
+                rows = list(reversed(rows))
+                prices = [float(row[1]) for row in rows]
+
+                if len(prices) < 50:
+                    logger.debug(f"Insufficient data for {symbol}: {len(prices)} < 50")
+                    return None
+
+                volumes = [0] * len(prices)
+                highs = prices.copy()
+                lows = prices.copy()
+                opens = prices.copy()
+
+                logger.debug(f"LocalDB: Loaded {len(prices)} prices for {symbol}")
+                return prices, volumes, highs, lows, opens
+
+        except Exception as e:
+            logger.error(f"Failed to get scanner data for {symbol}: {e}")
+            return None
 
     async def get_historical_for_scanner(
         self,
@@ -305,48 +357,9 @@ class LocalDBProvider(DataProvider):
         Returns:
             Tuple of (prices, volumes, highs, lows, opens) or None
         """
-        symbol = symbol.upper()
-
-        try:
-            with self._get_connection() as conn:
-                cursor = conn.cursor()
-                cursor.execute("""
-                    SELECT quote_date, underlying_price
-                    FROM options_prices
-                    WHERE underlying = ?
-                      AND underlying_price IS NOT NULL
-                    GROUP BY quote_date
-                    ORDER BY quote_date DESC
-                    LIMIT ?
-                """, (symbol, days))
-
-                rows = cursor.fetchall()
-
-                if not rows:
-                    logger.debug(f"No price data for {symbol} in local DB")
-                    return None
-
-                # Reverse to get oldest-to-newest order
-                rows = list(reversed(rows))
-                prices = [float(row[1]) for row in rows]
-
-                if len(prices) < 50:  # Minimum required for most indicators
-                    logger.debug(f"Insufficient data for {symbol}: {len(prices)} < 50")
-                    return None
-
-                # Use close for all OHLC (approximation)
-                # Volume is 0 since not available
-                volumes = [0] * len(prices)
-                highs = prices.copy()
-                lows = prices.copy()
-                opens = prices.copy()
-
-                logger.debug(f"LocalDB: Loaded {len(prices)} prices for {symbol}")
-                return prices, volumes, highs, lows, opens
-
-        except Exception as e:
-            logger.error(f"Failed to get scanner data for {symbol}: {e}")
-            return None
+        return await self._run_sync(
+            self._get_historical_for_scanner_sync, symbol.upper(), days
+        )
 
     # =========================================================================
     # Local DB Specific Methods
@@ -361,6 +374,10 @@ class LocalDBProvider(DataProvider):
             yield conn
         finally:
             conn.close()
+
+    async def _run_sync(self, func: Callable[..., T], *args: Any) -> T:
+        """Run a sync function in a thread pool to avoid blocking the event loop."""
+        return await asyncio.to_thread(func, *args)
 
     def is_available(self) -> bool:
         """Check if the database is available and has data."""
