@@ -155,7 +155,7 @@ class TestEarningsDipDetection:
         signal = analyzer.analyze("TEST", prices, volumes, highs, lows)
         
         assert signal.signal_type == SignalType.NEUTRAL
-        assert "zu groß" in signal.reason.lower() or "riskant" in signal.reason.lower()
+        assert "too large" in signal.reason.lower() or "too risky" in signal.reason.lower()
 
 
 class TestEarningsDipStabilization:
@@ -896,8 +896,8 @@ class TestEarningsDipScoreBreakdown:
 
         assert abs(breakdown['total_score'] - expected_total) < 0.01
 
-    def test_max_possible_is_18(self, analyzer, dip_data):
-        """Max possible score should be 18"""
+    def test_max_possible_is_24(self, analyzer, dip_data):
+        """Max possible score should be 24 (includes gap score)"""
         prices, volumes, highs, lows = dip_data
 
         signal = analyzer.analyze(
@@ -907,7 +907,7 @@ class TestEarningsDipScoreBreakdown:
 
         breakdown = signal.details['score_breakdown']
 
-        assert breakdown['max_possible'] == 18
+        assert breakdown['max_possible'] == 24
 
 
 class TestEarningsDipHelperMethods:

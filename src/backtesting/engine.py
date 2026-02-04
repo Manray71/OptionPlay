@@ -107,7 +107,7 @@ class BacktestConfig:
     dte_exit_threshold: int = 14  # Exit wenn DTE < X
 
     # Spread-Parameter
-    min_credit_pct: float = 20.0  # Min Credit als % der Spread-Width
+    min_credit_pct: float = 10.0  # Min Credit als % der Spread-Width (PLAYBOOK §2)
     spread_width_pct: float = 5.0  # Spread-Width als % des Aktienkurses
 
     # Simulation

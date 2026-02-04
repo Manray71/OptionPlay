@@ -1,6 +1,6 @@
 # OptionPlay - Base Analyzer
 # ===========================
-# Abstraktes Interface für alle Strategie-Analyzer
+# Abstract interface for all strategy analyzers
 
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional
@@ -13,19 +13,19 @@ except ImportError:
 
 class BaseAnalyzer(ABC):
     """
-    Basis-Interface für alle Strategie-Analyzer.
-    
-    Jeder Analyzer implementiert eine spezifische Trading-Strategie
-    und liefert ein einheitliches TradeSignal zurück.
-    
-    Verwendung:
+    Base interface for all strategy analyzers.
+
+    Each analyzer implements a specific trading strategy
+    and returns a unified TradeSignal.
+
+    Usage:
         class MyAnalyzer(BaseAnalyzer):
             @property
             def strategy_name(self) -> str:
                 return "my_strategy"
-            
+
             def analyze(self, symbol, prices, volumes, highs, lows, **kwargs):
-                # Analyse-Logik
+                # Analysis logic
                 return TradeSignal(...)
     """
     
@@ -33,15 +33,15 @@ class BaseAnalyzer(ABC):
     @abstractmethod
     def strategy_name(self) -> str:
         """
-        Eindeutiger Name der Strategie.
-        
-        Beispiele: "pullback", "breakout", "bounce", "earnings_dip"
+        Unique name of the strategy.
+
+        Examples: "pullback", "breakout", "bounce", "earnings_dip"
         """
         pass
     
     @property
     def description(self) -> str:
-        """Optionale Beschreibung der Strategie"""
+        """Optional description of the strategy"""
         return ""
     
     @abstractmethod
@@ -55,18 +55,18 @@ class BaseAnalyzer(ABC):
         **kwargs
     ) -> TradeSignal:
         """
-        Analysiert ein Symbol und gibt ein TradeSignal zurück.
-        
+        Analyzes a symbol and returns a TradeSignal.
+
         Args:
-            symbol: Ticker-Symbol
-            prices: Schlusskurse (älteste zuerst)
-            volumes: Tagesvolumen
-            highs: Tageshochs
-            lows: Tagestiefs
-            **kwargs: Strategie-spezifische Parameter
-            
+            symbol: Ticker symbol
+            prices: Closing prices (oldest first)
+            volumes: Daily volume
+            highs: Daily highs
+            lows: Daily lows
+            **kwargs: Strategy-specific parameters
+
         Returns:
-            TradeSignal mit Score, Entry/Exit-Levels und Begründung
+            TradeSignal with score, entry/exit levels, and reasoning
         """
         pass
     
@@ -79,10 +79,10 @@ class BaseAnalyzer(ABC):
         min_length: int = 50
     ) -> None:
         """
-        Validiert Input-Arrays.
-        
+        Validates input arrays.
+
         Raises:
-            ValueError: Bei ungültigen Inputs
+            ValueError: For invalid inputs
         """
         arrays = {'prices': prices, 'volumes': volumes, 'highs': highs, 'lows': lows}
         lengths = {name: len(arr) for name, arr in arrays.items()}
@@ -102,11 +102,11 @@ class BaseAnalyzer(ABC):
                 f"Need at least {min_length} data points, got {len(prices)}"
             )
         
-        # Preise müssen positiv sein
+        # Prices must be positive
         if any(p <= 0 for p in prices if p is not None):
             raise ValueError("All prices must be positive")
         
-        # High >= Low prüfen
+        # Check High >= Low
         for i, (h, l) in enumerate(zip(highs, lows)):
             if h < l:
                 raise ValueError(
@@ -115,7 +115,7 @@ class BaseAnalyzer(ABC):
                 )
     
     def create_neutral_signal(self, symbol: str, price: float, reason: str = "") -> TradeSignal:
-        """Erstellt ein neutrales Signal (kein Trade)"""
+        """Creates a neutral signal (no trade)"""
         return TradeSignal(
             symbol=symbol,
             strategy=self.strategy_name,
@@ -127,5 +127,5 @@ class BaseAnalyzer(ABC):
         )
     
     def get_config(self) -> Dict[str, Any]:
-        """Gibt die aktuelle Konfiguration zurück"""
+        """Returns the current configuration"""
         return getattr(self, 'config', {})

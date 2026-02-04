@@ -1,19 +1,8 @@
 """
-OptionPlay MCP Server - Claude Desktop Integration
-==================================================
+OptionPlay MCP Server v3.7.0 - Claude Desktop Integration
+=========================================================
 
-Echter MCP Server der das JSON-RPC Protokoll über stdio spricht.
-Wird von Claude Desktop als MCP Tool genutzt.
-
-v3.6.0 - Tool Registry Refactoring:
-- Replaced 340-line elif chain with ToolRegistry pattern
-- All tool definitions + handlers now in mcp_tool_registry.py
-- Cleaner architecture, easier to add new tools
-
-v3.5.0 - Complete Tool Exposure:
-- Portfolio Management: positions, add, close, expire, expiring, trades, pnl, monthly
-- Advanced Analysis: position_size, stop_loss, spread_analysis, monte_carlo
-- Data & Market: historical, expirations, events, validate, max_pain, news
+MCP Server für Options Trading Analysis mit Multi-Strategie Support.
 
 Verwendung in claude_desktop_config.json:
 {
@@ -25,6 +14,18 @@ Verwendung in claude_desktop_config.json:
     }
   }
 }
+
+Verfügbare Tools (52 + Aliases):
+- VIX & Strategy: vix, regime, strategy_stock, spread_width, events, health
+- Scans: scan, bounce, breakout, dip, multi, prefilter
+- Quotes & Data: quote, options, earnings, historical, expirations, validate, max_pain
+- Analysis: analyze, analyze_multi, ensemble, ensemble_status, strikes
+- Portfolio: portfolio, pf_positions, pf_position, pf_add, pf_close, pf_expire,
+             pf_expiring, pf_trades, pf_pnl, pf_monthly, pf_check, pf_constraints
+- IBKR: ibkr, ibkr_portfolio, ibkr_spreads, ibkr_vix, ibkr_quotes, news
+- Reports: report, scan_report
+- Risk: position_size, stop_loss, spread_analysis, monte_carlo
+- System: cache_stats, watchlist
 """
 
 import asyncio
@@ -36,12 +37,17 @@ from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import Tool, TextContent, Prompt, PromptMessage, PromptArgument
 
+# IMPORTANT: Load .env file BEFORE importing other modules that need API keys
+# This ensures environment variables are set before SecureConfig is used
+from .utils.secure_config import get_secure_config
+_config = get_secure_config()  # This triggers .env loading
+
 from .mcp_server import OptionPlayServer
 from .container import ServiceContainer
 from .utils.metrics import api_requests, api_latency, errors
 from .mcp_tool_registry import tool_registry
 
-# Logging Setup
+# Logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -53,44 +59,37 @@ app = Server("optionplay")
 # SERVER INITIALIZATION
 # =============================================================================
 
-# OptionPlay Server (lazy init)
 _server: Optional[OptionPlayServer] = None
 _container: Optional[ServiceContainer] = None
 
 
 def get_server() -> OptionPlayServer:
-    """Lazy initialization of OptionPlay server with container."""
+    """Lazy initialization of OptionPlay server."""
     global _server, _container
     if _server is None:
-        # Create container with default services
         _container = ServiceContainer.create_default()
         _server = OptionPlayServer(container=_container)
     return _server
 
 
 # =============================================================================
-# TOOL DEFINITIONS - Using Registry Pattern
+# TOOL DEFINITIONS
 # =============================================================================
 
 @app.list_tools()
 async def list_tools() -> list[Tool]:
-    """
-    List all available OptionPlay tools including short aliases.
-
-    Uses the centralized tool_registry for cleaner architecture.
-    All tool definitions are in mcp_tool_registry.py.
-    """
+    """List all available OptionPlay tools (52 tools + 52 aliases)."""
     return tool_registry.list_tools()
 
 
 # =============================================================================
-# WORKFLOW PROMPTS - Vordefinierte Workflows für häufige Aufgaben
+# WORKFLOW PROMPTS
 # =============================================================================
 
 WORKFLOW_PROMPTS = {
     "morning_scan": {
         "name": "Morgen-Scan",
-        "description": "Vollständiger Morgen-Workflow: VIX prüfen, Earnings filtern, Multi-Strategie-Scan durchführen",
+        "description": "Vollständiger Morgen-Workflow: VIX prüfen, Earnings filtern, Multi-Strategie-Scan",
         "prompt": """Führe den vollständigen Morgen-Scan durch:
 
 1. Prüfe den aktuellen VIX und die empfohlene Strategie
@@ -188,7 +187,6 @@ async def get_prompt(name: str, arguments: dict | None = None) -> list[PromptMes
     workflow = WORKFLOW_PROMPTS[name]
     prompt_text = workflow["prompt"]
 
-    # Replace placeholders with arguments
     if arguments:
         for key, value in arguments.items():
             prompt_text = prompt_text.replace(f"{{{key}}}", str(value))
@@ -202,46 +200,35 @@ async def get_prompt(name: str, arguments: dict | None = None) -> list[PromptMes
 
 
 # =============================================================================
-# TOOL HANDLERS - Using Registry Pattern
+# TOOL HANDLER
 # =============================================================================
 
 @app.call_tool()
 async def call_tool(name: str, arguments: dict) -> list[TextContent]:
     """
-    Handle tool calls using the centralized ToolRegistry.
+    Handle tool calls using the ToolRegistry.
 
-    This replaces the previous 340-line elif chain with a clean dispatch pattern.
-    All tool handlers are defined in mcp_tool_registry.py.
-
-    Benefits:
-    - Tool definition + handler in one place
-    - No more massive elif chain
-    - Easier to add new tools
-    - Better testability
-    - Automatic alias handling
+    Dispatches to the appropriate handler based on tool name or alias.
     """
     server = get_server()
     start_time = time.time()
     status = "success"
 
     try:
-        # Use the registry for dispatch - handles alias resolution internally
         result = await tool_registry.dispatch(name, server, arguments)
 
     except ValueError as e:
-        # Unknown tool
         result = str(e)
         status = "unknown_tool"
         logger.warning(f"Unknown tool: {name}")
 
     except Exception as e:
         logger.error(f"Tool {name} error: {e}")
-        result = f"❌ Error: {str(e)}"
+        result = f"Error: {str(e)}"
         status = "error"
         errors.inc(labels={"type": type(e).__name__, "operation": name})
 
     finally:
-        # Record metrics
         elapsed_ms = (time.time() - start_time) * 1000
         resolved_name = tool_registry.resolve_alias(name)
         api_requests.inc(labels={"endpoint": resolved_name, "status": status})

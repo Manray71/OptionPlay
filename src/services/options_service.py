@@ -19,7 +19,7 @@ Verwendung:
     options_service = OptionsService(context)
 
     # Options Chain
-    result = await options_service.get_options_chain("AAPL", dte_min=30, dte_max=60)
+    result = await options_service.get_options_chain("AAPL", dte_min=60, dte_max=90)
 
     # Strike Empfehlung
     result = await options_service.get_strike_recommendation("AAPL")
@@ -72,8 +72,8 @@ class OptionsService(BaseService):
     async def get_options_chain(
         self,
         symbol: str,
-        dte_min: int = 30,
-        dte_max: int = 60,
+        dte_min: int = 60,
+        dte_max: int = 90,
         right: str = "P"
     ) -> ServiceResult[Dict[str, Any]]:
         """
@@ -140,8 +140,8 @@ class OptionsService(BaseService):
     async def get_strike_recommendation(
         self,
         symbol: str,
-        dte_min: int = 30,
-        dte_max: int = 60,
+        dte_min: int = 60,
+        dte_max: int = 90,
         num_alternatives: int = 3,
         regime: Optional[MarketRegime] = None
     ) -> ServiceResult[Dict[str, Any]]:
@@ -186,7 +186,7 @@ class OptionsService(BaseService):
             if not historical or not historical[0]:
                 return ServiceResult.fail(f"Insufficient historical data for {symbol}")
 
-            prices, volumes, highs, lows = historical
+            prices, volumes, highs, lows, *_ = historical
 
             # Support-Levels berechnen
             support_levels = find_support_levels(
@@ -229,6 +229,13 @@ class OptionsService(BaseService):
                 regime=regime
             )
 
+            self._logger.info(
+                f"Strike recommendation for {symbol}: "
+                f"short={recommendation.short_strike} (d={recommendation.estimated_delta}), "
+                f"long={recommendation.long_strike} (d={recommendation.long_delta}), "
+                f"width={recommendation.spread_width}"
+            )
+
             # Alternativen generieren
             alternatives = []
             if num_alternatives > 1:
@@ -262,8 +269,8 @@ class OptionsService(BaseService):
     async def get_options_chain_formatted(
         self,
         symbol: str,
-        dte_min: int = 30,
-        dte_max: int = 60,
+        dte_min: int = 60,
+        dte_max: int = 90,
         right: str = "P"
     ) -> str:
         """
@@ -288,8 +295,8 @@ class OptionsService(BaseService):
     async def get_strike_recommendation_formatted(
         self,
         symbol: str,
-        dte_min: int = 30,
-        dte_max: int = 60,
+        dte_min: int = 60,
+        dte_max: int = 90,
         num_alternatives: int = 3
     ) -> str:
         """
@@ -424,6 +431,15 @@ class OptionsService(BaseService):
         b.kv("Short Strike", format_price(short_strike) if short_strike else "-")
         b.kv("Long Strike", format_price(long_strike) if long_strike else "-")
         b.kv("Spread Width", format_price(spread_width) if spread_width else "-")
+
+        # Show deltas if available
+        short_delta = rec.get("estimated_delta")
+        long_delta = rec.get("long_delta")
+        if short_delta is not None:
+            b.kv("Short Delta", f"{short_delta:.2f}")
+        if long_delta is not None:
+            b.kv("Long Delta", f"{long_delta:.2f}")
+
         b.kv("Quality", f"{quality_emoji} {quality.upper()}")
         b.kv("Confidence", f"{confidence}/100")
         b.kv("Reason", reason)

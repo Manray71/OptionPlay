@@ -49,13 +49,16 @@ class TechnicalIndicators:
     sma_200: float
     macd: Optional[MACDResult]
     stochastic: Optional[StochasticResult]
-    
+
     # Trend-Status
     above_sma20: bool
     above_sma50: Optional[bool]
     above_sma200: bool
     trend: str  # 'uptrend', 'downtrend', 'sideways'
-    
+
+    # Gap Analysis (optional, für mittelfristige Strategien)
+    gap: Optional['GapResult'] = None
+
     def to_dict(self) -> Dict:
         return {
             'rsi_14': round(self.rsi_14, 2),
@@ -67,7 +70,8 @@ class TechnicalIndicators:
             'above_sma20': self.above_sma20,
             'above_sma50': self.above_sma50,
             'above_sma200': self.above_sma200,
-            'trend': self.trend
+            'trend': self.trend,
+            'gap': self.gap.to_dict() if self.gap else None,
         }
 
 
@@ -143,6 +147,104 @@ class RSIDivergenceResult:
             'rsi_pivot_2': round(self.rsi_pivot_2, 2),
             'strength': round(self.strength, 3),
             'formation_days': self.formation_days
+        }
+
+
+@dataclass
+class GapResult:
+    """
+    Gap Analysis Result - Erkennt und bewertet Price Gaps.
+
+    Gap-Typen:
+    - Up-Gap: Open > Previous High (bullish gap, aber oft Überkauft-Signal)
+    - Down-Gap: Open < Previous Low (bearish gap, aber oft Einstiegschance)
+    - Partial Up-Gap: Open > Previous Close, but <= Previous High
+    - Partial Down-Gap: Open < Previous Close, but >= Previous Low
+
+    These für Bull-Put-Spreads:
+    - Down-Gaps können gute Einstiegspunkte sein (Überreaktion)
+    - Up-Gaps signalisieren oft Euphorie (Vorsicht)
+    """
+    gap_type: str  # 'up', 'down', 'partial_up', 'partial_down', 'none'
+    gap_size_pct: float  # Gap-Größe in % vom Previous Close
+    gap_size_abs: float  # Gap-Größe in Dollar
+
+    # Gap-Fill Status
+    is_filled: bool  # Wurde der Gap intraday gefüllt?
+    fill_percentage: float  # Wie viel % des Gaps wurden gefüllt (0-100+)
+
+    # Historische Gap-Statistiken
+    gaps_last_20_days: int  # Anzahl Gaps in den letzten 20 Tagen
+    avg_gap_size_20d: float  # Durchschnittliche Gap-Größe
+    gap_fill_rate_20d: float  # Wie oft werden Gaps gefüllt (0-1)
+
+    # Aktueller Gap-Kontext
+    previous_close: float
+    current_open: float
+    current_high: float
+    current_low: float
+
+    # Qualitäts-Score für Strategie
+    quality_score: float  # -1 (bearish/schlecht) bis +1 (bullish/gut für Entry)
+
+    def to_dict(self) -> Dict:
+        return {
+            'gap_type': self.gap_type,
+            'gap_size_pct': round(self.gap_size_pct, 3),
+            'gap_size_abs': round(self.gap_size_abs, 2),
+            'is_filled': self.is_filled,
+            'fill_percentage': round(self.fill_percentage, 1),
+            'gaps_last_20_days': self.gaps_last_20_days,
+            'avg_gap_size_20d': round(self.avg_gap_size_20d, 3),
+            'gap_fill_rate_20d': round(self.gap_fill_rate_20d, 3),
+            'previous_close': round(self.previous_close, 2),
+            'current_open': round(self.current_open, 2),
+            'quality_score': round(self.quality_score, 3),
+        }
+
+
+@dataclass
+class GapStatistics:
+    """
+    Aggregierte Gap-Statistiken für ein Symbol.
+
+    Wird für die Validierung der Gap-These verwendet:
+    - Korrelation zwischen Gap-Typ und nachfolgender Performance
+    """
+    symbol: str
+    analysis_period_days: int
+
+    # Gap-Counts
+    total_gaps: int
+    up_gaps: int
+    down_gaps: int
+    partial_up_gaps: int
+    partial_down_gaps: int
+
+    # Fill-Statistiken
+    up_gap_fill_rate: float  # Wie oft werden Up-Gaps gefüllt
+    down_gap_fill_rate: float  # Wie oft werden Down-Gaps gefüllt
+    avg_fill_time_days: float  # Durchschnittliche Zeit bis Gap gefüllt
+
+    # Performance nach Gap (für Validierung)
+    avg_return_after_up_gap_5d: float  # 5-Tages-Return nach Up-Gap
+    avg_return_after_down_gap_5d: float  # 5-Tages-Return nach Down-Gap
+    win_rate_after_up_gap: float  # % positive Returns nach Up-Gap
+    win_rate_after_down_gap: float  # % positive Returns nach Down-Gap
+
+    def to_dict(self) -> Dict:
+        return {
+            'symbol': self.symbol,
+            'period_days': self.analysis_period_days,
+            'total_gaps': self.total_gaps,
+            'up_gaps': self.up_gaps,
+            'down_gaps': self.down_gaps,
+            'up_gap_fill_rate': round(self.up_gap_fill_rate, 3),
+            'down_gap_fill_rate': round(self.down_gap_fill_rate, 3),
+            'avg_return_after_up_gap_5d': round(self.avg_return_after_up_gap_5d, 4),
+            'avg_return_after_down_gap_5d': round(self.avg_return_after_down_gap_5d, 4),
+            'win_rate_after_up_gap': round(self.win_rate_after_up_gap, 3),
+            'win_rate_after_down_gap': round(self.win_rate_after_down_gap, 3),
         }
 
 

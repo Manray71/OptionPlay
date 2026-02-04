@@ -277,5 +277,129 @@ class TestResultChaining:
         assert "not positive" in chained.error
 
 
+# =============================================================================
+# ADDITIONAL TESTS FOR FULL COVERAGE
+# =============================================================================
+
+class TestResultMapWithException:
+    """Tests for map handling exceptions."""
+
+    def test_map_catches_exception(self):
+        """map catches exception and returns failure."""
+        def failing_func(x):
+            raise ValueError("intentional error")
+
+        result = Result.ok(5)
+        mapped = result.map(failing_func)
+
+        assert mapped.success is False
+        assert "intentional error" in mapped.error
+
+
+class TestResultFlatMapWithException:
+    """Tests for flat_map handling exceptions."""
+
+    def test_flat_map_catches_exception(self):
+        """flat_map catches exception and returns failure."""
+        def failing_func(x):
+            raise RuntimeError("intentional error")
+
+        result = Result.ok(5)
+        chained = result.flat_map(failing_func)
+
+        assert chained.success is False
+        assert "intentional error" in chained.error
+
+
+class TestServiceResultFromException:
+    """Tests for ServiceResult.from_exception."""
+
+    def test_from_exception_with_source(self):
+        """from_exception includes source."""
+        try:
+            raise TypeError("type error")
+        except Exception as e:
+            result = ServiceResult.from_exception(e, source="test_api")
+
+        assert result.success is False
+        assert "TypeError" in result.error
+        assert result.source == "test_api"
+
+
+class TestServiceResultOrRaise:
+    """Tests for ServiceResult.or_raise."""
+
+    def test_or_raise_returns_data_on_success(self):
+        """or_raise returns data on success."""
+        result = ServiceResult.ok("my data")
+        assert result.or_raise() == "my data"
+
+    def test_or_raise_raises_on_failure(self):
+        """or_raise raises on failure."""
+        result = ServiceResult.fail("service error")
+        with pytest.raises(ValueError) as exc_info:
+            result.or_raise()
+        assert "service error" in str(exc_info.value)
+
+    def test_or_raise_raises_with_default_message(self):
+        """or_raise raises with default message when error is None."""
+        # Create a failed result but manually set error to None
+        result = ServiceResult.fail("")
+        result.error = None
+        with pytest.raises(ValueError) as exc_info:
+            result.or_raise()
+        assert "ServiceResult failed" in str(exc_info.value)
+
+
+class TestServiceResultToDict:
+    """Additional tests for ServiceResult.to_dict."""
+
+    def test_to_dict_with_object_having_to_dict(self):
+        """to_dict calls data.to_dict() if available."""
+        class DataWithDict:
+            def to_dict(self):
+                return {"key": "value"}
+
+        result = ServiceResult.ok(DataWithDict())
+        d = result.to_dict()
+
+        assert d["data"] == {"key": "value"}
+
+    def test_to_dict_with_non_dict_serializable_data(self):
+        """to_dict converts non-serializable data to string."""
+        class CustomObject:
+            def __str__(self):
+                return "custom_string"
+
+        result = ServiceResult.ok(CustomObject())
+        d = result.to_dict()
+
+        assert d["data"] == "custom_string"
+
+
+class TestBatchResultSuccessRateZeroTotal:
+    """Tests for BatchResult with zero total."""
+
+    def test_success_rate_with_zero_total(self):
+        """success_rate returns 0.0 when total is 0."""
+        result = BatchResult(total=0)
+        assert result.success_rate == 0.0
+
+
+class TestResultToDict:
+    """Additional tests for Result.to_dict."""
+
+    def test_to_dict_with_object_having_to_dict(self):
+        """to_dict calls data.to_dict() if available."""
+        class DataWithDict:
+            def to_dict(self):
+                return {"nested": "data"}
+
+        result = Result.ok(DataWithDict())
+        d = result.to_dict()
+
+        assert d["data"] == {"nested": "data"}
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

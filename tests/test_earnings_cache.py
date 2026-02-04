@@ -6,9 +6,9 @@ import sys
 from pathlib import Path
 from datetime import datetime, timedelta
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from earnings_cache import (
+from src.cache.earnings_cache import (
     EarningsInfo,
     EarningsSource,
     EarningsCache
@@ -58,8 +58,10 @@ class TestEarningsInfo:
             confirmed=False
         )
         
-        # Unbekannt = akzeptieren
-        assert info.is_safe(min_days=60) == True
+        # Unbekannt mit unknown_is_safe=False (default) = False
+        assert info.is_safe(min_days=60) == False
+        # Unbekannt mit unknown_is_safe=True = True (permissiv)
+        assert info.is_safe(min_days=60, unknown_is_safe=True) == True
 
 
 class TestEarningsSourceEnum:

@@ -139,7 +139,7 @@ class MarketScanner:
                 continue
 
             try:
-                prices, volumes, highs, lows = data
+                prices, volumes, highs, lows, *_ = data
 
                 # Alle Analyzer anwenden
                 symbol_signals = []

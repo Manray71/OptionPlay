@@ -1,23 +1,26 @@
 # OptionPlay - IBKR Bridge Client
 # ================================
-# Verbindet OptionPlay mit dem IBKR MCP Server für exklusive Features.
+# Connects OptionPlay with the IBKR MCP Server for exclusive features.
 #
 # Features:
 # - News Headlines
 # - VIX (Live)
-# - Max Pain & OI-Daten
-# - IV-Rank
-# - Strike-Empfehlungen
+# - Max Pain & OI data
+# - IV Rank
+# - Strike recommendations
 #
-# Hinweis: Erfordert laufenden IBKR MCP Server (TWS muss laufen)
+# Note: Requires running IBKR MCP Server (TWS must be running)
 
 import asyncio
 import json
 import logging
 import socket
 
-# Note: nest_asyncio removed - not compatible with Python 3.14
-# and not needed for MCP stdio server
+# ib_insync needs nest_asyncio for compatibility with already running event loops
+# (e.g., when the MCP server already uses asyncio.run())
+import nest_asyncio
+nest_asyncio.apply()
+
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -32,66 +35,66 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 # IBKR SYMBOL MAPPING
 # =============================================================================
-# Einige Symbole haben bei IBKR andere Namen als bei anderen Brokern/Datenanbietern.
-# Dieses Mapping konvertiert Standard-Symbole zu IBKR-kompatiblen Symbolen.
+# Some symbols have different names at IBKR than at other brokers/data providers.
+# This mapping converts standard symbols to IBKR-compatible symbols.
 
 IBKR_SYMBOL_MAP = {
-    # Berkshire Hathaway - Leerzeichen statt Punkt
+    # Berkshire Hathaway - space instead of period
     "BRK.B": "BRK B",
     "BRK.A": "BRK A",
-    
-    # Brown-Forman - Leerzeichen statt Punkt
+
+    # Brown-Forman - space instead of period
     "BF.B": "BF B",
     "BF.A": "BF A",
-    
-    # Symbole die bei IBKR nicht verfügbar sind (delisted, merged, ticker change)
-    # Setze auf None um sie zu überspringen
-    "MMC": None,      # Marsh McLennan - möglicherweise ticker change
-    "IPG": None,      # Interpublic Group - möglicherweise delisted
+
+    # Symbols not available at IBKR (delisted, merged, ticker change)
+    # Set to None to skip them
+    "MMC": None,      # Marsh McLennan - possibly ticker change
+    "IPG": None,      # Interpublic Group - possibly delisted
     "PARA": None,     # Paramount - delisted/merged
-    "K": None,        # Kellanova - möglicherweise ticker change nach Spin-off
+    "K": None,        # Kellanova - possibly ticker change after spin-off
     "PXD": None,      # Pioneer Natural Resources - acquired by Exxon
     "HES": None,      # Hess - acquired by Chevron
-    "MRO": None,      # Marathon Oil - möglicherweise ticker change
-    
-    # Weitere bekannte Probleme können hier ergänzt werden
+    "MRO": None,      # Marathon Oil - possibly ticker change
+
+    # Additional known issues can be added here
 }
 
-# Reverse Mapping für die Rückkonvertierung
+# Reverse mapping for back-conversion
 IBKR_REVERSE_MAP = {v: k for k, v in IBKR_SYMBOL_MAP.items() if v is not None}
 
 
 def to_ibkr_symbol(symbol: str) -> Optional[str]:
     """
-    Konvertiert ein Standard-Symbol zu einem IBKR-kompatiblen Symbol.
-    
+    Converts a standard symbol to an IBKR-compatible symbol.
+
     Args:
-        symbol: Standard-Ticker-Symbol
-        
+        symbol: Standard ticker symbol
+
     Returns:
-        IBKR-Symbol oder None wenn das Symbol übersprungen werden soll
+        IBKR symbol or None if the symbol should be skipped
     """
     symbol = symbol.upper().strip()
-    
-    # Prüfe ob Mapping existiert
+
+    # Check if mapping exists
     if symbol in IBKR_SYMBOL_MAP:
         mapped = IBKR_SYMBOL_MAP[symbol]
         if mapped is None:
-            logger.debug(f"Symbol {symbol} wird übersprungen (kein IBKR-Äquivalent)")
+            logger.debug(f"Symbol {symbol} is being skipped (no IBKR equivalent)")
         return mapped
-    
+
     return symbol
 
 
 def from_ibkr_symbol(ibkr_symbol: str) -> str:
     """
-    Konvertiert ein IBKR-Symbol zurück zum Standard-Symbol.
-    
+    Converts an IBKR symbol back to the standard symbol.
+
     Args:
-        ibkr_symbol: IBKR-Ticker-Symbol
-        
+        ibkr_symbol: IBKR ticker symbol
+
     Returns:
-        Standard-Symbol
+        Standard symbol
     """
     if ibkr_symbol in IBKR_REVERSE_MAP:
         return IBKR_REVERSE_MAP[ibkr_symbol]
@@ -100,16 +103,16 @@ def from_ibkr_symbol(ibkr_symbol: str) -> str:
 
 @dataclass
 class IBKRNews:
-    """News-Headline von IBKR"""
+    """News headline from IBKR"""
     symbol: str
     headline: str
     time: Optional[str] = None
     provider: Optional[str] = None
 
 
-@dataclass 
+@dataclass
 class MaxPainData:
-    """Max Pain Daten"""
+    """Max Pain data"""
     symbol: str
     current_price: float
     max_pain_strike: float
@@ -122,7 +125,7 @@ class MaxPainData:
 
 @dataclass
 class StrikeRecommendation:
-    """Strike-Empfehlung von IBKR"""
+    """Strike recommendation from IBKR"""
     symbol: str
     current_price: float
     short_strike: float
@@ -140,15 +143,15 @@ class StrikeRecommendation:
 
 class IBKRBridge:
     """
-    Bridge zu IBKR MCP Server für exklusive Daten.
-    
-    Der IBKR MCP Server läuft separat und wird über TWS/Gateway
-    mit Marktdaten versorgt. Diese Bridge nutzt die dort
-    verfügbaren Tools.
-    
-    Verwendung:
+    Bridge to IBKR MCP Server for exclusive data.
+
+    The IBKR MCP Server runs separately and is supplied with
+    market data via TWS/Gateway. This bridge uses the
+    tools available there.
+
+    Usage:
         bridge = IBKRBridge()
-        
+
         if await bridge.is_available():
             news = await bridge.get_news(["AAPL", "MSFT"])
             max_pain = await bridge.get_max_pain(["AAPL"])
@@ -158,20 +161,20 @@ class IBKRBridge:
     TWS_PAPER_PORT = 7497
     TWS_LIVE_PORT = 7496
     GATEWAY_PORT = 4001
-    
+
     def __init__(self, host: str = "127.0.0.1", port: int = 7497):
         self.host = host
         self.port = port
         self._ib = None
         self._connected = False
         self._last_check: Optional[datetime] = None
-        self._check_interval = 60  # Sekunden
-    
+        self._check_interval = 60  # seconds
+
     async def is_available(self, force_check: bool = False) -> bool:
         """
-        Prüft ob TWS/Gateway erreichbar ist.
-        
-        Cached das Ergebnis für 60 Sekunden.
+        Checks if TWS/Gateway is reachable.
+
+        Caches the result for 60 seconds.
         """
         if not force_check and self._last_check:
             age = (datetime.now() - self._last_check).total_seconds()
@@ -189,49 +192,61 @@ class IBKRBridge:
             self._connected = result == 0
             
             if self._connected:
-                logger.debug(f"TWS erreichbar auf {self.host}:{self.port}")
+                logger.debug(f"TWS reachable at {self.host}:{self.port}")
             else:
-                logger.debug(f"TWS nicht erreichbar auf {self.host}:{self.port}")
-                
+                logger.debug(f"TWS not reachable at {self.host}:{self.port}")
+
             return self._connected
-            
+
         except Exception as e:
-            logger.debug(f"TWS Check fehlgeschlagen: {e}")
+            logger.debug(f"TWS check failed: {e}")
             self._connected = False
             return False
-    
+
     async def _ensure_connected(self) -> bool:
-        """Stellt Verbindung zu IBKR her."""
+        """Establishes connection to IBKR."""
+        # Check if existing connection is still active
         if self._ib is not None and self._connected:
-            return True
-        
+            if self._ib.isConnected():
+                return True
+            else:
+                logger.warning("IBKR connection lost, reconnecting...")
+                self._connected = False
+                self._ib = None
+
         if not await self.is_available():
             return False
-        
+
         try:
             from ib_insync import IB
-            
+
             self._ib = IB()
             await self._ib.connectAsync(
-                self.host, 
-                self.port, 
-                clientId=98,  # Anderer Client als Haupt-MCP-Server
+                self.host,
+                self.port,
+                clientId=98,  # Different client than main MCP server
                 timeout=10
             )
-            self._connected = True
-            logger.info("IBKR Bridge verbunden")
-            return True
-            
+
+            if self._ib.isConnected():
+                self._connected = True
+                logger.info(f"IBKR Bridge verbunden (clientId=98, port={self.port})")
+                return True
+            else:
+                logger.warning("IBKR connectAsync returned but isConnected=False")
+                self._connected = False
+                return False
+
         except ImportError:
-            logger.warning("ib_insync nicht installiert - IBKR Bridge nicht verfügbar")
+            logger.warning("ib_insync not installed - IBKR Bridge not available")
             return False
         except Exception as e:
-            logger.warning(f"IBKR Bridge Verbindung fehlgeschlagen: {e}")
+            logger.warning(f"IBKR Bridge connection failed: {type(e).__name__}: {e}")
             self._connected = False
             return False
-    
+
     async def disconnect(self):
-        """Trennt Verbindung."""
+        """Disconnects."""
         if self._ib:
             self._ib.disconnect()
             self._ib = None
@@ -242,24 +257,24 @@ class IBKRBridge:
     # =========================================================================
     
     async def get_news(
-        self, 
-        symbols: List[str], 
+        self,
+        symbols: List[str],
         days: int = 5,
         max_per_symbol: int = 5
     ) -> List[IBKRNews]:
         """
-        Holt News-Headlines für Symbole.
-        
+        Fetches news headlines for symbols.
+
         Args:
-            symbols: Liste von Ticker-Symbolen
-            days: News der letzten X Tage
-            max_per_symbol: Max Headlines pro Symbol
-            
+            symbols: List of ticker symbols
+            days: News from the last X days
+            max_per_symbol: Max headlines per symbol
+
         Returns:
-            Liste von IBKRNews
+            List of IBKRNews
         """
         if not await self._ensure_connected():
-            logger.warning("IBKR nicht verfügbar für News-Abruf")
+            logger.warning("IBKR not available for news retrieval")
             return []
         
         from ib_insync import Stock
@@ -272,8 +287,14 @@ class IBKRBridge:
         for symbol in symbols:
             try:
                 stock = Stock(symbol.upper(), "SMART", "USD")
-                self._ib.qualifyContracts(stock)
-                
+                qualified = self._ib.qualifyContracts(stock)
+
+                if not qualified or not stock.conId:
+                    logger.warning(f"News: Could not qualify {symbol} (no conId)")
+                    continue
+
+                logger.debug(f"News: Requesting for {symbol} (conId={stock.conId})")
+
                 headlines = await asyncio.wait_for(
                     self._ib.reqHistoricalNewsAsync(
                         stock.conId,
@@ -284,8 +305,9 @@ class IBKRBridge:
                     ),
                     timeout=15
                 )
-                
+
                 if headlines:
+                    logger.debug(f"News: {len(headlines)} Headlines für {symbol}")
                     for h in headlines:
                         results.append(IBKRNews(
                             symbol=symbol.upper(),
@@ -293,32 +315,34 @@ class IBKRBridge:
                             time=h.time.isoformat() if h.time else None,
                             provider=h.providerCode
                         ))
-                        
+                else:
+                    logger.debug(f"News: Keine Headlines für {symbol} (API returned empty)")
+
             except asyncio.TimeoutError:
-                logger.warning(f"News Timeout für {symbol}")
+                logger.warning(f"News timeout for {symbol} (15s)")
             except Exception as e:
-                logger.debug(f"News-Fehler für {symbol}: {e}")
-        
+                logger.warning(f"News error for {symbol}: {type(e).__name__}: {e}")
+
         return results
-    
+
     async def get_news_formatted(
-        self, 
-        symbols: List[str], 
+        self,
+        symbols: List[str],
         days: int = 5
     ) -> str:
         """
-        Holt News und formatiert als Markdown.
+        Fetches news and formats as Markdown.
         """
         news = await self.get_news(symbols, days)
-        
+
         b = MarkdownBuilder()
-        b.h1(f"News Headlines ({days} Tage)").blank()
-        
+        b.h1(f"News Headlines ({days} days)").blank()
+
         if not news:
-            b.hint(f"Keine News für {', '.join(symbols)} gefunden (IBKR nicht verfügbar oder keine Headlines).")
+            b.hint(f"No news found for {', '.join(symbols)} (IBKR not available or no headlines).")
             return b.build()
-        
-        # Gruppiere nach Symbol
+
+        # Group by symbol
         by_symbol: Dict[str, List[IBKRNews]] = {}
         for n in news:
             if n.symbol not in by_symbol:
@@ -343,10 +367,10 @@ class IBKRBridge:
     
     async def get_vix(self) -> Optional[Dict[str, Any]]:
         """
-        Holt VIX von IBKR mit Fallback für geschlossenen Markt.
-        
+        Fetches VIX from IBKR with fallback for closed market.
+
         Returns:
-            Dict mit 'value' und 'source' ("live", "mark", "close") oder None
+            Dict with 'value' and 'source' ("live", "mark", "close") or None
         """
         if not await self._ensure_connected():
             return None
@@ -365,16 +389,16 @@ class IBKRBridge:
             vix = Index("VIX", "CBOE")
             self._ib.qualifyContracts(vix)
             
-            # Mit Generic Tick 221 für Mark Price (Pre/Post Market)
+            # With Generic Tick 221 for Mark Price (Pre/Post Market)
             self._ib.reqMktData(vix, "221", False, False)
-            await asyncio.sleep(2)  # Etwas länger warten für alle Daten
-            
+            await asyncio.sleep(2)  # Wait a bit longer for all data
+
             ticker = self._ib.ticker(vix)
             price = None
             source = None
-            
+
             if ticker:
-                # Preis-Fallback Kette: last -> markPrice -> marketPrice -> close
+                # Price fallback chain: last -> markPrice -> marketPrice -> close
                 last = get_valid(ticker.last)
                 mark_price = get_valid(ticker.markPrice) if hasattr(ticker, 'markPrice') else None
                 close = get_valid(ticker.close)
@@ -403,17 +427,17 @@ class IBKRBridge:
                 }
             
             return None
-            
+
         except Exception as e:
-            logger.debug(f"IBKR VIX Fehler: {e}")
+            logger.debug(f"IBKR VIX error: {e}")
             return None
-    
+
     async def get_vix_value(self) -> Optional[float]:
         """
-        Convenience-Methode: Gibt nur den VIX-Wert zurück (für Kompatibilität).
-        
+        Convenience method: Returns only the VIX value (for compatibility).
+
         Returns:
-            VIX-Wert oder None
+            VIX value or None
         """
         result = await self.get_vix()
         return result["value"] if result else None
@@ -423,22 +447,22 @@ class IBKRBridge:
     # =========================================================================
     
     async def get_max_pain(
-        self, 
+        self,
         symbols: List[str],
         expiry: Optional[str] = None
     ) -> List[MaxPainData]:
         """
-        Berechnet Max Pain für Symbole.
-        
+        Calculates Max Pain for symbols.
+
         Args:
-            symbols: Liste von Ticker-Symbolen  
-            expiry: Verfall YYYYMMDD (optional, sonst nächster 30-60 DTE)
-            
+            symbols: List of ticker symbols
+            expiry: Expiration YYYYMMDD (optional, otherwise next 30-60 DTE)
+
         Returns:
-            Liste von MaxPainData
+            List of MaxPainData
         """
         if not await self._ensure_connected():
-            logger.warning("IBKR nicht verfügbar für Max Pain")
+            logger.warning("IBKR not available for Max Pain")
             return []
         
         from ib_insync import Stock, Option
@@ -452,17 +476,17 @@ class IBKRBridge:
                 stock = Stock(symbol.upper(), "SMART", "USD")
                 self._ib.qualifyContracts(stock)
                 
-                # Aktuellen Preis holen
+                # Get current price
                 self._ib.reqMktData(stock, "", False, False)
                 await asyncio.sleep(0.5)
                 ticker = self._ib.ticker(stock)
                 current_price = ticker.marketPrice() if ticker else None
                 self._ib.cancelMktData(stock)
-                
+
                 if not current_price or math.isnan(current_price):
                     continue
-                
-                # Options-Chain holen
+
+                # Get options chain
                 chains = await asyncio.wait_for(
                     self._ib.reqSecDefOptParamsAsync(
                         stock.symbol, "", stock.secType, stock.conId
@@ -475,7 +499,7 @@ class IBKRBridge:
                 
                 chain = next((c for c in chains if c.exchange == "SMART"), chains[0])
                 
-                # Expiry bestimmen
+                # Determine expiry
                 target_expiry = expiry
                 if not target_expiry:
                     today = datetime.now().date()
@@ -486,13 +510,14 @@ class IBKRBridge:
                             if 30 <= days <= 60:
                                 target_expiry = exp
                                 break
-                        except:
+                        except (ValueError, TypeError) as e:
+                            logger.debug(f"Could not parse expiry {exp}: {e}")
                             continue
-                
+
                 if not target_expiry:
                     continue
-                
-                # Open Interest sammeln
+
+                # Collect Open Interest
                 oi_data = defaultdict(lambda: {"call_oi": 0, "put_oi": 0})
                 
                 for strike in chain.strikes:
@@ -516,16 +541,17 @@ class IBKRBridge:
                                         oi_data[strike]["put_oi"] = int(oi)
                             
                             self._ib.cancelMktData(option)
-                        except:
+                        except Exception as e:
+                            logger.debug(f"IBKR OI data collection error for strike {strike}: {e}")
                             continue
                 
                 if not oi_data:
                     continue
-                
-                # Max Pain berechnen
+
+                # Calculate Max Pain
                 min_pain = float('inf')
                 max_pain_strike = None
-                
+
                 for test_strike in oi_data.keys():
                     total_pain = 0
                     for strike, oi in oi_data.items():
@@ -533,12 +559,12 @@ class IBKRBridge:
                             total_pain += oi["call_oi"] * (strike - test_strike) * 100
                         if test_strike > strike:
                             total_pain += oi["put_oi"] * (test_strike - strike) * 100
-                    
+
                     if total_pain < min_pain:
                         min_pain = total_pain
                         max_pain_strike = test_strike
-                
-                # Walls finden
+
+                # Find Walls
                 max_put = max(oi_data.items(), key=lambda x: x[1]["put_oi"])
                 max_call = max(oi_data.items(), key=lambda x: x[1]["call_oi"])
                 
@@ -557,22 +583,22 @@ class IBKRBridge:
                 ))
                 
             except Exception as e:
-                logger.warning(f"Max Pain Fehler für {symbol}: {e}")
-        
+                logger.warning(f"Max Pain error for {symbol}: {e}")
+
         return results
-    
+
     async def get_max_pain_formatted(self, symbols: List[str]) -> str:
-        """Max Pain formatiert als Markdown."""
+        """Max Pain formatted as Markdown."""
         data = await self.get_max_pain(symbols)
-        
+
         b = MarkdownBuilder()
-        b.h1("Max Pain Analyse").blank()
-        
+        b.h1("Max Pain Analysis").blank()
+
         if not data:
-            b.hint("Keine Max Pain Daten verfügbar (IBKR nicht verbunden oder Fehler).")
+            b.hint("No Max Pain data available (IBKR not connected or error).")
             return b.build()
-        
-        # Tabelle aufbauen
+
+        # Build table
         rows = []
         for d in data:
             rows.append([
@@ -584,17 +610,17 @@ class IBKRBridge:
                 f"${d.put_wall['strike']:.0f} ({d.put_wall['oi']:,})",
                 f"${d.call_wall['strike']:.0f} ({d.call_wall['oi']:,})"
             ])
-        
+
         b.table(
-            ["Symbol", "Preis", "Max Pain", "Distanz", "P/C Ratio", "Put Wall", "Call Wall"],
+            ["Symbol", "Price", "Max Pain", "Distance", "P/C Ratio", "Put Wall", "Call Wall"],
             rows
         )
         b.blank()
-        
+
         b.text("**Interpretation:**")
-        b.bullet("Max Pain = Preis mit geringstem Options-Schmerz")
-        b.bullet("Distanz negativ = Preis über Max Pain (bullish)")
-        b.bullet("P/C Ratio > 1 = Mehr Puts als Calls (bearish sentiment)")
+        b.bullet("Max Pain = Price with least options pain")
+        b.bullet("Negative distance = Price above Max Pain (bullish)")
+        b.bullet("P/C Ratio > 1 = More puts than calls (bearish sentiment)")
         
         return b.build()
     
@@ -603,7 +629,7 @@ class IBKRBridge:
     # =========================================================================
     
     async def get_status(self) -> Dict[str, Any]:
-        """Gibt Bridge-Status zurück."""
+        """Returns bridge status."""
         available = await self.is_available(force_check=True)
         
         return {
@@ -620,23 +646,23 @@ class IBKRBridge:
     
     async def get_portfolio(self) -> List[Dict[str, Any]]:
         """
-        Holt alle Positionen aus dem IBKR-Portfolio.
-        
+        Fetches all positions from the IBKR portfolio.
+
         Returns:
-            Liste von Position-Dictionaries
+            List of position dictionaries
         """
         if not await self._ensure_connected():
-            logger.warning("IBKR nicht verfügbar für Portfolio-Abruf")
+            logger.warning("IBKR not available for portfolio retrieval")
             return []
-        
+
         try:
-            # Portfolio-Positionen abrufen (async version)
+            # Fetch portfolio positions (async version)
             raw_positions = await self._ib.reqPositionsAsync()
 
             positions = []
             for pos in raw_positions:
                 contract = pos.contract
-                
+
                 position_data = {
                     "symbol": contract.symbol,
                     "sec_type": contract.secType,
@@ -644,46 +670,46 @@ class IBKRBridge:
                     "avg_cost": pos.avgCost,
                     "account": pos.account,
                 }
-                
-                # Zusätzliche Felder für Optionen
+
+                # Additional fields for options
                 if contract.secType == "OPT":
                     position_data.update({
                         "strike": contract.strike,
-                        "right": contract.right,  # 'C' oder 'P'
+                        "right": contract.right,  # 'C' or 'P'
                         "expiry": contract.lastTradeDateOrContractMonth,
                         "multiplier": int(contract.multiplier or 100),
                     })
-                
+
                 positions.append(position_data)
-            
-            logger.info(f"IBKR Portfolio: {len(positions)} Positionen geladen")
+
+            logger.info(f"IBKR Portfolio: {len(positions)} positions loaded")
             return positions
-            
+
         except Exception as e:
-            logger.error(f"IBKR Portfolio-Fehler: {e}")
+            logger.error(f"IBKR Portfolio error: {e}")
             return []
     
     async def get_portfolio_formatted(self) -> str:
         """
-        Holt Portfolio und formatiert als Markdown.
+        Fetches portfolio and formats as Markdown.
         """
         positions = await self.get_portfolio()
-        
+
         b = MarkdownBuilder()
         b.h1("IBKR Portfolio").blank()
-        
+
         if not positions:
-            b.hint("Keine Positionen gefunden (IBKR nicht verbunden oder leeres Portfolio).")
+            b.hint("No positions found (IBKR not connected or empty portfolio).")
             return b.build()
-        
-        # Gruppiere nach Typ
+
+        # Group by type
         stocks = [p for p in positions if p["sec_type"] == "STK"]
         options = [p for p in positions if p["sec_type"] == "OPT"]
         other = [p for p in positions if p["sec_type"] not in ["STK", "OPT"]]
-        
-        # Aktien
+
+        # Stocks
         if stocks:
-            b.h2(f"Aktien ({len(stocks)})").blank()
+            b.h2(f"Stocks ({len(stocks)})").blank()
             rows = []
             for p in stocks:
                 market_value = p["quantity"] * p["avg_cost"]
@@ -695,25 +721,25 @@ class IBKRBridge:
                 ])
             b.table(["Symbol", "Qty", "Avg Cost", "Value"], rows)
             b.blank()
-        
-        # Optionen
+
+        # Options
         if options:
-            b.h2(f"Optionen ({len(options)})").blank()
-            
-            # Gruppiere nach Symbol
+            b.h2(f"Options ({len(options)})").blank()
+
+            # Group by symbol
             by_symbol: Dict[str, List] = {}
             for p in options:
                 sym = p["symbol"]
                 if sym not in by_symbol:
                     by_symbol[sym] = []
                 by_symbol[sym].append(p)
-            
+
             for symbol, opts in by_symbol.items():
                 b.h3(symbol).blank()
                 rows = []
                 for p in sorted(opts, key=lambda x: (x["expiry"], x["strike"])):
                     right = "Put" if p["right"] == "P" else "Call"
-                    qty_str = f"{p['quantity']:+,.0f}"  # Mit Vorzeichen
+                    qty_str = f"{p['quantity']:+,.0f}"  # With sign
                     rows.append([
                         p["expiry"],
                         f"${p['strike']:.0f}",
@@ -723,38 +749,38 @@ class IBKRBridge:
                     ])
                 b.table(["Expiry", "Strike", "Type", "Qty", "Avg Cost"], rows)
                 b.blank()
-        
-        # Andere
+
+        # Other
         if other:
-            b.h2(f"Andere ({len(other)})").blank()
+            b.h2(f"Other ({len(other)})").blank()
             for p in other:
                 b.bullet(f"{p['symbol']} ({p['sec_type']}): {p['quantity']}")
             b.blank()
-        
-        # Zusammenfassung
-        b.h2("Zusammenfassung")
-        b.kv_line("Aktien-Positionen", len(stocks))
-        b.kv_line("Options-Positionen", len(options))
-        b.kv_line("Andere", len(other))
+
+        # Summary
+        b.h2("Summary")
+        b.kv_line("Stock Positions", len(stocks))
+        b.kv_line("Option Positions", len(options))
+        b.kv_line("Other", len(other))
         
         return b.build()
     
     async def get_option_positions(self) -> List[Dict[str, Any]]:
         """
-        Holt nur Options-Positionen aus IBKR.
-        
+        Fetches only option positions from IBKR.
+
         Returns:
-            Liste von Options-Positionen
+            List of option positions
         """
         all_positions = await self.get_portfolio()
         return [p for p in all_positions if p["sec_type"] == "OPT"]
-    
+
     async def get_spreads(self) -> List[Dict[str, Any]]:
         """
-        Identifiziert Spread-Positionen (Bull Put Spreads, etc.)
-        
+        Identifies spread positions (Bull Put Spreads, etc.)
+
         Returns:
-            Liste von identifizierten Spreads
+            List of identified spreads
         """
         options = await self.get_option_positions()
         
@@ -778,15 +804,15 @@ class IBKRBridge:
             long_puts = [p for p in puts if p["quantity"] > 0]
             
             for short in short_puts:
-                # Finde passenden Long Put
+                # Find matching Long Put
                 for long in long_puts:
                     if long["strike"] < short["strike"] and abs(long["quantity"]) == abs(short["quantity"]):
-                        # avgCost von IBKR ist total cost pro Kontrakt (nicht pro Aktie)
-                        # Net Credit = Short Premium - Long Premium (beides totals)
+                        # avgCost from IBKR is total cost per contract (not per share)
+                        # Net Credit = Short Premium - Long Premium (both totals)
                         net_credit_total = short["avg_cost"] - long["avg_cost"]
-                        # Pro Aktie = total / 100
+                        # Per share = total / 100
                         net_credit_per_share = net_credit_total / 100
-                        
+
                         spread = {
                             "type": "Bull Put Spread",
                             "symbol": short["symbol"],
@@ -797,25 +823,25 @@ class IBKRBridge:
                             "contracts": int(abs(short["quantity"])),
                             "short_cost": short["avg_cost"],
                             "long_cost": long["avg_cost"],
-                            "net_credit": net_credit_per_share,  # Pro Aktie
-                            "net_credit_total": net_credit_total * int(abs(short["quantity"])),  # Gesamt
+                            "net_credit": net_credit_per_share,  # Per share
+                            "net_credit_total": net_credit_total * int(abs(short["quantity"])),  # Total
                         }
                         spreads.append(spread)
                         break
-        
+
         return spreads
     
     async def get_spreads_formatted(self) -> str:
         """
-        Holt Spreads und formatiert als Markdown.
+        Fetches spreads and formats as Markdown.
         """
         spreads = await self.get_spreads()
-        
+
         b = MarkdownBuilder()
-        b.h1("IBKR Spread-Positionen").blank()
-        
+        b.h1("IBKR Spread Positions").blank()
+
         if not spreads:
-            b.hint("Keine Spread-Positionen erkannt.")
+            b.hint("No spread positions detected.")
             return b.build()
         
         rows = []
@@ -831,12 +857,13 @@ class IBKRBridge:
             total_max_profit += max_profit
             total_max_loss += max_loss
             
-            # DTE berechnen
+            # Calculate DTE
             try:
                 exp_date = datetime.strptime(s["expiry"], "%Y%m%d").date()
                 dte = (exp_date - datetime.now().date()).days
                 dte_str = f"{dte}d"
-            except:
+            except (ValueError, KeyError, TypeError) as e:
+                logger.debug(f"Could not calculate DTE for {s.get('symbol', '?')}: {e}")
                 dte_str = "?"
             
             rows.append([
@@ -856,34 +883,34 @@ class IBKRBridge:
         )
         
         b.blank()
-        b.h2("Zusammenfassung")
+        b.h2("Summary")
         b.kv_line("Spreads", len(spreads))
         b.kv_line("Total Credit", f"${total_credit:,.0f}")
         b.kv_line("Max Profit", f"${total_max_profit:,.0f}")
         b.kv_line("Max Loss", f"${total_max_loss:,.0f}")
-        
+
         return b.build()
-    
+
     async def get_status_formatted(self) -> str:
-        """Status formatiert als Markdown."""
+        """Status formatted as Markdown."""
         status = await self.get_status()
-        
+
         b = MarkdownBuilder()
         b.h1("IBKR Bridge Status").blank()
-        
-        b.kv("Status", "✅ Verfügbar" if status["available"] else "❌ Nicht verfügbar")
+
+        b.kv("Status", "Available" if status["available"] else "Not available")
         b.kv("Host", f"{status['host']}:{status['port']}")
-        b.kv("Connected", "Ja" if status["connected"] else "Nein")
-        
+        b.kv("Connected", "Yes" if status["connected"] else "No")
+
         if status["features"]:
             b.blank()
-            b.text("**Verfügbare Features:**")
+            b.text("**Available Features:**")
             for f in status["features"]:
                 b.bullet(f)
         else:
             b.blank()
-            b.hint("TWS/Gateway muss laufen für IBKR-Features.")
-            b.hint("Starte TWS und aktiviere API (Edit > Global Config > API > Settings)")
+            b.hint("TWS/Gateway must be running for IBKR features.")
+            b.hint("Start TWS and enable API (Edit > Global Config > API > Settings)")
         
         return b.build()
     
@@ -893,7 +920,7 @@ class IBKRBridge:
     
     @dataclass
     class QuoteData:
-        """Quote-Daten für ein Symbol."""
+        """Quote data for a symbol."""
         symbol: str
         last: Optional[float] = None
         bid: Optional[float] = None
@@ -905,7 +932,7 @@ class IBKRBridge:
         low: Optional[float] = None
         close: Optional[float] = None
         error: Optional[str] = None
-    
+
     async def get_quotes_batch(
         self,
         symbols: List[str],
@@ -915,33 +942,33 @@ class IBKRBridge:
         include_outside_rth: bool = True
     ) -> List[Dict[str, Any]]:
         """
-        Holt Quotes für viele Symbole in Batches.
-        
-        Wenn der Markt geschlossen ist, wird der Close-Preis als Fallback verwendet.
-        Pre-/Post-Market Daten werden über den Mark Price (Generic Tick 221) geholt.
-        
+        Fetches quotes for many symbols in batches.
+
+        When the market is closed, the close price is used as fallback.
+        Pre/post-market data is fetched via Mark Price (Generic Tick 221).
+
         Args:
-            symbols: Liste von Ticker-Symbolen
-            batch_size: Symbole pro Batch (default: 50)
-            pause_seconds: Pause zwischen Batches in Sekunden (default: 60)
-            callback: Optional callback(batch_num, total_batches, results) nach jedem Batch
-            include_outside_rth: Pre-/Post-Market Daten einbeziehen (default: True)
-            
+            symbols: List of ticker symbols
+            batch_size: Symbols per batch (default: 50)
+            pause_seconds: Pause between batches in seconds (default: 60)
+            callback: Optional callback(batch_num, total_batches, results) after each batch
+            include_outside_rth: Include pre/post-market data (default: True)
+
         Returns:
-            Liste von Quote-Dictionaries
+            List of quote dictionaries
         """
         if not await self._ensure_connected():
-            logger.warning("IBKR nicht verfügbar für Quotes")
+            logger.warning("IBKR not available for quotes")
             return []
         
         from ib_insync import Stock
         import math
         
-        # Symbol-Mapping anwenden und ungültige Symbole filtern
+        # Apply symbol mapping and filter invalid symbols
         mapped_symbols = []
         skipped_symbols = []
-        symbol_display_map = {}  # IBKR-Symbol -> Original-Symbol für Anzeige
-        
+        symbol_display_map = {}  # IBKR symbol -> Original symbol for display
+
         for sym in symbols:
             ibkr_sym = to_ibkr_symbol(sym)
             if ibkr_sym is None:
@@ -949,24 +976,24 @@ class IBKRBridge:
             else:
                 mapped_symbols.append(ibkr_sym)
                 symbol_display_map[ibkr_sym] = sym.upper()
-        
+
         if skipped_symbols:
-            logger.info(f"Überspringe {len(skipped_symbols)} Symbole ohne IBKR-Äquivalent: {', '.join(skipped_symbols[:5])}...")
-        
+            logger.info(f"Skipping {len(skipped_symbols)} symbols without IBKR equivalent: {', '.join(skipped_symbols[:5])}...")
+
         all_results = []
-        
-        # Übersprungene Symbole als Fehler hinzufügen
+
+        # Add skipped symbols as errors
         for sym in skipped_symbols:
             all_results.append({
                 "symbol": sym,
-                "error": "Kein IBKR-Äquivalent (übersprungen)"
+                "error": "No IBKR equivalent (skipped)"
             })
         
         total_batches = (len(mapped_symbols) + batch_size - 1) // batch_size if mapped_symbols else 0
         
-        # Generic Tick Types für erweiterte Daten:
+        # Generic Tick Types for extended data:
         # 221 = Mark Price (Pre/Post Market)
-        # 233 = RT Volume (für Real-time Trades außerhalb RTH)
+        # 233 = RT Volume (for real-time trades outside RTH)
         generic_ticks = "221,233" if include_outside_rth else ""
         
         for batch_num in range(total_batches):
@@ -978,8 +1005,8 @@ class IBKRBridge:
             
             batch_results = []
             contracts = []
-            
-            # Contracts erstellen und qualifizieren
+
+            # Create and qualify contracts
             for ibkr_symbol in batch_symbols:
                 original_symbol = symbol_display_map.get(ibkr_symbol, ibkr_symbol)
                 try:
@@ -990,8 +1017,8 @@ class IBKRBridge:
                         "symbol": original_symbol,
                         "error": str(e)
                     })
-            
-            # Qualifizieren
+
+            # Qualify
             valid_contracts = []
             for original_symbol, ibkr_symbol, contract in contracts:
                 try:
@@ -1003,23 +1030,23 @@ class IBKRBridge:
                         "error": f"Qualify failed: {e}"
                     })
             
-            # Market Data anfordern (mit Generic Ticks für Pre/Post Market)
+            # Request market data (with generic ticks for pre/post market)
             for original_symbol, ibkr_symbol, contract in valid_contracts:
                 try:
                     self._ib.reqMktData(contract, generic_ticks, False, False)
                 except Exception as e:
                     logger.debug(f"reqMktData failed for {ibkr_symbol}: {e}")
-            
-            # Warten auf Daten (etwas länger für Pre/Post Market Daten)
+
+            # Wait for data (slightly longer for pre/post market data)
             await asyncio.sleep(3 if include_outside_rth else 2)
-            
-            # Daten sammeln
+
+            # Collect data
             for original_symbol, ibkr_symbol, contract in valid_contracts:
                 try:
                     ticker = self._ib.ticker(contract)
-                    
+
                     if ticker:
-                        # Hilfsfunktion: Wert extrahieren wenn gültig (nicht NaN, nicht -1, > 0)
+                        # Helper function: extract value if valid (not NaN, not -1, > 0)
                         def get_valid(val):
                             if val is None:
                                 return None
@@ -1040,25 +1067,25 @@ class IBKRBridge:
                         if hasattr(ticker, 'markPrice'):
                             mark_price = get_valid(ticker.markPrice)
                         
-                        # Preis-Fallback Kette: last -> markPrice -> marketPrice -> close
+                        # Price fallback chain: last -> markPrice -> marketPrice -> close
                         price = last
                         price_source = "last"
-                        
+
                         if not price and mark_price:
                             price = mark_price
                             price_source = "mark"  # Pre/Post Market
-                        
+
                         if not price:
                             mp = ticker.marketPrice()
                             if mp and not math.isnan(mp) and mp > 0:
                                 price = mp
                                 price_source = "market"
-                        
+
                         if not price and close:
                             price = close
                             price_source = "close"
-                        
-                        # Change berechnen (gegen Close)
+
+                        # Calculate change (against close)
                         change = None
                         change_pct = None
                         if price and close and close > 0:
@@ -1076,7 +1103,7 @@ class IBKRBridge:
                             "volume": volume,
                             "change": round(change, 2) if change else None,
                             "change_pct": round(change_pct, 2) if change_pct else None,
-                            "price_source": price_source,  # Info wo der Preis herkommt
+                            "price_source": price_source,  # Info where the price comes from
                         })
                     else:
                         batch_results.append({
@@ -1090,25 +1117,25 @@ class IBKRBridge:
                         "error": str(e)
                     })
             
-            # Market Data canceln
+            # Cancel market data
             for original_symbol, ibkr_symbol, contract in valid_contracts:
                 try:
                     self._ib.cancelMktData(contract)
-                except:
-                    pass
-            
+                except Exception as e:
+                    logger.debug(f"Error cancelling market data for {original_symbol}: {e}")
+
             all_results.extend(batch_results)
-            
+
             # Callback
             if callback:
                 callback(batch_num + 1, total_batches, batch_results)
-            
-            # Pause zwischen Batches (außer beim letzten)
+
+            # Pause between batches (except for the last one)
             if batch_num < total_batches - 1:
-                logger.info(f"Pause {pause_seconds}s vor nächstem Batch...")
+                logger.info(f"Pause {pause_seconds}s before next batch...")
                 await asyncio.sleep(pause_seconds)
-        
-        logger.info(f"Fertig: {len(all_results)} Quotes geholt")
+
+        logger.info(f"Done: {len(all_results)} quotes fetched")
         return all_results
     
     async def get_quotes_batch_formatted(
@@ -1118,41 +1145,41 @@ class IBKRBridge:
         pause_seconds: int = 60
     ) -> str:
         """
-        Holt Quotes in Batches und formatiert als Markdown.
-        
-        Zeigt Preisquelle an:
-        - ● = Live/Pre-Post-Market Preis
-        - ○ = Schlusskurs (Markt geschlossen)
+        Fetches quotes in batches and formats as Markdown.
+
+        Shows price source:
+        - filled circle = Live/Pre-Post-Market price
+        - empty circle = Closing price (market closed)
         """
         results = await self.get_quotes_batch(symbols, batch_size, pause_seconds)
-        
+
         b = MarkdownBuilder()
-        b.h1(f"IBKR Watchlist Quotes ({len(results)} Symbole)").blank()
-        
+        b.h1(f"IBKR Watchlist Quotes ({len(results)} Symbols)").blank()
+
         if not results:
-            b.hint("Keine Quotes erhalten.")
+            b.hint("No quotes received.")
             return b.build()
-        
-        # Sortiere nach Change %
+
+        # Sort by Change %
         valid_quotes = [r for r in results if r.get("last") and not r.get("error")]
         error_quotes = [r for r in results if r.get("error")]
-        
-        # Preisquellen-Statistik
+
+        # Price source statistics
         source_counts = {"last": 0, "mark": 0, "market": 0, "close": 0}
         for q in valid_quotes:
             src = q.get("price_source", "last")
             if src in source_counts:
                 source_counts[src] += 1
-        
-        # Markt-Status Hinweis
+
+        # Market status hint
         close_pct = (source_counts["close"] / len(valid_quotes) * 100) if valid_quotes else 0
         mark_count = source_counts["mark"]
-        
+
         if close_pct > 50:
-            b.hint(f"⏸️ Markt geschlossen - {source_counts['close']} von {len(valid_quotes)} Preise sind Schlusskurse")
+            b.hint(f"Market closed - {source_counts['close']} of {len(valid_quotes)} prices are closing prices")
             b.blank()
         elif mark_count > 0:
-            b.hint(f"🌙 Pre/Post-Market aktiv - {mark_count} Symbole mit außerbörslichen Preisen")
+            b.hint(f"Pre/Post-Market active - {mark_count} symbols with after-hours prices")
             b.blank()
         
         # Top Gainers
@@ -1168,15 +1195,15 @@ class IBKRBridge:
             key=lambda x: x["change_pct"]
         )[:10]
         
-        # Hilfsfunktion für Preisquelle-Indikator
+        # Helper function for price source indicator
         def price_indicator(q):
             src = q.get("price_source", "last")
             if src == "close":
-                return "○"  # Schlusskurs
+                return "○"  # Closing price
             elif src == "mark":
                 return "●"  # Pre/Post Market
             else:
-                return ""   # Live - kein Indikator nötig
+                return ""   # Live - no indicator needed
         
         if gainers:
             b.h2("🟢 Top Gainers").blank()
@@ -1210,8 +1237,8 @@ class IBKRBridge:
             b.table(["Symbol", "Last", "Change %", "Change $", "Volume"], rows)
             b.blank()
         
-        # Alle Quotes
-        b.h2("Alle Quotes").blank()
+        # All Quotes
+        b.h2("All Quotes").blank()
         rows = []
         for q in sorted(valid_quotes, key=lambda x: x["symbol"]):
             indicator = price_indicator(q)
@@ -1226,35 +1253,244 @@ class IBKRBridge:
                 f"{q['volume']:,}" if q.get('volume') else "-"
             ])
         b.table(["Symbol", "Last", "Bid", "Ask", "Change", "Volume"], rows)
-        
+
         # Errors
         if error_quotes:
             b.blank()
-            b.h2(f"⚠️ Fehler ({len(error_quotes)})")
+            b.h2(f"Errors ({len(error_quotes)})")
             for q in error_quotes[:10]:
                 b.bullet(f"{q['symbol']}: {q['error']}")
             if len(error_quotes) > 10:
-                b.hint(f"... und {len(error_quotes) - 10} weitere")
-        
-        # Zusammenfassung
+                b.hint(f"... and {len(error_quotes) - 10} more")
+
+        # Summary
         b.blank()
-        b.h2("Zusammenfassung")
-        b.kv_line("Erfolgreiche Quotes", len(valid_quotes))
-        b.kv_line("Fehler", len(error_quotes))
-        b.kv_line("Gesamt", len(results))
-        
-        # Preisquellen-Details
+        b.h2("Summary")
+        b.kv_line("Successful Quotes", len(valid_quotes))
+        b.kv_line("Errors", len(error_quotes))
+        b.kv_line("Total", len(results))
+
+        # Price source details
         if source_counts["close"] > 0 or source_counts["mark"] > 0:
             b.blank()
-            b.text("**Preisquellen:**")
+            b.text("**Price Sources:**")
             if source_counts["last"] > 0:
                 b.bullet(f"Live: {source_counts['last']}")
             if source_counts["mark"] > 0:
-                b.bullet(f"Pre/Post-Market ●: {source_counts['mark']}")
+                b.bullet(f"Pre/Post-Market: {source_counts['mark']}")
             if source_counts["close"] > 0:
-                b.bullet(f"Schlusskurs ○: {source_counts['close']}")
+                b.bullet(f"Closing Price: {source_counts['close']}")
         
         return b.build()
+
+    # =========================================================================
+    # OPTIONS CHAIN (for Strike Recommendations)
+    # =========================================================================
+
+    async def get_option_chain(
+        self,
+        symbol: str,
+        dte_min: int = 60,
+        dte_max: int = 90,
+        right: str = "P",
+    ) -> list:
+        """
+        Fetch full options chain from IBKR/TWS with Greeks.
+
+        Returns OptionQuote objects compatible with the DataProvider interface.
+        Used as fallback when Tradier is not available.
+
+        Args:
+            symbol: Ticker symbol
+            dte_min: Minimum days to expiration
+            dte_max: Maximum days to expiration
+            right: Option type - "P" for puts, "C" for calls
+
+        Returns:
+            List of OptionQuote objects
+        """
+        if not await self._ensure_connected():
+            logger.warning(f"IBKR not available for options chain ({symbol})")
+            return []
+
+        from ib_insync import Stock, Option
+        from .data_providers.interface import OptionQuote, DataQuality
+        import math
+
+        try:
+            ibkr_sym = to_ibkr_symbol(symbol)
+            if ibkr_sym is None:
+                logger.debug(f"Symbol {symbol} has no IBKR equivalent, skipping")
+                return []
+
+            stock = Stock(ibkr_sym, "SMART", "USD")
+            self._ib.qualifyContracts(stock)
+
+            # Get current price
+            self._ib.reqMktData(stock, "", False, False)
+            await asyncio.sleep(0.5)
+            ticker = self._ib.ticker(stock)
+            current_price = ticker.marketPrice() if ticker else None
+            self._ib.cancelMktData(stock)
+
+            if not current_price or math.isnan(current_price):
+                logger.warning(f"IBKR: No price for {symbol}, cannot fetch options")
+                return []
+
+            # Get options chain definition
+            chains = await asyncio.wait_for(
+                self._ib.reqSecDefOptParamsAsync(
+                    stock.symbol, "", stock.secType, stock.conId
+                ),
+                timeout=15,
+            )
+
+            if not chains:
+                logger.warning(f"IBKR: No options chain for {symbol}")
+                return []
+
+            chain = next((c for c in chains if c.exchange == "SMART"), chains[0])
+
+            # Filter expirations by DTE range
+            today = datetime.now().date()
+            valid_expiries = []
+            for exp in sorted(chain.expirations):
+                try:
+                    exp_date = datetime.strptime(exp, "%Y%m%d").date()
+                    days = (exp_date - today).days
+                    if dte_min <= days <= dte_max:
+                        valid_expiries.append((exp, exp_date, days))
+                except (ValueError, TypeError):
+                    continue
+
+            if not valid_expiries:
+                logger.debug(f"IBKR: No expirations in DTE range {dte_min}-{dte_max} for {symbol}")
+                return []
+
+            # Filter strikes to ±20% of current price
+            max_distance = 0.20
+            valid_strikes = [
+                s for s in chain.strikes
+                if abs(s - current_price) / current_price <= max_distance
+            ]
+
+            right_upper = right.upper()
+            results = []
+
+            for expiry_str, expiry_date, dte in valid_expiries:
+                contracts = []
+                for strike in valid_strikes:
+                    try:
+                        opt = Option(ibkr_sym, expiry_str, strike, right_upper, "SMART")
+                        contracts.append((strike, opt))
+                    except Exception:
+                        continue
+
+                if not contracts:
+                    continue
+
+                # Qualify all contracts for this expiry
+                all_opts = [c[1] for c in contracts]
+                try:
+                    self._ib.qualifyContracts(*all_opts)
+                except Exception as e:
+                    logger.debug(f"IBKR: Qualify failed for {symbol} {expiry_str}: {e}")
+                    continue
+
+                # Request market data with Greeks (tick 100=OI, 101=Greeks, 106=IV)
+                qualified = [(s, o) for s, o in contracts if o.conId > 0]
+                for _, opt in qualified:
+                    try:
+                        self._ib.reqMktData(opt, "100,101,106", False, False)
+                    except Exception:
+                        pass
+
+                # Wait for data
+                await asyncio.sleep(2)
+
+                # Collect results
+                for strike, opt in qualified:
+                    try:
+                        opt_ticker = self._ib.ticker(opt)
+                        if not opt_ticker:
+                            continue
+
+                        bid = opt_ticker.bid if opt_ticker.bid and not math.isnan(opt_ticker.bid) else None
+                        ask = opt_ticker.ask if opt_ticker.ask and not math.isnan(opt_ticker.ask) else None
+                        last = opt_ticker.last if opt_ticker.last and not math.isnan(opt_ticker.last) else None
+
+                        # Skip if no pricing at all
+                        if bid is None and ask is None and last is None:
+                            continue
+
+                        # Greeks from model
+                        delta = None
+                        gamma = None
+                        theta = None
+                        vega = None
+                        iv = None
+
+                        if opt_ticker.modelGreeks:
+                            mg = opt_ticker.modelGreeks
+                            delta = mg.delta if mg.delta and not math.isnan(mg.delta) else None
+                            gamma = mg.gamma if mg.gamma and not math.isnan(mg.gamma) else None
+                            theta = mg.theta if mg.theta and not math.isnan(mg.theta) else None
+                            vega = mg.vega if mg.vega and not math.isnan(mg.vega) else None
+                            iv = mg.impliedVol if mg.impliedVol and not math.isnan(mg.impliedVol) else None
+
+                        # Open interest
+                        oi = None
+                        if right_upper == "P":
+                            raw_oi = opt_ticker.putOpenInterest
+                        else:
+                            raw_oi = opt_ticker.callOpenInterest
+                        if raw_oi and not math.isnan(raw_oi):
+                            oi = int(raw_oi)
+
+                        volume_val = None
+                        if opt_ticker.volume and not math.isnan(opt_ticker.volume):
+                            volume_val = int(opt_ticker.volume)
+
+                        results.append(OptionQuote(
+                            symbol=f"{symbol}{expiry_str}{right_upper}{strike:.0f}",
+                            underlying=symbol,
+                            underlying_price=current_price,
+                            expiry=expiry_date,
+                            strike=strike,
+                            right=right_upper,
+                            bid=bid,
+                            ask=ask,
+                            last=last,
+                            volume=volume_val,
+                            open_interest=oi,
+                            implied_volatility=iv,
+                            delta=delta,
+                            gamma=gamma,
+                            theta=theta,
+                            vega=vega,
+                            timestamp=datetime.now(),
+                            data_quality=DataQuality.DELAYED_15MIN,
+                            source="ibkr",
+                        ))
+                    except Exception as e:
+                        logger.debug(f"IBKR option data error {symbol} {strike}: {e}")
+
+                # Cancel market data for this expiry
+                for _, opt in qualified:
+                    try:
+                        self._ib.cancelMktData(opt)
+                    except Exception:
+                        pass
+
+            logger.info(f"IBKR options chain: {len(results)} options for {symbol}")
+            return results
+
+        except asyncio.TimeoutError:
+            logger.warning(f"IBKR options chain timeout for {symbol}")
+            return []
+        except Exception as e:
+            logger.warning(f"IBKR options chain error for {symbol}: {type(e).__name__}: {e}")
+            return []
 
 
 # =============================================================================
@@ -1265,7 +1501,7 @@ _default_bridge: Optional[IBKRBridge] = None
 
 
 def get_ibkr_bridge() -> IBKRBridge:
-    """Gibt globale Bridge-Instanz zurück."""
+    """Returns global bridge instance."""
     global _default_bridge
     if _default_bridge is None:
         _default_bridge = IBKRBridge()
@@ -1273,6 +1509,6 @@ def get_ibkr_bridge() -> IBKRBridge:
 
 
 async def check_ibkr_available() -> bool:
-    """Schnell-Check ob IBKR verfügbar ist."""
+    """Quick check if IBKR is available."""
     bridge = get_ibkr_bridge()
     return await bridge.is_available()

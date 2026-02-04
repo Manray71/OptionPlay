@@ -18,6 +18,8 @@ from ..vix_strategy import get_strategy_for_vix
 from ..cache import get_earnings_fetcher
 from ..strike_recommender import StrikeRecommender
 from ..indicators.support_resistance import find_support_levels, calculate_fibonacci
+from ..constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS, BLACKLIST_SYMBOLS, ENTRY_STABILITY_MIN
+from ..cache.symbol_fundamentals import get_fundamentals_manager
 from .base import BaseHandlerMixin
 
 logger = logging.getLogger(__name__)
@@ -40,12 +42,27 @@ class AnalysisHandlerMixin(BaseHandlerMixin):
             Formatted analysis with technical indicators
         """
         symbol = validate_symbol(symbol)
+
+        # Blacklist-Check (PLAYBOOK §1, Filter #1) — vor allen API-Calls
+        if symbol.upper() in [s.upper() for s in BLACKLIST_SYMBOLS]:
+            b = MarkdownBuilder()
+            b.h1(f"Analysis: {symbol}").blank()
+            b.status_error(f"**BLACKLISTED** — {symbol} darf nicht getradet werden (PLAYBOOK §7)")
+            return b.build()
+
         provider = await self._ensure_connected()
 
         vix = await self.get_vix()
         recommendation = get_strategy_for_vix(vix)
 
         quote = await self._get_quote_cached(symbol)
+
+        # Fundamentals (Stability, Sector)
+        try:
+            fundamentals_mgr = get_fundamentals_manager()
+            fundamentals = fundamentals_mgr.get_fundamentals(symbol)
+        except Exception:
+            fundamentals = None
 
         await self._rate_limiter.acquire()
         historical = await provider.get_historical_for_scanner(symbol, days=260)
@@ -59,6 +76,20 @@ class AnalysisHandlerMixin(BaseHandlerMixin):
         b.h1(f"Complete Analysis: {symbol}").blank()
         b.kv("VIX", vix, fmt=".2f")
         b.kv("Strategy", recommendation.profile_name.upper())
+        b.blank()
+
+        # Fundamentals section (PLAYBOOK §1, Filter #2)
+        b.h2("Fundamentals")
+        if fundamentals and fundamentals.stability_score is not None:
+            stability = fundamentals.stability_score
+            stability_icon = "[OK]" if stability >= ENTRY_STABILITY_MIN else "[X]"
+            b.kv_line("Stability", f"{stability_icon} {stability:.0f}/100 (min: {ENTRY_STABILITY_MIN:.0f})")
+            if fundamentals.sector:
+                b.kv_line("Sector", fundamentals.sector)
+            if fundamentals.historical_win_rate:
+                b.kv_line("Hist. Win Rate", f"{fundamentals.historical_win_rate:.0f}%")
+        else:
+            b.kv_line("Stability", "[?] UNKNOWN — nicht in symbol_fundamentals")
         b.blank()
 
         if quote:
@@ -82,6 +113,12 @@ class AnalysisHandlerMixin(BaseHandlerMixin):
             b.kv_line("SMA 20", f"${sma_20:.2f} {up_20}")
             b.kv_line("SMA 50", f"${sma_50:.2f} {up_50}")
             b.kv_line("SMA 200", f"${sma_200:.2f} {up_200}")
+
+            # Volume (PLAYBOOK §1, Filter #6)
+            if volumes and len(volumes) >= 20:
+                avg_vol_20d = sum(volumes[-20:]) / 20
+                vol_icon = "[OK]" if avg_vol_20d >= 500_000 else "[X]"
+                b.kv_line("Avg Volume (20d)", f"{vol_icon} {avg_vol_20d:,.0f} (min: 500,000)")
             b.blank()
 
             if current_price > sma_200 and current_price < sma_20:
@@ -97,7 +134,7 @@ class AnalysisHandlerMixin(BaseHandlerMixin):
 
         if earnings:
             b.h2("Earnings Check")
-            if earnings.days_to_earnings and earnings.days_to_earnings < 45:
+            if earnings.days_to_earnings and earnings.days_to_earnings < ENTRY_EARNINGS_MIN_DAYS:
                 b.status_error(f"Earnings in {earnings.days_to_earnings} days - NOT SAFE")
             elif earnings.days_to_earnings:
                 b.status_ok(f"Earnings in {earnings.days_to_earnings} days - SAFE")
@@ -118,6 +155,14 @@ class AnalysisHandlerMixin(BaseHandlerMixin):
             Formatted Markdown analysis with all strategy scores
         """
         symbol = validate_symbol(symbol)
+
+        # Blacklist-Check (PLAYBOOK §1, Filter #1)
+        if symbol.upper() in [s.upper() for s in BLACKLIST_SYMBOLS]:
+            b = MarkdownBuilder()
+            b.h1(f"Multi-Strategy Analysis: {symbol}").blank()
+            b.status_error(f"**BLACKLISTED** — {symbol} darf nicht getradet werden (PLAYBOOK §7)")
+            return b.build()
+
         provider = await self._ensure_connected()
 
         historical_days = max(self._config.settings.performance.historical_days, 260)
@@ -169,10 +214,8 @@ class AnalysisHandlerMixin(BaseHandlerMixin):
         self._rate_limiter.record_success()
 
         if earnings and earnings.earnings_date:
-            if earnings.days_to_earnings < 45:
-                b.kv_line("Earnings", f"[X] {earnings.days_to_earnings}d - DO NOT TRADE")
-            elif earnings.days_to_earnings < 60:
-                b.kv_line("Earnings", f"[!] {earnings.days_to_earnings}d - CAUTION")
+            if earnings.days_to_earnings < ENTRY_EARNINGS_MIN_DAYS:
+                b.kv_line("Earnings", f"[X] {earnings.days_to_earnings}d - DO NOT TRADE (min: {ENTRY_EARNINGS_MIN_DAYS}d)")
             else:
                 b.kv_line("Earnings", f"[OK] {earnings.days_to_earnings}d")
         else:
@@ -394,8 +437,8 @@ class AnalysisHandlerMixin(BaseHandlerMixin):
     async def recommend_strikes(
         self,
         symbol: str,
-        dte_min: int = 45,
-        dte_max: int = 60,
+        dte_min: int = 60,
+        dte_max: int = 90,
         num_alternatives: int = 3,
     ) -> str:
         """
@@ -414,7 +457,6 @@ class AnalysisHandlerMixin(BaseHandlerMixin):
             Formatted strike recommendations
         """
         symbol = validate_symbol(symbol)
-        provider = await self._ensure_connected()
 
         # Get current quote
         quote = await self._get_quote_cached(symbol)
@@ -441,10 +483,10 @@ class AnalysisHandlerMixin(BaseHandlerMixin):
         recent_low = min(lows[-60:]) if len(lows) >= 60 else min(lows)
         fib_levels = calculate_fibonacci(recent_high, recent_low)
 
-        # Get options chain
-        await self._rate_limiter.acquire()
-        options = await provider.get_option_chain(symbol, dte_min=dte_min, dte_max=dte_max, right="P")
-        self._rate_limiter.record_success()
+        # Get options chain (Tradier -> IBKR fallback, no Marketdata ATM)
+        options = await self._get_options_chain_with_fallback(
+            symbol, dte_min=dte_min, dte_max=dte_max, right="P"
+        )
 
         options_data = None
         if options:
@@ -457,6 +499,8 @@ class AnalysisHandlerMixin(BaseHandlerMixin):
                     "delta": opt.delta,
                     "iv": opt.implied_volatility,
                     "dte": (opt.expiry - date.today()).days,
+                    "open_interest": opt.open_interest,
+                    "volume": opt.volume,
                 }
                 for opt in options
             ]
@@ -492,8 +536,9 @@ class AnalysisHandlerMixin(BaseHandlerMixin):
         b.kv_line("Long Strike", f"${rec.long_strike:.2f}")
         b.kv_line("Spread Width", f"${rec.spread_width:.2f}")
         b.kv_line("Est. Credit", f"${rec.estimated_credit:.2f}" if rec.estimated_credit else "N/A")
-        b.kv_line("Est. Delta", f"{rec.estimated_delta:.2f}" if rec.estimated_delta else "N/A")
-        b.kv_line("Prob. Profit", f"{rec.prob_profit:.0%}" if rec.prob_profit else "N/A")
+        b.kv_line("Short Delta", f"{rec.estimated_delta:.2f}" if rec.estimated_delta else "N/A")
+        b.kv_line("Long Delta", f"{rec.long_delta:.2f}" if rec.long_delta else "N/A")
+        b.kv_line("Prob. Profit", f"{rec.prob_profit:.0f}%" if rec.prob_profit else "N/A")
         b.kv_line("Quality", rec.quality.value if rec.quality else "N/A")
         b.blank()
 
@@ -504,6 +549,40 @@ class AnalysisHandlerMixin(BaseHandlerMixin):
                 distance_pct = ((level - current_price) / current_price) * 100
                 b.text(f"S{i}: ${level:.2f} ({distance_pct:+.1f}%)")
             b.blank()
+
+        # Liquidity assessment
+        if options_data and rec:
+            from ..options.liquidity import LiquidityAssessor
+            assessor = LiquidityAssessor()
+            spread_liq = assessor.assess_spread(
+                rec.short_strike, rec.long_strike, options_data
+            )
+            if spread_liq:
+                b.h2("Liquidity Assessment")
+                quality_upper = spread_liq.overall_quality.upper()
+                b.kv_line("Overall Quality", quality_upper)
+                b.kv_line(
+                    "Short Strike OI",
+                    f"{spread_liq.short_strike_liquidity.open_interest:,}"
+                )
+                b.kv_line(
+                    "Long Strike OI",
+                    f"{spread_liq.long_strike_liquidity.open_interest:,}"
+                )
+                b.kv_line(
+                    "Short Bid-Ask Spread",
+                    f"{spread_liq.short_strike_liquidity.spread_pct:.1f}%"
+                )
+                b.kv_line(
+                    "Long Bid-Ask Spread",
+                    f"{spread_liq.long_strike_liquidity.spread_pct:.1f}%"
+                )
+                if not spread_liq.is_tradeable:
+                    b.blank()
+                    b.text("**ILLIQUID - Not recommended for trading**")
+                for w in spread_liq.warnings:
+                    b.text(f"- {w}")
+                b.blank()
 
         # Fibonacci levels
         b.h2("Fibonacci Retracements")

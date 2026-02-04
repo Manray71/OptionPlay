@@ -555,8 +555,8 @@ class TestATHScoreBreakdown:
         assert 'percent' in keltner_info
         assert 'reason' in keltner_info
 
-    def test_max_possible_is_16(self, analyzer, breakout_data):
-        """Max possible score should be 16"""
+    def test_max_possible_is_23(self, analyzer, breakout_data):
+        """Max possible score should be 23 (includes gap score)"""
         prices, volumes, highs, lows = breakout_data
 
         signal = analyzer.analyze("TEST", prices, volumes, highs, lows)
@@ -566,7 +566,221 @@ class TestATHScoreBreakdown:
 
         breakdown = signal.details['score_breakdown']
 
-        assert breakdown['max_possible'] == 16
+        assert breakdown['max_possible'] == 23
+
+
+# =============================================================================
+# NEW TESTS: Multi-Day Confirmation (P1-B)
+# =============================================================================
+
+class TestATHBreakoutConfirmation:
+    """Tests for Multi-Day Breakout Confirmation (P1-B)"""
+
+    @pytest.fixture
+    def analyzer(self):
+        return ATHBreakoutAnalyzer()
+
+    def test_confirmed_breakout_score(self, analyzer):
+        """Confirmed breakout (2+ days above ATH) should get full score"""
+        # Generate prices that stay above ATH for 3 days
+        n = 264
+        prices = []
+        highs = []
+
+        for i in range(n):
+            if i < 250:
+                p = 100 + i * 0.08  # Gradual rise to ~120
+            else:
+                # Last 4 days: all above ATH of 120
+                p = 121 + (i - 250) * 0.5  # 121, 121.5, 122, 122.5
+
+            prices.append(p)
+            highs.append(p + 0.5)
+
+        is_confirmed, score, info = analyzer._check_breakout_confirmation(
+            prices=prices,
+            highs=highs,
+            ath_price=120.0,
+            confirmation_days=2
+        )
+
+        assert is_confirmed is True
+        assert score >= 1.0
+        assert info['status'] == 'confirmed'
+        assert info['days_close_above_ath'] >= 2
+
+    def test_unconfirmed_breakout_score(self, analyzer):
+        """Unconfirmed breakout (only 1 day above ATH) should get reduced score"""
+        n = 264
+        prices = []
+        highs = []
+
+        for i in range(n):
+            if i < 260:
+                p = 100 + i * 0.077  # Rise to ~120
+            elif i == 260:
+                p = 121  # Day 1: above ATH
+            elif i == 261:
+                p = 119  # Day 2: below ATH (failed confirmation)
+            elif i == 262:
+                p = 118  # Day 3: below ATH
+            else:
+                p = 122  # Day 4 (today): back above
+
+            prices.append(p)
+            highs.append(p + 0.5)
+
+        is_confirmed, score, info = analyzer._check_breakout_confirmation(
+            prices=prices,
+            highs=highs,
+            ath_price=120.0,
+            confirmation_days=2
+        )
+
+        assert is_confirmed is False
+        assert score < 1.0
+        assert info['status'] == 'unconfirmed'
+        assert info['days_close_above_ath'] < 2
+
+    def test_partial_confirmation_score(self, analyzer):
+        """Partial confirmation (1 of 2 days) should give partial credit"""
+        n = 264
+        prices = []
+        highs = []
+
+        for i in range(n):
+            if i < 261:
+                p = 100 + i * 0.076
+            elif i == 261:
+                p = 121  # 1 day above ATH
+            elif i == 262:
+                p = 118  # 1 day below ATH
+            else:
+                p = 122
+
+            prices.append(p)
+            highs.append(p + 0.5)
+
+        is_confirmed, score, info = analyzer._check_breakout_confirmation(
+            prices=prices,
+            highs=highs,
+            ath_price=120.0,
+            confirmation_days=2
+        )
+
+        assert is_confirmed is False
+        assert 0 < score < 0.5  # Partial credit
+        assert info['days_close_above_ath'] == 1
+
+    def test_ath_score_reduced_for_unconfirmed(self, analyzer):
+        """_score_ath_breakout should reduce score for unconfirmed breakouts"""
+        n = 264
+        prices = []
+        highs = []
+
+        # Create unconfirmed breakout
+        for i in range(n):
+            if i < 260:
+                p = 100 + i * 0.077
+            elif i == 260:
+                p = 121
+            elif i == 261:
+                p = 119  # Failed confirmation
+            elif i == 262:
+                p = 118
+            else:
+                p = 122
+
+            prices.append(p)
+            highs.append(p + 0.5 if i < 260 else p + 1)
+
+        score, info = analyzer._score_ath_breakout(
+            highs=highs,
+            current_high=123,
+            prices=prices
+        )
+
+        assert info['confirmation']['status'] == 'unconfirmed'
+        assert info['score_adjustment'] == 'reduced_unconfirmed'
+        # Score should be reduced (typically from 2-3 to 1-2)
+        assert score <= 2
+
+    def test_ath_score_full_for_confirmed(self, analyzer):
+        """_score_ath_breakout should give full score for confirmed breakouts"""
+        n = 264
+        prices = []
+        highs = []
+
+        # Create confirmed breakout
+        for i in range(n):
+            if i < 250:
+                p = 100 + i * 0.08
+            else:
+                p = 121 + (i - 250) * 0.5  # All days above ATH
+
+            prices.append(p)
+            highs.append(p + 0.5 if i < 250 else p + 1)
+
+        score, info = analyzer._score_ath_breakout(
+            highs=highs,
+            current_high=128,
+            prices=prices
+        )
+
+        assert info['confirmation']['status'] == 'confirmed'
+        assert info['score_adjustment'] == 'confirmed'
+        # Score should be full (2-3)
+        assert score >= 2
+
+    def test_config_confirmation_days(self):
+        """Configuration should control confirmation days"""
+        config = ATHBreakoutConfig(confirmation_days=3)
+        analyzer = ATHBreakoutAnalyzer(config)
+
+        assert analyzer.config.confirmation_days == 3
+
+        # Generate prices that only confirm for 2 days (not 3)
+        n = 264
+        prices = []
+        highs = []
+
+        for i in range(n):
+            if i < 260:
+                p = 100 + i * 0.077
+            elif i in [260, 261]:  # Only 2 days above ATH
+                p = 121
+            else:
+                p = 119  # Below ATH
+
+            prices.append(p)
+            highs.append(p + 0.5)
+
+        prices[-1] = 122  # Today above ATH
+
+        is_confirmed, score, info = analyzer._check_breakout_confirmation(
+            prices=prices,
+            highs=highs,
+            ath_price=120.0,
+            confirmation_days=3  # Require 3 days
+        )
+
+        # Should NOT be confirmed because we only have 2 days
+        assert is_confirmed is False
+
+    def test_insufficient_data_for_confirmation(self, analyzer):
+        """Should handle insufficient data gracefully"""
+        prices = [100, 101]  # Only 2 data points (need 3 for confirmation_days=2)
+        highs = [101, 102]
+
+        is_confirmed, score, info = analyzer._check_breakout_confirmation(
+            prices=prices,
+            highs=highs,
+            ath_price=100.0,
+            confirmation_days=2
+        )
+
+        assert is_confirmed is False
+        assert info['status'] == 'insufficient_data'
 
 
 class TestATHHelperMethods:

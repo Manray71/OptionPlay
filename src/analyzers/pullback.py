@@ -1,6 +1,6 @@
 # OptionPlay - Pullback Analyzer
 # ================================
-# Technische Analyse für Pullback-Kandidaten
+# Technical analysis for pullback candidates
 
 import numpy as np
 from typing import List, Dict, Optional, Tuple
@@ -27,6 +27,51 @@ try:
     from ..indicators.momentum import calculate_rsi_divergence
 except ImportError:
     from indicators.momentum import calculate_rsi_divergence
+
+# Import central constants (with alias to avoid naming conflicts)
+try:
+    from ..constants import (
+        MACD_FAST as _MACD_FAST,
+        MACD_SLOW as _MACD_SLOW,
+        MACD_SIGNAL as _MACD_SIGNAL,
+        STOCH_K_PERIOD as _STOCH_K,
+        STOCH_D_PERIOD as _STOCH_D,
+        STOCH_SMOOTH as _STOCH_SMOOTH,
+        STOCH_OVERSOLD as _STOCH_OVERSOLD,
+        STOCH_OVERBOUGHT as _STOCH_OVERBOUGHT,
+        RSI_PERIOD, RSI_OVERSOLD, RSI_OVERBOUGHT,
+        SMA_SHORT, SMA_MEDIUM, SMA_LONG,
+        FIB_LEVELS, FIB_LOOKBACK_DAYS,
+        SUPPORT_LOOKBACK_DAYS, SUPPORT_WINDOW, SUPPORT_MAX_LEVELS, SUPPORT_TOLERANCE_PCT,
+        VOLUME_AVG_PERIOD, VOLUME_SPIKE_MULTIPLIER,
+        KELTNER_ATR_MULTIPLIER, KELTNER_LOWER_THRESHOLD,
+        DIVERGENCE_SWING_WINDOW, DIVERGENCE_MIN_BARS, DIVERGENCE_MAX_BARS,
+        VWAP_PERIOD, VWAP_STRONG_ABOVE, VWAP_ABOVE, VWAP_BELOW, VWAP_STRONG_BELOW,
+        GAP_LOOKBACK_DAYS, GAP_SIZE_LARGE, GAP_SIZE_MEDIUM, GAP_SIZE_SMALL_NEG, GAP_SIZE_LARGE_NEG,
+        PRICE_TOLERANCE,
+    )
+except ImportError:
+    # Fallback for direct execution
+    from constants import (
+        MACD_FAST as _MACD_FAST,
+        MACD_SLOW as _MACD_SLOW,
+        MACD_SIGNAL as _MACD_SIGNAL,
+        STOCH_K_PERIOD as _STOCH_K,
+        STOCH_D_PERIOD as _STOCH_D,
+        STOCH_SMOOTH as _STOCH_SMOOTH,
+        STOCH_OVERSOLD as _STOCH_OVERSOLD,
+        STOCH_OVERBOUGHT as _STOCH_OVERBOUGHT,
+        RSI_PERIOD, RSI_OVERSOLD, RSI_OVERBOUGHT,
+        SMA_SHORT, SMA_MEDIUM, SMA_LONG,
+        FIB_LEVELS, FIB_LOOKBACK_DAYS,
+        SUPPORT_LOOKBACK_DAYS, SUPPORT_WINDOW, SUPPORT_MAX_LEVELS, SUPPORT_TOLERANCE_PCT,
+        VOLUME_AVG_PERIOD, VOLUME_SPIKE_MULTIPLIER,
+        KELTNER_ATR_MULTIPLIER, KELTNER_LOWER_THRESHOLD,
+        DIVERGENCE_SWING_WINDOW, DIVERGENCE_MIN_BARS, DIVERGENCE_MAX_BARS,
+        VWAP_PERIOD, VWAP_STRONG_ABOVE, VWAP_ABOVE, VWAP_BELOW, VWAP_STRONG_BELOW,
+        GAP_LOOKBACK_DAYS, GAP_SIZE_LARGE, GAP_SIZE_MEDIUM, GAP_SIZE_SMALL_NEG, GAP_SIZE_LARGE_NEG,
+        PRICE_TOLERANCE,
+    )
 
 # Import Volume Profile indicators (NEW from Feature Engineering)
 try:
@@ -65,28 +110,29 @@ logger = logging.getLogger(__name__)
 
 class PullbackAnalyzer(BaseAnalyzer):
     """
-    Analysiert Aktien auf Pullback-Setups.
-    
-    Indikatoren:
+    Analyzes stocks for pullback setups.
+
+    Indicators:
     - RSI (14) - Oversold/Overbought
     - MACD (12, 26, 9) - Trend & Momentum
-    - Stochastik (14, 3, 3) - Überkauft/Überverkauft
+    - Stochastic (14, 3, 3) - Overbought/Oversold
     - SMAs (20, 50, 200) - Trend
     - Support/Resistance - Swing Highs/Lows
     - Fibonacci Retracements
     """
     
-    # MACD Default Parameter
-    MACD_FAST = 12
-    MACD_SLOW = 26
-    MACD_SIGNAL = 9
-    
-    # Stochastik Default Parameter
-    STOCH_K = 14
-    STOCH_D = 3
-    STOCH_SMOOTH = 3
-    STOCH_OVERSOLD = 20
-    STOCH_OVERBOUGHT = 80
+    # MACD Default Parameter (from src/constants)
+    # Variable names kept for backward compatibility
+    MACD_FAST = _MACD_FAST       # 12 - Fast EMA
+    MACD_SLOW = _MACD_SLOW       # 26 - Slow EMA
+    MACD_SIGNAL = _MACD_SIGNAL   # 9  - Signal Line
+
+    # Stochastic Default Parameters (from src/constants)
+    STOCH_K = _STOCH_K            # 14
+    STOCH_D = _STOCH_D            # 3
+    STOCH_SMOOTH = _STOCH_SMOOTH  # 3
+    STOCH_OVERSOLD = _STOCH_OVERSOLD   # 20
+    STOCH_OVERBOUGHT = _STOCH_OVERBOUGHT  # 80
     
     def __init__(self, config: PullbackScoringConfig):
         self.config = config
@@ -110,22 +156,22 @@ class PullbackAnalyzer(BaseAnalyzer):
         **kwargs
     ) -> TradeSignal:
         """
-        Analysiert ein Symbol auf Pullback-Setup.
+        Analyzes a symbol for pullback setup.
 
         Args:
             context: Optional pre-calculated AnalysisContext for performance
 
         Returns:
-            TradeSignal mit Score und Entry-Empfehlung
+            TradeSignal with score and entry recommendation
         """
-        # Vollständige Analyse durchführen
+        # Perform complete analysis
         candidate = self.analyze_detailed(symbol, prices, volumes, highs, lows, context=context)
 
         # Normalize score to 0-10 scale for fair cross-strategy comparison
         max_possible = candidate.score_breakdown.max_possible if hasattr(candidate.score_breakdown, 'max_possible') else 26
         normalized_score = (candidate.score / max_possible) * 10 if max_possible > 0 else 0
 
-        # In TradeSignal konvertieren (based on normalized 0-10 scale)
+        # Convert to TradeSignal (based on normalized 0-10 scale)
         if normalized_score >= 3.5:
             signal_type = SignalType.LONG
             if normalized_score >= 7:
@@ -138,18 +184,18 @@ class PullbackAnalyzer(BaseAnalyzer):
             signal_type = SignalType.NEUTRAL
             strength = SignalStrength.NONE
         
-        # Entry/Stop/Target berechnen
+        # Calculate Entry/Stop/Target
         entry_price = candidate.current_price
         stop_loss = None
         target_price = None
         
         if candidate.support_levels:
-            # Stop unter dem nächsten Support
+            # Stop below the nearest support
             nearest_support = min(candidate.support_levels, 
                                   key=lambda x: abs(x - entry_price))
             stop_loss = nearest_support * 0.98  # 2% unter Support
             
-            # Target bei nächstem Widerstand oder 2:1 R/R
+            # Target at next resistance or 2:1 R/R
             if candidate.resistance_levels:
                 target_price = min(candidate.resistance_levels,
                                    key=lambda x: x if x > entry_price else float('inf'))
@@ -190,23 +236,23 @@ class PullbackAnalyzer(BaseAnalyzer):
         context: Optional[AnalysisContext] = None
     ) -> PullbackCandidate:
         """
-        Vollständige Pullback-Analyse für ein Symbol.
+        Complete pullback analysis for a symbol.
 
         Args:
-            symbol: Ticker-Symbol
-            prices: Schlusskurse (älteste zuerst)
-            volumes: Tagesvolumen
-            highs: Tageshochs
-            lows: Tagestiefs
+            symbol: Ticker symbol
+            prices: Closing prices (oldest first)
+            volumes: Daily volume
+            highs: Daily highs
+            lows: Daily lows
             context: Optional pre-calculated AnalysisContext for performance
 
         Returns:
-            PullbackCandidate mit Score, Breakdown und allen Indikatoren
+            PullbackCandidate with score, breakdown, and all indicators
 
         Raises:
-            ValueError: Bei ungültigen oder inkonsistenten Input-Daten
+            ValueError: For invalid or inconsistent input data
         """
-        # Input Validierung
+        # Input validation
         self._validate_inputs(symbol, prices, volumes, highs, lows)
 
         min_required = self.config.moving_averages.long_period
@@ -261,7 +307,7 @@ class PullbackAnalyzer(BaseAnalyzer):
             macd_result = self._calculate_macd(prices)
             stoch_result = self._calculate_stochastic(highs, lows, prices)
 
-            # Trend bestimmen
+            # Determine trend
             above_sma20 = current_price > sma_20
             above_sma50 = current_price > sma_50 if sma_50 else None
             above_sma200 = current_price > sma_200
@@ -314,12 +360,12 @@ class PullbackAnalyzer(BaseAnalyzer):
         # Scoring
         breakdown = ScoreBreakdown()
 
-        # 1. RSI Score (0-3 Punkte)
+        # 1. RSI Score (0-3 points)
         breakdown.rsi_score, breakdown.rsi_reason = self._score_rsi(rsi)
         breakdown.rsi_value = rsi
 
-        # 1b. RSI Divergenz (0-3 Punkte) - NEU
-        # Bullische Divergenz ist starkes Signal für Pullback-Entry
+        # 1b. RSI Divergence (0-3 points) - NEW
+        # Bullish divergence is a strong signal for pullback entry
         divergence_result = calculate_rsi_divergence(
             prices=prices,
             lows=lows,
@@ -337,7 +383,7 @@ class PullbackAnalyzer(BaseAnalyzer):
         breakdown.rsi_divergence_formation_days = divergence_result.formation_days if divergence_result else 0
         breakdown.rsi_divergence_reason = div_score_result[1]
 
-        # 2. Support Score mit Stärke-Bewertung (0-2.5 Punkte)
+        # 2. Support Score with strength rating (0-2.5 points)
         support_result = self._score_support_with_strength(
             current_price, support_levels, volumes, lows
         )
@@ -350,25 +396,25 @@ class PullbackAnalyzer(BaseAnalyzer):
             breakdown.support_level = nearest
             breakdown.support_distance_pct = abs(current_price - nearest) / current_price * 100
 
-        # 3. Fibonacci Score (0-2 Punkte)
+        # 3. Fibonacci Score (0-2 points)
         breakdown.fibonacci_score, breakdown.fib_level, breakdown.fib_reason = \
             self._score_fibonacci(current_price, fib_levels)
 
-        # 4. Moving Average Score (0-2 Punkte)
+        # 4. Moving Average Score (0-2 points)
         breakdown.ma_score, breakdown.ma_reason = self._score_moving_averages(
             current_price, sma_20, sma_200
         )
         breakdown.price_vs_sma20 = "above" if above_sma20 else "below"
         breakdown.price_vs_sma200 = "above" if above_sma200 else "below"
 
-        # 5. Trend-Stärke Score (0-2 Punkte) - NEU
+        # 5. Trend Strength Score (0-2 points) - NEW
         trend_result = self._score_trend_strength(prices, sma_20, sma_50, sma_200)
         breakdown.trend_strength_score = trend_result[0]
         breakdown.trend_alignment = trend_result[1]
         breakdown.sma20_slope = trend_result[2]
         breakdown.trend_reason = trend_result[3]
 
-        # 6. Volume Score mit Trend (0-1 Punkt) - VERBESSERT
+        # 6. Volume Score with trend (0-1 point) - IMPROVED
         avg_volume = int(np.mean(volumes[-self.config.volume.average_period:]))
         vol_result = self._score_volume(current_volume, avg_volume)
         breakdown.volume_score = vol_result[0]
@@ -376,14 +422,14 @@ class PullbackAnalyzer(BaseAnalyzer):
         breakdown.volume_trend = vol_result[2]
         breakdown.volume_ratio = current_volume / avg_volume if avg_volume > 0 else 0
 
-        # 7. MACD Score (0-2 Punkte) - NEU
+        # 7. MACD Score (0-2 points) - NEW
         macd_result_score = self._score_macd(macd_result)
         breakdown.macd_score = macd_result_score[0]
         breakdown.macd_reason = macd_result_score[1]
         breakdown.macd_signal = macd_result_score[2]
         breakdown.macd_histogram = macd_result.histogram if macd_result else 0
 
-        # 8. Stochastik Score (0-2 Punkte)
+        # 8. Stochastic Score (0-2 points)
         stoch_result_score = self._score_stochastic(stoch_result)
         breakdown.stoch_score = stoch_result_score[0]
         breakdown.stoch_reason = stoch_result_score[1]
@@ -391,7 +437,7 @@ class PullbackAnalyzer(BaseAnalyzer):
         breakdown.stoch_k = stoch_result.k if stoch_result else 0
         breakdown.stoch_d = stoch_result.d if stoch_result else 0
 
-        # 9. Keltner Channel Score (0-2 Punkte) - NEU
+        # 9. Keltner Channel Score (0-2 points) - NEW
         keltner_result = self._calculate_keltner_channel(prices, highs, lows)
         if keltner_result:
             keltner_score_result = self._score_keltner(keltner_result, current_price)
@@ -400,7 +446,7 @@ class PullbackAnalyzer(BaseAnalyzer):
             breakdown.keltner_position = keltner_result.price_position
             breakdown.keltner_percent = keltner_result.percent_position
 
-        # 10. VWAP Score (0-3 Punkte) - NEW from Feature Engineering
+        # 10. VWAP Score (0-3 points) - NEW from Feature Engineering
         vwap_result = self._score_vwap(prices, volumes)
         breakdown.vwap_score = vwap_result[0]
         breakdown.vwap_value = vwap_result[1]
@@ -408,7 +454,7 @@ class PullbackAnalyzer(BaseAnalyzer):
         breakdown.vwap_position = vwap_result[3]
         breakdown.vwap_reason = vwap_result[4]
 
-        # 11. Market Context Score (-1 to +2 Punkte) - NEW from Feature Engineering
+        # 11. Market Context Score (-1 to +2 points) - NEW from Feature Engineering
         # Note: spy_prices should be passed via context in production
         # For now, we'll skip if no context provided
         if context and hasattr(context, 'spy_prices') and context.spy_prices:
@@ -421,7 +467,7 @@ class PullbackAnalyzer(BaseAnalyzer):
             breakdown.spy_trend = "unknown"
             breakdown.market_context_reason = "No SPY data available"
 
-        # 12. Sector Score (-1 to +1 Punkte) - NEW from Feature Engineering
+        # 12. Sector Score (-1 to +1 points) - NEW from Feature Engineering
         sector_result = self._score_sector(symbol)
         breakdown.sector_score = sector_result[0]
         breakdown.sector = sector_result[1]
@@ -435,7 +481,7 @@ class PullbackAnalyzer(BaseAnalyzer):
         breakdown.gap_filled = gap_result[3]
         breakdown.gap_reason = gap_result[4]
 
-        # Total Score (max ~26 Punkte)
+        # Total Score (max ~26 points)
         breakdown.total_score = (
             breakdown.rsi_score +           # 0-3
             breakdown.rsi_divergence_score + # 0-3
@@ -471,7 +517,7 @@ class PullbackAnalyzer(BaseAnalyzer):
         )
     
     def _build_reason(self, candidate: PullbackCandidate) -> str:
-        """Erstellt Begründung aus Score-Breakdown (erweitert für neue Komponenten)"""
+        """Creates reasoning from score breakdown (extended for new components)"""
         reasons = []
         bd = candidate.score_breakdown
 
@@ -479,11 +525,11 @@ class PullbackAnalyzer(BaseAnalyzer):
         if bd.rsi_score > 0:
             reasons.append(f"RSI oversold ({candidate.technicals.rsi_14:.1f})")
 
-        # RSI Divergenz (NEU)
+        # RSI Divergence (NEW)
         if bd.rsi_divergence_score >= 2:
-            reasons.append(f"RSI Bullische Divergenz (Stärke: {bd.rsi_divergence_strength:.0%})")
+            reasons.append(f"RSI Bullish Divergence (strength: {bd.rsi_divergence_strength:.0%})")
         elif bd.rsi_divergence_score > 0:
-            reasons.append("RSI Divergenz erkannt")
+            reasons.append("RSI Divergence detected")
 
         # Support mit Stärke
         if bd.support_score > 0:
@@ -494,14 +540,14 @@ class PullbackAnalyzer(BaseAnalyzer):
             else:
                 reasons.append("Near support")
 
-        # Trend-Stärke
+        # Trend Strength
         if bd.trend_strength_score > 0:
             if bd.trend_alignment == "strong":
                 reasons.append("Strong uptrend")
             else:
                 reasons.append("Uptrend")
 
-        # MA-Score (Dip im Aufwärtstrend)
+        # MA-Score (Dip in uptrend)
         if bd.ma_score > 0:
             reasons.append("Dip in uptrend")
 
@@ -509,13 +555,13 @@ class PullbackAnalyzer(BaseAnalyzer):
         if bd.fibonacci_score > 0:
             reasons.append(f"At Fib {bd.fib_level}")
 
-        # MACD (NEU)
+        # MACD (NEW)
         if bd.macd_score >= 2:
             reasons.append("MACD bullish cross")
         elif bd.macd_score > 0:
             reasons.append("MACD bullish")
 
-        # Stochastik (NEU)
+        # Stochastic (NEW)
         if bd.stoch_score >= 2:
             reasons.append("Stoch oversold + cross")
         elif bd.stoch_score > 0:
@@ -525,7 +571,7 @@ class PullbackAnalyzer(BaseAnalyzer):
         if bd.volume_score > 0:
             reasons.append("Healthy low volume")
 
-        # Keltner Channel (NEU)
+        # Keltner Channel (NEW)
         if bd.keltner_score >= 2:
             reasons.append("Below Keltner lower band")
         elif bd.keltner_score > 0:
@@ -571,7 +617,7 @@ class PullbackAnalyzer(BaseAnalyzer):
         highs: List[float],
         lows: List[float]
     ) -> None:
-        """Validiert alle Input-Arrays auf Konsistenz und Gültigkeit."""
+        """Validates all input arrays for consistency and validity."""
         arrays = {'prices': prices, 'volumes': volumes, 'highs': highs, 'lows': lows}
         lengths = {name: len(arr) for name, arr in arrays.items()}
         unique_lengths = set(lengths.values())
@@ -612,7 +658,7 @@ class PullbackAnalyzer(BaseAnalyzer):
                 )
     
     # =========================================================================
-    # INDIKATOREN - BERECHNUNG
+    # INDICATORS - CALCULATION
     # =========================================================================
     
     def _calculate_rsi(self, prices: List[float], period: int) -> float:
@@ -701,12 +747,12 @@ class PullbackAnalyzer(BaseAnalyzer):
         )
     
     def _calculate_stochastic(
-        self, 
-        highs: List[float], 
-        lows: List[float], 
+        self,
+        highs: List[float],
+        lows: List[float],
         closes: List[float]
     ) -> Optional[StochasticResult]:
-        """Stochastik Oszillator"""
+        """Stochastic Oscillator"""
         if len(highs) != len(lows) or len(lows) != len(closes):
             logger.warning(
                 f"Stochastic: Input arrays must have same length. "
@@ -789,42 +835,42 @@ class PullbackAnalyzer(BaseAnalyzer):
         divergence: Optional[RSIDivergenceResult]
     ) -> Tuple[float, str]:
         """
-        RSI Divergenz Score (0-3 Punkte).
+        RSI Divergence Score (0-3 points).
 
-        Bullische Divergenz ist ein starkes Signal für Pullback-Entry:
-        - Kurs macht tieferes Tief
-        - RSI macht höheres Tief
-        - Verkaufsdruck lässt nach → Bodenbildung wahrscheinlich
+        Bullish divergence is a strong signal for pullback entry:
+        - Price makes lower low
+        - RSI makes higher low
+        - Selling pressure decreasing -> bottom formation likely
 
-        Bärische Divergenz ist ein Warnsignal (kein Punktabzug, aber Warning).
+        Bearish divergence is a warning signal (no point deduction, but warning).
         """
         if not divergence:
-            return 0, "Keine RSI-Divergenz erkannt"
+            return 0, "No RSI divergence detected"
 
         if divergence.divergence_type == 'bullish':
-            # Scoring basierend auf Stärke der Divergenz
+            # Scoring based on divergence strength
             strength = divergence.strength
 
             if strength >= 0.7:
                 score = 3.0
-                reason = f"Starke bullische Divergenz (Stärke: {strength:.0%}, {divergence.formation_days} Tage)"
+                reason = f"Strong bullish divergence (strength: {strength:.0%}, {divergence.formation_days} days)"
             elif strength >= 0.4:
                 score = 2.0
-                reason = f"Moderate bullische Divergenz (Stärke: {strength:.0%}, {divergence.formation_days} Tage)"
+                reason = f"Moderate bullish divergence (strength: {strength:.0%}, {divergence.formation_days} days)"
             else:
                 score = 1.0
-                reason = f"Schwache bullische Divergenz (Stärke: {strength:.0%}, {divergence.formation_days} Tage)"
+                reason = f"Weak bullish divergence (strength: {strength:.0%}, {divergence.formation_days} days)"
 
             return score, reason
 
         elif divergence.divergence_type == 'bearish':
-            # Bärische Divergenz beim Pullback = Warnsignal, aber kein Abzug
-            return 0, f"Bärische Divergenz erkannt - Vorsicht! (Stärke: {divergence.strength:.0%})"
+            # Bearish divergence in pullback = warning signal, but no deduction
+            return 0, f"Bearish divergence detected - caution! (strength: {divergence.strength:.0%})"
 
-        return 0, "Keine signifikante Divergenz"
+        return 0, "No significant divergence"
 
     def _score_rsi(self, rsi: float) -> Tuple[float, str]:
-        """RSI Score (0-3 Punkte)"""
+        """RSI Score (0-3 points)"""
         cfg = self.config.rsi
         
         if rsi < cfg.extreme_oversold:
@@ -837,7 +883,7 @@ class PullbackAnalyzer(BaseAnalyzer):
             return 0, f"RSI {rsi:.1f} >= {cfg.neutral} (not oversold)"
     
     def _score_support(self, price: float, supports: List[float]) -> Tuple[float, str]:
-        """Support-Nähe Score (0-2 Punkte)"""
+        """Support proximity Score (0-2 points)"""
         if not supports:
             return 0, "No support levels found"
         
@@ -853,11 +899,11 @@ class PullbackAnalyzer(BaseAnalyzer):
             return 0, f"{distance_pct:.1f}% from nearest support"
     
     def _score_fibonacci(
-        self, 
-        price: float, 
+        self,
+        price: float,
         fib_levels: Dict[str, float]
     ) -> Tuple[float, Optional[str], str]:
-        """Fibonacci Score (0-2 Punkte)"""
+        """Fibonacci Score (0-2 points)"""
         for lvl in self.config.fibonacci.levels:
             level_name = f"{lvl.level * 100:.1f}%"
             level_price = fib_levels.get(level_name)
@@ -868,12 +914,12 @@ class PullbackAnalyzer(BaseAnalyzer):
         return 0, None, "Not at significant Fib level"
     
     def _score_moving_averages(
-        self, 
-        price: float, 
-        sma_20: float, 
+        self,
+        price: float,
+        sma_20: float,
         sma_200: float
     ) -> Tuple[float, str]:
-        """Moving Average Score (0-2 Punkte)"""
+        """Moving Average Score (0-2 points)"""
         if price > sma_200 and price < sma_20:
             return 2, "Dip in uptrend (price > SMA200, < SMA20)"
         elif price > sma_200 and price > sma_20:
@@ -885,9 +931,9 @@ class PullbackAnalyzer(BaseAnalyzer):
     
     def _score_volume(self, current: int, average: int) -> Tuple[float, str, str]:
         """
-        Volume Score (0-1 Punkt)
+        Volume Score (0-1 point)
 
-        NEU: Sinkendes Volumen beim Pullback = gesund (keine Panik-Verkäufe)
+        NEW: Decreasing volume during pullback = healthy (no panic selling)
         """
         if average == 0:
             return 0, "No average volume data", "unknown"
@@ -895,21 +941,21 @@ class PullbackAnalyzer(BaseAnalyzer):
         ratio = current / average
         cfg = self.config.volume
 
-        # NEU: Sinkendes Volumen ist POSITIV bei einem Pullback
+        # NEW: Decreasing volume is POSITIVE during a pullback
         if ratio < cfg.decrease_threshold:
             return cfg.weight_decreasing, f"Low volume pullback: {ratio:.1f}x avg (healthy)", "decreasing"
         elif ratio >= cfg.spike_multiplier:
-            # Hohes Volumen bei Pullback = potenziell problematisch (Panik)
+            # High volume during pullback = potentially problematic (panic)
             return 0, f"Volume spike: {ratio:.1f}x avg (caution)", "increasing"
         else:
             return 0, f"Volume normal: {ratio:.1f}x avg", "stable"
 
     def _score_macd(self, macd: Optional[MACDResult]) -> Tuple[float, str, str]:
         """
-        MACD Score (0-2 Punkte)
+        MACD Score (0-2 points)
 
-        - Bullish Cross: 2 Punkte (starkes Umkehrsignal)
-        - Histogram positiv: 1 Punkt
+        - Bullish Cross: 2 points (strong reversal signal)
+        - Histogram positive: 1 point
         """
         if not macd:
             return 0, "No MACD data", "neutral"
@@ -927,10 +973,10 @@ class PullbackAnalyzer(BaseAnalyzer):
 
     def _score_stochastic(self, stoch: Optional[StochasticResult]) -> Tuple[float, str, str]:
         """
-        Stochastik Score (0-2 Punkte)
+        Stochastic Score (0-2 points)
 
-        - Oversold + Bullish Cross: 2 Punkte (sehr starkes Signal)
-        - Nur Oversold: 1 Punkt
+        - Oversold + Bullish Cross: 2 points (very strong signal)
+        - Only Oversold: 1 point
         """
         if not stoch:
             return 0, "No Stochastic data", "neutral"
@@ -954,11 +1000,11 @@ class PullbackAnalyzer(BaseAnalyzer):
         sma_200: float
     ) -> Tuple[float, str, float, str]:
         """
-        Trend-Stärke Score (0-2 Punkte)
+        Trend Strength Score (0-2 points)
 
-        - Starkes Alignment (SMA20 > SMA50 > SMA200): 2 Punkte
-        - Moderates Alignment (Preis > SMA200): 1 Punkt
-        - Kein Alignment: 0 Punkte
+        - Strong alignment (SMA20 > SMA50 > SMA200): 2 points
+        - Moderate alignment (Price > SMA200): 1 point
+        - No alignment: 0 points
 
         Returns:
             (score, alignment, sma20_slope, reason)
@@ -966,7 +1012,7 @@ class PullbackAnalyzer(BaseAnalyzer):
         cfg = self.config.trend_strength
         current_price = prices[-1]
 
-        # Berechne SMA20-Slope (Steigung)
+        # Calculate SMA20 slope
         slope_lookback = min(cfg.slope_lookback, len(prices) - 1)
         if slope_lookback > 0:
             sma20_recent = sum(prices[-20:]) / 20 if len(prices) >= 20 else current_price
@@ -975,9 +1021,9 @@ class PullbackAnalyzer(BaseAnalyzer):
         else:
             sma20_slope = 0
 
-        # Prüfe SMA-Alignment
+        # Check SMA alignment
         if sma_50 is not None:
-            # Vollständiges Alignment: SMA20 > SMA50 > SMA200
+            # Full alignment: SMA20 > SMA50 > SMA200
             if sma_20 > sma_50 > sma_200 and current_price > sma_200:
                 if sma20_slope >= cfg.min_positive_slope:
                     return cfg.weight_strong_alignment, "strong", sma20_slope, "Strong uptrend (SMA20 > SMA50 > SMA200, rising)"
@@ -986,14 +1032,14 @@ class PullbackAnalyzer(BaseAnalyzer):
             elif current_price > sma_200 and sma_20 > sma_200:
                 return cfg.weight_moderate_alignment, "moderate", sma20_slope, "Above SMA200, partial alignment"
         else:
-            # Ohne SMA50: Nur SMA20 vs SMA200 prüfen
+            # Without SMA50: Only check SMA20 vs SMA200
             if sma_20 > sma_200 and current_price > sma_200:
                 if sma20_slope >= cfg.min_positive_slope:
                     return cfg.weight_strong_alignment, "strong", sma20_slope, "Strong uptrend (SMA20 > SMA200, rising)"
                 else:
                     return cfg.weight_moderate_alignment, "moderate", sma20_slope, "Above SMA200 but flat slope"
 
-        # Kein Aufwärtstrend
+        # No uptrend
         if current_price < sma_200:
             return 0, "none", sma20_slope, "Below SMA200 - no uptrend"
 
@@ -1007,7 +1053,7 @@ class PullbackAnalyzer(BaseAnalyzer):
         lows: Optional[List[float]] = None
     ) -> Tuple[float, str, str, int]:
         """
-        Erweitertes Support-Scoring mit Stärke-Bewertung.
+        Extended support scoring with strength rating.
 
         Returns:
             (score, reason, strength, touches)
@@ -1019,7 +1065,7 @@ class PullbackAnalyzer(BaseAnalyzer):
         nearest = min(supports, key=lambda x: abs(x - price))
         distance_pct = abs(price - nearest) / price * 100
 
-        # Schätze Support-Stärke basierend auf Häufigkeit
+        # Estimate support strength based on frequency
         touches = 0
         strength = "weak"
 
@@ -1034,26 +1080,26 @@ class PullbackAnalyzer(BaseAnalyzer):
             else:
                 strength = "weak"
 
-        # Scoring basierend auf Distanz UND Stärke
+        # Scoring based on distance AND strength
         base_score = 0
         if distance_pct <= cfg.proximity_percent:
             base_score = cfg.weight_close
         elif distance_pct <= cfg.proximity_percent_wide:
             base_score = cfg.weight_near
 
-        # Bonus für starken Support
+        # Bonus for strong support
         if strength == "strong" and base_score > 0:
-            base_score += 0.5  # Bonus für starken Support
+            base_score += 0.5  # Bonus for strong support
 
         reason = f"Within {distance_pct:.1f}% of {strength} support ${nearest:.2f} ({touches} touches)"
         return base_score, reason, strength, touches
 
     # =========================================================================
-    # SIGNAL HELPER (Legacy - für Rückwärtskompatibilität)
+    # SIGNAL HELPER (Legacy - for backward compatibility)
     # =========================================================================
 
     def _get_macd_signal(self, macd: Optional[MACDResult]) -> Optional[str]:
-        """Bestimmt MACD-Signal für Anzeige"""
+        """Determines MACD signal for display"""
         if not macd:
             return None
         
@@ -1069,7 +1115,7 @@ class PullbackAnalyzer(BaseAnalyzer):
         return 'neutral'
     
     def _get_stoch_signal(self, stoch: Optional[StochasticResult]) -> Optional[str]:
-        """Bestimmt Stochastik-Signal für Anzeige"""
+        """Determines Stochastic signal for display"""
         if not stoch:
             return None
 
@@ -1095,20 +1141,20 @@ class PullbackAnalyzer(BaseAnalyzer):
         lows: List[float]
     ) -> Optional[KeltnerChannelResult]:
         """
-        Berechnet Keltner Channel.
+        Calculates Keltner Channel.
 
-        Keltner Channel = EMA ± (ATR × Multiplier)
+        Keltner Channel = EMA +/- (ATR x Multiplier)
         - Middle: EMA(20)
-        - Upper: EMA + ATR(10) × 2
-        - Lower: EMA - ATR(10) × 2
+        - Upper: EMA + ATR(10) x 2
+        - Lower: EMA - ATR(10) x 2
 
         Args:
-            prices: Schlusskurse
-            highs: Tageshochs
-            lows: Tagestiefs
+            prices: Closing prices
+            highs: Daily highs
+            lows: Daily lows
 
         Returns:
-            KeltnerChannelResult oder None bei unzureichenden Daten
+            KeltnerChannelResult or None if insufficient data
         """
         cfg = self.config.keltner
         min_required = max(cfg.ema_period, cfg.atr_period) + 1
@@ -1116,23 +1162,23 @@ class PullbackAnalyzer(BaseAnalyzer):
         if len(prices) < min_required:
             return None
 
-        # EMA berechnen (Mittellinie)
+        # Calculate EMA (middle line)
         ema_values = self._calculate_ema(prices, cfg.ema_period)
         if not ema_values:
             return None
         current_ema = ema_values[-1]
 
-        # ATR berechnen
+        # Calculate ATR
         atr = self._calculate_atr(highs, lows, prices, cfg.atr_period)
         if atr is None or atr <= 0:
             return None
 
-        # Bänder berechnen
+        # Calculate bands
         band_width = atr * cfg.atr_multiplier
         upper = current_ema + band_width
         lower = current_ema - band_width
 
-        # Aktuelle Position des Preises bestimmen
+        # Determine current price position
         current_price = prices[-1]
         channel_range = upper - lower
 
@@ -1154,7 +1200,7 @@ class PullbackAnalyzer(BaseAnalyzer):
         else:
             price_position = 'in_channel'
 
-        # Channel-Breite als % des Preises (Volatilitätsindikator)
+        # Channel width as % of price (volatility indicator)
         channel_width_pct = (channel_range / current_price) * 100 if current_price > 0 else 0
 
         return KeltnerChannelResult(
@@ -1175,7 +1221,7 @@ class PullbackAnalyzer(BaseAnalyzer):
         period: int = 14
     ) -> Optional[float]:
         """
-        Berechnet Average True Range (ATR).
+        Calculates Average True Range (ATR).
 
         True Range = max(H-L, |H-Pc|, |L-Pc|)
         ATR = SMA(TR, period)
@@ -1207,13 +1253,13 @@ class PullbackAnalyzer(BaseAnalyzer):
         current_price: float
     ) -> Tuple[float, str]:
         """
-        Keltner Channel Score (0-2 Punkte).
+        Keltner Channel Score (0-2 points).
 
-        Scoring-Logik für Pullbacks:
-        - Preis unter unterem Band: 2 Punkte (stark oversold, Mean Reversion erwartet)
-        - Preis nahe unterem Band: 1 Punkt (pullback in oversold territory)
-        - Preis im Channel: 0 Punkte (neutral)
-        - Preis über oberem Band: 0 Punkte (überkauft, kein Pullback-Setup)
+        Scoring logic for pullbacks:
+        - Price below lower band: 2 points (strongly oversold, mean reversion expected)
+        - Price near lower band: 1 point (pullback in oversold territory)
+        - Price in channel: 0 points (neutral)
+        - Price above upper band: 0 points (overbought, no pullback setup)
 
         Returns:
             (score, reason)
@@ -1223,21 +1269,21 @@ class PullbackAnalyzer(BaseAnalyzer):
         pct = keltner.percent_position
 
         if position == 'below_lower':
-            return cfg.weight_below_lower, f"Preis unter Keltner Lower Band ({pct:.2f})"
+            return cfg.weight_below_lower, f"Price below Keltner Lower Band ({pct:.2f})"
 
         if position == 'near_lower':
-            # Nahe unterem Band = potenzielle Kaufgelegenheit
-            return cfg.weight_near_lower, f"Preis nahe Keltner Lower Band ({pct:.2f})"
+            # Near lower band = potential buy opportunity
+            return cfg.weight_near_lower, f"Price near Keltner Lower Band ({pct:.2f})"
 
         if position == 'in_channel' and pct < -0.3:
-            # Im Channel, aber im unteren Drittel
-            return cfg.weight_mean_reversion * 0.5, f"Pullback im unteren Channel-Bereich ({pct:.2f})"
+            # In channel, but in lower third
+            return cfg.weight_mean_reversion * 0.5, f"Pullback in lower channel area ({pct:.2f})"
 
         if position == 'above_upper':
-            # Überkauft = kein Pullback-Signal
-            return 0, f"Preis über Keltner Upper Band ({pct:.2f}) - überkauft"
+            # Overbought = no pullback signal
+            return 0, f"Price above Keltner Upper Band ({pct:.2f}) - overbought"
 
-        return 0, f"Preis in neutraler Channel-Position ({pct:.2f})"
+        return 0, f"Price in neutral channel position ({pct:.2f})"
 
     # =========================================================================
     # NEW SCORING METHODS (from Feature Engineering Training)
@@ -1249,7 +1295,7 @@ class PullbackAnalyzer(BaseAnalyzer):
         volumes: List[int]
     ) -> Tuple[float, float, float, str, str]:
         """
-        VWAP Score (0-3 Punkte).
+        VWAP Score (0-3 points).
 
         Based on Feature Engineering Training:
         - Above VWAP >3%: 91.9% win rate → 3 points
@@ -1293,7 +1339,7 @@ class PullbackAnalyzer(BaseAnalyzer):
         spy_prices: Optional[List[float]]
     ) -> Tuple[float, str, str]:
         """
-        Market Context Score (0-2 Punkte).
+        Market Context Score (0-2 points).
 
         Based on Feature Engineering Training:
         - Strong uptrend: 76.1% win rate, +$1.03M → 2 points
@@ -1338,7 +1384,7 @@ class PullbackAnalyzer(BaseAnalyzer):
 
     def _score_sector(self, symbol: str) -> Tuple[float, str, str]:
         """
-        Sector Score (-1 to +1 Punkt).
+        Sector Score (-1 to +1 point).
 
         Based on Feature Engineering Training:
         - Consumer Staples: +9% win rate → +0.9 points

@@ -892,7 +892,7 @@ class TestScoreBreakdownIntegration:
         result = analyzer.analyze_detailed("TEST", prices, volumes, highs, lows)
         breakdown = result.score_breakdown
 
-        # Calculate expected total (including Keltner)
+        # Calculate expected total (including all components and new features)
         expected_total = (
             breakdown.rsi_score +
             breakdown.support_score +
@@ -902,7 +902,12 @@ class TestScoreBreakdownIntegration:
             breakdown.volume_score +
             breakdown.macd_score +
             breakdown.stoch_score +
-            breakdown.keltner_score
+            breakdown.keltner_score +
+            # New feature scores from feature engineering
+            breakdown.vwap_score +
+            breakdown.market_context_score +
+            breakdown.sector_score +
+            breakdown.gap_score
         )
 
         assert abs(breakdown.total_score - expected_total) < 0.01

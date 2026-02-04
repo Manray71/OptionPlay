@@ -72,6 +72,7 @@ class BaseHandlerMixin:
     _quote_cache_misses: int
     _scan_cache_hits: int
     _scan_cache_misses: int
+    _ibkr_bridge: Any
 
     # Methods expected from OptionPlayServer (defined elsewhere)
     async def _ensure_connected(self) -> "MarketDataProvider":
@@ -125,3 +126,76 @@ class BaseHandlerMixin:
     async def get_vix(self, force_refresh: bool = False) -> Optional[float]:
         """Get current VIX value."""
         raise NotImplementedError
+
+    async def _get_options_chain_with_fallback(
+        self,
+        symbol: str,
+        dte_min: int = 60,
+        dte_max: int = 90,
+        right: str = "P",
+    ) -> list:
+        """
+        Fetch options chain with Tradier-first, IBKR-fallback provider strategy.
+
+        Marketdata.app is NOT used for options chains (only delivers ATM options,
+        unsuitable for OTM Bull-Put-Spread strike selection).
+
+        Provider priority:
+            1. Tradier — full chains with ORATS Greeks
+            2. IBKR/TWS — full chains from Interactive Brokers
+
+        Args:
+            symbol: Ticker symbol
+            dte_min: Minimum days to expiration
+            dte_max: Maximum days to expiration
+            right: Option type - "P" for puts, "C" for calls
+
+        Returns:
+            List of OptionQuote objects, or empty list if no data available
+        """
+        options = None
+        right_upper = right.upper()
+
+        # 1. Try Tradier (full OTM chains with ORATS Greeks)
+        if self._tradier_connected and self._tradier_provider:
+            try:
+                options = await self._tradier_provider.get_option_chain(
+                    symbol,
+                    dte_min=dte_min,
+                    dte_max=dte_max,
+                    right=right_upper,
+                )
+                if options:
+                    logger.debug(
+                        f"Options chain from Tradier: {len(options)} options for {symbol}"
+                    )
+            except Exception as e:
+                logger.debug(
+                    f"Tradier options chain failed for {symbol}, trying IBKR: {e}"
+                )
+
+        # 2. Fallback to IBKR/TWS
+        if not options and hasattr(self, "_ibkr_bridge") and self._ibkr_bridge:
+            try:
+                if await self._ibkr_bridge.is_available():
+                    options = await self._ibkr_bridge.get_option_chain(
+                        symbol,
+                        dte_min=dte_min,
+                        dte_max=dte_max,
+                        right=right_upper,
+                    )
+                    if options:
+                        logger.debug(
+                            f"Options chain from IBKR: {len(options)} options for {symbol}"
+                        )
+            except Exception as e:
+                logger.debug(f"IBKR options chain failed for {symbol}: {e}")
+
+        if not options:
+            logger.warning(
+                f"No options chain available for {symbol} "
+                f"(Tradier: {'connected' if self._tradier_connected else 'not connected'}, "
+                f"IBKR: {'available' if hasattr(self, '_ibkr_bridge') and self._ibkr_bridge else 'not available'})"
+            )
+
+        return options or []

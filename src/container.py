@@ -260,7 +260,7 @@ class ServiceContainer:
             resolved_key = api_key or get_api_key("MARKETDATA_API_KEY")
             self.provider = MarketDataProvider(api_key=resolved_key)
 
-        if not self.provider.connected:
+        if not await self.provider.is_connected():
             await self.provider.connect()
 
         return self.provider

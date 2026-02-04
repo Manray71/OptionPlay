@@ -63,7 +63,16 @@ Thumbs.db
 # Backup files
 *.bak
 
+# Generated reports
+reports/
+
 # Temporary output files
 health
 scan
 vix
+
+# Session context files
+CONTEXT_*.md
+
+# Legacy archive (dead code, pre-v4.0.0)
+archive/

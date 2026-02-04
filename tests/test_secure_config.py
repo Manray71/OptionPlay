@@ -156,18 +156,169 @@ class TestSecureConfig:
 
 class TestGlobalGetApiKey:
     """Tests für die globale get_api_key() Funktion"""
-    
+
     def setup_method(self):
         reset_secure_config()
-    
+
     def teardown_method(self):
         reset_secure_config()
         if "GLOBAL_TEST_KEY" in os.environ:
             del os.environ["GLOBAL_TEST_KEY"]
-    
+
     def test_global_function(self):
         """Globale Funktion nutzt Singleton"""
         os.environ["GLOBAL_TEST_KEY"] = "global_value"
-        
+
         key = get_api_key("GLOBAL_TEST_KEY")
         assert key == "global_value"
+
+
+class TestSecureConfigEnvFile:
+    """Tests für .env file loading."""
+
+    def setup_method(self):
+        reset_secure_config()
+
+    def teardown_method(self):
+        reset_secure_config()
+
+    def test_load_env_file_explicit(self, tmp_path):
+        """Test: Loading explicit .env file."""
+        env_file = tmp_path / ".env"
+        env_file.write_text("TEST_ENV_VAR=test_value_from_file\n")
+
+        config = SecureConfig(env_file=env_file)
+        key = config.get_api_key("TEST_ENV_VAR")
+
+        assert key == "test_value_from_file"
+
+        # Cleanup
+        if "TEST_ENV_VAR" in os.environ:
+            del os.environ["TEST_ENV_VAR"]
+
+    def test_load_env_file_with_quotes(self, tmp_path):
+        """Test: .env file with quoted values."""
+        env_file = tmp_path / ".env"
+        env_file.write_text('QUOTED_KEY="quoted_value"\n')
+
+        config = SecureConfig(env_file=env_file)
+        key = config.get_api_key("QUOTED_KEY")
+
+        assert key == "quoted_value"
+
+        if "QUOTED_KEY" in os.environ:
+            del os.environ["QUOTED_KEY"]
+
+    def test_load_env_file_with_single_quotes(self, tmp_path):
+        """Test: .env file with single-quoted values."""
+        env_file = tmp_path / ".env"
+        env_file.write_text("SINGLE_QUOTED='single_quoted_value'\n")
+
+        config = SecureConfig(env_file=env_file)
+        key = config.get_api_key("SINGLE_QUOTED")
+
+        assert key == "single_quoted_value"
+
+        if "SINGLE_QUOTED" in os.environ:
+            del os.environ["SINGLE_QUOTED"]
+
+    def test_load_env_file_ignores_comments(self, tmp_path):
+        """Test: .env file ignores comments."""
+        env_file = tmp_path / ".env"
+        env_file.write_text("# This is a comment\nVALID_KEY=valid_value\n")
+
+        config = SecureConfig(env_file=env_file)
+        key = config.get_api_key("VALID_KEY")
+
+        assert key == "valid_value"
+
+        if "VALID_KEY" in os.environ:
+            del os.environ["VALID_KEY"]
+
+
+class TestSecureConfigKeyring:
+    """Tests für Keyring integration."""
+
+    def setup_method(self):
+        reset_secure_config()
+
+    def teardown_method(self):
+        reset_secure_config()
+
+    def test_keyring_not_available_warning(self):
+        """Test: Keyring warning when not installed."""
+        # Keyring may or may not be installed, but the config should handle it
+        config = SecureConfig(use_keyring=True)
+        # Should not raise - just warns if keyring not available
+
+
+class TestSecureConfigValidation:
+    """Tests für API key validation."""
+
+    def setup_method(self):
+        reset_secure_config()
+
+    def teardown_method(self):
+        reset_secure_config()
+        for key in ["MARKETDATA_API_KEY", "TRADIER_API_KEY", "UNKNOWN_KEY"]:
+            if key in os.environ:
+                del os.environ[key]
+
+    def test_validate_valid_marketdata_key(self):
+        """Test: Valid Marketdata API key passes validation."""
+        os.environ["MARKETDATA_API_KEY"] = "valid_api_key_12345678901234567890"
+
+        config = SecureConfig()
+        key = config.get_api_key("MARKETDATA_API_KEY", validate=True)
+
+        assert key == "valid_api_key_12345678901234567890"
+
+    def test_validate_invalid_key_format(self):
+        """Test: Invalid key format raises ValueError."""
+        os.environ["MARKETDATA_API_KEY"] = "too_short"
+
+        config = SecureConfig()
+
+        with pytest.raises(ValueError, match="invalid format"):
+            config.get_api_key("MARKETDATA_API_KEY", validate=True)
+
+    def test_validate_unknown_key_passes(self):
+        """Test: Unknown key names pass validation (no pattern defined)."""
+        os.environ["UNKNOWN_KEY"] = "any_value"
+
+        config = SecureConfig()
+        key = config.get_api_key("UNKNOWN_KEY", validate=True)
+
+        assert key == "any_value"
+
+
+class TestMaskSensitiveDataExtended:
+    """Extended tests for mask_sensitive_data()."""
+
+    def test_custom_patterns(self):
+        """Test: Custom patterns for masking."""
+        text = "Secret: password123"
+        patterns = [(r'password\d+', '***')]
+
+        masked = mask_sensitive_data(text, patterns=patterns)
+
+        assert "password123" not in masked
+        assert "***" in masked
+
+    def test_legacy_pattern_format(self):
+        """Test: Legacy pattern format (string only)."""
+        text = "Token: abc123456789xyz"
+        patterns = [r'abc\d+xyz']
+
+        masked = mask_sensitive_data(text, patterns=patterns)
+
+        assert "abc123456789xyz" not in masked
+
+    def test_preserves_safe_text(self):
+        """Test: Safe text is preserved."""
+        text = "This is safe text without secrets"
+
+        masked = mask_sensitive_data(text)
+
+        # Short strings should be preserved
+        assert "This is safe text" in masked

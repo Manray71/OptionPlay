@@ -1,11 +1,11 @@
 # OptionPlay - Symbol Fundamentals Manager
 # =========================================
-# SQLite-basierte Speicherung von Fundamentaldaten
+# SQLite-based storage for fundamental data
 #
-# Datenquellen:
+# Data sources:
 # - yfinance: Sector, Industry, Market Cap, Beta, Inst. Ownership
 # - Tradier: 52-Week High/Low, Average Volume
-# - Berechnet: SPY Correlation, IV Rank (aus eigenen Daten)
+# - Calculated: SPY Correlation, IV Rank (from own data)
 #
 # Usage:
 #     from src.cache.symbol_fundamentals import SymbolFundamentalsManager, get_fundamentals_manager
@@ -41,29 +41,29 @@ DEFAULT_DB_PATH = Path.home() / ".optionplay" / "trades.db"
 
 @dataclass
 class SymbolFundamentals:
-    """Fundamentaldaten für ein Symbol"""
+    """Fundamental data for a symbol"""
     symbol: str
 
-    # Statische Daten (yfinance)
+    # Static data (yfinance)
     sector: Optional[str] = None
     industry: Optional[str] = None
     market_cap: Optional[float] = None  # in USD
     market_cap_category: Optional[str] = None  # Small/Mid/Large/Mega
 
-    # Risiko-Metriken
+    # Risk metrics
     beta: Optional[float] = None
 
-    # Preis-Levels (Tradier oder yfinance)
+    # Price levels (Tradier or yfinance)
     week_52_high: Optional[float] = None
     week_52_low: Optional[float] = None
     current_price: Optional[float] = None
-    price_to_52w_high_pct: Optional[float] = None  # Abstand zu 52W High in %
+    price_to_52w_high_pct: Optional[float] = None  # Distance to 52W High in %
 
-    # Volumen
+    # Volume
     average_volume: Optional[float] = None
     average_volume_10d: Optional[float] = None
 
-    # Institutionelles
+    # Institutional
     institutional_ownership: Optional[float] = None  # 0.0 - 1.0
 
     # Analyst Ratings
@@ -76,47 +76,47 @@ class SymbolFundamentals:
     target_price_low: Optional[float] = None
     upside_pct: Optional[float] = None
 
-    # Dividende
+    # Dividend
     dividend_yield: Optional[float] = None
 
-    # Bewertung
+    # Valuation
     pe_ratio: Optional[float] = None
     forward_pe: Optional[float] = None
     peg_ratio: Optional[float] = None
 
-    # Berechnete Metriken (aus eigenen Daten)
+    # Calculated metrics (from own data)
     spy_correlation_60d: Optional[float] = None
     iv_rank_252d: Optional[float] = None
     iv_percentile_252d: Optional[float] = None
     historical_volatility_30d: Optional[float] = None
 
-    # Stability (aus outcomes.db)
+    # Stability (from outcomes.db)
     stability_score: Optional[float] = None
     historical_win_rate: Optional[float] = None
     avg_drawdown: Optional[float] = None
 
     # Earnings
-    earnings_beat_rate: Optional[float] = None  # Aus earnings_history berechnet
+    earnings_beat_rate: Optional[float] = None  # Calculated from earnings_history
 
     # Metadata
     updated_at: Optional[str] = None
     data_source: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
-        """Konvertiert zu Dictionary"""
+        """Converts to dictionary"""
         return asdict(self)
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'SymbolFundamentals':
-        """Erstellt aus Dictionary"""
-        # Filtere nur bekannte Felder
+        """Creates from dictionary"""
+        # Filter only known fields
         known_fields = {f.name for f in cls.__dataclass_fields__.values()}
         filtered = {k: v for k, v in data.items() if k in known_fields}
         return cls(**filtered)
 
 
 def categorize_market_cap(market_cap: Optional[float]) -> Optional[str]:
-    """Kategorisiert Market Cap in Small/Mid/Large/Mega"""
+    """Categorizes Market Cap into Small/Mid/Large/Mega"""
     if market_cap is None:
         return None
 
@@ -138,13 +138,13 @@ def categorize_market_cap(market_cap: Optional[float]) -> Optional[str]:
 
 class SymbolFundamentalsManager:
     """
-    Manager für Symbol-Fundamentaldaten in SQLite.
+    Manager for symbol fundamental data in SQLite.
 
     Features:
-    - Thread-safe SQLite Operationen
-    - Automatische Kategorisierung (Market Cap)
-    - Integration mit yfinance für Fundamentaldaten
-    - Berechnung von Metriken aus eigenen Daten
+    - Thread-safe SQLite operations
+    - Automatic categorization (Market Cap)
+    - Integration with yfinance for fundamental data
+    - Calculation of metrics from own data
     """
 
     def __init__(self, db_path: Optional[Path] = None):
@@ -154,12 +154,12 @@ class SymbolFundamentalsManager:
         self._create_table()
 
     def _ensure_db_exists(self) -> None:
-        """Stellt sicher, dass das DB-Verzeichnis existiert"""
+        """Ensures that the DB directory exists"""
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
 
     @contextmanager
     def _get_connection(self):
-        """Context Manager für Thread-safe DB-Verbindung"""
+        """Context Manager for thread-safe DB connection"""
         conn = sqlite3.connect(str(self.db_path), timeout=30.0)
         conn.row_factory = sqlite3.Row
         try:
@@ -168,7 +168,7 @@ class SymbolFundamentalsManager:
             conn.close()
 
     def _create_table(self) -> None:
-        """Erstellt die symbol_fundamentals Tabelle falls nicht vorhanden"""
+        """Creates the symbol_fundamentals table if it does not exist"""
         with self._lock:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
@@ -177,26 +177,26 @@ class SymbolFundamentalsManager:
                     CREATE TABLE IF NOT EXISTS symbol_fundamentals (
                         symbol TEXT PRIMARY KEY,
 
-                        -- Statische Daten (yfinance)
+                        -- Static data (yfinance)
                         sector TEXT,
                         industry TEXT,
                         market_cap REAL,
                         market_cap_category TEXT,
 
-                        -- Risiko-Metriken
+                        -- Risk metrics
                         beta REAL,
 
-                        -- Preis-Levels
+                        -- Price levels
                         week_52_high REAL,
                         week_52_low REAL,
                         current_price REAL,
                         price_to_52w_high_pct REAL,
 
-                        -- Volumen
+                        -- Volume
                         average_volume REAL,
                         average_volume_10d REAL,
 
-                        -- Institutionelles
+                        -- Institutional
                         institutional_ownership REAL,
 
                         -- Analyst Ratings
@@ -209,21 +209,21 @@ class SymbolFundamentalsManager:
                         target_price_low REAL,
                         upside_pct REAL,
 
-                        -- Dividende
+                        -- Dividend
                         dividend_yield REAL,
 
-                        -- Bewertung
+                        -- Valuation
                         pe_ratio REAL,
                         forward_pe REAL,
                         peg_ratio REAL,
 
-                        -- Berechnete Metriken
+                        -- Calculated metrics
                         spy_correlation_60d REAL,
                         iv_rank_252d REAL,
                         iv_percentile_252d REAL,
                         historical_volatility_30d REAL,
 
-                        -- Stability (aus outcomes.db)
+                        -- Stability (from outcomes.db)
                         stability_score REAL,
                         historical_win_rate REAL,
                         avg_drawdown REAL,
@@ -237,7 +237,7 @@ class SymbolFundamentalsManager:
                     )
                 """)
 
-                # Indices für schnelle Abfragen
+                # Indices for fast queries
                 cursor.execute("""
                     CREATE INDEX IF NOT EXISTS idx_sf_sector
                     ON symbol_fundamentals(sector)
@@ -252,7 +252,7 @@ class SymbolFundamentalsManager:
                 """)
 
                 conn.commit()
-                logger.debug("symbol_fundamentals Tabelle initialisiert")
+                logger.debug("symbol_fundamentals table initialized")
 
     # =========================================================================
     # CRUD Operations
@@ -260,13 +260,13 @@ class SymbolFundamentalsManager:
 
     def save_fundamentals(self, fundamentals: SymbolFundamentals) -> bool:
         """
-        Speichert Fundamentaldaten für ein Symbol.
+        Saves fundamental data for a symbol.
 
         Args:
-            fundamentals: SymbolFundamentals Objekt
+            fundamentals: SymbolFundamentals object
 
         Returns:
-            True bei Erfolg
+            True on success
         """
         with self._lock:
             with self._get_connection() as conn:
@@ -276,11 +276,11 @@ class SymbolFundamentalsManager:
                     data = fundamentals.to_dict()
                     data['updated_at'] = datetime.now().isoformat()
 
-                    # Market Cap Kategorie setzen
+                    # Set Market Cap category
                     if data.get('market_cap') and not data.get('market_cap_category'):
                         data['market_cap_category'] = categorize_market_cap(data['market_cap'])
 
-                    # Price to 52W High berechnen
+                    # Calculate Price to 52W High
                     if data.get('current_price') and data.get('week_52_high'):
                         data['price_to_52w_high_pct'] = round(
                             (data['current_price'] / data['week_52_high'] - 1) * 100, 2
@@ -296,24 +296,24 @@ class SymbolFundamentalsManager:
                     """, list(data.values()))
 
                     conn.commit()
-                    logger.debug(f"Fundamentals für {fundamentals.symbol} gespeichert")
+                    logger.debug(f"Fundamentals for {fundamentals.symbol} saved")
                     return True
 
                 except sqlite3.Error as e:
-                    logger.error(f"Fehler beim Speichern von {fundamentals.symbol}: {e}")
+                    logger.error(f"Error saving {fundamentals.symbol}: {e}")
                     return False
 
     def save_fundamentals_batch(self, fundamentals_list: List[SymbolFundamentals]) -> int:
         """
-        Speichert mehrere Fundamentaldaten in einer Transaktion.
+        Saves multiple fundamental data in a single transaction.
 
-        Vermeidet N+1 Query-Problem bei Bulk-Updates.
+        Avoids N+1 query problem for bulk updates.
 
         Args:
-            fundamentals_list: Liste von SymbolFundamentals Objekten
+            fundamentals_list: List of SymbolFundamentals objects
 
         Returns:
-            Anzahl erfolgreich gespeicherter Einträge
+            Number of successfully saved entries
         """
         if not fundamentals_list:
             return 0
@@ -329,11 +329,11 @@ class SymbolFundamentalsManager:
                         data = fundamentals.to_dict()
                         data['updated_at'] = datetime.now().isoformat()
 
-                        # Market Cap Kategorie setzen
+                        # Set Market Cap category
                         if data.get('market_cap') and not data.get('market_cap_category'):
                             data['market_cap_category'] = categorize_market_cap(data['market_cap'])
 
-                        # Price to 52W High berechnen
+                        # Calculate Price to 52W High
                         if data.get('current_price') and data.get('week_52_high'):
                             data['price_to_52w_high_pct'] = round(
                                 (data['current_price'] / data['week_52_high'] - 1) * 100, 2
@@ -350,23 +350,23 @@ class SymbolFundamentalsManager:
                         saved += 1
 
                     except sqlite3.Error as e:
-                        logger.warning(f"Fehler beim Batch-Speichern von {fundamentals.symbol}: {e}")
+                        logger.warning(f"Error batch-saving {fundamentals.symbol}: {e}")
                         continue
 
                 conn.commit()
 
-        logger.info(f"Batch-Save: {saved}/{len(fundamentals_list)} Fundamentals gespeichert")
+        logger.info(f"Batch-Save: {saved}/{len(fundamentals_list)} fundamentals saved")
         return saved
 
     def get_fundamentals(self, symbol: str) -> Optional[SymbolFundamentals]:
         """
-        Holt Fundamentaldaten für ein Symbol.
+        Gets fundamental data for a symbol.
 
         Args:
-            symbol: Ticker-Symbol
+            symbol: Ticker symbol
 
         Returns:
-            SymbolFundamentals oder None
+            SymbolFundamentals or None
         """
         symbol = symbol.upper()
 
@@ -386,15 +386,15 @@ class SymbolFundamentalsManager:
 
     def get_fundamentals_batch(self, symbols: List[str]) -> Dict[str, SymbolFundamentals]:
         """
-        Holt Fundamentaldaten für mehrere Symbole in einem Query.
+        Gets fundamental data for multiple symbols in a single query.
 
-        Vermeidet N+1 Query-Problem bei Bulk-Operationen.
+        Avoids N+1 query problem for bulk operations.
 
         Args:
-            symbols: Liste von Ticker-Symbolen
+            symbols: List of ticker symbols
 
         Returns:
-            Dict mit {symbol: SymbolFundamentals}
+            Dict with {symbol: SymbolFundamentals}
         """
         if not symbols:
             return {}
@@ -420,7 +420,7 @@ class SymbolFundamentalsManager:
         return result
 
     def get_all_fundamentals(self) -> List[SymbolFundamentals]:
-        """Holt alle gespeicherten Fundamentaldaten"""
+        """Gets all stored fundamental data"""
         with self._lock:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
@@ -430,7 +430,7 @@ class SymbolFundamentalsManager:
         return [SymbolFundamentals.from_dict(dict(row)) for row in rows]
 
     def get_symbols_by_sector(self, sector: str) -> List[SymbolFundamentals]:
-        """Holt alle Symbole eines Sektors"""
+        """Gets all symbols of a sector"""
         with self._lock:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
@@ -443,7 +443,7 @@ class SymbolFundamentalsManager:
         return [SymbolFundamentals.from_dict(dict(row)) for row in rows]
 
     def get_symbols_by_market_cap(self, category: str) -> List[SymbolFundamentals]:
-        """Holt alle Symbole einer Market Cap Kategorie"""
+        """Gets all symbols of a Market Cap category"""
         with self._lock:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
@@ -456,7 +456,7 @@ class SymbolFundamentalsManager:
         return [SymbolFundamentals.from_dict(dict(row)) for row in rows]
 
     def get_stable_symbols(self, min_stability: float = 70.0) -> List[SymbolFundamentals]:
-        """Holt alle Symbole mit Stability Score >= min_stability"""
+        """Gets all symbols with Stability Score >= min_stability"""
         with self._lock:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
@@ -475,31 +475,34 @@ class SymbolFundamentalsManager:
 
     def fetch_from_yfinance(self, symbol: str) -> Optional[SymbolFundamentals]:
         """
-        Holt Fundamentaldaten von yfinance.
+        Fetches fundamental data from yfinance.
 
         Args:
-            symbol: Ticker-Symbol
+            symbol: Ticker symbol
 
         Returns:
-            SymbolFundamentals mit yfinance-Daten oder None
+            SymbolFundamentals with yfinance data or None
         """
         try:
             import yfinance as yf
         except ImportError:
-            logger.error("yfinance nicht installiert. Run: pip install yfinance")
+            logger.error("yfinance not installed. Run: pip install yfinance")
             return None
 
         symbol = symbol.upper()
 
+        # yfinance uses "-" instead of "." for share classes (BRK.B -> BRK-B)
+        yf_symbol = symbol.replace(".", "-")
+
         try:
-            ticker = yf.Ticker(symbol)
+            ticker = yf.Ticker(yf_symbol)
             info = ticker.info or {}
 
             if not info or info.get('regularMarketPrice') is None:
-                logger.warning(f"Keine yfinance-Daten für {symbol}")
+                logger.warning(f"No yfinance data for {symbol}")
                 return None
 
-            # Analyst Ratings extrahieren
+            # Extract Analyst Ratings
             buy = hold = sell = 0
             rec_summary = getattr(ticker, 'recommendations_summary', None)
             if rec_summary is not None and not rec_summary.empty:
@@ -524,7 +527,7 @@ class SymbolFundamentalsManager:
             else:
                 analyst_rating = "UNKNOWN"
 
-            # Upside berechnen
+            # Calculate Upside
             target_median = info.get('targetMeanPrice')
             current_price = info.get('currentPrice') or info.get('regularMarketPrice')
             upside_pct = None
@@ -534,25 +537,25 @@ class SymbolFundamentalsManager:
             fundamentals = SymbolFundamentals(
                 symbol=symbol,
 
-                # Statische Daten
+                # Static data
                 sector=info.get('sector'),
                 industry=info.get('industry'),
                 market_cap=info.get('marketCap'),
                 market_cap_category=categorize_market_cap(info.get('marketCap')),
 
-                # Risiko
+                # Risk
                 beta=info.get('beta'),
 
-                # Preis-Levels
+                # Price levels
                 week_52_high=info.get('fiftyTwoWeekHigh'),
                 week_52_low=info.get('fiftyTwoWeekLow'),
                 current_price=current_price,
 
-                # Volumen
+                # Volume
                 average_volume=info.get('averageVolume'),
                 average_volume_10d=info.get('averageVolume10days'),
 
-                # Institutionelles
+                # Institutional
                 institutional_ownership=info.get('heldPercentInstitutions'),
 
                 # Analyst Ratings
@@ -565,10 +568,10 @@ class SymbolFundamentalsManager:
                 target_price_low=info.get('targetLowPrice'),
                 upside_pct=upside_pct,
 
-                # Dividende
+                # Dividend
                 dividend_yield=info.get('dividendYield'),
 
-                # Bewertung
+                # Valuation
                 pe_ratio=info.get('trailingPE'),
                 forward_pe=info.get('forwardPE'),
                 peg_ratio=info.get('pegRatio'),
@@ -578,22 +581,22 @@ class SymbolFundamentalsManager:
                 data_source="yfinance"
             )
 
-            logger.debug(f"yfinance-Daten für {symbol} geholt: {fundamentals.sector}, MC={fundamentals.market_cap_category}")
+            logger.debug(f"yfinance data for {symbol} fetched: {fundamentals.sector}, MC={fundamentals.market_cap_category}")
             return fundamentals
 
         except Exception as e:
-            logger.error(f"Fehler beim Abrufen von yfinance-Daten für {symbol}: {e}")
+            logger.error(f"Error fetching yfinance data for {symbol}: {e}")
             return None
 
     def update_from_yfinance(self, symbol: str) -> bool:
         """
-        Aktualisiert Fundamentaldaten für ein Symbol von yfinance.
+        Updates fundamental data for a symbol from yfinance.
 
         Args:
-            symbol: Ticker-Symbol
+            symbol: Ticker symbol
 
         Returns:
-            True bei Erfolg
+            True on success
         """
         fundamentals = self.fetch_from_yfinance(symbol)
         if fundamentals:
@@ -606,14 +609,14 @@ class SymbolFundamentalsManager:
         delay_seconds: float = 0.5
     ) -> Dict[str, bool]:
         """
-        Aktualisiert Fundamentaldaten für mehrere Symbole.
+        Updates fundamental data for multiple symbols.
 
         Args:
-            symbols: Liste von Ticker-Symbolen
-            delay_seconds: Pause zwischen API-Aufrufen
+            symbols: List of ticker symbols
+            delay_seconds: Pause between API calls
 
         Returns:
-            Dict mit {symbol: success}
+            Dict with {symbol: success}
         """
         import time
 
@@ -631,7 +634,7 @@ class SymbolFundamentalsManager:
                 time.sleep(delay_seconds)
 
         successful = sum(1 for v in results.values() if v)
-        logger.info(f"Fundamentals Update: {successful}/{total} erfolgreich")
+        logger.info(f"Fundamentals update: {successful}/{total} successful")
 
         return results
 
@@ -641,19 +644,19 @@ class SymbolFundamentalsManager:
 
     def update_stability_from_outcomes(self, symbol: str) -> bool:
         """
-        Aktualisiert Stability-Metriken aus outcomes.db.
+        Updates stability metrics from outcomes.db.
 
         Args:
-            symbol: Ticker-Symbol
+            symbol: Ticker symbol
 
         Returns:
-            True bei Erfolg
+            True on success
         """
         symbol = symbol.upper()
         outcomes_db = self.db_path.parent / "outcomes.db"
 
         if not outcomes_db.exists():
-            logger.warning(f"outcomes.db nicht gefunden: {outcomes_db}")
+            logger.warning(f"outcomes.db not found: {outcomes_db}")
             return False
 
         try:
@@ -677,11 +680,11 @@ class SymbolFundamentalsManager:
 
             trades, win_rate, avg_drawdown = row
 
-            # Stability Score berechnen
-            stability_score = 100 - (avg_drawdown * 3 + 0)  # Vereinfacht
+            # Calculate Stability Score
+            stability_score = 100 - (avg_drawdown * 3 + 0)  # Simplified
             stability_score = max(0, min(100, stability_score))
 
-            # Existierende Daten holen und updaten
+            # Get existing data and update
             existing = self.get_fundamentals(symbol)
             if existing:
                 existing.stability_score = round(stability_score, 1)
@@ -689,7 +692,7 @@ class SymbolFundamentalsManager:
                 existing.avg_drawdown = round(avg_drawdown, 2)
                 return self.save_fundamentals(existing)
             else:
-                # Neuen Eintrag erstellen
+                # Create new entry
                 fundamentals = SymbolFundamentals(
                     symbol=symbol,
                     stability_score=round(stability_score, 1),
@@ -700,18 +703,18 @@ class SymbolFundamentalsManager:
                 return self.save_fundamentals(fundamentals)
 
         except Exception as e:
-            logger.error(f"Fehler beim Updaten von Stability für {symbol}: {e}")
+            logger.error(f"Error updating stability for {symbol}: {e}")
             return False
 
     def update_earnings_beat_rate(self, symbol: str) -> bool:
         """
-        Berechnet und speichert die Earnings Beat Rate.
+        Calculates and saves the Earnings Beat Rate.
 
         Args:
-            symbol: Ticker-Symbol
+            symbol: Ticker symbol
 
         Returns:
-            True bei Erfolg
+            True on success
         """
         symbol = symbol.upper()
 
@@ -719,7 +722,7 @@ class SymbolFundamentalsManager:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
 
-                # Beat Rate aus earnings_history berechnen
+                # Calculate Beat Rate from earnings_history
                 cursor.execute("""
                     SELECT
                         COUNT(*) as total,
@@ -750,7 +753,7 @@ class SymbolFundamentalsManager:
                     return self.save_fundamentals(fundamentals)
 
         except Exception as e:
-            logger.error(f"Fehler beim Berechnen der Beat Rate für {symbol}: {e}")
+            logger.error(f"Error calculating beat rate for {symbol}: {e}")
             return False
 
     # =========================================================================
@@ -758,7 +761,7 @@ class SymbolFundamentalsManager:
     # =========================================================================
 
     def get_symbol_count(self) -> int:
-        """Anzahl der Symbole mit Fundamentaldaten"""
+        """Number of symbols with fundamental data"""
         with self._lock:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
@@ -766,7 +769,7 @@ class SymbolFundamentalsManager:
                 return cursor.fetchone()[0]
 
     def get_sectors(self) -> List[str]:
-        """Liste aller vorhandenen Sektoren"""
+        """List of all available sectors"""
         with self._lock:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
@@ -777,16 +780,16 @@ class SymbolFundamentalsManager:
                 return [row[0] for row in cursor.fetchall()]
 
     def get_statistics(self) -> Dict[str, Any]:
-        """Gibt Statistiken über die Fundamentaldaten zurück"""
+        """Returns statistics about the fundamental data"""
         with self._lock:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
 
-                # Gesamt
+                # Total
                 cursor.execute("SELECT COUNT(*) FROM symbol_fundamentals")
                 total = cursor.fetchone()[0]
 
-                # Nach Sektor
+                # By sector
                 cursor.execute("""
                     SELECT sector, COUNT(*)
                     FROM symbol_fundamentals
@@ -795,7 +798,7 @@ class SymbolFundamentalsManager:
                 """)
                 by_sector = dict(cursor.fetchall())
 
-                # Nach Market Cap
+                # By Market Cap
                 cursor.execute("""
                     SELECT market_cap_category, COUNT(*)
                     FROM symbol_fundamentals
@@ -824,7 +827,7 @@ class SymbolFundamentalsManager:
     # =========================================================================
 
     def delete_symbol(self, symbol: str) -> bool:
-        """Löscht Fundamentaldaten für ein Symbol"""
+        """Deletes fundamental data for a symbol"""
         symbol = symbol.upper()
 
         with self._lock:
@@ -835,11 +838,11 @@ class SymbolFundamentalsManager:
                 conn.commit()
 
         if deleted:
-            logger.info(f"Fundamentals für {symbol} gelöscht")
+            logger.info(f"Fundamentals for {symbol} deleted")
         return deleted
 
     def clear_all(self) -> int:
-        """Löscht alle Fundamentaldaten (Vorsicht!)"""
+        """Deletes all fundamental data (use with caution!)"""
         with self._lock:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
@@ -847,14 +850,14 @@ class SymbolFundamentalsManager:
                 deleted = cursor.rowcount
                 conn.commit()
 
-        logger.warning(f"Alle {deleted} Fundamentals-Einträge gelöscht")
+        logger.warning(f"All {deleted} fundamentals entries deleted")
         return deleted
 
     # =========================================================================
-    # ASYNC WRAPPERS (für non-blocking I/O in async contexts)
+    # ASYNC WRAPPERS (for non-blocking I/O in async contexts)
     # =========================================================================
-    # Diese Methoden wrappen die synchronen SQLite-Operationen mit
-    # run_in_executor() um den Event-Loop nicht zu blockieren.
+    # These methods wrap the synchronous SQLite operations with
+    # run_in_executor() to avoid blocking the event loop.
 
     async def get_fundamentals_async(
         self,
@@ -862,17 +865,17 @@ class SymbolFundamentalsManager:
         executor: Optional[ThreadPoolExecutor] = None
     ) -> Optional[SymbolFundamentals]:
         """
-        Async wrapper für get_fundamentals().
+        Async wrapper for get_fundamentals().
 
-        Führt die SQLite-Operation in einem ThreadPoolExecutor aus,
-        um den async Event-Loop nicht zu blockieren.
+        Runs the SQLite operation in a ThreadPoolExecutor
+        to avoid blocking the async event loop.
 
         Args:
-            symbol: Ticker-Symbol
+            symbol: Ticker symbol
             executor: Optional ThreadPoolExecutor (default: None = default executor)
 
         Returns:
-            SymbolFundamentals oder None
+            SymbolFundamentals or None
         """
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(
@@ -886,14 +889,14 @@ class SymbolFundamentalsManager:
         executor: Optional[ThreadPoolExecutor] = None
     ) -> Dict[str, SymbolFundamentals]:
         """
-        Async wrapper für get_fundamentals_batch().
+        Async wrapper for get_fundamentals_batch().
 
         Args:
-            symbols: Liste von Ticker-Symbolen
+            symbols: List of ticker symbols
             executor: Optional ThreadPoolExecutor
 
         Returns:
-            Dict mit {symbol: SymbolFundamentals}
+            Dict with {symbol: SymbolFundamentals}
         """
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(
@@ -907,14 +910,14 @@ class SymbolFundamentalsManager:
         executor: Optional[ThreadPoolExecutor] = None
     ) -> bool:
         """
-        Async wrapper für save_fundamentals().
+        Async wrapper for save_fundamentals().
 
         Args:
-            fundamentals: SymbolFundamentals Objekt
+            fundamentals: SymbolFundamentals object
             executor: Optional ThreadPoolExecutor
 
         Returns:
-            True bei Erfolg
+            True on success
         """
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(
@@ -928,14 +931,14 @@ class SymbolFundamentalsManager:
         executor: Optional[ThreadPoolExecutor] = None
     ) -> int:
         """
-        Async wrapper für save_fundamentals_batch().
+        Async wrapper for save_fundamentals_batch().
 
         Args:
-            fundamentals_list: Liste von SymbolFundamentals Objekten
+            fundamentals_list: List of SymbolFundamentals objects
             executor: Optional ThreadPoolExecutor
 
         Returns:
-            Anzahl erfolgreich gespeicherter Einträge
+            Number of successfully saved entries
         """
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(
@@ -954,9 +957,9 @@ _manager_lock = threading.Lock()
 
 def get_fundamentals_manager(db_path: Optional[Path] = None) -> SymbolFundamentalsManager:
     """
-    Gibt globale SymbolFundamentalsManager Instanz zurück.
+    Returns global SymbolFundamentalsManager instance.
 
-    Thread-safe Singleton-Pattern.
+    Thread-safe singleton pattern.
     """
     global _default_manager
 
@@ -967,7 +970,7 @@ def get_fundamentals_manager(db_path: Optional[Path] = None) -> SymbolFundamenta
 
 
 def reset_fundamentals_manager() -> None:
-    """Setzt den globalen Manager zurück (für Tests)"""
+    """Resets the global manager (for tests)"""
     global _default_manager
     with _manager_lock:
         _default_manager = None

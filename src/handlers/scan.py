@@ -633,34 +633,134 @@ class ScanHandlerMixin(BaseHandlerMixin):
                 return prefetch_cache[symbol]
             return await self._fetch_historical_cached(symbol, days=historical_days)
 
-        # Options fetcher for liquidity assessment
+        # Options fetcher for liquidity assessment (Tradier -> IBKR fallback)
         async def options_fetcher(symbol: str):
             """Fetch options chain for liquidity check."""
             try:
-                provider = self._get_provider()
-                await self._rate_limiter.acquire()
-                options = await provider.get_option_chain(
+                return await self._get_options_chain_with_fallback(
                     symbol, dte_min=60, dte_max=90, right="P"
                 )
-                self._rate_limiter.record_success()
-                return options or []
             except Exception as e:
                 logger.warning(f"Could not fetch options for {symbol}: {e}")
                 return []
 
         # Generate picks
         start_time = datetime.now()
+        # Overfetch: request more picks than needed to account for chain-validation filtering
+        engine_max_picks = max_picks * 3
         result = await engine.get_daily_picks(
             symbols=symbols,
             data_fetcher=data_fetcher,
-            max_picks=max_picks,
+            max_picks=engine_max_picks,
             vix=vix_level,
             options_fetcher=options_fetcher if include_strikes else None,
         )
+
+        # Chain-First Validation (Phase 2): Validate top picks against real options chain
+        if include_strikes and result.picks:
+            result = await self._apply_chain_validation(result, max_picks)
+
         duration = (datetime.now() - start_time).total_seconds()
 
         # Format output
         return self._format_daily_picks_output(result, duration, excluded_by_earnings)
+
+    async def _apply_chain_validation(
+        self,
+        result: DailyRecommendationResult,
+        max_picks: int,
+    ) -> DailyRecommendationResult:
+        """
+        Chain-First Validation: Validate picks against real options chain data.
+
+        For each pick, runs OptionsChainValidator to verify:
+        - Expiration in DTE window exists
+        - Short/Long puts at correct deltas exist
+        - Credit >= 10% spread width
+        - Acceptable liquidity (OI, bid-ask)
+
+        Filters out non-tradeable picks and attaches SpreadValidation to each pick.
+        """
+        try:
+            from ..services.options_chain_validator import OptionsChainValidator
+        except ImportError:
+            logger.warning("OptionsChainValidator not available, skipping chain validation")
+            return result
+
+        # Get options provider from server
+        options_provider = None
+        ibkr_bridge = None
+
+        try:
+            # Tradier is the primary provider for options chains
+            if hasattr(self, '_tradier') and self._tradier:
+                options_provider = self._tradier
+            elif hasattr(self, '_provider') and self._provider:
+                options_provider = self._provider
+        except Exception as e:
+            logger.debug(f"Could not get options provider: {e}")
+
+        try:
+            if hasattr(self, '_ibkr') and self._ibkr:
+                ibkr_bridge = self._ibkr
+        except Exception as e:
+            logger.debug(f"Could not get IBKR bridge: {e}")
+
+        if not options_provider:
+            logger.info("No options provider available, skipping chain validation")
+            return result
+
+        chain_validator = OptionsChainValidator(
+            options_provider=options_provider,
+            ibkr_bridge=ibkr_bridge,
+        )
+
+        validated_picks = []
+        chain_rejected = 0
+
+        for pick in result.picks:
+            if len(validated_picks) >= max_picks:
+                break
+
+            try:
+                spread = await chain_validator.validate_spread(pick.symbol)
+
+                if spread.tradeable:
+                    pick.spread_validation = spread
+                    validated_picks.append(pick)
+                    logger.info(
+                        f"Chain OK: {pick.symbol} — "
+                        f"Credit ${spread.credit_bid:.2f} ({spread.credit_pct:.1f}%) "
+                        f"Spread ${spread.spread_width:.0f} "
+                        f"[{spread.data_source}]"
+                    )
+                else:
+                    chain_rejected += 1
+                    logger.info(
+                        f"Chain REJECTED: {pick.symbol} — {spread.reason}"
+                    )
+            except Exception as e:
+                logger.warning(f"Chain validation error for {pick.symbol}: {e}")
+                # Keep pick without chain data rather than silently dropping
+                validated_picks.append(pick)
+
+        # Re-rank after chain filtering
+        for i, pick in enumerate(validated_picks, 1):
+            pick.rank = i
+
+        if chain_rejected > 0:
+            logger.info(
+                f"Chain validation: {len(validated_picks)} tradeable, "
+                f"{chain_rejected} rejected"
+            )
+            if not result.warnings:
+                result.warnings = []
+            result.warnings.append(
+                f"Chain-Validierung: {chain_rejected} Picks nicht handelbar (fehlende Liquidität/Strikes)"
+            )
+
+        result.picks = validated_picks
+        return result
 
     def _format_daily_picks_output(
         self,
@@ -668,224 +768,192 @@ class ScanHandlerMixin(BaseHandlerMixin):
         duration: float,
         excluded_by_earnings: int = 0,
     ) -> str:
-        """Format daily picks result as Markdown."""
+        """Format daily picks result as Markdown (v2 format with real chain data)."""
         b = MarkdownBuilder()
+        today_str = date.today().isoformat()
 
         # Header
-        b.h1("📊 Daily Picks - Top 20 Candidates").blank()
+        b.h1(f"Daily Picks -- {today_str}").blank()
 
-        # Market Overview
+        # Market Overview (compact single-line)
         if result.vix_level:
             regime_display = {
-                'low_vol': '🟢 Low Volatility',
-                'normal': '🟢 Normal',
-                'danger_zone': '🟡 Danger Zone',
-                'elevated': '🟠 Elevated',
-                'high_vol': '🔴 High Volatility',
-                'unknown': '⚪ Unknown',
+                'low_vol': 'Normal',
+                'normal': 'Normal',
+                'danger_zone': 'Danger Zone',
+                'elevated': 'Elevated',
+                'high_vol': 'High Volatility',
+                'unknown': 'Unknown',
             }
-            regime_str = regime_display.get(result.market_regime.value, result.market_regime.value)
-            b.kv("VIX", f"{result.vix_level:.2f}")
-            b.kv("Regime", regime_str)
-            b.blank()
+            regime_str = regime_display.get(
+                result.market_regime.value, result.market_regime.value
+            )
+            b.kv("Regime", f"{regime_str} (VIX {result.vix_level:.2f})")
 
-        # Warnings
+        b.kv("Scanned", f"{result.symbols_scanned} symbols | Duration: {duration:.1f}s")
+        b.blank()
+
+        # Warnings (compact)
         if result.warnings:
-            b.h2("⚠️ Warnings").blank()
             for warning in result.warnings:
                 b.bullet(warning)
             b.blank()
 
-        # Statistics
-        b.kv("Scanned", f"{result.symbols_scanned} symbols")
-        if excluded_by_earnings > 0:
-            b.kv("Earnings Pre-filter", f"-{excluded_by_earnings} excluded")
-        b.kv("Signals Found", result.signals_found)
-        b.kv("After Stability Filter", result.after_stability_filter)
-        if result.after_liquidity_filter > 0:
-            b.kv("After Liquidity Filter", result.after_liquidity_filter)
-        b.kv("Duration", f"{duration:.1f}s")
-        b.blank()
-
-        # Picks Table
+        # Picks — detailed v2 format
         if result.picks:
-            b.h2(f"Top {len(result.picks)} Recommendations").blank()
-
-            # Summary table
-            rows = []
             for pick in result.picks:
-                grade_badge = f"[{pick.reliability_grade}]" if pick.reliability_grade else ""
-                stability_str = f"{pick.stability_score:.0f}" if pick.stability_score else "?"
-
-                # Strategy icon
-                strategy_icons = {
-                    "pullback": "PB",
-                    "bounce": "BN",
-                    "ath_breakout": "ATH",
-                    "earnings_dip": "ED",
-                }
-                strategy_str = strategy_icons.get(pick.strategy, pick.strategy[:3].upper())
-
-                speed_str = f"{pick.speed_score:.1f}" if pick.speed_score is not None else "-"
-
-                rows.append([
-                    f"{pick.rank}",
-                    pick.symbol,
-                    f"{pick.score:.1f}",
-                    stability_str,
-                    speed_str,
-                    strategy_str,
-                    f"${pick.current_price:.2f}" if pick.current_price else "N/A",
-                    pick.sector[:12] if pick.sector else "-",
-                    grade_badge,
-                ])
-
-            b.table(
-                ["#", "Symbol", "Score", "Stab", "Speed", "Type", "Price", "Sector", "Grade"],
-                rows
-            )
-            b.blank()
-
-            # Strike Recommendations Section
-            picks_with_strikes = [p for p in result.picks if p.suggested_strikes]
-            if picks_with_strikes:
-                b.h2("💰 Strike Recommendations").blank()
-
-                strike_rows = []
-                for pick in picks_with_strikes[:10]:  # Top 10 with strikes
-                    s = pick.suggested_strikes
-                    credit_str = f"${s.estimated_credit:.2f}" if s.estimated_credit else "-"
-                    pop_str = f"{s.prob_profit:.0f}%" if s.prob_profit else "-"
-
-                    # C/R% (Credit/Risk ratio)
-                    cr_str = "-"
-                    if s.estimated_credit and s.spread_width and s.spread_width > 0:
-                        cr_pct = (s.estimated_credit / s.spread_width) * 100
-                        if cr_pct >= 20:
-                            cr_badge = "Exzellent"
-                        elif cr_pct >= 15:
-                            cr_badge = "Gut"
-                        elif cr_pct >= 10:
-                            cr_badge = "OK"
-                        else:
-                            cr_badge = "Schlecht"
-                        cr_str = f"{cr_pct:.0f}% [{cr_badge}]"
-
-                    # Expiry / DTE columns
-                    expiry_str = s.expiry[-5:] if s.expiry else "-"  # "03-20" from "2026-03-20"
-                    dte_str = str(s.dte) if s.dte is not None else "-"
-
-                    # Liquidity columns
-                    oi_str = f"{s.short_oi:,}" if s.short_oi else "-"
-                    sprd_str = f"{s.short_spread_pct:.0f}%" if s.short_spread_pct is not None else "-"
-
-                    # Status column
-                    status_badges = {
-                        "READY": "READY",
-                        "WARNING": "WARN",
-                        "NOT_TRADEABLE": "N/T",
-                        "unknown": "-",
-                    }
-                    status_str = status_badges.get(s.tradeable_status, "-")
-
-                    strike_rows.append([
-                        pick.symbol,
-                        f"${s.short_strike:.0f}",
-                        f"${s.long_strike:.0f}",
-                        f"${s.spread_width:.0f}",
-                        credit_str,
-                        cr_str,
-                        pop_str,
-                        expiry_str,
-                        dte_str,
-                        oi_str,
-                        sprd_str,
-                        status_str,
-                    ])
-
-                b.table(
-                    ["Symbol", "Short", "Long", "Width", "Credit", "C/R%", "P(Profit)", "Expiry", "DTE", "OI", "Sprd%", "Status"],
-                    strike_rows
-                )
-                b.blank()
-
-            # Detailed view for top 5
-            b.h2("📋 Top 5 Details").blank()
-            for pick in result.picks[:5]:
-                self._format_single_pick_detail(b, pick)
-
+                self._format_single_pick_v2(b, pick)
         else:
             b.hint("No candidates found matching criteria.")
 
         return b.build()
 
-    def _format_single_pick_detail(self, b: MarkdownBuilder, pick: DailyPick) -> None:
-        """Format a single pick with details."""
-        # Header with grade
-        grade_str = f" [{pick.reliability_grade}]" if pick.reliability_grade else ""
-        b.h3(f"{pick.rank}. {pick.symbol} - {pick.strategy.replace('_', ' ').title()}{grade_str}")
+    def _format_single_pick_v2(self, b: MarkdownBuilder, pick: DailyPick) -> None:
+        """
+        Format a single pick in v2 format with real chain data.
 
-        # Key metrics
-        b.kv("Price", f"${pick.current_price:.2f}" if pick.current_price else "N/A")
-        b.kv("Score", f"{pick.score:.1f}/10")
-        b.kv("Stability", f"{pick.stability_score:.0f}/100" if pick.stability_score else "Unknown")
-        b.kv("Speed", f"{pick.speed_score:.1f}/10" if pick.speed_score is not None else "-")
+        Output matches TASKS_DAILY_PICKS_V2.md Task 4.1 specification.
+        """
+        # Strategy display
+        strategy_display = {
+            "pullback": "Pullback",
+            "bounce": "Bounce",
+            "ath_breakout": "ATH Breakout",
+            "earnings_dip": "Earnings Dip",
+        }
+        strategy_str = strategy_display.get(pick.strategy, pick.strategy.replace('_', ' ').title())
 
-        if pick.historical_win_rate:
-            b.kv("Hist. Win Rate", f"{pick.historical_win_rate:.0f}%")
+        # EQS display
+        eqs_str = ""
+        if pick.entry_quality and hasattr(pick.entry_quality, 'eqs_total'):
+            eqs_str = f" | EQS {pick.entry_quality.eqs_total:.0f}"
 
-        if pick.sector:
-            b.kv("Sector", pick.sector)
+        # Header
+        b.h2(f"#{pick.rank} -- {pick.symbol} | {strategy_str} | Score {pick.score:.1f}{eqs_str}")
+        b.blank()
 
-        # Strike recommendation
-        if pick.suggested_strikes:
-            s = pick.suggested_strikes
+        # Chain-validated spread data (if available from SpreadValidation)
+        sv = pick.spread_validation
+        if sv and sv.tradeable:
+            # Legs table
+            short = sv.short_leg
+            long = sv.long_leg
+
+            leg_rows = [
+                [
+                    f"${short.strike:.0f}",
+                    f"{short.delta:.2f}",
+                    f"{short.iv * 100:.1f}%" if short.iv else "-",
+                    f"{short.open_interest:,}",
+                    f"${short.bid:.2f}/${short.ask:.2f}",
+                ],
+                [
+                    f"${long.strike:.0f}",
+                    f"{long.delta:.2f}",
+                    f"{long.iv * 100:.1f}%" if long.iv else "-",
+                    f"{long.open_interest:,}",
+                    f"${long.bid:.2f}/${long.ask:.2f}",
+                ],
+            ]
+            b.table(
+                ["Strike", "Delta", "IV", "OI", "Bid/Ask"],
+                leg_rows
+            )
             b.blank()
-            b.text("**Strike Recommendation:**")
-            # Expiry + DTE
+
+            # Spread details
+            b.text(
+                f"**Spread:** ${sv.spread_width:.0f} breit | "
+                f"**Expiry:** {sv.expiration} ({sv.dte} DTE)"
+            )
+
+            # Credit line
+            credit_check = "OK" if sv.credit_pct and sv.credit_pct >= 10 else "LOW"
+            b.text(
+                f"**Credit:** ${sv.credit_bid:.2f} (Bid) -- "
+                f"${sv.credit_mid:.2f} (Mid) | "
+                f"**Credit/Breite:** {sv.credit_pct:.1f}% {credit_check}"
+            )
+
+            # Risk targets
+            max_loss = sv.max_loss_per_contract if sv.max_loss_per_contract else 0
+            profit_target_50 = sv.credit_bid * 0.5 if sv.credit_bid else 0
+            stop_loss_200 = sv.credit_bid * 2.0 if sv.credit_bid else 0
+            b.text(
+                f"**Max Loss:** ${max_loss:.0f}/Kontrakt | "
+                f"**50% Target:** ${profit_target_50:.2f} | "
+                f"**200% Stop:** ${stop_loss_200:.2f}"
+            )
+            b.blank()
+
+        elif pick.suggested_strikes:
+            # Fallback: theoretical strikes (no chain data)
+            s = pick.suggested_strikes
+            b.text(
+                f"**Strikes:** Short ${s.short_strike:.0f} / Long ${s.long_strike:.0f} "
+                f"| Width ${s.spread_width:.0f}"
+            )
+            if s.estimated_credit:
+                b.text(f"**Est. Credit:** ${s.estimated_credit:.2f}")
             if s.expiry:
                 dte_str = f" ({s.dte} DTE)" if s.dte is not None else ""
-                b.bullet(f"Expiry: {s.expiry}{dte_str}")
-            if s.dte_warning:
-                b.bullet(f"⚠️ {s.dte_warning}")
-            b.bullet(
-                f"Short Put: ${s.short_strike:.2f}"
-                + (f" (OI: {s.short_oi:,})" if s.short_oi else "")
-            )
-            b.bullet(
-                f"Long Put: ${s.long_strike:.2f}"
-                + (f" (OI: {s.long_oi:,})" if s.long_oi else "")
-            )
-            b.bullet(f"Spread Width: ${s.spread_width:.2f}")
-            if s.estimated_credit:
-                b.bullet(f"Est. Credit: ${s.estimated_credit:.2f}")
-                # C/R% display
-                if s.spread_width and s.spread_width > 0:
-                    cr_pct = (s.estimated_credit / s.spread_width) * 100
-                    b.bullet(f"C/R%: {cr_pct:.0f}%")
-                # Fee warning
-                credit_per_contract = s.estimated_credit * 100
-                if credit_per_contract < 40:
-                    fee_pct = (2.60 / credit_per_contract) * 100 if credit_per_contract > 0 else 999
-                    b.bullet(
-                        f"⚠️ Gebührenwarnung: Credit ${credit_per_contract:.0f} — "
-                        f"IBKR-Gebühren ($2.60 RT) = {fee_pct:.1f}% des Ertrags"
-                    )
-            if s.prob_profit:
-                b.bullet(f"P(Profit): {s.prob_profit:.0f}%")
-            # Tradeable status
+                b.text(f"**Expiry:** {s.expiry}{dte_str}")
             if s.tradeable_status and s.tradeable_status != "unknown":
-                b.bullet(f"Status: {s.tradeable_status}")
-
-        # Reason
-        if pick.reason:
+                b.text(f"**Status:** {s.tradeable_status}")
             b.blank()
-            b.text(f"**Signal:** {truncate(pick.reason, 80)}")
+
+        # Entry Quality line (if EQS available)
+        eq = pick.entry_quality
+        if eq and hasattr(eq, 'iv_rank'):
+            parts = []
+            if eq.iv_rank is not None:
+                parts.append(f"IV Rank {eq.iv_rank:.0f}%")
+            if eq.iv_percentile is not None:
+                parts.append(f"IV Pctl {eq.iv_percentile:.0f}%")
+            if eq.rsi is not None:
+                rsi_label = ""
+                if eq.rsi < 35:
+                    rsi_label = " (oversold)"
+                elif eq.rsi > 65:
+                    rsi_label = " (overbought)"
+                parts.append(f"RSI {eq.rsi:.0f}{rsi_label}")
+            if eq.pullback_pct is not None:
+                parts.append(f"Pullback {eq.pullback_pct:.1f}%")
+            if sv and sv.spread_theta:
+                parts.append(f"Theta ${sv.spread_theta:.3f}/d")
+
+            if parts:
+                b.text(f"**Entry:** {' | '.join(parts)}")
+                b.blank()
+
+        # Checklist line
+        checklist_parts = []
+        if pick.stability_score:
+            checklist_parts.append(f"Stab({pick.stability_score:.0f})")
+        if pick.current_price:
+            checklist_parts.append(f"Preis(${pick.current_price:.0f})")
+        if sv and sv.dte:
+            checklist_parts.append(f"DTE({sv.dte})")
+        if sv and sv.credit_pct:
+            checklist_parts.append(f"Credit({sv.credit_pct:.1f}%)")
+        if pick.sector:
+            checklist_parts.append(pick.sector[:12])
+
+        if checklist_parts:
+            b.text(f"**Checks:** {' | '.join(checklist_parts)}")
+
+        # Signal reason
+        if pick.reason:
+            b.text(f"**Signal:** {truncate(pick.reason, 120)}")
 
         # Warnings
         if pick.warnings:
-            b.blank()
             for warning in pick.warnings:
-                b.bullet(f"⚠️ {warning}")
+                b.bullet(f"Warning: {warning}")
 
         b.blank()
+
+    # Keep old method for backward compatibility
+    def _format_single_pick_detail(self, b: MarkdownBuilder, pick: DailyPick) -> None:
+        """Format a single pick with details (legacy format, kept for compatibility)."""
+        self._format_single_pick_v2(b, pick)

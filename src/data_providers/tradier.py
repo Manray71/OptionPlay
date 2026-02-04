@@ -19,7 +19,10 @@
 
 import asyncio
 import aiohttp
+import json
 import logging
+import urllib.request
+import urllib.error
 from dataclasses import dataclass
 from datetime import datetime, date, timedelta
 from typing import List, Optional, Dict, Any, Tuple
@@ -34,9 +37,9 @@ from .interface import (
 )
 
 try:
-    from ..earnings_cache import EarningsInfo, EarningsSource
+    from ..cache import EarningsInfo, EarningsSource
 except ImportError:
-    from earnings_cache import EarningsInfo, EarningsSource
+    from cache import EarningsInfo, EarningsSource
 
 
 # =============================================================================
@@ -161,9 +164,9 @@ def build_occ_symbol(
     return f"{underlying}{expiry_str}{opt_type}{strike_str}"
 
 try:
-    from ..iv_cache import IVData, IVSource, IVCache, get_iv_cache
+    from ..cache import IVData, IVSource, IVCache, get_iv_cache
 except ImportError:
-    from iv_cache import IVData, IVSource, IVCache, get_iv_cache
+    from cache import IVData, IVSource, IVCache, get_iv_cache
 
 logger = logging.getLogger(__name__)
 
@@ -273,42 +276,32 @@ class TradierProvider(DataProvider):
         return ["quotes", "options", "historical", "expirations", "strikes"]
     
     async def connect(self) -> bool:
-        """Verbindung herstellen (Session erstellen)"""
-        if self._session is None or self._session.closed:
-            timeout = aiohttp.ClientTimeout(total=self.config.timeout_seconds)
-            self._session = aiohttp.ClientSession(
-                headers=self.config.headers,
-                timeout=timeout
-            )
-        
-        # Verbindung testen mit Market Clock (skip connect check to avoid recursion)
+        """Verbindung herstellen (Test mit Market Clock)"""
+        # Using urllib instead of aiohttp for Python 3.14 compatibility
         try:
             clock = await self._get("/v1/markets/clock", _skip_connect_check=True)
             self._connected = clock is not None
-            
+
             if self._connected:
                 logger.info(f"Tradier verbunden ({self.config.environment.value})")
             else:
                 logger.warning("Tradier Verbindung fehlgeschlagen")
-                
+
             return self._connected
-            
+
         except Exception as e:
             logger.error(f"Tradier Verbindungsfehler: {e}")
             self._connected = False
             return False
-    
+
     async def disconnect(self) -> None:
         """Verbindung trennen"""
-        if self._session and not self._session.closed:
-            await self._session.close()
-        self._session = None
         self._connected = False
         logger.info("Tradier getrennt")
-    
+
     async def is_connected(self) -> bool:
         """Verbindungsstatus"""
-        return self._connected and self._session is not None and not self._session.closed
+        return self._connected
     
     async def get_quote(self, symbol: str) -> Optional[PriceQuote]:
         """Einzelnes Quote abrufen"""
@@ -410,12 +403,12 @@ class TradierProvider(DataProvider):
         self,
         symbol: str,
         days: int = 260
-    ) -> Optional[Tuple[List[float], List[int], List[float], List[float]]]:
+    ) -> Optional[Tuple[List[float], List[int], List[float], List[float], List[float]]]:
         """
         Historische Daten im Scanner-Format.
 
         Returns:
-            Tuple von (prices, volumes, highs, lows) oder None
+            Tuple von (prices, volumes, highs, lows, opens) oder None
         """
         bars = await self.get_historical(symbol, days)
 
@@ -426,8 +419,9 @@ class TradierProvider(DataProvider):
         volumes = [bar.volume for bar in bars]
         highs = [bar.high for bar in bars]
         lows = [bar.low for bar in bars]
+        opens = [bar.open for bar in bars]
 
-        return prices, volumes, highs, lows
+        return prices, volumes, highs, lows, opens
 
     async def get_option_chain(
         self,
@@ -974,39 +968,50 @@ class TradierProvider(DataProvider):
     # =========================================================================
     
     async def _get(self, endpoint: str, params: Optional[Dict] = None, _skip_connect_check: bool = False) -> Optional[Dict]:
-        """GET Request mit Retry-Logik"""
-        # Skip connect check to avoid recursion when called from connect()
-        if not _skip_connect_check and not await self.is_connected():
-            await self.connect()
-
+        """GET Request mit Retry-Logik (urllib für Python 3.14 Kompatibilität)"""
+        # Using synchronous urllib for Python 3.14 compatibility
         url = f"{self.config.base_url}{endpoint}"
-        
+        if params:
+            param_str = "&".join(f"{k}={v}" for k, v in params.items())
+            url = f"{url}?{param_str}"
+
         for attempt in range(self.config.max_retries):
             try:
-                async with self._session.get(url, params=params) as response:
-                    self._request_count += 1
-                    self._last_request_time = datetime.now()
-                    
-                    if response.status == 200:
-                        return await response.json()
-                    elif response.status == 401:
-                        logger.error("Tradier: Unauthorized - API Key ungültig")
-                        return None
-                    elif response.status == 429:
-                        logger.warning("Tradier: Rate Limit erreicht, warte...")
-                        await asyncio.sleep(self.config.retry_delay_seconds * (attempt + 1))
-                    else:
-                        text = await response.text()
-                        logger.warning(f"Tradier API Fehler {response.status}: {text}")
-                        
-            except asyncio.TimeoutError:
-                logger.warning(f"Tradier Timeout (Versuch {attempt + 1})")
-            except aiohttp.ClientError as e:
-                logger.warning(f"Tradier Client Error: {e}")
-            
+                req = urllib.request.Request(url)
+                req.add_header('Authorization', f'Bearer {self.config.api_key}')
+                req.add_header('Accept', 'application/json')
+
+                # Run synchronous urllib in thread pool
+                def do_request():
+                    with urllib.request.urlopen(req, timeout=self.config.timeout_seconds) as response:
+                        return json.loads(response.read().decode())
+
+                data = await asyncio.to_thread(do_request)
+                self._request_count += 1
+                self._last_request_time = datetime.now()
+                self._connected = True
+                return data
+
+            except urllib.error.HTTPError as e:
+                self._request_count += 1
+                self._last_request_time = datetime.now()
+
+                if e.code == 401:
+                    logger.error("Tradier: Unauthorized - API Key ungültig")
+                    return None
+                elif e.code == 429:
+                    logger.warning("Tradier: Rate Limit erreicht, warte...")
+                    await asyncio.sleep(self.config.retry_delay_seconds * (attempt + 1))
+                    continue
+                else:
+                    logger.warning(f"Tradier API Fehler {e.code}: {e.reason}")
+
+            except urllib.error.URLError as e:
+                logger.warning(f"Tradier Netzwerkfehler (Versuch {attempt + 1}): {e}")
+
             if attempt < self.config.max_retries - 1:
                 await asyncio.sleep(self.config.retry_delay_seconds)
-        
+
         return None
     
     def _parse_quote(self, data: Dict) -> PriceQuote:

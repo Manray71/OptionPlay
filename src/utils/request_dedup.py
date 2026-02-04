@@ -82,7 +82,7 @@ class RequestDeduplicator:
                 logger.debug(f"Dedup HIT: {key} (waiting for in-flight request)")
             else:
                 # Create new future and start request
-                future = asyncio.get_event_loop().create_future()
+                future = asyncio.get_running_loop().create_future()
                 self._in_flight[key] = future
                 self._actual_calls += 1
 

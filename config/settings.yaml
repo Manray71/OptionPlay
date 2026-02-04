@@ -4,6 +4,34 @@
 # Dokumentation: docs/ARCHITECTURE.md
 
 # ============================================================================
+# DATENQUELLEN-PRIORITÄT
+# ============================================================================
+# Für historische Preisdaten (Scanner, Analysen) wird folgende Priorität verwendet:
+# 1. Lokale SQLite-Datenbank (~/.optionplay/trades.db) - Schnellste Option
+# 2. API-Provider (Tradier, Marketdata.app) - Fallback für fehlende/aktuelle Daten
+#
+# Die lokale DB enthält 356 Symbole mit Daten von 2021-01-04 bis heute.
+# Daten werden aus der options_prices Tabelle (underlying_price) extrahiert.
+
+data_sources:
+  # Lokale Datenbank für historische Daten
+  local_database:
+    enabled: true                     # Lokale DB als primäre Quelle nutzen
+    db_path: "~/.optionplay/trades.db"
+    # Fallback auf API wenn Daten älter als X Tage
+    max_data_age_days: 7              # Nutze API wenn letzte Daten > 7 Tage alt
+    # Minimum benötigte Datenpunkte
+    min_data_points: 60               # Mindestens 60 Tage für technische Analyse
+
+  # Provider-Priorität für API-Calls (wenn lokale DB nicht ausreicht)
+  # Reihenfolge: Erste verfügbare Quelle wird genutzt
+  provider_priority:
+    - "local_db"                      # 1. Lokale Datenbank (schnellste)
+    - "tradier"                       # 2. Tradier API
+    - "marketdata"                    # 3. Marketdata.app
+    - "yahoo"                         # 4. Yahoo Finance (Fallback)
+
+# ============================================================================
 # VERBINDUNGS-EINSTELLUNGEN
 # ============================================================================
 connection:
@@ -131,13 +159,13 @@ pullback_scoring:
 filters:
   # Earnings-Filter (KRITISCH für Bull-Put-Spreads!)
   earnings:
-    exclude_days_before: 45       # Keine Aktien mit Earnings in X Tagen
+    exclude_days_before: 60       # Keine Aktien mit Earnings in X Tagen (PLAYBOOK §1: >60 Tage)
     data_source: "yfinance"       # Datenquelle für Earnings-Dates
     
   # Preis-Filter
   price:
     minimum: 20.0                 # Mindestpreis (keine Penny Stocks)
-    maximum: 500.0                # Maximalpreis (Kapitaleffizienz)
+    maximum: 1500.0               # Maximalpreis (PLAYBOOK §1)
     
   # Volumen-Filter
   volume:
@@ -155,34 +183,105 @@ filters:
     exclude: []                   # z.B. ["Utilities", "Real Estate"]
     include_only: []              # Leer = alle Sektoren
 
+  # ==========================================================================
+  # FUNDAMENTALS-FILTER (NEU - basierend auf Training-Erkenntnissen)
+  # ==========================================================================
+  # Nutzt Daten aus symbol_fundamentals Tabelle für intelligente Filterung
+  # Erkenntnisse aus 17.438 Backtest-Trades:
+  # - Stability Score ≥70 → 94.5% Win Rate (vs. 66% bei <50)
+  # - Extreme-Vol Symbole (>70% HV) nur 27-31% Win Rate
+  fundamentals:
+    enabled: true                 # Fundamentals-Filter aktivieren
+
+    # Stability Filter (aus historischen Backtest-Ergebnissen)
+    # Stability Score = 100 - (avg_drawdown * 3 + avg_days_below_short * 2)
+    min_stability_score: 70.0     # Mindest-Stabilität (0-100), PLAYBOOK §1: ≥70 (≥80 bei VIX>20)
+    warn_below_stability: 60.0    # Warnung im Signal wenn unter diesem Wert
+    boost_above_stability: 70.0   # Score-Boost für sehr stabile Symbole
+
+    # Historical Win Rate aus Backtests
+    min_historical_win_rate: 70.0 # Nur Symbole mit ≥70% historischer Win Rate
+
+    # Volatilitäts-Filter
+    max_historical_volatility: 70.0  # Max. annualisierte HV (%), 70% = Grenzwert
+    max_beta: 2.0                 # Max. Beta zu SPY (volatiler als Markt)
+
+    # IV Rank Filter (ergänzt bestehenden Filter)
+    iv_rank_min: 20.0             # Min IV Rank für ausreichend Prämie
+    iv_rank_max: 80.0             # Max IV Rank (zu hoch = Risiko)
+    use_iv_percentile: false      # true = iv_percentile_252d statt iv_rank_252d
+
+    # SPY Correlation (für Portfolio-Diversifikation)
+    # Niedrige Korrelation = unabhängig vom Markt
+    max_spy_correlation: null     # z.B. 0.7 für Diversifikation
+    min_spy_correlation: null     # z.B. 0.3 um "Meme Stocks" auszuschließen
+
+    # Sektor-Filter
+    exclude_sectors: []           # z.B. ["Utilities", "Real Estate"]
+    include_sectors: []           # Leer = alle Sektoren erlaubt
+
+    # Market Cap Filter
+    # Kategorien: "Micro", "Small", "Mid", "Large", "Mega"
+    exclude_market_caps: ["Micro"]  # Micro Caps ausschließen
+    include_market_caps: []       # Leer = alle erlaubt (außer excluded)
+
+    # Symbol Blacklist (NIEMALS handeln)
+    # Basierend auf Training: <50 Stability, <70% Win Rate
+    blacklist_symbols:
+      - ROKU    # Stability 24, WR 61%
+      - SNAP    # Stability 13, WR 64%
+      - UPST    # Stability 15, WR 60%
+      - AFRM    # Stability 18, WR 66%
+      - MRNA    # Stability 30, WR 64%
+      - RUN     # Stability 0, WR 40%
+      - MSTR    # Stability 37, WR 58%
+      - TSLA    # Stability 41, WR 78% (Meme-Stock-Dynamik)
+      - COIN    # Stability 33, WR 73% (Crypto-Korrelation)
+      - SQ      # Stability 36, WR 68%
+      # Extreme-Vol (>100% annualisierte Volatilität)
+      - DAVE
+      - IONQ
+      - QBTS
+      - QMCO
+      - QUBT
+      - RDW
+      - RGTI
+
+    # Symbol Whitelist (überschreibt ALLE anderen Filter)
+    whitelist_symbols: []         # z.B. ["SPY", "QQQ"] für ETF-only
+
 # ============================================================================
 # OPTIONS-ANALYSE PARAMETER (STUFE 3)
 # ============================================================================
 options_analysis:
   # Ablauf-Präferenzen
   expiration:
-    dte_minimum: 30               # Mindest-Tage bis Verfall
-    dte_maximum: 60               # Maximum-Tage bis Verfall
-    dte_target: 45                # Ideale DTE für Theta-Decay
+    dte_minimum: 60               # Mindest-Tage bis Verfall
+    dte_maximum: 90               # Maximum-Tage bis Verfall
+    dte_target: 75                # Ideale DTE für Bull-Put-Spreads
     prefer_monthly: true          # Monatliche Optionen bevorzugen
     
-  # Strike-Auswahl für Short Put
+  # Strike-Auswahl für Short Put (PLAYBOOK §2: ±0.03)
   short_put:
-    delta_minimum: -0.35          # Nicht aggressiver als -0.35 Delta
-    delta_maximum: -0.20          # Nicht konservativer als -0.20 Delta
-    delta_target: -0.30           # Ziel-Delta
+    delta_minimum: -0.17          # Nicht aggressiver als -0.17 Delta (PLAYBOOK §2)
+    delta_maximum: -0.23          # Nicht konservativer als -0.23 Delta (PLAYBOOK §2)
+    delta_target: -0.20           # Ziel-Delta
     prefer_below_support: true    # Strike unter Support-Level bevorzugen
+
+  # Strike-Auswahl für Long Put (PLAYBOOK §2: ±0.02)
+  long_put:
+    delta_minimum: -0.03          # Nicht aggressiver als -0.03 Delta (PLAYBOOK §2)
+    delta_maximum: -0.07          # Nicht konservativer als -0.07 Delta (PLAYBOOK §2)
+    delta_target: -0.05           # Ziel-Delta
     
-  # Spread-Konfiguration
-  spread:
-    width_options: [2.5, 5.0, 10.0]  # Mögliche Spread-Breiten ($)
-    preferred_width: 5.0          # Standard-Breite
-    max_width_percent: 10         # Max. Breite als % des Underlying-Preises
-    
+  # Spread-Breite: NICHT konfigurierbar!
+  # Ergibt sich dynamisch aus Delta-Differenz (Short -0.20, Long -0.05)
+  # Siehe PLAYBOOK §2: "Delta ist heilig"
+
   # Premium-Anforderungen
   premium:
-    minimum_credit: 0.50          # Mindest-Prämie ($)
-    minimum_credit_percent: 20    # Mindest-Prämie als % der Spread-Breite
+    minimum_credit: 1.00          # Mindest-Prämie ($) - kein Trade unter 1€
+    minimum_credit_percent: 10    # Mindest-Prämie als % der Spread-Breite (PLAYBOOK §2)
     target_credit_percent: 33     # Ziel: 1/3 der Spread-Breite
     
   # Liquiditäts-Anforderungen
@@ -222,8 +321,35 @@ watchlist:
   #   - default_275:    340 Symbole (ursprüngliche Watchlist)
   #   - sp500_complete: 502 Symbole (vollständiger S&P 500)
   #   - extended_600:   589 Symbole (S&P 500 + Growth/Momentum)
+  #   - stable_list:    Automatisch generiert aus Symbolen mit Stability >= 60
+  #   - risk_list:      Automatisch generiert aus Symbolen mit Stability < 60
   default_list: "extended_600"
   max_symbols_per_scan: 50        # Batch-Größe erhöht (war 25)
+
+  # ==========================================================================
+  # STABILITY-BASIERTE WATCHLIST-AUFTEILUNG
+  # ==========================================================================
+  # Teilt die Watchlist automatisch in "stable" und "risk" Listen auf.
+  # Basierend auf dem Stability Score aus symbol_fundamentals.
+  #
+  # Vorteile:
+  # - Schnellere Scans durch kleinere Listen
+  # - Fokus auf qualitativ hochwertige Signale
+  # - Separate Behandlung von riskanteren Symbolen
+  #
+  # Usage:
+  #   /scan           → Scannt nur stable_list (schnell, hohe Qualität)
+  #   /scan --risk    → Scannt nur risk_list (für Spekulation)
+  #   /scan --all     → Scannt beide Listen
+  stability_split:
+    enabled: true                   # Aktiviert automatische Aufteilung
+    stable_min_score: 58.0          # Minimum Stability Score für stable_list
+    # Symbole mit Score >= 60 → stable_list (ca. 250 Symbole)
+    # Symbole mit Score < 60 → risk_list (ca. 100 Symbole)
+    # Symbole auf Blacklist → werden komplett ausgeschlossen
+    # HINWEIS: Da nicht alle Symbole Stability Scores haben (nur ~8 bisher),
+    # werden unbekannte Symbole der stable_list zugeordnet (außer Blacklist).
+    include_unknown_in_risk: false  # Symbole ohne Score → stable_list
   
 # ============================================================================
 # LOGGING & DEBUGGING
@@ -241,7 +367,7 @@ logging:
 performance:
   request_timeout: 30             # Sekunden pro API-Request
   batch_delay: 1.0                # Sekunden zwischen Batches
-  max_concurrent_requests: 5      # Parallele Requests
+  max_concurrent_requests: 20     # Parallele Requests (erhöht für LocalDB)
 
   # Cache TTLs (längere TTL = weniger API-Calls!)
   # Historische Daten (Schlusskurse) ändern sich nur einmal täglich
@@ -277,10 +403,14 @@ scanner:
   # Automatischer Earnings Pre-Filter (reduziert API-Calls!)
   # Filtert Symbole VOR dem Scan heraus, deren Earnings zu nah sind.
   # Nutzt 4-Wochen-Cache für Earnings-Daten.
-  # DEAKTIVIERT: Verursachte inkonsistente Ergebnisse zwischen Chat/Code-Modus
-  # Nutze stattdessen manuellen Pre-Filter mit /prefilter Befehl
-  auto_earnings_prefilter: false  # Manuell pre-filtern für mehr Kontrolle
-  earnings_prefilter_min_days: 45 # Mindestabstand zu Earnings (Tage)
+  # AKTIVIERT: KRITISCH für Trade-Sicherheit - Earnings am selben Tag sind gefährlich!
+  auto_earnings_prefilter: true   # MUSS aktiv sein für sichere Empfehlungen
+  earnings_prefilter_min_days: 60 # Mindestabstand zu Earnings (PLAYBOOK §1: >60 Tage)
+
+  # BMO/AMC Handling: Earnings können vor Markt (BMO) oder nach Markt (AMC) sein
+  # - AMC am Tag X: Reaktion erst am Tag X+1 → Tag X ist NICHT sicher
+  # - BMO am Tag X: Reaktion bereits eingepreist → Tag X KANN sicher sein (optional)
+  earnings_allow_bmo_same_day: false  # BMO am Earnings-Tag erlauben? (konservativ: false)
 
   # IV-Filter
   enable_iv_filter: true          # IV-Rank Filter aktivieren
@@ -298,6 +428,26 @@ scanner:
   enable_bounce: true
   enable_earnings_dip: true
 
+  # =========================================================================
+  # STABILITY-FIRST-FILTER (Phase 6 - Symbol-Stability als primärer Filter)
+  # =========================================================================
+  # Stability ist der stärkste Prädiktor für Win Rate!
+  # Training-Ergebnisse:
+  # - Stability ≥80: 94.5% Win Rate (Premium-Symbole)
+  # - Stability 70-80: 86.1% Win Rate (Gute Symbole)
+  # - Stability 50-70: 75% Win Rate (Akzeptabel)
+  # - Stability <50: 66% Win Rate (Blacklist)
+  enable_stability_first: true          # Stability-First-Filterung aktivieren
+
+  # Tiered Thresholds: Je höher Stability, desto niedriger min_score erlaubt
+  stability_premium_threshold: 80.0     # Premium-Symbole (94.5% WR)
+  stability_premium_min_score: 4.0      # Niedrigerer Score OK für Premium
+  stability_good_threshold: 70.0        # Gute Symbole (86.1% WR)
+  stability_good_min_score: 5.0         # Standard Score für gute Symbole
+  stability_ok_threshold: 50.0          # Akzeptable Symbole
+  stability_ok_min_score: 6.0           # Höherer Score für grenzwertige Symbole
+  # Symbole unter stability_ok_threshold werden komplett gefiltert (Blacklist)
+
 # ============================================================================
 # RISIKO-MANAGEMENT PARAMETER
 # ============================================================================
@@ -305,7 +455,49 @@ risk_management:
   # Position Sizing (informativ, nicht enforced)
   max_position_size_percent: 5    # Max. 5% des Portfolios pro Trade
   max_sector_exposure_percent: 20 # Max. 20% in einem Sektor
-  
+
   # Trade-Qualität
   min_reward_risk_ratio: 0.25     # Mindest Return-on-Risk (25%)
   max_loss_per_spread: 500        # Max. Verlust pro Spread ($)
+
+# ============================================================================
+# ROLL-STRATEGIE PARAMETER (ML-Trainiert 2026-01-30)
+# ============================================================================
+# Optimierte Parameter aus 4,471 historischen Trades
+# Gesamtstatistik: 87.2% Win Rate, 68.5% Roll Success Rate
+roll_strategy:
+  # PULLBACK: Sharpe 7.02, Win Rate 90.5%
+  pullback:
+    trigger_pct: -42.6            # Spread wert -42.6% → Roll initiieren
+    dte_extension: 62             # DTE um ~62 Tage verlängern
+    dte_extension_max: 107        # Max DTE-Verlängerung
+    max_rolls: 5                  # Maximal 5 Rolls pro Trade
+    min_credit_recovery_pct: 0.51 # Min 51% des ursprünglichen Credits zurückholen
+    support_buffer_pct: 2.67      # 2.67% Puffer unter Support für neuen Strike
+
+  # BOUNCE: Sharpe 6.39, Win Rate 88.8%
+  bounce:
+    trigger_pct: -58.0            # Später rollen bei Bounce-Trades
+    dte_extension: 76
+    dte_extension_max: 113
+    max_rolls: 5
+    min_credit_recovery_pct: 0.59
+    support_buffer_pct: 4.50      # Größerer Puffer bei Bounce
+
+  # ATH_BREAKOUT: Sharpe 8.51, Win Rate 93.1%
+  ath_breakout:
+    trigger_pct: -55.1
+    dte_extension: 63
+    dte_extension_max: 114
+    max_rolls: 6                  # Mehr Rolls erlaubt bei Breakouts
+    min_credit_recovery_pct: 0.79 # Höhere Credit Recovery erforderlich
+    support_buffer_pct: 1.50      # Enger Puffer bei Breakouts
+
+  # EARNINGS_DIP: Sharpe 3.19, Win Rate 85.3%
+  earnings_dip:
+    trigger_pct: -40.9            # Früher rollen bei Earnings Dips
+    dte_extension: 70
+    dte_extension_max: 86
+    max_rolls: 5
+    min_credit_recovery_pct: 0.60
+    support_buffer_pct: 3.39

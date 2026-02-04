@@ -38,7 +38,7 @@ class TestStrikeRecommenderBasics:
         assert recommender.config["delta_min"] == -0.17  # Less aggressive end (±0.03)
         assert recommender.config["delta_max"] == -0.23  # More aggressive end (±0.03)
         assert recommender.config["min_otm_pct"] == 8.0
-        assert recommender.config["min_credit_pct"] == 20
+        assert recommender.config["min_credit_pct"] == 10  # PLAYBOOK §2
     
     def test_get_recommendation_returns_recommendation(self, recommender):
         """Test: get_recommendation gibt StrikeRecommendation zurück"""

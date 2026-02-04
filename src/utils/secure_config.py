@@ -161,18 +161,22 @@ class SecureConfig:
         """Lädt .env Datei wenn vorhanden."""
         if self._env_loaded:
             return
-        
+
         env_file = self._env_file
         if env_file is None:
-            # Standard-Pfade versuchen
+            # Standard-Pfade versuchen - priorisiere Projekt-Root
+            # __file__ ist src/utils/secure_config.py, also parent.parent.parent = Projekt-Root
+            project_root = Path(__file__).parent.parent.parent.resolve()
             possible_paths = [
+                project_root / ".env",  # Projekt-Root (höchste Priorität)
                 Path.cwd() / ".env",
                 Path.cwd().parent / ".env",
-                Path(__file__).parent.parent.parent / ".env",
+                Path.home() / ".optionplay" / ".env",  # User config dir
             ]
             for path in possible_paths:
                 if path.exists():
                     env_file = path
+                    logger.debug(f"Found .env at: {path}")
                     break
         
         if env_file and env_file.exists():
@@ -339,8 +343,8 @@ class SecureConfig:
             try:
                 import keyring
                 keyring.delete_password(self._keyring_service, key_name)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Failed to delete {key_name} from keyring: {e}")
     
     @property
     def available_keys(self) -> list:

@@ -126,19 +126,14 @@ class TestTradierConnectionManagement:
     """Tests für Connection Management"""
     
     @pytest.mark.asyncio
-    async def test_disconnect_closes_session(self):
-        """Test: disconnect() schließt Session"""
+    async def test_disconnect_sets_connected_false(self):
+        """Test: disconnect() setzt _connected auf False"""
         provider = TradierProvider(api_key="test_key")
-        
-        # Mock Session
-        mock_session = MagicMock()
-        mock_session.closed = False
-        mock_session.close = AsyncMock()
-        provider._session = mock_session
-        
+        provider._connected = True
+
         await provider.disconnect()
-        
-        mock_session.close.assert_called_once()
+
+        assert provider._connected is False
     
     @pytest.mark.asyncio
     async def test_disconnect_handles_none_session(self):

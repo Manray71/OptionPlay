@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "optionplay": {
-      "command": "/opt/homebrew/bin/python3.12",
+      "command": "/Users/larschristiansen/OptionPlay/.venv/bin/python",
       "args": ["-m", "src.mcp_main"],
       "cwd": "/Users/larschristiansen/OptionPlay",
       "env": {

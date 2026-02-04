@@ -1,6 +1,6 @@
 # OptionPlay - Cache Package
 # ===========================
-# Caching für Earnings, IV-Daten und Historical Data
+# Caching for Earnings, IV data, and Historical Data
 #
 # Usage:
 #     from src.cache import EarningsCache, IVCache, get_earnings, get_iv_rank
@@ -61,10 +61,41 @@ from .historical_cache import (
     HistoricalCacheEntry,
     CacheLookupResult,
     CacheStatus,
-    
+
     # Functions
     get_historical_cache,
     reset_historical_cache,
+)
+
+from .earnings_history import (
+    # Classes
+    EarningsHistoryManager,
+    EarningsRecord,
+
+    # Functions
+    get_earnings_history_manager,
+    reset_earnings_history_manager,
+)
+
+from .symbol_fundamentals import (
+    # Classes
+    SymbolFundamentalsManager,
+    SymbolFundamentals,
+
+    # Functions
+    get_fundamentals_manager,
+    reset_fundamentals_manager,
+    categorize_market_cap,
+)
+
+from .vix_cache import (
+    # Classes
+    VixCacheManager,
+    VixDataPoint,
+
+    # Functions
+    get_vix_manager,
+    reset_vix_manager,
 )
 
 __all__ = [
@@ -120,4 +151,29 @@ __all__ = [
     # Historical Cache Functions
     'get_historical_cache',
     'reset_historical_cache',
+
+    # Earnings History Classes
+    'EarningsHistoryManager',
+    'EarningsRecord',
+
+    # Earnings History Functions
+    'get_earnings_history_manager',
+    'reset_earnings_history_manager',
+
+    # Symbol Fundamentals Classes
+    'SymbolFundamentalsManager',
+    'SymbolFundamentals',
+
+    # Symbol Fundamentals Functions
+    'get_fundamentals_manager',
+    'reset_fundamentals_manager',
+    'categorize_market_cap',
+
+    # VIX Cache Classes
+    'VixCacheManager',
+    'VixDataPoint',
+
+    # VIX Cache Functions
+    'get_vix_manager',
+    'reset_vix_manager',
 ]

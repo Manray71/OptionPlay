@@ -7,17 +7,23 @@ from .max_pain import (
     calculate_max_pain,
     format_max_pain_report
 )
-from .strike_recommender import (
+# Import from canonical locations in src/
+from ..strike_recommender import (
     StrikeRecommender,
     calculate_strike_recommendation
 )
-from .vix_strategy import (
+from ..vix_strategy import (
     VIXStrategySelector,
     MarketRegime,
     VIXThresholds,
     StrategyRecommendation,
     get_strategy_for_vix,
     format_recommendation
+)
+from .liquidity import (
+    LiquidityAssessor,
+    LiquidityInfo,
+    SpreadLiquidity,
 )
 from .black_scholes import (
     BlackScholes,
@@ -49,6 +55,11 @@ __all__ = [
     'StrategyRecommendation',
     'get_strategy_for_vix',
     'format_recommendation',
+
+    # Liquidity Assessment
+    'LiquidityAssessor',
+    'LiquidityInfo',
+    'SpreadLiquidity',
 
     # Black-Scholes Pricing
     'BlackScholes',
