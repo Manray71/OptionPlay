@@ -3,6 +3,7 @@ Scan Handler Module
 ===================
 
 Handles all scanning operations: pullback, bounce, breakout, earnings dip, multi-strategy.
+Includes Daily Recommendation Engine for top trading candidates.
 """
 
 from __future__ import annotations
@@ -13,6 +14,11 @@ from datetime import date, datetime
 from typing import Any, Dict, List, Optional, Callable
 
 from ..scanner.multi_strategy_scanner import ScanMode
+from ..services.recommendation_engine import (
+    DailyRecommendationEngine,
+    DailyPick,
+    DailyRecommendationResult,
+)
 from ..utils.error_handler import mcp_endpoint
 from ..utils.markdown_builder import MarkdownBuilder, truncate
 from ..utils.validation import validate_symbols, is_etf
@@ -40,6 +46,7 @@ class ScanHandlerMixin(BaseHandlerMixin):
         table_columns: Optional[List[str]] = None,
         row_formatter: Optional[Callable] = None,
         no_results_msg: str = "No candidates found.",
+        list_type: str = "stable",
     ) -> str:
         """
         Common scan execution logic for all strategy-specific scans.
@@ -58,6 +65,7 @@ class ScanHandlerMixin(BaseHandlerMixin):
             table_columns: Column headers for results table
             row_formatter: Function to format each signal into a table row
             no_results_msg: Message when no candidates found
+            list_type: "stable", "risk", or "all" - determines which symbols to scan
 
         Returns:
             Formatted Markdown string with scan results
@@ -67,9 +75,13 @@ class ScanHandlerMixin(BaseHandlerMixin):
         # Load and validate symbols
         if not symbols:
             watchlist_loader = get_watchlist_loader()
-            symbols = watchlist_loader.get_all_symbols()
+            # Use stability-based list selection
+            symbols = watchlist_loader.get_symbols_by_list_type(list_type)
+            list_info = f" ({list_type})" if watchlist_loader.stability_split_enabled else ""
+            logger.info(f"Scanning {len(symbols)} symbols{list_info}")
         else:
             symbols = validate_symbols(symbols, skip_invalid=True)
+            list_info = ""
 
         # Apply earnings pre-filter if enabled
         original_count = len(symbols)
@@ -77,9 +89,11 @@ class ScanHandlerMixin(BaseHandlerMixin):
         earnings_cache_hits = 0
 
         scanner_config = self._config.settings.scanner
-        skip_prefilter = mode in [ScanMode.ALL, ScanMode.BEST_SIGNAL]
+        # Note: Previously skipped prefilter for ALL/BEST_SIGNAL modes, but earnings
+        # filter should ALWAYS be applied to avoid trades around earnings events.
+        # The scanner's internal earnings check is a secondary safety layer.
 
-        if scanner_config.auto_earnings_prefilter and not skip_prefilter:
+        if scanner_config.auto_earnings_prefilter:
             min_days = scanner_config.earnings_prefilter_min_days
             for_earnings_dip = (mode == ScanMode.EARNINGS_DIP)
             symbols, excluded_by_earnings, earnings_cache_hits = await self._apply_earnings_prefilter(
@@ -191,6 +205,12 @@ class ScanHandlerMixin(BaseHandlerMixin):
         # Build output
         b = MarkdownBuilder()
         b.h1(f"{emoji} {title}").blank()
+
+        # Show list type info if stability split is active
+        watchlist_loader = get_watchlist_loader()
+        if watchlist_loader.stability_split_enabled and list_type != "all":
+            list_label = "Stable List" if list_type == "stable" else "Risk List"
+            b.kv("List", list_label)
 
         # Show pre-filter stats if active
         if excluded_by_earnings > 0:
@@ -429,6 +449,7 @@ class ScanHandlerMixin(BaseHandlerMixin):
         symbols: Optional[List[str]] = None,
         max_results: int = 10,
         min_score: float = 3.5,
+        list_type: str = "stable",
     ) -> str:
         """
         Multi-strategy scan returning best signal per symbol.
@@ -440,6 +461,10 @@ class ScanHandlerMixin(BaseHandlerMixin):
             symbols: List of symbols to scan
             max_results: Maximum results
             min_score: Minimum score threshold
+            list_type: "stable" (default), "risk", or "all"
+                       - stable: Only symbols with Stability Score >= 60
+                       - risk: Only symbols with Stability Score < 60 or unknown
+                       - all: All symbols from watchlist
 
         Returns:
             Formatted scan results with strategy indication
@@ -461,9 +486,16 @@ class ScanHandlerMixin(BaseHandlerMixin):
                 truncate(signal.reason, 30) if signal.reason else "-"
             ]
 
+        # Adjust title based on list type
+        title_suffix = ""
+        if list_type == "risk":
+            title_suffix = " (Risk List)"
+        elif list_type == "all":
+            title_suffix = " (Full Watchlist)"
+
         return await self._execute_scan(
             mode=ScanMode.BEST_SIGNAL,
-            title="Multi-Strategy Scan",
+            title=f"Multi-Strategy Scan{title_suffix}",
             emoji="[MULTI]",
             symbols=symbols,
             max_results=max_results,
@@ -472,4 +504,388 @@ class ScanHandlerMixin(BaseHandlerMixin):
             table_columns=["Symbol", "Score", "Price", "Strategy", "Signal"],
             row_formatter=format_row,
             no_results_msg="No candidates found across any strategy.",
+            list_type=list_type,
         )
+
+    @mcp_endpoint(operation="daily picks")
+    async def daily_picks(
+        self,
+        symbols: Optional[List[str]] = None,
+        max_picks: int = 5,
+        min_score: float = 3.5,
+        min_stability: float = 70.0,
+        include_strikes: bool = True,
+    ) -> str:
+        """
+        Generate daily trading recommendations (3-5 setups).
+
+        Applies PLAYBOOK filter order:
+        1. Blacklist-Check
+        2. Stability >= 70 (>= 80 in Danger Zone)
+        3. Earnings > 60 days
+        4. VIX < 30 (no new trades above 30)
+        5. Multi-Strategy Scan (Pullback, Bounce, ATH Breakout, Earnings Dip)
+        6. Sector Diversification (max 2 per sector)
+        7. Combined Ranking (70% Signal Score + 30% Stability)
+        8. Strike Recommendations for Bull-Put-Spreads
+
+        Args:
+            symbols: List of symbols to scan (uses watchlist if not provided)
+            max_picks: Maximum number of recommendations (default: 5)
+            min_score: Minimum signal score for ranking (default: 3.5)
+            min_stability: Minimum stability score (default: 70.0)
+            include_strikes: Include strike recommendations (default: True)
+
+        Returns:
+            Formatted Markdown with daily picks and strike recommendations
+        """
+        await self._ensure_connected()
+
+        # Load symbols
+        if not symbols:
+            watchlist_loader = get_watchlist_loader()
+            symbols = watchlist_loader.get_symbols_by_list_type("stable")
+            logger.info(f"Daily picks: scanning {len(symbols)} stable symbols")
+        else:
+            symbols = validate_symbols(symbols, skip_invalid=True)
+
+        # Apply earnings pre-filter (same as _execute_scan pipeline)
+        scanner_config = self._config.settings.scanner
+        excluded_by_earnings = 0
+        if scanner_config.auto_earnings_prefilter:
+            min_days = scanner_config.earnings_prefilter_min_days
+            symbols, excluded_by_earnings, _ = await self._apply_earnings_prefilter(
+                symbols, min_days, for_earnings_dip=False
+            )
+            if excluded_by_earnings > 0:
+                logger.info(
+                    f"Daily picks earnings pre-filter: {excluded_by_earnings} symbols excluded "
+                    f"(earnings within {min_days} days)"
+                )
+
+        # Get current VIX via VixHandlerMixin.get_vix()
+        vix_level = None
+        try:
+            vix_level = await self.get_vix()
+        except Exception as e:
+            logger.warning(f"Could not fetch VIX: {e}")
+
+        # Configure recommendation engine (PLAYBOOK-aligned defaults)
+        from ..constants.trading_rules import SIZING_MAX_PER_SECTOR
+        engine_config = {
+            'min_stability_score': min_stability,
+            'min_signal_score': min_score,
+            'max_picks': max_picks,
+            'enable_strike_recommendations': include_strikes,
+            'enable_sector_diversification': True,
+            'enable_blacklist_filter': True,
+            'enable_vix_regime_filter': True,
+            'max_per_sector': SIZING_MAX_PER_SECTOR,  # PLAYBOOK §5: 2
+        }
+
+        # Use existing scanner from handler
+        scanner = self._get_multi_scanner(
+            min_score=min_score,
+            enable_pullback=True,
+            enable_bounce=True,
+            enable_breakout=True,
+            enable_earnings_dip=True,
+        )
+
+        engine = DailyRecommendationEngine(
+            scanner=scanner,
+            config=engine_config,
+        )
+
+        if vix_level:
+            engine.set_vix(vix_level)
+
+        # Determine historical data requirement
+        historical_days = max(
+            self._config.settings.performance.historical_days,
+            260  # Need 1 year for ATH detection
+        )
+
+        # Pre-fetch historical data
+        prefetch_batch_size = getattr(
+            self._config.settings.performance, 'prefetch_batch_size', 20
+        )
+        prefetch_cache: Dict[str, tuple] = {}
+
+        async def prefetch_batch(batch_symbols: List[str]) -> None:
+            tasks = [
+                self._fetch_historical_cached(sym, days=historical_days)
+                for sym in batch_symbols
+            ]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            for sym, result in zip(batch_symbols, results):
+                if result is not None and not isinstance(result, Exception):
+                    prefetch_cache[sym] = result
+
+        for i in range(0, len(symbols), prefetch_batch_size):
+            batch = symbols[i:i + prefetch_batch_size]
+            await prefetch_batch(batch)
+
+        logger.debug(f"Pre-fetched {len(prefetch_cache)}/{len(symbols)} symbols")
+
+        async def data_fetcher(symbol: str):
+            if symbol in prefetch_cache:
+                return prefetch_cache[symbol]
+            return await self._fetch_historical_cached(symbol, days=historical_days)
+
+        # Options fetcher for liquidity assessment
+        async def options_fetcher(symbol: str):
+            """Fetch options chain for liquidity check."""
+            try:
+                provider = self._get_provider()
+                await self._rate_limiter.acquire()
+                options = await provider.get_option_chain(
+                    symbol, dte_min=60, dte_max=90, right="P"
+                )
+                self._rate_limiter.record_success()
+                return options or []
+            except Exception as e:
+                logger.warning(f"Could not fetch options for {symbol}: {e}")
+                return []
+
+        # Generate picks
+        start_time = datetime.now()
+        result = await engine.get_daily_picks(
+            symbols=symbols,
+            data_fetcher=data_fetcher,
+            max_picks=max_picks,
+            vix=vix_level,
+            options_fetcher=options_fetcher if include_strikes else None,
+        )
+        duration = (datetime.now() - start_time).total_seconds()
+
+        # Format output
+        return self._format_daily_picks_output(result, duration, excluded_by_earnings)
+
+    def _format_daily_picks_output(
+        self,
+        result: DailyRecommendationResult,
+        duration: float,
+        excluded_by_earnings: int = 0,
+    ) -> str:
+        """Format daily picks result as Markdown."""
+        b = MarkdownBuilder()
+
+        # Header
+        b.h1("📊 Daily Picks - Top 20 Candidates").blank()
+
+        # Market Overview
+        if result.vix_level:
+            regime_display = {
+                'low_vol': '🟢 Low Volatility',
+                'normal': '🟢 Normal',
+                'danger_zone': '🟡 Danger Zone',
+                'elevated': '🟠 Elevated',
+                'high_vol': '🔴 High Volatility',
+                'unknown': '⚪ Unknown',
+            }
+            regime_str = regime_display.get(result.market_regime.value, result.market_regime.value)
+            b.kv("VIX", f"{result.vix_level:.2f}")
+            b.kv("Regime", regime_str)
+            b.blank()
+
+        # Warnings
+        if result.warnings:
+            b.h2("⚠️ Warnings").blank()
+            for warning in result.warnings:
+                b.bullet(warning)
+            b.blank()
+
+        # Statistics
+        b.kv("Scanned", f"{result.symbols_scanned} symbols")
+        if excluded_by_earnings > 0:
+            b.kv("Earnings Pre-filter", f"-{excluded_by_earnings} excluded")
+        b.kv("Signals Found", result.signals_found)
+        b.kv("After Stability Filter", result.after_stability_filter)
+        if result.after_liquidity_filter > 0:
+            b.kv("After Liquidity Filter", result.after_liquidity_filter)
+        b.kv("Duration", f"{duration:.1f}s")
+        b.blank()
+
+        # Picks Table
+        if result.picks:
+            b.h2(f"Top {len(result.picks)} Recommendations").blank()
+
+            # Summary table
+            rows = []
+            for pick in result.picks:
+                grade_badge = f"[{pick.reliability_grade}]" if pick.reliability_grade else ""
+                stability_str = f"{pick.stability_score:.0f}" if pick.stability_score else "?"
+
+                # Strategy icon
+                strategy_icons = {
+                    "pullback": "PB",
+                    "bounce": "BN",
+                    "ath_breakout": "ATH",
+                    "earnings_dip": "ED",
+                }
+                strategy_str = strategy_icons.get(pick.strategy, pick.strategy[:3].upper())
+
+                speed_str = f"{pick.speed_score:.1f}" if pick.speed_score is not None else "-"
+
+                rows.append([
+                    f"{pick.rank}",
+                    pick.symbol,
+                    f"{pick.score:.1f}",
+                    stability_str,
+                    speed_str,
+                    strategy_str,
+                    f"${pick.current_price:.2f}" if pick.current_price else "N/A",
+                    pick.sector[:12] if pick.sector else "-",
+                    grade_badge,
+                ])
+
+            b.table(
+                ["#", "Symbol", "Score", "Stab", "Speed", "Type", "Price", "Sector", "Grade"],
+                rows
+            )
+            b.blank()
+
+            # Strike Recommendations Section
+            picks_with_strikes = [p for p in result.picks if p.suggested_strikes]
+            if picks_with_strikes:
+                b.h2("💰 Strike Recommendations").blank()
+
+                strike_rows = []
+                for pick in picks_with_strikes[:10]:  # Top 10 with strikes
+                    s = pick.suggested_strikes
+                    credit_str = f"${s.estimated_credit:.2f}" if s.estimated_credit else "-"
+                    pop_str = f"{s.prob_profit:.0f}%" if s.prob_profit else "-"
+
+                    # C/R% (Credit/Risk ratio)
+                    cr_str = "-"
+                    if s.estimated_credit and s.spread_width and s.spread_width > 0:
+                        cr_pct = (s.estimated_credit / s.spread_width) * 100
+                        if cr_pct >= 20:
+                            cr_badge = "Exzellent"
+                        elif cr_pct >= 15:
+                            cr_badge = "Gut"
+                        elif cr_pct >= 10:
+                            cr_badge = "OK"
+                        else:
+                            cr_badge = "Schlecht"
+                        cr_str = f"{cr_pct:.0f}% [{cr_badge}]"
+
+                    # Expiry / DTE columns
+                    expiry_str = s.expiry[-5:] if s.expiry else "-"  # "03-20" from "2026-03-20"
+                    dte_str = str(s.dte) if s.dte is not None else "-"
+
+                    # Liquidity columns
+                    oi_str = f"{s.short_oi:,}" if s.short_oi else "-"
+                    sprd_str = f"{s.short_spread_pct:.0f}%" if s.short_spread_pct is not None else "-"
+
+                    # Status column
+                    status_badges = {
+                        "READY": "READY",
+                        "WARNING": "WARN",
+                        "NOT_TRADEABLE": "N/T",
+                        "unknown": "-",
+                    }
+                    status_str = status_badges.get(s.tradeable_status, "-")
+
+                    strike_rows.append([
+                        pick.symbol,
+                        f"${s.short_strike:.0f}",
+                        f"${s.long_strike:.0f}",
+                        f"${s.spread_width:.0f}",
+                        credit_str,
+                        cr_str,
+                        pop_str,
+                        expiry_str,
+                        dte_str,
+                        oi_str,
+                        sprd_str,
+                        status_str,
+                    ])
+
+                b.table(
+                    ["Symbol", "Short", "Long", "Width", "Credit", "C/R%", "P(Profit)", "Expiry", "DTE", "OI", "Sprd%", "Status"],
+                    strike_rows
+                )
+                b.blank()
+
+            # Detailed view for top 5
+            b.h2("📋 Top 5 Details").blank()
+            for pick in result.picks[:5]:
+                self._format_single_pick_detail(b, pick)
+
+        else:
+            b.hint("No candidates found matching criteria.")
+
+        return b.build()
+
+    def _format_single_pick_detail(self, b: MarkdownBuilder, pick: DailyPick) -> None:
+        """Format a single pick with details."""
+        # Header with grade
+        grade_str = f" [{pick.reliability_grade}]" if pick.reliability_grade else ""
+        b.h3(f"{pick.rank}. {pick.symbol} - {pick.strategy.replace('_', ' ').title()}{grade_str}")
+
+        # Key metrics
+        b.kv("Price", f"${pick.current_price:.2f}" if pick.current_price else "N/A")
+        b.kv("Score", f"{pick.score:.1f}/10")
+        b.kv("Stability", f"{pick.stability_score:.0f}/100" if pick.stability_score else "Unknown")
+        b.kv("Speed", f"{pick.speed_score:.1f}/10" if pick.speed_score is not None else "-")
+
+        if pick.historical_win_rate:
+            b.kv("Hist. Win Rate", f"{pick.historical_win_rate:.0f}%")
+
+        if pick.sector:
+            b.kv("Sector", pick.sector)
+
+        # Strike recommendation
+        if pick.suggested_strikes:
+            s = pick.suggested_strikes
+            b.blank()
+            b.text("**Strike Recommendation:**")
+            # Expiry + DTE
+            if s.expiry:
+                dte_str = f" ({s.dte} DTE)" if s.dte is not None else ""
+                b.bullet(f"Expiry: {s.expiry}{dte_str}")
+            if s.dte_warning:
+                b.bullet(f"⚠️ {s.dte_warning}")
+            b.bullet(
+                f"Short Put: ${s.short_strike:.2f}"
+                + (f" (OI: {s.short_oi:,})" if s.short_oi else "")
+            )
+            b.bullet(
+                f"Long Put: ${s.long_strike:.2f}"
+                + (f" (OI: {s.long_oi:,})" if s.long_oi else "")
+            )
+            b.bullet(f"Spread Width: ${s.spread_width:.2f}")
+            if s.estimated_credit:
+                b.bullet(f"Est. Credit: ${s.estimated_credit:.2f}")
+                # C/R% display
+                if s.spread_width and s.spread_width > 0:
+                    cr_pct = (s.estimated_credit / s.spread_width) * 100
+                    b.bullet(f"C/R%: {cr_pct:.0f}%")
+                # Fee warning
+                credit_per_contract = s.estimated_credit * 100
+                if credit_per_contract < 40:
+                    fee_pct = (2.60 / credit_per_contract) * 100 if credit_per_contract > 0 else 999
+                    b.bullet(
+                        f"⚠️ Gebührenwarnung: Credit ${credit_per_contract:.0f} — "
+                        f"IBKR-Gebühren ($2.60 RT) = {fee_pct:.1f}% des Ertrags"
+                    )
+            if s.prob_profit:
+                b.bullet(f"P(Profit): {s.prob_profit:.0f}%")
+            # Tradeable status
+            if s.tradeable_status and s.tradeable_status != "unknown":
+                b.bullet(f"Status: {s.tradeable_status}")
+
+        # Reason
+        if pick.reason:
+            b.blank()
+            b.text(f"**Signal:** {truncate(pick.reason, 80)}")
+
+        # Warnings
+        if pick.warnings:
+            b.blank()
+            for warning in pick.warnings:
+                b.bullet(f"⚠️ {warning}")
+
+        b.blank()
