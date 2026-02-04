@@ -510,7 +510,7 @@ class FeatureExtractor:
             try:
                 return date.fromisoformat(d[:10])
             except ValueError:
-                pass
+                logger.debug(f"Could not parse date string: {d!r}, using today")
         return date.today()
 
 

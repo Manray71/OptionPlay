@@ -310,8 +310,8 @@ def plot_support_resistance(
         warnings.simplefilter("ignore")
         try:
             plt.tight_layout()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"tight_layout failed (non-critical): {e}")
 
     return fig, ax
 
@@ -611,8 +611,8 @@ def plot_sr_with_volume_profile(
         warnings.simplefilter("ignore")
         try:
             fig.tight_layout()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"tight_layout failed (non-critical): {e}")
 
     return fig, (ax_price, ax_volume)
 
@@ -1134,7 +1134,7 @@ def plot_price_with_volume_profile(
         warnings.simplefilter("ignore")
         try:
             fig.tight_layout()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"tight_layout failed (non-critical): {e}")
 
     return fig, (ax_price, ax_volume)

@@ -595,8 +595,8 @@ class DailyRecommendationEngine:
             try:
                 regime_rules = get_regime_rules(vix)
                 effective_min = max(min_stability, regime_rules.stability_min)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"get_regime_rules failed for VIX={vix}: {e}")
 
         # Collect symbols that need fundamentals lookup (batch query instead of N+1)
         symbols_needing_lookup = []

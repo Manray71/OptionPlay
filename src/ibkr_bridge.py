@@ -1402,8 +1402,8 @@ class IBKRBridge:
                 for _, opt in qualified:
                     try:
                         self._ib.reqMktData(opt, "100,101,106", False, False)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug(f"IBKR reqMktData failed for {symbol}: {e}")
 
                 # Wait for data
                 await asyncio.sleep(2)
@@ -1479,8 +1479,8 @@ class IBKRBridge:
                 for _, opt in qualified:
                     try:
                         self._ib.cancelMktData(opt)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug(f"IBKR cancelMktData failed: {e}")
 
             logger.info(f"IBKR options chain: {len(results)} options for {symbol}")
             return results

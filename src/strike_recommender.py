@@ -69,7 +69,7 @@ except ImportError:
 try:
     from .vix_strategy import MarketRegime
 except ImportError:
-    pass
+    MarketRegime = None  # VIX regime features disabled
 
 # Black-Scholes for accurate delta calculation
 try:
@@ -1076,8 +1076,8 @@ class StrikeRecommender:
                             volatility=estimated_iv,
                             option_type=OptionType.PUT,
                         )
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug(f"Black-Scholes delta calculation failed: {e}")
 
                 # Heuristic fallback for delta
                 if "delta" not in metrics:

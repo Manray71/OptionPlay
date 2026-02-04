@@ -199,17 +199,17 @@ class VIXService(BaseService):
                     vix = await provider.get_vix()
                 if vix:
                     return (vix, "marketdata")
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"VIX fetch from marketdata failed: {e}")
             return None
-        
+
         async def fetch_yahoo() -> Optional[tuple]:
             try:
                 vix = await asyncio.to_thread(self._fetch_vix_yahoo)
                 if vix:
                     return (vix, "yahoo")
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"VIX fetch from yahoo failed: {e}")
             return None
         
         # Run both concurrently
@@ -247,9 +247,9 @@ class VIXService(BaseService):
                         cached=False,
                         duration_ms=duration_ms
                     )
-            except Exception:
-                pass
-        
+            except Exception as e:
+                logger.debug(f"VIX task result extraction failed: {e}")
+
         # All failed - return cached if available
         if self._context._vix_cache:
             return ServiceResult.ok(

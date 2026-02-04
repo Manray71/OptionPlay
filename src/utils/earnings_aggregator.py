@@ -170,7 +170,7 @@ class EarningsAggregator:
                 earnings_dt = datetime.strptime(consensus_date, "%Y-%m-%d").date()
                 aggregated.days_to_earnings = (earnings_dt - date.today()).days
             except ValueError:
-                pass
+                logger.debug(f"Could not parse consensus earnings date: {consensus_date!r}")
             
             # Calculate confidence score (0-100)
             aggregated.confidence = self._calculate_confidence(

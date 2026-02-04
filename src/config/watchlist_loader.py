@@ -248,7 +248,7 @@ class WatchlistLoader:
                 from src.config.fundamentals_constants import DEFAULT_BLACKLIST
                 blacklist = set(DEFAULT_BLACKLIST)
             except ImportError:
-                pass
+                logger.debug("DEFAULT_BLACKLIST not available, using empty blacklist")
 
         manager = get_fundamentals_manager()
         all_symbols = self._all_symbols
