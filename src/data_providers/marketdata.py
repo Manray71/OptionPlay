@@ -25,8 +25,10 @@
 #     chain = await provider.get_option_chain("AAPL", dte_min=30, dte_max=60)
 
 import asyncio
-import aiohttp
+import json
 import logging
+import urllib.request
+import urllib.error
 from dataclasses import dataclass
 from datetime import datetime, date, timedelta
 from typing import List, Optional, Dict, Any, Tuple
@@ -40,8 +42,7 @@ try:
         OptionQuote,
         HistoricalBar
     )
-    from ..earnings_cache import EarningsInfo, EarningsSource
-    from ..iv_cache import IVData, IVSource, IVCache, get_iv_cache
+    from ..cache import EarningsInfo, EarningsSource, IVData, IVSource, IVCache, get_iv_cache
 except ImportError:
     from data_providers.interface import (
         DataProvider,
@@ -50,8 +51,7 @@ except ImportError:
         OptionQuote,
         HistoricalBar
     )
-    from earnings_cache import EarningsInfo, EarningsSource
-    from iv_cache import IVData, IVSource, IVCache, get_iv_cache
+    from cache import EarningsInfo, EarningsSource, IVData, IVSource, IVCache, get_iv_cache
 
 logger = logging.getLogger(__name__)
 
@@ -116,7 +116,7 @@ class MarketDataProvider(DataProvider):
         config: Optional[MarketDataConfig] = None
     ):
         self.config = config or MarketDataConfig(api_key=api_key)
-        self._session: Optional[aiohttp.ClientSession] = None
+        # Note: Using urllib.request for HTTP calls (Python 3.14 compatible)
         self._connected = False
         self._iv_cache = iv_cache or get_iv_cache()
         self._request_count = 0
@@ -144,42 +144,33 @@ class MarketDataProvider(DataProvider):
         return ["quotes", "historical", "options", "expirations", "earnings", "indices"]
     
     async def connect(self) -> bool:
-        """Verbindung herstellen (Session erstellen)"""
-        if self._session is None or self._session.closed:
-            timeout = aiohttp.ClientTimeout(total=self.config.timeout_seconds)
-            self._session = aiohttp.ClientSession(
-                headers=self.config.headers,
-                timeout=timeout
-            )
-        
-        # Verbindung testen mit Status-Endpoint (skip connect check um Rekursion zu vermeiden)
+        """Verbindung herstellen (Test mit Quote-Endpoint)"""
+        # Using urllib instead of aiohttp/httpx for Python 3.14 compatibility
         try:
-            status = await self._get("/status/", _skip_connect_check=True)
-            self._connected = status is not None and status.get("s") == "ok"
-            
+            # Test mit SPY Quote
+            data = await self._get("/v1/stocks/quotes/SPY/", _skip_connect_check=True)
+            self._connected = data is not None and data.get("s") == "ok"
+
             if self._connected:
                 logger.info("Marketdata.app verbunden")
             else:
                 logger.warning("Marketdata.app Verbindung fehlgeschlagen")
-                
+
             return self._connected
-            
+
         except Exception as e:
             logger.error(f"Marketdata.app Verbindungsfehler: {e}")
             self._connected = False
             return False
-    
+
     async def disconnect(self) -> None:
         """Verbindung trennen"""
-        if self._session and not self._session.closed:
-            await self._session.close()
-        self._session = None
         self._connected = False
         logger.info("Marketdata.app getrennt")
-    
+
     async def is_connected(self) -> bool:
         """Verbindungsstatus"""
-        return self._connected and self._session is not None and not self._session.closed
+        return self._connected
     
     # =========================================================================
     # Stock Quotes
@@ -272,24 +263,25 @@ class MarketDataProvider(DataProvider):
         self,
         symbol: str,
         days: int = 260
-    ) -> Optional[Tuple[List[float], List[int], List[float], List[float]]]:
+    ) -> Optional[Tuple[List[float], List[int], List[float], List[float], List[float]]]:
         """
         Historische Daten im Scanner-Format.
-        
+
         Returns:
-            Tuple von (prices, volumes, highs, lows) oder None
+            Tuple von (prices, volumes, highs, lows, opens) oder None
         """
         bars = await self.get_historical(symbol, days)
-        
+
         if not bars or len(bars) < 50:
             return None
-        
+
         prices = [bar.close for bar in bars]
         volumes = [bar.volume for bar in bars]
         highs = [bar.high for bar in bars]
         lows = [bar.low for bar in bars]
-        
-        return prices, volumes, highs, lows
+        opens = [bar.open for bar in bars]
+
+        return prices, volumes, highs, lows, opens
     
     # =========================================================================
     # Options Data
@@ -463,7 +455,95 @@ class MarketDataProvider(DataProvider):
             updated_at=datetime.now().isoformat(),
             confirmed=True
         )
-    
+
+    async def get_historical_earnings(
+        self,
+        symbol: str,
+        from_date: str = "2020-01-01",
+        to_date: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Historische Earnings-Daten abrufen.
+
+        Args:
+            symbol: Ticker-Symbol
+            from_date: Start-Datum (ISO format, default: 2020-01-01)
+            to_date: End-Datum (ISO format, default: heute)
+
+        Returns:
+            Liste von Dicts mit Earnings-Daten:
+            - earnings_date: Datum des Earnings-Calls
+            - fiscal_year: Geschäftsjahr
+            - fiscal_quarter: Q1, Q2, Q3, Q4
+            - eps_actual: Tatsächlicher EPS
+            - eps_estimate: Erwarteter EPS
+            - eps_surprise: Überraschung (absolut)
+            - eps_surprise_pct: Überraschung in Prozent
+            - time_of_day: 'bmo', 'amc', 'dmh'
+        """
+        symbol = symbol.upper()
+
+        if to_date is None:
+            to_date = date.today().isoformat()
+
+        params = {
+            "from": from_date,
+            "to": to_date
+        }
+
+        data = await self._get(f"/v1/stocks/earnings/{symbol}/", params=params)
+
+        if not data or data.get("s") != "ok":
+            logger.debug(f"Keine historischen Earnings für {symbol}")
+            return []
+
+        # Parse Arrays aus Response
+        report_dates = data.get("reportDate", [])
+        fiscal_years = data.get("fiscalYear", [])
+        fiscal_quarters = data.get("fiscalQuarter", [])
+        report_times = data.get("reportTime", [])
+        eps_reported = data.get("epsReported", [])
+        eps_estimated = data.get("epsEstimate", [])
+        eps_surprise = data.get("epsSurprise", [])
+        eps_surprise_pct = data.get("epsSurprisePct", [])
+
+        results = []
+
+        for i in range(len(report_dates)):
+            try:
+                # Parse Datum
+                rd = report_dates[i]
+                if isinstance(rd, int):
+                    earnings_date = datetime.fromtimestamp(rd).date()
+                else:
+                    earnings_date = datetime.strptime(str(rd), "%Y-%m-%d").date()
+
+                # Fiscal Quarter formatieren (1 -> Q1, etc.)
+                fq = fiscal_quarters[i] if i < len(fiscal_quarters) else None
+                quarter_str = f"Q{fq}" if fq else None
+
+                result = {
+                    "earnings_date": earnings_date.isoformat(),
+                    "fiscal_year": fiscal_years[i] if i < len(fiscal_years) else None,
+                    "fiscal_quarter": quarter_str,
+                    "eps_actual": self._safe_float(eps_reported[i]) if i < len(eps_reported) else None,
+                    "eps_estimate": self._safe_float(eps_estimated[i]) if i < len(eps_estimated) else None,
+                    "eps_surprise": self._safe_float(eps_surprise[i]) if i < len(eps_surprise) else None,
+                    "eps_surprise_pct": self._safe_float(eps_surprise_pct[i]) if i < len(eps_surprise_pct) else None,
+                    "time_of_day": report_times[i] if i < len(report_times) else None
+                }
+                results.append(result)
+
+            except (ValueError, TypeError, IndexError) as e:
+                logger.debug(f"Error parsing earnings record {i} for {symbol}: {e}")
+                continue
+
+        # Nach Datum sortieren (neueste zuerst)
+        results.sort(key=lambda x: x["earnings_date"], reverse=True)
+
+        logger.debug(f"{symbol}: {len(results)} historische Earnings gefunden")
+        return results
+
     # =========================================================================
     # Index Data (VIX etc.)
     # =========================================================================
@@ -554,50 +634,55 @@ class MarketDataProvider(DataProvider):
     
     async def _get(self, endpoint: str, params: Optional[Dict] = None, _skip_connect_check: bool = False) -> Optional[Dict]:
         """GET Request mit Retry-Logik"""
-        # Vermeidung von Rekursion: connect() ruft _get() auf
-        if not _skip_connect_check and not (self._connected and self._session and not self._session.closed):
-            await self.connect()
-        
+        # Using synchronous urllib for Python 3.14 compatibility
+        # (aiohttp and httpx have issues with Python 3.14's asyncio changes)
         url = f"{self.config.base_url}{endpoint}"
-        
+        if params:
+            param_str = "&".join(f"{k}={v}" for k, v in params.items())
+            url = f"{url}?{param_str}"
+
         for attempt in range(self.config.max_retries):
             try:
-                async with self._session.get(url, params=params) as response:
-                    self._request_count += 1
-                    self._last_request_time = datetime.now()
-                    
-                    if response.status in [200, 203]:
-                        return await response.json()
-                    elif response.status == 401:
-                        logger.error("Marketdata.app: Unauthorized - API Key ungültig")
-                        return None
-                    elif response.status == 429:
-                        logger.warning("Marketdata.app: Rate Limit erreicht")
-                        await asyncio.sleep(self.config.retry_delay_seconds * (attempt + 1))
-                    elif response.status == 402:
-                        logger.warning("Marketdata.app: Quota erschöpft")
-                        return None
-                    elif response.status == 404:
-                        # 404 mit "no_data" ist normal (z.B. VIX außerhalb Handelszeiten)
-                        # Nur auf DEBUG-Level loggen
-                        text = await response.text()
-                        if '"no_data"' in text:
-                            logger.debug(f"Marketdata.app: Keine Daten für {endpoint}")
-                        else:
-                            logger.warning(f"Marketdata.app API 404: {endpoint}")
-                        return None
-                    else:
-                        text = await response.text()
-                        logger.warning(f"Marketdata.app API Fehler {response.status}: {text}")
-                        
-            except asyncio.TimeoutError:
-                logger.warning(f"Marketdata.app Timeout (Versuch {attempt + 1})")
-            except aiohttp.ClientError as e:
-                logger.warning(f"Marketdata.app Client Error: {e}")
-            
+                req = urllib.request.Request(url)
+                req.add_header('Authorization', f'Token {self.config.api_key}')
+
+                # Run synchronous urllib in thread pool
+                def do_request():
+                    with urllib.request.urlopen(req, timeout=self.config.timeout_seconds) as response:
+                        return json.loads(response.read().decode())
+
+                data = await asyncio.to_thread(do_request)
+                self._request_count += 1
+                self._last_request_time = datetime.now()
+                self._connected = True
+                return data
+
+            except urllib.error.HTTPError as e:
+                self._request_count += 1
+                self._last_request_time = datetime.now()
+
+                if e.code == 401:
+                    logger.error("Marketdata.app: Unauthorized - API Key ungültig")
+                    return None
+                elif e.code == 429:
+                    logger.warning("Marketdata.app: Rate Limit erreicht")
+                    await asyncio.sleep(self.config.retry_delay_seconds * (attempt + 1))
+                    continue
+                elif e.code == 402:
+                    logger.warning("Marketdata.app: Quota erschöpft")
+                    return None
+                elif e.code == 404:
+                    logger.debug(f"Marketdata.app: Keine Daten für {endpoint}")
+                    return None
+                else:
+                    logger.warning(f"Marketdata.app API Fehler {e.code}: {e.reason}")
+
+            except urllib.error.URLError as e:
+                logger.warning(f"Marketdata.app Netzwerkfehler (Versuch {attempt + 1}): {e}")
+
             if attempt < self.config.max_retries - 1:
                 await asyncio.sleep(self.config.retry_delay_seconds)
-        
+
         return None
     
     def _parse_quote(self, symbol: str, data: Dict) -> PriceQuote:

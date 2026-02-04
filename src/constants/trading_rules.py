@@ -6,7 +6,7 @@
 # If a value here differs from PLAYBOOK.md, this file is WRONG.
 # PLAYBOOK.md is the authoritative document.
 #
-# Last synced with PLAYBOOK.md: 2026-02-03
+# Last synced with PLAYBOOK.md: 2026-02-04
 
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
@@ -107,7 +107,7 @@ SPREAD_LONG_DELTA_MIN = -0.03           # Long put delta minimum (±0.02)
 SPREAD_LONG_DELTA_MAX = -0.07           # Long put delta maximum (±0.02)
 
 # Credit
-SPREAD_MIN_CREDIT_PCT = 20.0            # Min credit as % of spread width
+SPREAD_MIN_CREDIT_PCT = 10.0            # Min credit as % of spread width (PLAYBOOK §2)
 SPREAD_MIN_CREDIT_ABSOLUTE = 20.0       # Min absolute credit per contract (USD)
 SPREAD_FEE_WARNING_THRESHOLD = 40.0     # Warn when credit < this (fee erosion)
 SPREAD_IBKR_ROUND_TRIP_FEE = 2.60      # IBKR fee per spread round-trip (USD)
@@ -253,7 +253,7 @@ EXIT_FORCE_CLOSE_DTE = 7                # Force close, no exceptions
 ROLL_ALLOWED_MAX_LOSS_PCT = 0.0         # Max: break-even (0% loss)
 ROLL_NEW_DTE_MIN = 60                   # New expiration: 60-90 DTE
 ROLL_NEW_DTE_MAX = 90
-ROLL_MIN_CREDIT_PCT = 20.0              # New credit must be >= 20% spread
+ROLL_MIN_CREDIT_PCT = 10.0              # New credit must be >= 10% spread (PLAYBOOK §4)
 
 
 # =============================================================================
@@ -262,7 +262,7 @@ ROLL_MIN_CREDIT_PCT = 20.0              # New credit must be >= 20% spread
 
 SIZING_MAX_RISK_PER_TRADE_PCT = 2.0     # Max 2% portfolio risk per trade
 SIZING_MAX_OPEN_POSITIONS = 10          # Max open positions (VIX < 20)
-SIZING_MAX_PER_SECTOR = 4              # Max positions per sector
+SIZING_MAX_PER_SECTOR = 2              # Max positions per sector (PLAYBOOK §5: "Max 2 bei Normal VIX")
 SIZING_MAX_NEW_TRADES_PER_DAY = 2       # Max new trades per day
 
 

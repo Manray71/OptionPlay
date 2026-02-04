@@ -8,18 +8,14 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime, date
 from enum import Enum
 
-# Import der kanonischen Datenklassen aus den Cache-Modulen
-# Vermeidet doppelte Definitionen und stellt Konsistenz sicher
+# Import canonical data classes from cache package
 try:
-    from src.earnings_cache import EarningsInfo, EarningsSource
-    from src.iv_cache import IVData, IVSource
+    from src.cache import EarningsInfo, EarningsSource, IVData, IVSource
 except ImportError:
     try:
-        from earnings_cache import EarningsInfo, EarningsSource
-        from iv_cache import IVData, IVSource
+        from cache import EarningsInfo, EarningsSource, IVData, IVSource
     except ImportError:
-        from ..earnings_cache import EarningsInfo, EarningsSource
-        from ..iv_cache import IVData, IVSource
+        from ..cache import EarningsInfo, EarningsSource, IVData, IVSource
 
 
 class DataQuality(Enum):

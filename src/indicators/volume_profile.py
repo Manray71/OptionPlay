@@ -296,6 +296,7 @@ SECTOR_MAP: Dict[str, str] = {
 }
 
 # Sector score adjustments based on training (vs 80% baseline)
+# Diese Werte gelten bei normalem VIX (<15)
 SECTOR_ADJUSTMENTS: Dict[str, float] = {
     'Consumer_Staples': 0.9,   # +9% win rate
     'Utilities': 0.68,         # +6.8% win rate
@@ -310,25 +311,116 @@ SECTOR_ADJUSTMENTS: Dict[str, float] = {
     'Technology': -1.0,        # -10% win rate
 }
 
+# VIX-dynamische Sektor-Modifikatoren (Training 2026-01-31)
+# Diese Werte werden bei erhöhtem VIX auf SECTOR_ADJUSTMENTS angewendet
+VIX_SECTOR_MODIFIERS: Dict[str, Dict[str, float]] = {
+    # Financial Services: 6.5% Win Rate Drop wenn VIX über 15
+    # Bei VIX 20-25 (Danger Zone) besonders schlecht
+    'Financials': {
+        'vix_15_plus': -0.65,       # -6.5% WR bei VIX > 15
+        'vix_danger_zone': -1.0,    # Zusätzlich -10% bei VIX 20-25
+    },
+    # Technology leidet auch bei erhöhtem VIX
+    'Technology': {
+        'vix_15_plus': -0.30,       # Zusätzlich -3% bei VIX > 15
+        'vix_danger_zone': -0.50,   # Zusätzlich -5% bei VIX 20-25
+    },
+    # Communication Services - ähnlich wie Tech
+    'Communication': {
+        'vix_15_plus': -0.25,
+        'vix_danger_zone': -0.40,
+    },
+    # Defensive Sektoren werden bei hohem VIX BESSER
+    'Consumer_Staples': {
+        'vix_15_plus': 0.20,        # +2% bei VIX > 15 (Flight to Safety)
+        'vix_danger_zone': 0.30,    # +3% bei VIX 20-25
+    },
+    'Utilities': {
+        'vix_15_plus': 0.25,        # +2.5% bei VIX > 15
+        'vix_danger_zone': 0.35,    # +3.5% bei VIX 20-25
+    },
+}
+
 
 def get_sector(symbol: str) -> str:
     """Get sector for a symbol."""
     return SECTOR_MAP.get(symbol.upper(), 'Unknown')
 
 
-def get_sector_adjustment(symbol: str) -> float:
+def get_sector_adjustment(symbol: str, vix: float = None) -> float:
     """
-    Get score adjustment for a symbol's sector.
+    Get VIX-dynamic score adjustment for a symbol's sector.
 
-    Based on training results:
+    Based on training results (2026-01-31):
     - Consumer Staples, Utilities, Financials: positive adjustment
     - Technology, Materials, Consumer Disc: negative adjustment
+    - Financial Services: 6.5% WR Drop bei VIX > 15!
+    - Defensive Sektoren werden bei hohem VIX BESSER
 
     Args:
         symbol: Stock ticker
+        vix: Current VIX level (optional, for dynamic adjustment)
 
     Returns:
-        Score adjustment value (-1.0 to +0.9)
+        Score adjustment value (can be < -1.0 or > +1.0 with VIX modifiers)
     """
     sector = get_sector(symbol)
-    return SECTOR_ADJUSTMENTS.get(sector, 0.0)
+    base_adjustment = SECTOR_ADJUSTMENTS.get(sector, 0.0)
+
+    # VIX-dynamische Anpassung
+    if vix is not None and sector in VIX_SECTOR_MODIFIERS:
+        modifiers = VIX_SECTOR_MODIFIERS[sector]
+
+        if vix >= 15.0:
+            # Basis-Modifier bei VIX > 15
+            vix_mod = modifiers.get('vix_15_plus', 0.0)
+            base_adjustment += vix_mod
+
+        if 20.0 <= vix < 25.0:
+            # Zusätzlicher Modifier in der Danger Zone (VIX 20-25)
+            danger_mod = modifiers.get('vix_danger_zone', 0.0)
+            base_adjustment += danger_mod
+
+    return base_adjustment
+
+
+def get_sector_adjustment_with_reason(symbol: str, vix: float = None) -> tuple:
+    """
+    Get VIX-dynamic sector adjustment with explanation.
+
+    Returns:
+        (adjustment, sector, reason_string)
+    """
+    sector = get_sector(symbol)
+    base_adjustment = SECTOR_ADJUSTMENTS.get(sector, 0.0)
+    reasons = []
+
+    if base_adjustment > 0:
+        reasons.append(f"{sector}: +{base_adjustment*10:.0f}% base WR")
+    elif base_adjustment < 0:
+        reasons.append(f"{sector}: {base_adjustment*10:.0f}% base WR")
+    else:
+        reasons.append(f"{sector}: neutral base")
+
+    total_adjustment = base_adjustment
+
+    # VIX-dynamische Anpassung
+    if vix is not None and sector in VIX_SECTOR_MODIFIERS:
+        modifiers = VIX_SECTOR_MODIFIERS[sector]
+
+        if vix >= 15.0:
+            vix_mod = modifiers.get('vix_15_plus', 0.0)
+            if vix_mod != 0:
+                total_adjustment += vix_mod
+                direction = "+" if vix_mod > 0 else ""
+                reasons.append(f"VIX>{15}: {direction}{vix_mod*10:.0f}%")
+
+        if 20.0 <= vix < 25.0:
+            danger_mod = modifiers.get('vix_danger_zone', 0.0)
+            if danger_mod != 0:
+                total_adjustment += danger_mod
+                direction = "+" if danger_mod > 0 else ""
+                reasons.append(f"DANGER ZONE: {direction}{danger_mod*10:.0f}%")
+
+    reason_str = ", ".join(reasons)
+    return total_adjustment, sector, reason_str

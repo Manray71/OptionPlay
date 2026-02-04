@@ -1,6 +1,6 @@
 # OptionPlay - Analyzers Package
 # ================================
-# Strategie-Analyzer für verschiedene Trading-Setups
+# Strategy analyzers for various trading setups
 
 from .base import BaseAnalyzer
 from .context import AnalysisContext

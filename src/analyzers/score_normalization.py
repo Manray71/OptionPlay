@@ -1,14 +1,14 @@
 # OptionPlay - Score Normalization
 # ==================================
-# Zentrale Normalisierung für alle Strategie-Scores
+# Central normalization for all strategy scores
 #
-# Problem: Verschiedene Strategien haben unterschiedliche Max-Scores
-# - Pullback: max 26 Punkte
-# - Bounce: max 27 Punkte
-# - ATH Breakout: max 23 Punkte
-# - Earnings Dip: max 21 Punkte
+# Problem: Different strategies have different max scores
+# - Pullback: max 26 points
+# - Bounce: max 27 points
+# - ATH Breakout: max 23 points
+# - Earnings Dip: max 21 points
 #
-# Lösung: Alle Scores auf 0-10 Skala normalisieren für direkte Vergleichbarkeit
+# Solution: Normalize all scores to 0-10 scale for direct comparability
 
 from dataclasses import dataclass
 from typing import Dict, Optional

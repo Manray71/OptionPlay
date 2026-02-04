@@ -37,7 +37,7 @@ class TestBullPutSpreadParams:
 
     def test_invalid_short_strike_below_long(self):
         """Test: Short Strike unter Long Strike wird abgelehnt"""
-        with pytest.raises(ValueError, match="Short Strike muss höher"):
+        with pytest.raises(ValueError, match="Short Strike must be higher"):
             BullPutSpreadParams(
                 symbol="TEST",
                 current_price=100.0,
@@ -49,7 +49,7 @@ class TestBullPutSpreadParams:
 
     def test_invalid_short_strike_equals_long(self):
         """Test: Short Strike gleich Long Strike wird abgelehnt"""
-        with pytest.raises(ValueError, match="Short Strike muss höher"):
+        with pytest.raises(ValueError, match="Short Strike must be higher"):
             BullPutSpreadParams(
                 symbol="TEST",
                 current_price=100.0,
@@ -61,7 +61,7 @@ class TestBullPutSpreadParams:
 
     def test_invalid_negative_credit(self):
         """Test: Negativer Credit wird abgelehnt"""
-        with pytest.raises(ValueError, match="Net Credit muss positiv"):
+        with pytest.raises(ValueError, match="Net Credit must be positive"):
             BullPutSpreadParams(
                 symbol="TEST",
                 current_price=100.0,
@@ -73,7 +73,7 @@ class TestBullPutSpreadParams:
 
     def test_invalid_zero_credit(self):
         """Test: Zero Credit wird abgelehnt"""
-        with pytest.raises(ValueError, match="Net Credit muss positiv"):
+        with pytest.raises(ValueError, match="Net Credit must be positive"):
             BullPutSpreadParams(
                 symbol="TEST",
                 current_price=100.0,
@@ -85,7 +85,7 @@ class TestBullPutSpreadParams:
 
     def test_invalid_short_strike_above_current(self):
         """Test: Short Strike über aktuellem Preis wird abgelehnt (ITM)"""
-        with pytest.raises(ValueError, match="unter dem aktuellen Preis"):
+        with pytest.raises(ValueError, match="Short Strike should be below current price"):
             BullPutSpreadParams(
                 symbol="TEST",
                 current_price=100.0,

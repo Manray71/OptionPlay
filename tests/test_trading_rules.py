@@ -138,7 +138,7 @@ class TestPlaybookSpreadParameters:
         assert SPREAD_LONG_DELTA_MAX == -0.07  # ±0.02
 
     def test_min_credit(self):
-        assert SPREAD_MIN_CREDIT_PCT == 20.0
+        assert SPREAD_MIN_CREDIT_PCT == 10.0  # PLAYBOOK §2: 10% der Spread-Breite
 
 
 class TestPlaybookVIXRegime:
@@ -241,7 +241,7 @@ class TestPlaybookPositionSizing:
         assert SIZING_MAX_OPEN_POSITIONS == 10
 
     def test_max_per_sector(self):
-        assert SIZING_MAX_PER_SECTOR == 4  # PLAYBOOK §5 Grundregeln (VIX regime overrides apply)
+        assert SIZING_MAX_PER_SECTOR == 2  # PLAYBOOK §5: Max 2 Positionen pro Sektor
 
     def test_max_trades_per_day(self):
         assert SIZING_MAX_NEW_TRADES_PER_DAY == 2
@@ -288,7 +288,7 @@ class TestTradingRulesConvenience:
         assert tr.LONG_DELTA == -0.05
         assert tr.MAX_RISK_PCT == 2.0
         assert tr.MAX_POSITIONS == 10
-        assert tr.MAX_PER_SECTOR == 4  # PLAYBOOK §5 Grundregeln
+        assert tr.MAX_PER_SECTOR == 2  # PLAYBOOK §5: Max 2 pro Sektor
         assert tr.PROFIT_EXIT_NORMAL == 50.0
         assert tr.STOP_LOSS_MULT == 2.0
         assert tr.ROLL_DTE == 21
@@ -360,7 +360,7 @@ class TestRollRules:
         assert ROLL_NEW_DTE_MAX == 90
 
     def test_roll_min_credit(self):
-        assert ROLL_MIN_CREDIT_PCT == 20.0
+        assert ROLL_MIN_CREDIT_PCT == 10.0  # PLAYBOOK §4: ≥10% Spread-Breite
 
 
 class TestDisciplineExtended:

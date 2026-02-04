@@ -296,8 +296,8 @@ class MaxPainCalculator:
                         try:
                             exp_part = occ_symbol[-15:-9]
                             chain_expiry = f"20{exp_part}"
-                        except:
-                            pass
+                        except (IndexError, ValueError) as e:
+                            logger.debug(f"Could not parse OCC expiry from {occ_symbol}: {e}")
             
             if not strike or strike <= 0:
                 continue

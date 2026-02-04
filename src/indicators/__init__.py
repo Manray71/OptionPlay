@@ -24,6 +24,15 @@ from .volume_profile import (
     VolumeProfileResult,
     MarketContextResult,
 )
+from .gap_analysis import (
+    detect_gap,
+    analyze_gap,
+    calculate_gap_statistics,
+    calculate_gap_series,
+    gap_type_to_score_factor,
+    is_significant_gap,
+    get_gap_description,
+)
 
 __all__ = [
     # Momentum
@@ -58,4 +67,13 @@ __all__ = [
     'VWAPResult',
     'VolumeProfileResult',
     'MarketContextResult',
+
+    # Gap Analysis
+    'detect_gap',
+    'analyze_gap',
+    'calculate_gap_statistics',
+    'calculate_gap_series',
+    'gap_type_to_score_factor',
+    'is_significant_gap',
+    'get_gap_description',
 ]

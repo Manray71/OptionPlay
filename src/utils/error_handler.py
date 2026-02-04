@@ -158,6 +158,22 @@ class NoDataError(MCPError):
     retryable = False
 
 
+class DataParseError(MCPError):
+    """Error parsing data from API response."""
+    error_code = ErrorCode.DATA_PARSE_ERROR
+    retryable = False
+
+    def __init__(self, message: str, raw_data: Any = None, **kwargs):
+        super().__init__(message, **kwargs)
+        self.raw_data = raw_data
+
+
+class InsufficientDataError(MCPError):
+    """Insufficient data for the requested operation."""
+    error_code = ErrorCode.INSUFFICIENT_DATA
+    retryable = False
+
+
 def format_error_response(
     error: Exception,
     symbol: str = None,
@@ -226,6 +242,20 @@ def format_error_response(
         b.h1(f"📭 No Data Available{context}").blank()
         b.text(error.user_message).blank()
         add_error_metadata(error)
+        return b.build()
+
+    if isinstance(error, DataParseError):
+        b.h1(f"❌ Data Parse Error{context}").blank()
+        b.text("Failed to parse data from API response.").blank()
+        b.kv("Details", str(error)[:200])
+        add_error_metadata(error)
+        return b.build()
+
+    if isinstance(error, InsufficientDataError):
+        b.h1(f"📊 Insufficient Data{context}").blank()
+        b.text(error.user_message).blank()
+        add_error_metadata(error)
+        b.hint("Try with a different symbol or time range.")
         return b.build()
 
     if isinstance(error, ProviderError):

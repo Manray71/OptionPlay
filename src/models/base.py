@@ -231,9 +231,9 @@ class TradeSignal:
     
     @property
     def is_actionable(self) -> bool:
-        """Signal ist handelbar wenn Score >= 5 und LONG/SHORT"""
+        """Signal ist handelbar wenn Score >= 3.5 (normalized 0-10) und LONG/SHORT"""
         return (
-            self.score >= 5 and 
+            self.score >= 3.5 and
             self.signal_type in [SignalType.LONG, SignalType.SHORT]
         )
     

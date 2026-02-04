@@ -30,14 +30,18 @@ from .marketdata import (
     create_scanner_data_fetcher
 )
 
-# EarningsInfo, EarningsSource, IVData, IVSource werden aus den 
-# kanonischen Modulen re-exportiert um Abwärtskompatibilität zu gewährleisten
+# Local Database Provider
+from .local_db import (
+    LocalDBProvider,
+    get_local_db_provider,
+    reset_local_db_provider
+)
+
+# EarningsInfo, EarningsSource, IVData, IVSource from cache package
 try:
-    from ..earnings_cache import EarningsInfo, EarningsSource
-    from ..iv_cache import IVData, IVSource
+    from ..cache import EarningsInfo, EarningsSource, IVData, IVSource
 except ImportError:
-    from earnings_cache import EarningsInfo, EarningsSource
-    from iv_cache import IVData, IVSource
+    from cache import EarningsInfo, EarningsSource, IVData, IVSource
 
 __all__ = [
     # Interface-Klassen
@@ -65,7 +69,12 @@ __all__ = [
     'get_marketdata_provider',
     'fetch_historical',
     'create_scanner_data_fetcher',
-    
+
+    # Local Database Provider
+    'LocalDBProvider',
+    'get_local_db_provider',
+    'reset_local_db_provider',
+
     # Re-exports aus earnings_cache
     'EarningsInfo',
     'EarningsSource',

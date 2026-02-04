@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """
-Spread-Analyse Modul für Bull-Put-Spreads
+Spread Analysis Module for Bull-Put-Spreads
 
-Bietet umfassende Analyse von Credit Spreads:
-- Risk/Reward Kalkulation
-- Break-Even Analyse
-- P&L Szenarien (bei verschiedenen Preisen/Zeiten)
-- Greeks-basierte Sensitivität
-- Profit-Wahrscheinlichkeit
+Provides comprehensive analysis of Credit Spreads:
+- Risk/Reward Calculation
+- Break-Even Analysis
+- P&L Scenarios (at various prices/times)
+- Greeks-based Sensitivity
+- Profit Probability
 
-Verwendung:
+Usage:
     from src.spread_analyzer import SpreadAnalyzer, BullPutSpreadParams
 
     params = BullPutSpreadParams(
@@ -33,7 +33,7 @@ from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Tuple
 from enum import Enum
 
-# Black-Scholes Integration für akkurate Pricing und Greeks
+# Black-Scholes Integration for accurate pricing and Greeks
 try:
     from .options.black_scholes import (
         BlackScholes,
@@ -58,7 +58,7 @@ logger = logging.getLogger(__name__)
 
 
 class SpreadRiskLevel(Enum):
-    """Risiko-Einstufung des Spreads"""
+    """Risk classification of the spread"""
     LOW = "low"
     MODERATE = "moderate"
     HIGH = "high"
@@ -67,34 +67,34 @@ class SpreadRiskLevel(Enum):
 
 @dataclass
 class BullPutSpreadParams:
-    """Parameter für einen Bull-Put-Spread"""
+    """Parameters for a Bull-Put-Spread"""
     symbol: str
     current_price: float
     short_strike: float
     long_strike: float
-    net_credit: float  # Erhaltener Credit pro Aktie
+    net_credit: float  # Credit received per share
     dte: int  # Days to Expiration
     contracts: int = 1
 
-    # Optionale Greeks (wenn verfügbar)
+    # Optional Greeks (if available)
     short_delta: Optional[float] = None
     short_theta: Optional[float] = None
     short_iv: Optional[float] = None
     long_delta: Optional[float] = None
 
     def __post_init__(self):
-        """Validierung der Parameter"""
+        """Validation of parameters"""
         if self.short_strike <= self.long_strike:
-            raise ValueError("Short Strike muss höher als Long Strike sein")
+            raise ValueError("Short Strike must be higher than Long Strike")
         if self.net_credit <= 0:
-            raise ValueError("Net Credit muss positiv sein")
+            raise ValueError("Net Credit must be positive")
         if self.short_strike >= self.current_price:
-            raise ValueError("Short Strike sollte unter dem aktuellen Preis liegen (OTM)")
+            raise ValueError("Short Strike should be below current price (OTM)")
 
 
 @dataclass
 class PnLScenario:
-    """Ein P&L Szenario bei einem bestimmten Preis"""
+    """A P&L scenario at a specific price"""
     price: float
     pnl_per_contract: float
     pnl_total: float
@@ -104,8 +104,8 @@ class PnLScenario:
 
 @dataclass
 class SpreadAnalysis:
-    """Vollständige Analyse eines Bull-Put-Spreads"""
-    # Basis-Metriken
+    """Complete analysis of a Bull-Put-Spread"""
+    # Base metrics
     symbol: str
     current_price: float
     short_strike: float
@@ -115,67 +115,67 @@ class SpreadAnalysis:
     contracts: int
     dte: int
 
-    # Profit/Loss Metriken
-    max_profit: float  # Total (alle Contracts)
-    max_loss: float  # Total (alle Contracts)
+    # Profit/Loss metrics
+    max_profit: float  # Total (all contracts)
+    max_loss: float  # Total (all contracts)
     break_even: float
     risk_reward_ratio: float  # Max Profit / Max Loss
 
-    # Distanzen
+    # Distances
     distance_to_short_strike: float  # in %
     distance_to_break_even: float  # in %
     buffer_to_loss: float  # in %
 
-    # Wahrscheinlichkeiten (geschätzt)
-    prob_profit: float  # P(OTM bei Expiration)
-    prob_max_profit: float  # P(Preis > Short Strike)
+    # Probabilities (estimated)
+    prob_profit: float  # P(OTM at expiration)
+    prob_max_profit: float  # P(Price > Short Strike)
     expected_value: float  # EV = P(profit) * max_profit - P(loss) * avg_loss
 
-    # Risiko-Bewertung
+    # Risk assessment
     risk_level: SpreadRiskLevel
-    credit_to_width_ratio: float  # Credit als % der Spread-Width
+    credit_to_width_ratio: float  # Credit as % of spread width
 
-    # Greeks (wenn verfügbar)
+    # Greeks (if available)
     net_delta: Optional[float] = None
     net_theta: Optional[float] = None
     theta_per_day: Optional[float] = None
 
-    # Szenarien
+    # Scenarios
     scenarios: List[PnLScenario] = field(default_factory=list)
 
-    # Empfehlungen
+    # Recommendations
     warnings: List[str] = field(default_factory=list)
     recommendations: List[str] = field(default_factory=list)
 
     def summary(self) -> str:
-        """Formatierte Zusammenfassung"""
+        """Formatted summary"""
         lines = [
             f"═══════════════════════════════════════════════════════════",
             f"  SPREAD-ANALYSE: {self.symbol}",
             f"═══════════════════════════════════════════════════════════",
             f"",
-            f"  Aktueller Kurs:     ${self.current_price:.2f}",
+            f"  Current Price:      ${self.current_price:.2f}",
             f"  Short Strike:       ${self.short_strike:.2f} ({self.distance_to_short_strike:+.1f}% OTM)",
             f"  Long Strike:        ${self.long_strike:.2f}",
-            f"  Spread-Breite:      ${self.spread_width:.2f}",
+            f"  Spread Width:       ${self.spread_width:.2f}",
             f"  Net Credit:         ${self.net_credit:.2f} x {self.contracts}",
-            f"  DTE:                {self.dte} Tage",
+            f"  DTE:                {self.dte} days",
             f"",
             f"───────────────────────────────────────────────────────────",
             f"  PROFIT/LOSS",
             f"───────────────────────────────────────────────────────────",
-            f"  Max Profit:         ${self.max_profit:,.2f} ({self.credit_to_width_ratio:.0f}% der Width)",
+            f"  Max Profit:         ${self.max_profit:,.2f} ({self.credit_to_width_ratio:.0f}% of width)",
             f"  Max Loss:           ${self.max_loss:,.2f}",
             f"  Risk/Reward:        1:{self.risk_reward_ratio:.2f}",
             f"  Break-Even:         ${self.break_even:.2f} ({self.distance_to_break_even:+.1f}%)",
             f"",
             f"───────────────────────────────────────────────────────────",
-            f"  WAHRSCHEINLICHKEITEN",
+            f"  PROBABILITIES",
             f"───────────────────────────────────────────────────────────",
             f"  P(Profit):          {self.prob_profit:.0f}%",
             f"  P(Max Profit):      {self.prob_max_profit:.0f}%",
             f"  Expected Value:     ${self.expected_value:+.2f}",
-            f"  Risiko-Level:       {self.risk_level.value.upper()}",
+            f"  Risk Level:         {self.risk_level.value.upper()}",
         ]
 
         if self.net_theta:
@@ -185,14 +185,14 @@ class SpreadAnalysis:
                 f"  GREEKS",
                 f"───────────────────────────────────────────────────────────",
                 f"  Net Delta:          {self.net_delta:.3f}" if self.net_delta else "",
-                f"  Net Theta:          ${self.theta_per_day:.2f}/Tag" if self.theta_per_day else "",
+                f"  Net Theta:          ${self.theta_per_day:.2f}/day" if self.theta_per_day else "",
             ])
 
         if self.warnings:
             lines.extend([
                 f"",
                 f"───────────────────────────────────────────────────────────",
-                f"  ⚠️  WARNUNGEN",
+                f"  ⚠️  WARNINGS",
                 f"───────────────────────────────────────────────────────────",
             ])
             for warning in self.warnings:
@@ -202,7 +202,7 @@ class SpreadAnalysis:
             lines.extend([
                 f"",
                 f"───────────────────────────────────────────────────────────",
-                f"  💡 EMPFEHLUNGEN",
+                f"  💡 RECOMMENDATIONS",
                 f"───────────────────────────────────────────────────────────",
             ])
             for rec in self.recommendations:
@@ -213,7 +213,7 @@ class SpreadAnalysis:
         return "\n".join(lines)
 
     def to_dict(self) -> Dict:
-        """Konvertiert zu Dictionary"""
+        """Converts to dictionary"""
         return {
             "symbol": self.symbol,
             "current_price": self.current_price,
@@ -255,40 +255,40 @@ class SpreadAnalysis:
 
 class SpreadAnalyzer:
     """
-    Analysiert Bull-Put-Spreads mit umfassenden Metriken.
+    Analyzes Bull-Put-Spreads with comprehensive metrics.
 
     Features:
-    - Risk/Reward Berechnung
-    - Break-Even Analyse
-    - P&L bei verschiedenen Preisen
-    - Wahrscheinlichkeits-Schätzung
-    - Risiko-Bewertung
+    - Risk/Reward Calculation
+    - Break-Even Analysis
+    - P&L at various prices
+    - Probability Estimation
+    - Risk Assessment
     """
 
-    # Konfigurierbare Schwellenwerte
+    # Configurable thresholds
     DEFAULT_CONFIG = {
-        # Risiko-Levels
+        # Risk levels
         "low_risk_max_credit_pct": 20,  # <20% Credit/Width = Low Risk
         "moderate_risk_max_credit_pct": 30,
         "high_risk_max_credit_pct": 40,
 
-        # Warnungs-Schwellen
-        "min_buffer_pct": 5.0,  # Warnung wenn Buffer < 5%
-        "min_credit_pct": 20.0,  # Warnung wenn Credit < 20% der Width
-        "max_dte_for_theta": 60,  # Theta am effektivsten unter 60 DTE
+        # Warning thresholds
+        "min_buffer_pct": 5.0,  # Warning if buffer < 5%
+        "min_credit_pct": 10.0,  # Warning if credit < 10% of width (PLAYBOOK §2)
+        "max_dte_for_theta": 60,  # Theta most effective under 60 DTE
 
-        # Profit-Target Empfehlungen
-        "profit_target_conservative": 50,  # 50% des Max Profits
+        # Profit target recommendations
+        "profit_target_conservative": 50,  # 50% of max profit
         "profit_target_standard": 65,
         "profit_target_aggressive": 80,
     }
 
     def __init__(self, config: Optional[Dict] = None):
         """
-        Initialisiert den Analyzer.
+        Initializes the Analyzer.
 
         Args:
-            config: Optionale Konfiguration (überschreibt Defaults)
+            config: Optional configuration (overrides defaults)
         """
         self.config = {**self.DEFAULT_CONFIG}
         if config:
@@ -296,15 +296,15 @@ class SpreadAnalyzer:
 
     def analyze(self, params: BullPutSpreadParams) -> SpreadAnalysis:
         """
-        Führt vollständige Analyse eines Bull-Put-Spreads durch.
+        Performs complete analysis of a Bull-Put-Spread.
 
         Args:
-            params: Spread-Parameter
+            params: Spread parameters
 
         Returns:
-            SpreadAnalysis mit allen Metriken
+            SpreadAnalysis with all metrics
         """
-        # Basis-Berechnungen
+        # Base calculations
         spread_width = params.short_strike - params.long_strike
         max_profit_per_contract = params.net_credit * 100
         max_loss_per_contract = (spread_width - params.net_credit) * 100
@@ -317,23 +317,23 @@ class SpreadAnalyzer:
         # Risk/Reward
         risk_reward = max_profit / max_loss if max_loss > 0 else 0
 
-        # Distanzen
+        # Distances
         distance_to_short = ((params.current_price - params.short_strike) /
                              params.current_price * 100)
         distance_to_be = ((params.current_price - break_even) /
                           params.current_price * 100)
-        buffer_to_loss = distance_to_be  # Buffer bis Verlust beginnt
+        buffer_to_loss = distance_to_be  # Buffer until loss begins
 
-        # Credit als % der Spread-Width
+        # Credit as % of spread width
         credit_to_width = (params.net_credit / spread_width) * 100
 
-        # Wahrscheinlichkeiten schätzen
+        # Estimate probabilities
         prob_profit, prob_max_profit = self._estimate_probabilities(
             params, break_even
         )
 
         # Expected Value
-        avg_loss = max_loss * 0.5  # Vereinfacht: durchschnittlicher Verlust
+        avg_loss = max_loss * 0.5  # Simplified: average loss
         expected_value = (prob_profit / 100 * max_profit -
                           (1 - prob_profit / 100) * avg_loss)
 

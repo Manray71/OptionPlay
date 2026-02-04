@@ -292,7 +292,7 @@ class TestEarningsPreFilterIntegration:
         assert hasattr(config, 'auto_earnings_prefilter')
         assert hasattr(config, 'earnings_prefilter_min_days')
         assert config.auto_earnings_prefilter is True  # Default: aktiviert
-        assert config.earnings_prefilter_min_days == 45  # Default: 45 Tage
+        assert config.earnings_prefilter_min_days == 60  # Default: 60 Tage (PLAYBOOK §1)
 
     def test_prefilter_can_be_disabled(self):
         """Pre-Filter sollte deaktivierbar sein"""
@@ -333,7 +333,7 @@ class TestEarningsPreFilterIntegration:
 
             # AAPL: 60 Tage bis Earnings (safe)
             # MSFT: 30 Tage bis Earnings (excluded bei min_days=45)
-            # GOOGL: keine Daten (excluded - konservativ, unknown = nicht safe)
+            # GOOGL: keine Daten (excluded - konservative Logik schließt unbekannte aus)
             def cache_get(symbol):
                 if symbol == "AAPL":
                     return Mock(earnings_date="2025-03-15", days_to_earnings=60)
@@ -355,8 +355,8 @@ class TestEarningsPreFilterIntegration:
 
             assert "AAPL" in safe
             assert "MSFT" not in safe
-            assert "GOOGL" not in safe  # Unknown = excluded (konservativ)
-            assert excluded == 2  # MSFT (zu nah) + GOOGL (unbekannt)
+            assert "GOOGL" not in safe  # Konservative Logik: unknown = excluded
+            assert excluded == 2  # MSFT (zu nah) und GOOGL (unknown)
             assert cache_hits == 2  # AAPL und MSFT waren gecacht
 
 

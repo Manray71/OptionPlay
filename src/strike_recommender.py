@@ -214,8 +214,8 @@ class StrikeRecommender:
         "min_touches_strong": 3,
         "min_touches_moderate": 2,
 
-        # Premium requirements (PLAYBOOK §2: ≥20% Spread-Breite)
-        "min_credit_pct": SPREAD_MIN_CREDIT_PCT,  # 20
+        # Premium requirements (PLAYBOOK §2: ≥10% Spread-Breite)
+        "min_credit_pct": SPREAD_MIN_CREDIT_PCT,  # 10
         "target_credit_pct": 30,  # Ideal: 30%
     }
     

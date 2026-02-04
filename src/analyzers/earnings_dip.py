@@ -1,11 +1,11 @@
 # OptionPlay - Earnings Dip Analyzer
 # ====================================
-# Analysiert Kaufgelegenheiten nach Earnings-bedingten Dips
+# Analyzes buying opportunities after earnings-related dips
 #
-# Strategie: Kaufe wenn gute Aktie nach Earnings überreagiert abverkauft wird
+# Strategy: Buy when good stock is oversold after earnings overreaction
 # - Contrarian/Mean-Reversion Signal
-# - Funktioniert bei Qualitätsaktien mit temporärem Sentiment-Schock
-# - Risiko: Dip ist berechtigt (fundamentale Verschlechterung)
+# - Works with quality stocks experiencing temporary sentiment shock
+# - Risk: Dip is justified (fundamental deterioration)
 
 from dataclasses import dataclass
 from typing import List, Optional, Dict, Any, Tuple
@@ -38,7 +38,7 @@ except ImportError:
 
 @dataclass
 class GapInfo:
-    """Informationen über ein Gap Down"""
+    """Information about a gap down"""
     detected: bool = False
     gap_day_index: int = -1
     gap_size_pct: float = 0.0
@@ -61,7 +61,7 @@ class GapInfo:
 
 @dataclass
 class EarningsDipConfig:
-    """Konfiguration für Earnings Dip Analyzer (Legacy - für Rückwärtskompatibilität)"""
+    """Configuration for Earnings Dip Analyzer (Legacy - for backward compatibility)"""
     # Dip Detection
     min_dip_pct: float = 5.0
     max_dip_pct: float = 25.0
@@ -94,20 +94,20 @@ class EarningsDipConfig:
 
 class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
     """
-    Analysiert Aktien auf Kaufgelegenheiten nach Earnings-Dips.
+    Analyzes stocks for buying opportunities after earnings dips.
 
-    Scoring-Kriterien (erweitert):
-    - Earnings-Dip (5-15%): 0-3 Punkte
-    - Gap-Down bestätigt Earnings-Event: 0-1 Punkt
-    - RSI stark oversold (< 30): 0-2 Punkte
-    - Preis stabilisiert (keine neuen Lows): 0-2 Punkte
-    - Volumen normalisiert: 0-2 Punkte
-    - Langfristiger Aufwärtstrend (über SMA200): 0-2 Punkte
-    - MACD Recovery Signal: 0-2 Punkte (NEU)
-    - Stochastik Recovery: 0-2 Punkte (NEU)
-    - Keltner Channel: 0-2 Punkte (NEU)
+    Scoring criteria (extended):
+    - Earnings dip (5-15%): 0-3 points
+    - Gap-down confirms earnings event: 0-1 point
+    - RSI strongly oversold (< 30): 0-2 points
+    - Price stabilized (no new lows): 0-2 points
+    - Volume normalized: 0-2 points
+    - Long-term uptrend (above SMA200): 0-2 points
+    - MACD Recovery Signal: 0-2 points (NEW)
+    - Stochastic Recovery: 0-2 points (NEW)
+    - Keltner Channel: 0-2 points (NEW)
 
-    Verwendung:
+    Usage:
         analyzer = EarningsDipAnalyzer()
         signal = analyzer.analyze(
             "AAPL", prices, volumes, highs, lows,
@@ -132,7 +132,7 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
 
     @property
     def description(self) -> str:
-        return "Earnings Dip Buy - Kaufe nach übertriebenem Earnings-Abverkauf bei Qualitätsaktien"
+        return "Earnings Dip Buy - Buy after exaggerated earnings selloff in quality stocks"
 
     def analyze(
         self,
@@ -147,14 +147,14 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         **kwargs
     ) -> TradeSignal:
         """
-        Analysiert ein Symbol auf Earnings-Dip-Kaufgelegenheit.
+        Analyzes a symbol for earnings dip buying opportunity.
         """
-        # Input-Validierung
+        # Input validation
         self.validate_inputs(prices, volumes, highs, lows, min_length=60)
 
         current_price = prices[-1]
 
-        # Score Breakdown initialisieren
+        # Initialize score breakdown
         breakdown = EarningsDipScoreBreakdown()
         reasons = []
         warnings = []
@@ -172,13 +172,13 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         if breakdown.dip_score == 0:
             return self.create_neutral_signal(
                 symbol, current_price,
-                dip_result[1].get('reason', 'Kein Earnings-Dip erkannt')
+                dip_result[1].get('reason', 'No earnings dip detected')
             )
 
         reasons.append(f"Earnings-Dip: -{breakdown.dip_pct:.1f}%")
 
         if breakdown.dip_pct > 15:
-            warnings.append(f"Großer Dip (>{breakdown.dip_pct:.0f}%) - erhöhtes Risiko")
+            warnings.append(f"Large dip (>{breakdown.dip_pct:.0f}%) - increased risk")
 
         # 2. Gap Detection (0-1 Punkt)
         gap_result = self._detect_gap_down(prices, highs, lows)
@@ -193,34 +193,34 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         if breakdown.gap_score > 0:
             reasons.append(f"Gap Down -{breakdown.gap_size_pct:.1f}%")
             if breakdown.gap_filled:
-                reasons.append(f"Gap {breakdown.gap_fill_pct:.0f}% gefüllt")
+                reasons.append(f"Gap {breakdown.gap_fill_pct:.0f}% filled")
         else:
             if self.config.analyze_gap:
-                warnings.append("Kein Gap Down erkannt - möglicherweise kein Earnings-Event")
+                warnings.append("No gap down detected - possibly no earnings event")
 
-        # 3. RSI Oversold (0-2 Punkte)
+        # 3. RSI Oversold (0-2 points)
         rsi_result = self._score_rsi_oversold(prices)
         breakdown.rsi_score = rsi_result[0]
         breakdown.rsi_value = rsi_result[1]
         breakdown.rsi_reason = f"RSI={breakdown.rsi_value:.1f}"
 
         if breakdown.rsi_score >= 2:
-            reasons.append(f"Stark oversold (RSI {breakdown.rsi_value:.0f})")
+            reasons.append(f"Strongly oversold (RSI {breakdown.rsi_value:.0f})")
         elif breakdown.rsi_score == 1:
             reasons.append(f"Oversold (RSI {breakdown.rsi_value:.0f})")
 
-        # 4. Stabilisierung (0-2 Punkte)
+        # 4. Stabilization (0-2 points)
         stab_result = self._score_stabilization(lows)
         breakdown.stabilization_score = stab_result[0]
         breakdown.days_without_new_low = stab_result[1].get('days_without_new_low', 0)
         breakdown.stabilization_reason = f"{breakdown.days_without_new_low} days without new low"
 
         if breakdown.stabilization_score > 0:
-            reasons.append(f"Preis stabilisiert ({breakdown.days_without_new_low} Tage ohne neues Low)")
+            reasons.append(f"Price stabilized ({breakdown.days_without_new_low} days without new low)")
         else:
-            warnings.append("Noch keine Stabilisierung - möglicherweise zu früh")
+            warnings.append("No stabilization yet - possibly too early")
 
-        # 5. Volumen-Normalisierung (0-2 Punkte) - erweitert
+        # 5. Volume normalization (0-2 points) - extended
         vol_result = self._score_volume_normalization(volumes)
         breakdown.volume_score = vol_result[0]
         breakdown.volume_ratio = vol_result[1].get('multiplier', 0)
@@ -228,9 +228,9 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         breakdown.volume_reason = vol_result[1].get('reason', '')
 
         if breakdown.volume_score > 0:
-            reasons.append("Verkaufsdruck lässt nach")
+            reasons.append("Selling pressure declining")
 
-        # 6. Langfristiger Trend (0-2 Punkte)
+        # 6. Long-term trend (0-2 points)
         trend_result = self._score_long_term_trend(prices)
         breakdown.trend_score = trend_result[0]
         breakdown.trend_status = trend_result[1].get('trend', 'unknown')
@@ -238,11 +238,11 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         breakdown.trend_reason = f"Trend: {breakdown.trend_status}"
 
         if breakdown.trend_score >= 2:
-            reasons.append("Langfristiger Aufwärtstrend intakt")
+            reasons.append("Long-term uptrend intact")
         elif breakdown.trend_score == 0:
-            warnings.append("Unter SMA200 - schwächerer langfristiger Trend")
+            warnings.append("Below SMA200 - weaker long-term trend")
 
-        # 7. MACD Recovery Score (0-2 Punkte) - NEU
+        # 7. MACD Recovery Score (0-2 points) - NEW
         macd_result = self._calculate_macd(prices)
         macd_score_result = self._score_macd_recovery(macd_result, prices)
         breakdown.macd_score = macd_score_result[0]
@@ -256,7 +256,7 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         elif breakdown.macd_score > 0:
             reasons.append("MACD recovery signs")
 
-        # 8. Stochastik Recovery (0-2 Punkte) - NEU
+        # 8. Stochastic Recovery (0-2 points) - NEW
         stoch_result = self._calculate_stochastic(prices, highs, lows)
         stoch_score_result = self._score_stochastic(stoch_result)
         breakdown.stoch_score = stoch_score_result[0]
@@ -270,7 +270,7 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         elif breakdown.stoch_score > 0:
             reasons.append("Stoch oversold")
 
-        # 9. Keltner Channel (0-2 Punkte) - NEU
+        # 9. Keltner Channel (0-2 points) - NEW
         keltner_result = self._calculate_keltner_channel(prices, highs, lows)
         if keltner_result:
             keltner_score_result = self._score_keltner(keltner_result, current_price)
@@ -287,7 +287,7 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         # NEW: Apply Feature Engineering scores (VWAP, Market Context, Sector)
         self._apply_feature_scores(breakdown, symbol, prices, volumes, context)
 
-        # Total Score berechnen
+        # Calculate total score
         breakdown.total_score = (
             breakdown.dip_score +
             breakdown.gap_score +
@@ -304,17 +304,20 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         )
         breakdown.max_possible = 24  # Updated for new features
 
-        # Signal-Stärke bestimmen
-        if breakdown.total_score >= 13:
+        # Normalize score to 0-10 scale for fair cross-strategy comparison
+        normalized_score = (breakdown.total_score / breakdown.max_possible) * 10
+
+        # Determine signal strength (based on normalized 0-10 scale)
+        if normalized_score >= 7:
             strength = SignalStrength.STRONG
-        elif breakdown.total_score >= 9:
+        elif normalized_score >= 5:
             strength = SignalStrength.MODERATE
-        elif breakdown.total_score >= 6:
+        elif normalized_score >= 3:
             strength = SignalStrength.WEAK
         else:
             strength = SignalStrength.NONE
 
-        # Entry/Stop/Target berechnen
+        # Calculate Entry/Stop/Target
         entry_price = current_price
         dip_low = dip_result[1].get('dip_low', min(lows[-5:]))
         stop_loss = dip_low * (1 - self.config.stop_below_dip_low_pct / 100)
@@ -326,9 +329,9 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         return TradeSignal(
             symbol=symbol,
             strategy=self.strategy_name,
-            signal_type=SignalType.LONG if breakdown.total_score >= self.scoring_config.min_score_for_signal else SignalType.NEUTRAL,
+            signal_type=SignalType.LONG if normalized_score >= 3.5 else SignalType.NEUTRAL,
             strength=strength,
-            score=min(breakdown.total_score, self.scoring_config.max_score),
+            score=round(normalized_score, 1),  # Normalized 0-10 score
             current_price=current_price,
             entry_price=entry_price,
             stop_loss=stop_loss,
@@ -336,6 +339,8 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             reason=" | ".join(reasons),
             details={
                 'score_breakdown': breakdown.to_dict(),
+                'raw_score': breakdown.total_score,
+                'max_possible': breakdown.max_possible,
                 'dip_info': dip_result[1],
                 'gap_info': gap_info.to_dict() if gap_info.detected else None,
                 'trend_info': trend_result[1],
@@ -353,7 +358,7 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         earnings_date: Optional[date],
         pre_earnings_price: Optional[float]
     ) -> Tuple[int, Dict[str, Any]]:
-        """Erkennt Earnings-Dip"""
+        """Detects earnings dip"""
         cfg = self.scoring_config.dip_detection
         lookback = cfg.lookback_days
 
@@ -362,7 +367,7 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             'lookback_days': lookback
         }
 
-        # Pre-Earnings Preis bestimmen
+        # Determine pre-earnings price
         if pre_earnings_price:
             pre_price = pre_earnings_price
         else:
@@ -380,7 +385,7 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         info['current_price'] = current_price
         info['dip_low'] = dip_low
 
-        # Dip berechnen
+        # Calculate dip
         dip_from_pre = (1 - dip_low / pre_price) * 100
         dip_from_current = (1 - current_price / pre_price) * 100
 
@@ -389,20 +394,20 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
 
         # Scoring
         if dip_from_current < cfg.min_dip_pct:
-            info['reason'] = f"Dip zu klein ({dip_from_current:.1f}% < {cfg.min_dip_pct}%)"
+            info['reason'] = f"Dip too small ({dip_from_current:.1f}% < {cfg.min_dip_pct}%)"
             return 0, info
 
         if dip_from_current > cfg.max_dip_pct:
-            info['reason'] = f"Dip zu groß ({dip_from_current:.1f}% > {cfg.max_dip_pct}%) - zu riskant"
+            info['reason'] = f"Dip too large ({dip_from_current:.1f}% > {cfg.max_dip_pct}%) - too risky"
             return 0, info
 
-        # Score basierend auf Dip-Größe
+        # Score based on dip size
         if cfg.min_dip_pct <= dip_from_current <= cfg.ideal_max_dip_pct:
-            return int(cfg.weight_ideal), info  # Idealer Dip (5-10%)
+            return int(cfg.weight_ideal), info  # Ideal dip (5-10%)
         elif dip_from_current <= 15:
-            return int(cfg.weight_moderate), info  # Moderater Dip (10-15%)
+            return int(cfg.weight_moderate), info  # Moderate dip (10-15%)
         else:
-            return int(cfg.weight_large), info  # Großer Dip (15-25%)
+            return int(cfg.weight_large), info  # Large dip (15-25%)
 
     def _detect_gap_down(
         self,
@@ -410,7 +415,7 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         highs: List[float],
         lows: List[float]
     ) -> Tuple[int, GapInfo]:
-        """Erkennt Gap Downs"""
+        """Detects gap downs"""
         cfg = self.scoring_config.gap_analysis
         lookback = self.config.dip_lookback_days
         min_gap_pct = cfg.min_gap_pct
@@ -455,7 +460,7 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
 
                     return int(cfg.weight_gap_detected), gap_info
 
-            # Alternative: Schlusskurs fällt stark
+            # Alternative: Closing price falls sharply
             current_close = prices[idx]
             if current_close < prev_low * (1 - min_gap_pct / 100):
                 gap_size = prev_low - current_close
@@ -483,7 +488,7 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         return 0, gap_info
 
     def _score_rsi_oversold(self, prices: List[float]) -> Tuple[int, float]:
-        """RSI-Score für starke Oversold-Bedingung"""
+        """RSI score for strong oversold condition"""
         period = 14
 
         if len(prices) < period + 1:
@@ -510,7 +515,7 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             return 0, rsi
 
     def _score_stabilization(self, lows: List[float]) -> Tuple[int, Dict[str, Any]]:
-        """Prüft ob sich der Preis stabilisiert hat"""
+        """Checks if the price has stabilized"""
         cfg = self.scoring_config.stabilization
 
         if len(lows) < 5:
@@ -535,7 +540,7 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             return 0, info
 
     def _score_volume_normalization(self, volumes: List[int]) -> Tuple[int, Dict[str, Any]]:
-        """Prüft ob das Panik-Volumen nachlässt - erweitert"""
+        """Checks if panic volume is declining - extended"""
         if len(volumes) < 10:
             return 0, {'trend': 'unknown', 'reason': 'Insufficient data'}
 
@@ -552,7 +557,7 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             'multiplier': multiplier
         }
 
-        # Volume-Trend der letzten 5 Tage
+        # Volume trend of the last 5 days
         recent_volumes = volumes[-5:]
         if len(recent_volumes) >= 3:
             vol_trend = recent_volumes[-1] / recent_volumes[0] if recent_volumes[0] > 0 else 1
@@ -567,13 +572,13 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
 
         score = 0
 
-        # 1. Volumen normalisiert sich von Spike (1 Punkt)
+        # 1. Volume normalizing from spike (1 point)
         if early_volume > avg_volume * 2:
             if current_volume < early_volume * 0.6:
                 score += 1
                 info['reason'] = "Volume normalizing from spike"
 
-        # 2. Volume-Trend ist abnehmend (1 Punkt)
+        # 2. Volume trend is declining (1 point)
         if info['trend'] == 'normalizing':
             score += 1
             info['reason'] = info.get('reason', '') + " | Volume declining"
@@ -584,7 +589,7 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         return score, info
 
     def _score_long_term_trend(self, prices: List[float]) -> Tuple[int, Dict[str, Any]]:
-        """Langfristiger Trend-Check"""
+        """Long-term trend check"""
         sma_200 = sum(prices[-200:]) / 200 if len(prices) >= 200 else sum(prices) / len(prices)
         sma_50 = sum(prices[-50:]) / 50 if len(prices) >= 50 else sum(prices) / len(prices)
 
@@ -616,7 +621,7 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             return 0, info
 
     # =========================================================================
-    # MACD RECOVERY SCORING (NEU)
+    # MACD RECOVERY SCORING (NEW)
     # =========================================================================
 
     def _calculate_macd(
@@ -626,7 +631,7 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         slow: int = 26,
         signal: int = 9
     ) -> Optional[MACDResult]:
-        """Berechnet MACD"""
+        """Calculates MACD"""
         if len(prices) < slow + signal:
             return None
 
@@ -668,7 +673,7 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         macd: Optional[MACDResult],
         prices: List[float]
     ) -> Tuple[float, str, str, bool]:
-        """MACD Score für Recovery (0-2 Punkte)"""
+        """MACD Score for Recovery (0-2 points)"""
         if not macd:
             return 0, "No MACD data", "neutral", False
 
@@ -693,7 +698,7 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         return 0, "MACD still bearish", "bearish", False
 
     # =========================================================================
-    # STOCHASTIC SCORING (NEU)
+    # STOCHASTIC SCORING (NEW)
     # =========================================================================
 
     def _calculate_stochastic(
@@ -704,7 +709,7 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         k_period: int = 14,
         d_period: int = 3
     ) -> Optional[StochasticResult]:
-        """Berechnet Stochastic Oscillator"""
+        """Calculates Stochastic Oscillator"""
         if len(prices) < k_period + d_period:
             return None
 
@@ -760,7 +765,7 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         )
 
     def _score_stochastic(self, stoch: Optional[StochasticResult]) -> Tuple[float, str, str]:
-        """Stochastic Score (0-2 Punkte)"""
+        """Stochastic Score (0-2 points)"""
         if not stoch:
             return 0, "No Stochastic data", "neutral"
 
@@ -777,7 +782,7 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         return 0, f"Stoch neutral (K={stoch.k:.0f})", "neutral"
 
     # =========================================================================
-    # KELTNER CHANNEL (NEU)
+    # KELTNER CHANNEL (NEW)
     # =========================================================================
 
     def _calculate_keltner_channel(
@@ -786,7 +791,7 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         highs: List[float],
         lows: List[float]
     ) -> Optional[KeltnerChannelResult]:
-        """Berechnet Keltner Channel"""
+        """Calculates Keltner Channel"""
         cfg = self.scoring_config.keltner
         min_required = max(cfg.ema_period, cfg.atr_period) + 1
 
@@ -842,31 +847,31 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         keltner: KeltnerChannelResult,
         current_price: float
     ) -> Tuple[float, str]:
-        """Keltner Channel Score für Earnings Dip (0-2 Punkte)"""
+        """Keltner Channel Score for Earnings Dip (0-2 points)"""
         cfg = self.scoring_config.keltner
         position = keltner.price_position
         pct = keltner.percent_position
 
         if position == 'below_lower':
-            return cfg.weight_below_lower, f"Preis unter Keltner Lower Band ({pct:.2f})"
+            return cfg.weight_below_lower, f"Price below Keltner Lower Band ({pct:.2f})"
 
         if position == 'near_lower':
-            return cfg.weight_near_lower, f"Preis nahe Keltner Lower Band ({pct:.2f})"
+            return cfg.weight_near_lower, f"Price near Keltner Lower Band ({pct:.2f})"
 
         if position == 'in_channel' and pct < -0.3:
-            return cfg.weight_mean_reversion * 0.5, f"Recovery im unteren Channel ({pct:.2f})"
+            return cfg.weight_mean_reversion * 0.5, f"Recovery in lower channel ({pct:.2f})"
 
         if position == 'above_upper':
-            return 0, f"Preis über Keltner Upper Band ({pct:.2f})"
+            return 0, f"Price above Keltner Upper Band ({pct:.2f})"
 
-        return 0, f"Preis in neutraler Channel-Position ({pct:.2f})"
+        return 0, f"Price in neutral channel position ({pct:.2f})"
 
     # =========================================================================
     # HELPER METHODS
     # =========================================================================
 
     def _calculate_ema(self, values: List[float], period: int) -> Optional[List[float]]:
-        """Berechnet Exponential Moving Average"""
+        """Calculates Exponential Moving Average"""
         if len(values) < period:
             return None
 
@@ -885,7 +890,7 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         closes: List[float],
         period: int = 14
     ) -> Optional[float]:
-        """Berechnet Average True Range (ATR)"""
+        """Calculates Average True Range (ATR)"""
         if len(highs) < period + 1:
             return None
 

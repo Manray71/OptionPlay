@@ -608,7 +608,7 @@ class TestBounceScoreBreakdown:
         signal = analyzer.analyze("TEST", prices, volumes, highs, lows)
         breakdown = signal.details['score_breakdown']
 
-        # Calculate expected total from components
+        # Calculate expected total from components (including new feature scores)
         components = breakdown['components']
         expected_total = sum([
             components['support']['score'],
@@ -618,19 +618,24 @@ class TestBounceScoreBreakdown:
             components['trend']['score'],
             components['macd']['score'],
             components['stochastic']['score'],
-            components['keltner']['score']
+            components['keltner']['score'],
+            # New feature scores from feature engineering
+            components.get('vwap', {}).get('score', 0),
+            components.get('market_context', {}).get('score', 0),
+            components.get('sector', {}).get('score', 0),
+            components.get('gap', {}).get('score', 0),
         ])
 
         assert abs(breakdown['total_score'] - expected_total) < 0.01
 
-    def test_max_possible_is_17(self, analyzer, full_data):
-        """Max possible score should be 17"""
+    def test_max_possible_is_27(self, analyzer, full_data):
+        """Max possible score should be 27 (includes gap score)"""
         prices, volumes, highs, lows = full_data
 
         signal = analyzer.analyze("TEST", prices, volumes, highs, lows)
         breakdown = signal.details['score_breakdown']
 
-        assert breakdown['max_possible'] == 17
+        assert breakdown['max_possible'] == 27
 
 
 class TestBounceHelperMethods:

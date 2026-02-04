@@ -20,8 +20,8 @@ from ..utils.markdown_builder import MarkdownBuilder
 from ..utils.validation import validate_symbol
 from ..vix_strategy import (
     get_strategy_for_vix, get_strategy_for_stock,
-    calculate_spread_width, get_spread_width_table
 )
+from ..constants import DELTA_TARGET, DELTA_LONG_TARGET
 from ..formatters import formatters
 from ..indicators.events import EventCalendar, EventType
 from .base import BaseHandlerMixin
@@ -266,13 +266,16 @@ class VixHandlerMixin(BaseHandlerMixin):
     @mcp_endpoint(operation="strategy for stock", symbol_param="symbol")
     async def get_strategy_for_stock(self, symbol: str) -> str:
         """
-        Get strategy recommendation with dynamic spread width based on stock price.
+        Get strategy recommendation based on stock price and VIX regime.
+
+        Spread width is determined dynamically by delta-based strike selection.
+        Use recommend_strikes for specific strike recommendations.
 
         Args:
             symbol: Ticker symbol
 
         Returns:
-            Formatted Markdown recommendation with optimal spread width
+            Formatted Markdown recommendation
         """
         symbol = validate_symbol(symbol)
 
@@ -296,28 +299,17 @@ class VixHandlerMixin(BaseHandlerMixin):
         b.kv_line("Stock Price", f"${stock_price:.2f}")
         b.blank()
 
-        b.h2("Base Strategy: Short Put")
-        b.kv_line("Delta-Target", f"{recommendation.delta_target}")
+        b.h2("Base Strategy: Bull-Put-Spread")
+        b.kv_line("Short Put Delta", f"{recommendation.delta_target}")
+        b.kv_line("Long Put Delta", f"{recommendation.long_delta_target}")
         b.kv_line("Delta-Range", f"[{recommendation.delta_min}, {recommendation.delta_max}]")
         b.kv_line("DTE", f"{recommendation.dte_min}-{recommendation.dte_max} days")
         b.kv_line("Earnings-Buffer", f">{recommendation.earnings_buffer_days} days")
-        b.blank()
-
-        b.h2("Dynamic Spread Width")
-        b.kv_line("Recommended Width", f"${recommendation.spread_width:.2f}")
+        b.kv_line("Spread Width", "Dynamic (delta-based)")
         b.kv_line("Min-Score", f"{recommendation.min_score}")
         b.blank()
 
-        # Spread width table
-        spread_table = get_spread_width_table(stock_price)
-        b.h3("Spread Width by Regime")
-        rows = [
-            ["Low Vol (VIX <15)", f"${spread_table['low_vol']:.2f}"],
-            ["Normal (VIX 15-20)", f"${spread_table['normal']:.2f}"],
-            ["Elevated (VIX 20-30)", f"${spread_table['elevated']:.2f}"],
-            ["High Vol (VIX >30)", f"${spread_table['high_vol']:.2f}"],
-        ]
-        b.table(["Regime", "Spread"], rows)
+        b.hint("Use `recommend_strikes` for specific strike recommendations with delta-based spread width.")
         b.blank()
 
         b.h2("Reasoning")
@@ -328,54 +320,6 @@ class VixHandlerMixin(BaseHandlerMixin):
             b.h2("Warnings")
             for warning in recommendation.warnings:
                 b.text(f"* {warning}")
-
-        return b.build()
-
-    @mcp_endpoint(operation="spread width calculation", symbol_param="symbol")
-    async def get_spread_width(self, symbol: str) -> str:
-        """
-        Calculate optimal spread width for a symbol based on price and VIX.
-
-        Args:
-            symbol: Ticker symbol
-
-        Returns:
-            Spread width recommendation table
-        """
-        symbol = validate_symbol(symbol)
-
-        quote = await self._get_quote_cached(symbol)
-
-        if not quote or not quote.last:
-            return f"Cannot get quote for {symbol}"
-
-        stock_price = quote.last
-        vix = await self.get_vix()
-        regime = self._vix_selector.get_regime(vix)
-
-        current_spread = calculate_spread_width(stock_price, regime)
-        spread_table = get_spread_width_table(stock_price)
-
-        b = MarkdownBuilder()
-        b.h1(f"Spread Width: {symbol}").blank()
-
-        b.kv_line("Stock Price", f"${stock_price:.2f}")
-        b.kv_line("VIX", f"{vix:.2f}" if vix else "N/A")
-        b.kv_line("Regime", regime.value if regime else "unknown")
-        b.blank()
-
-        b.h2("Recommended Spread Width")
-        b.kv_line("Current Recommendation", f"${current_spread:.2f}")
-        b.blank()
-
-        b.h2("Table by VIX Regime")
-        rows = [
-            ["Low Vol (VIX <15)", f"${spread_table['low_vol']:.2f}"],
-            ["Normal (VIX 15-20)", f"${spread_table['normal']:.2f}"],
-            ["Elevated (VIX 20-30)", f"${spread_table['elevated']:.2f}"],
-            ["High Vol (VIX >30)", f"${spread_table['high_vol']:.2f}"],
-        ]
-        b.table(["Regime", "Spread Width"], rows)
 
         return b.build()
 

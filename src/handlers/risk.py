@@ -250,7 +250,7 @@ class RiskHandlerMixin(BaseHandlerMixin):
             net_credit=net_credit,
             dte=dte,
             contracts=contracts,
-            underlying_price=current_price,
+            current_price=current_price,
         )
 
         # Analyze spread

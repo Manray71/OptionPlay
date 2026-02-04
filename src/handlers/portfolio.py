@@ -15,6 +15,7 @@ from ..utils.markdown_builder import MarkdownBuilder
 from ..utils.validation import validate_symbol
 from ..portfolio import get_portfolio_manager
 from ..formatters import portfolio_formatter
+from ..services.portfolio_constraints import get_constraint_checker
 from .base import BaseHandlerMixin
 
 logger = logging.getLogger(__name__)
@@ -86,6 +87,7 @@ class PortfolioHandlerMixin(BaseHandlerMixin):
         credit: float,
         contracts: int = 1,
         notes: str = "",
+        skip_constraints: bool = False,
     ) -> str:
         """
         Add a new Bull Put Spread position.
@@ -98,12 +100,48 @@ class PortfolioHandlerMixin(BaseHandlerMixin):
             credit: Net credit received per share
             contracts: Number of contracts
             notes: Optional notes
+            skip_constraints: If True, skip constraint checks (for manual overrides)
 
         Returns:
             Confirmation message
         """
         symbol = validate_symbol(symbol)
         portfolio = get_portfolio_manager()
+
+        # Calculate max risk for constraint check
+        spread_width = short_strike - long_strike
+        max_risk = spread_width * 100 * contracts
+
+        # Check constraints before adding position
+        if not skip_constraints:
+            open_positions = [
+                {"symbol": p.symbol}
+                for p in portfolio.get_open_positions()
+            ]
+
+            checker = get_constraint_checker()
+            result = checker.check_all_constraints(
+                symbol=symbol,
+                max_risk=max_risk,
+                open_positions=open_positions
+            )
+
+            # Build response with warnings even if allowed
+            b = MarkdownBuilder()
+
+            if not result.allowed:
+                b.h1("Position Blocked").blank()
+                b.text("The following constraints prevent this trade:").blank()
+                for blocker in result.blockers:
+                    b.text(f"  {blocker}")
+                b.blank()
+                b.text("Use `skip_constraints=True` to override (not recommended).")
+                return b.build()
+
+            # Show warnings but continue
+            warnings_output = []
+            if result.warnings:
+                warnings_output = result.warnings
 
         try:
             position = portfolio.add_bull_put_spread(
@@ -122,6 +160,15 @@ class PortfolioHandlerMixin(BaseHandlerMixin):
             b.kv("Symbol", position.symbol)
             b.kv("Strikes", f"${long_strike}/{short_strike}")
             b.kv("Credit", f"${credit:.2f} x {contracts}")
+            b.kv("Max Risk", f"${max_risk:.2f}")
+
+            # Show warnings if any
+            if not skip_constraints and warnings_output:
+                b.blank()
+                b.h2("Warnings")
+                for warning in warnings_output:
+                    b.text(f"  {warning}")
+
             return b.build()
 
         except ValueError as e:
@@ -234,3 +281,99 @@ class PortfolioHandlerMixin(BaseHandlerMixin):
         portfolio = get_portfolio_manager()
         pnl = portfolio.get_monthly_pnl()
         return portfolio_formatter.format_monthly_pnl(pnl)
+
+    @sync_endpoint(operation="constraint check")
+    def portfolio_check(
+        self,
+        symbol: str,
+        max_risk: float = 500.0,
+    ) -> str:
+        """
+        Check if a new position can be opened (constraint check).
+
+        Args:
+            symbol: Ticker symbol to check
+            max_risk: Maximum risk in USD (default $500)
+
+        Returns:
+            Constraint check result
+        """
+        symbol = validate_symbol(symbol)
+        portfolio = get_portfolio_manager()
+
+        open_positions = [
+            {"symbol": p.symbol}
+            for p in portfolio.get_open_positions()
+        ]
+
+        checker = get_constraint_checker()
+        result = checker.check_all_constraints(
+            symbol=symbol,
+            max_risk=max_risk,
+            open_positions=open_positions
+        )
+
+        b = MarkdownBuilder()
+        b.h1(f"Constraint Check: {symbol}").blank()
+
+        if result.allowed:
+            b.text("[v] **ALLOWED** - Position can be opened").blank()
+        else:
+            b.text("[x] **BLOCKED** - Position cannot be opened").blank()
+
+        # Details
+        b.kv("Current Positions", len(open_positions))
+        b.kv("Max Risk", f"${max_risk:.0f}")
+
+        if result.blockers:
+            b.blank().h2("Blockers")
+            for blocker in result.blockers:
+                b.text(f"  {blocker}")
+
+        if result.warnings:
+            b.blank().h2("Warnings")
+            for warning in result.warnings:
+                b.text(f"  {warning}")
+
+        # Status
+        b.blank().h2("Constraint Status")
+        status = checker.get_status()
+        b.kv("Max Positions", status['constraints']['max_positions'])
+        b.kv("Max per Sector", status['constraints']['max_per_sector'])
+        b.kv("Daily Risk Used", f"${status['current']['daily_risk_used']:.0f}")
+        b.kv("Daily Remaining", f"${status['current']['daily_remaining']:.0f}")
+
+        return b.build()
+
+    @sync_endpoint(operation="constraint status")
+    def portfolio_constraints(self) -> str:
+        """
+        Show current constraint configuration and status.
+
+        Returns:
+            Constraint configuration and status
+        """
+        checker = get_constraint_checker()
+        status = checker.get_status()
+
+        b = MarkdownBuilder()
+        b.h1("Portfolio Constraints").blank()
+
+        b.h2("Configuration")
+        for key, value in status['constraints'].items():
+            if key == 'symbol_blacklist':
+                b.kv("Blacklist", ", ".join(value[:5]) + ("..." if len(value) > 5 else ""))
+            elif 'usd' in key or 'size' in key:
+                b.kv(key.replace('_', ' ').title(), f"${value:,.0f}")
+            elif 'pct' in key or 'correlation' in key:
+                b.kv(key.replace('_', ' ').title(), f"{value:.0%}")
+            else:
+                b.kv(key.replace('_', ' ').title(), value)
+
+        b.blank().h2("Current Status")
+        b.kv("Daily Risk Used", f"${status['current']['daily_risk_used']:,.0f}")
+        b.kv("Daily Remaining", f"${status['current']['daily_remaining']:,.0f}")
+        b.kv("Weekly Risk Used", f"${status['current']['weekly_risk_used']:,.0f}")
+        b.kv("Weekly Remaining", f"${status['current']['weekly_remaining']:,.0f}")
+
+        return b.build()

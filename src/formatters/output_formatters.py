@@ -20,11 +20,11 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Any, Dict, List, Optional, Protocol
 
-# Import from utils package (not relative)
-from src.utils.markdown_builder import (
-    MarkdownBuilder, 
-    format_price, 
-    format_percent, 
+# Import from utils package (relative import within src package)
+from ..utils.markdown_builder import (
+    MarkdownBuilder,
+    format_price,
+    format_percent,
     format_volume,
     truncate
 )
@@ -197,7 +197,7 @@ class ScanResultFormatter(BaseFormatter):
                 b.blank().h2("Next Steps")
                 b.numbered("Check earnings: `get_earnings <SYMBOL>`")
                 b.numbered(f"Options chain: `get_options_chain <SYMBOL>` (DTE 45-60, Delta {recommendation.delta_target})")
-                b.numbered(f"Spread width: ${recommendation.spread_width:.2f}")
+                b.numbered(f"Spread width: {'Dynamic (delta-based)' if recommendation.spread_width is None else f'${recommendation.spread_width:.2f}'}")
         else:
             min_score = recommendation.min_score if recommendation else 5
             b.hint(f"No pullback candidates with score >= {min_score} found.")
@@ -284,8 +284,8 @@ class OptionsChainFormatter(BaseFormatter):
         options: List[OptionProtocol],
         underlying_price: Optional[float] = None,
         right: str = "P",
-        dte_min: int = 30,
-        dte_max: int = 60,
+        dte_min: int = 60,
+        dte_max: int = 90,
         max_options: int = 15
     ) -> str:
         b = self._builder()
@@ -433,7 +433,10 @@ class StrategyRecommendationFormatter(BaseFormatter):
         
         b.h2("Recommended Parameters")
         b.kv_line("Delta Target", recommendation.delta_target)
-        b.kv_line("Spread Width", recommendation.spread_width, fmt="$.2f")
+        if recommendation.spread_width is not None:
+            b.kv_line("Spread Width", recommendation.spread_width, fmt="$.2f")
+        else:
+            b.kv_line("Spread Width", "Dynamic (delta-based)")
         b.kv_line("Min Score", recommendation.min_score)
         b.kv_line("Earnings Buffer", f">{recommendation.earnings_buffer_days} days")
         b.blank()
@@ -474,6 +477,8 @@ class HealthCheckData:
     tradier_connected: bool = False
     tradier_api_key_masked: Optional[str] = None
     tradier_environment: Optional[str] = None
+    local_db_enabled: bool = False
+    local_db_stats: Optional[Dict[str, Any]] = None
 
 
 class HealthCheckFormatter(BaseFormatter):
@@ -598,6 +603,19 @@ class HealthCheckFormatter(BaseFormatter):
             elif isinstance(errs, dict):
                 b.kv_line("Errors", errs.get("value", 0))
 
+        # Local Database Provider
+        b.blank().h2("Local Database")
+        if data.local_db_enabled and data.local_db_stats:
+            stats = data.local_db_stats
+            b.kv_line("Status", "✅ Enabled (primary data source)")
+            b.kv_line("Symbols", stats.get("symbols", "N/A"))
+            b.kv_line("Date Range", f"{stats.get('min_date', 'N/A')} to {stats.get('max_date', 'N/A')}")
+            b.kv_line("VIX Points", stats.get("vix_points", "N/A"))
+        elif data.local_db_enabled:
+            b.kv_line("Status", "⚠️ Enabled but not available")
+        else:
+            b.kv_line("Status", "❌ Disabled (using API providers)")
+
         return b.build()
 
 
@@ -701,7 +719,7 @@ class SymbolAnalysisFormatter(BaseFormatter):
         current_price = 0
         sma_200 = 0
         if historical:
-            prices, volumes, highs, lows = historical
+            prices, volumes, highs, lows, *_ = historical
             current_price = prices[-1]
             
             sma_20 = sum(prices[-20:]) / 20 if len(prices) >= 20 else current_price
@@ -770,7 +788,10 @@ class SymbolAnalysisFormatter(BaseFormatter):
             b.blank()
             b.hint("Recommended parameters:")
             b.kv_line("Delta", recommendation.delta_target)
-            b.kv_line("Spread Width", recommendation.spread_width, fmt="$.2f")
+            if recommendation.spread_width is not None:
+                b.kv_line("Spread Width", recommendation.spread_width, fmt="$.2f")
+            else:
+                b.kv_line("Spread Width", "Dynamic (delta-based)")
             b.kv_line("DTE", "45-60 days")
         else:
             b.status_warning("**Caution:**")

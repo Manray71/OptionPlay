@@ -1,6 +1,6 @@
 # OptionPlay - Earnings History Manager
 # ======================================
-# SQLite-basierte Speicherung historischer Earnings-Daten
+# SQLite-based storage for historical earnings data
 #
 # Usage:
 #     from src.cache.earnings_history import EarningsHistoryManager, get_earnings_history_manager
@@ -22,6 +22,11 @@ from functools import partial
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 
+try:
+    from ..constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS
+except ImportError:
+    from constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS
+
 logger = logging.getLogger(__name__)
 
 # =============================================================================
@@ -37,7 +42,7 @@ DEFAULT_DB_PATH = Path.home() / ".optionplay" / "trades.db"
 
 @dataclass
 class EarningsRecord:
-    """Einzelner historischer Earnings-Eintrag"""
+    """Single historical earnings record"""
     symbol: str
     earnings_date: date
     fiscal_year: Optional[int] = None
@@ -50,7 +55,7 @@ class EarningsRecord:
     source: str = "marketdata"
 
     def to_dict(self) -> Dict[str, Any]:
-        """Konvertiert zu Dictionary"""
+        """Converts to dictionary"""
         return {
             "symbol": self.symbol,
             "earnings_date": self.earnings_date.isoformat() if isinstance(self.earnings_date, date) else self.earnings_date,
@@ -71,13 +76,13 @@ class EarningsRecord:
 
 class EarningsHistoryManager:
     """
-    Manager für historische Earnings-Daten in SQLite.
+    Manager for historical earnings data in SQLite.
 
     Features:
-    - Thread-safe SQLite Operationen
-    - Bulk Insert für effiziente Speicherung
-    - Abfragen nach Symbol, Datum, Zeitraum
-    - Prüfung ob Earnings in der Nähe eines Datums waren
+    - Thread-safe SQLite operations
+    - Bulk insert for efficient storage
+    - Queries by symbol, date, time period
+    - Check if earnings were near a specific date
     """
 
     def __init__(self, db_path: Optional[Path] = None):
@@ -87,12 +92,12 @@ class EarningsHistoryManager:
         self._create_table()
 
     def _ensure_db_exists(self) -> None:
-        """Stellt sicher, dass das DB-Verzeichnis existiert"""
+        """Ensures that the DB directory exists"""
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
 
     @contextmanager
     def _get_connection(self):
-        """Context Manager für Thread-safe DB-Verbindung"""
+        """Context Manager for thread-safe DB connection"""
         conn = sqlite3.connect(str(self.db_path), timeout=30.0)
         conn.row_factory = sqlite3.Row
         try:
@@ -101,7 +106,7 @@ class EarningsHistoryManager:
             conn.close()
 
     def _create_table(self) -> None:
-        """Erstellt die earnings_history Tabelle falls nicht vorhanden"""
+        """Creates the earnings_history table if it does not exist"""
         with self._lock:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
@@ -124,7 +129,7 @@ class EarningsHistoryManager:
                     )
                 """)
 
-                # Indices für schnelle Abfragen
+                # Indices for fast queries
                 cursor.execute("""
                     CREATE INDEX IF NOT EXISTS idx_eh_symbol
                     ON earnings_history(symbol)
@@ -139,7 +144,7 @@ class EarningsHistoryManager:
                 """)
 
                 conn.commit()
-                logger.debug("earnings_history Tabelle initialisiert")
+                logger.debug("earnings_history table initialized")
 
     # =========================================================================
     # CRUD Operations
@@ -152,15 +157,15 @@ class EarningsHistoryManager:
         source: str = "marketdata"
     ) -> int:
         """
-        Speichert mehrere Earnings-Einträge für ein Symbol.
+        Saves multiple earnings entries for a symbol.
 
         Args:
-            symbol: Ticker-Symbol
-            earnings_list: Liste von Earnings-Dicts (aus MarketDataProvider)
-            source: Datenquelle
+            symbol: Ticker symbol
+            earnings_list: List of earnings dicts (from MarketDataProvider)
+            source: Data source
 
         Returns:
-            Anzahl der eingefügten/aktualisierten Einträge
+            Number of inserted/updated entries
         """
         if not earnings_list:
             return 0
@@ -196,22 +201,22 @@ class EarningsHistoryManager:
                         inserted += 1
 
                     except sqlite3.Error as e:
-                        logger.warning(f"Fehler beim Speichern von {symbol} Earnings: {e}")
+                        logger.warning(f"Error saving {symbol} earnings: {e}")
 
                 conn.commit()
 
-        logger.debug(f"{symbol}: {inserted} Earnings-Einträge gespeichert")
+        logger.debug(f"{symbol}: {inserted} earnings entries saved")
         return inserted
 
     def get_all_earnings(self, symbol: str) -> List[EarningsRecord]:
         """
-        Holt alle historischen Earnings für ein Symbol.
+        Gets all historical earnings for a symbol.
 
         Args:
-            symbol: Ticker-Symbol
+            symbol: Ticker symbol
 
         Returns:
-            Liste von EarningsRecord, sortiert nach Datum (neueste zuerst)
+            List of EarningsRecord, sorted by date (newest first)
         """
         symbol = symbol.upper()
 
@@ -238,15 +243,15 @@ class EarningsHistoryManager:
         to_date: date
     ) -> List[EarningsRecord]:
         """
-        Holt Earnings in einem Datumsbereich.
+        Gets earnings within a date range.
 
         Args:
-            symbol: Ticker-Symbol
-            from_date: Start-Datum
-            to_date: End-Datum
+            symbol: Ticker symbol
+            from_date: Start date
+            to_date: End date
 
         Returns:
-            Liste von EarningsRecord
+            List of EarningsRecord
         """
         symbol = symbol.upper()
 
@@ -273,15 +278,15 @@ class EarningsHistoryManager:
         days_window: int = 7
     ) -> List[EarningsRecord]:
         """
-        Holt Earnings um ein bestimmtes Datum herum.
+        Gets earnings around a specific date.
 
         Args:
-            symbol: Ticker-Symbol
-            target_date: Ziel-Datum
-            days_window: Tage vor und nach dem Datum
+            symbol: Ticker symbol
+            target_date: Target date
+            days_window: Days before and after the date
 
         Returns:
-            Liste von EarningsRecord im Zeitfenster
+            List of EarningsRecord within the time window
         """
         from_date = target_date - timedelta(days=days_window)
         to_date = target_date + timedelta(days=days_window)
@@ -294,15 +299,15 @@ class EarningsHistoryManager:
         days: int = 5
     ) -> bool:
         """
-        Prüft ob in den letzten X Tagen vor target_date Earnings waren.
+        Checks if earnings occurred in the last X days before target_date.
 
         Args:
-            symbol: Ticker-Symbol
-            target_date: Prüf-Datum
-            days: Anzahl Tage zurückblicken
+            symbol: Ticker symbol
+            target_date: Check date
+            days: Number of days to look back
 
         Returns:
-            True wenn Earnings im Zeitraum stattfanden
+            True if earnings occurred within the period
         """
         from_date = target_date - timedelta(days=days)
         earnings = self.get_earnings_in_range(symbol, from_date, target_date)
@@ -315,15 +320,15 @@ class EarningsHistoryManager:
         days: int = 5
     ) -> bool:
         """
-        Prüft ob in den nächsten X Tagen nach target_date Earnings sind.
+        Checks if earnings are scheduled in the next X days after target_date.
 
         Args:
-            symbol: Ticker-Symbol
-            target_date: Prüf-Datum
-            days: Anzahl Tage vorausschauen
+            symbol: Ticker symbol
+            target_date: Check date
+            days: Number of days to look ahead
 
         Returns:
-            True wenn Earnings im Zeitraum stattfinden werden
+            True if earnings will occur within the period
         """
         to_date = target_date + timedelta(days=days)
         earnings = self.get_earnings_in_range(symbol, target_date, to_date)
@@ -337,21 +342,21 @@ class EarningsHistoryManager:
         days_after: int = 2
     ) -> bool:
         """
-        Prüft ob das Datum in der Nähe von Earnings liegt.
+        Checks if the date is near earnings.
 
-        Nützlich für Signal-Filterung: Vermeide Trades kurz vor oder nach Earnings.
+        Useful for signal filtering: Avoid trades shortly before or after earnings.
 
         Args:
-            symbol: Ticker-Symbol
-            target_date: Prüf-Datum
-            days_before: Tage vor Earnings zu vermeiden
-            days_after: Tage nach Earnings zu vermeiden
+            symbol: Ticker symbol
+            target_date: Check date
+            days_before: Days before earnings to avoid
+            days_after: Days after earnings to avoid
 
         Returns:
-            True wenn in der Nähe von Earnings
+            True if near earnings
         """
-        from_date = target_date - timedelta(days=days_after)  # Earnings die X Tage zurückliegen
-        to_date = target_date + timedelta(days=days_before)   # Earnings die X Tage bevorstehen
+        from_date = target_date - timedelta(days=days_after)  # Earnings that are X days in the past
+        to_date = target_date + timedelta(days=days_before)   # Earnings that are X days ahead
         earnings = self.get_earnings_in_range(symbol, from_date, to_date)
         return len(earnings) > 0
 
@@ -362,34 +367,216 @@ class EarningsHistoryManager:
         search_days: int = 90
     ) -> Optional[EarningsRecord]:
         """
-        Findet das nächste Earnings-Datum (vor oder nach target_date).
+        Finds the nearest earnings date (before or after target_date).
 
         Args:
-            symbol: Ticker-Symbol
-            target_date: Referenz-Datum
-            search_days: Maximale Suchtage in beide Richtungen
+            symbol: Ticker symbol
+            target_date: Reference date
+            search_days: Maximum search days in both directions
 
         Returns:
-            Nächstes EarningsRecord oder None
+            Nearest EarningsRecord or None
         """
         earnings = self.get_earnings_around_date(symbol, target_date, search_days)
 
         if not earnings:
             return None
 
-        # Finde das nächste Earnings
+        # Find the nearest earnings
         nearest = min(
             earnings,
             key=lambda e: abs((e.earnings_date - target_date).days)
         )
         return nearest
 
+    def get_next_future_earnings(
+        self,
+        symbol: str,
+        from_date: Optional[date] = None,
+        search_days: int = 90
+    ) -> Optional[EarningsRecord]:
+        """
+        Finds the next future earnings date.
+
+        Args:
+            symbol: Ticker symbol
+            from_date: Start date (default: today)
+            search_days: Maximum search days ahead
+
+        Returns:
+            Next future EarningsRecord or None (incl. time_of_day)
+        """
+        if from_date is None:
+            from_date = date.today()
+
+        to_date = from_date + timedelta(days=search_days)
+        earnings = self.get_earnings_in_range(symbol, from_date, to_date)
+
+        if not earnings:
+            return None
+
+        # Earnings are sorted by date DESC, so the last element is the next
+        # But we want the earliest future one
+        future_earnings = [e for e in earnings if e.earnings_date >= from_date]
+
+        if not future_earnings:
+            return None
+
+        # The earliest future earnings
+        return min(future_earnings, key=lambda e: e.earnings_date)
+
+    def is_earnings_day_safe(
+        self,
+        symbol: str,
+        target_date: date,
+        min_days: int = ENTRY_EARNINGS_MIN_DAYS,
+        allow_bmo_same_day: bool = False
+    ) -> tuple:
+        """
+        Checks if a symbol is safe for trading regarding earnings.
+
+        IMPORTANT: BMO/AMC handling:
+        - AMC (After Market Close): Do NOT trade on earnings day, reaction comes tomorrow
+        - BMO (Before Market Open): Can trade the day AFTER earnings,
+          as reaction is already priced in
+
+        Args:
+            symbol: Ticker symbol
+            target_date: Check date (today)
+            min_days: Minimum distance to earnings
+            allow_bmo_same_day: Allow trading on BMO day itself? (conservative: False)
+
+        Returns:
+            Tuple (is_safe: bool, days_to_earnings: Optional[int], reason: str)
+        """
+        next_earnings = self.get_next_future_earnings(symbol, target_date)
+        return self._evaluate_earnings_safety(
+            next_earnings, target_date, min_days, allow_bmo_same_day
+        )
+
+    def _evaluate_earnings_safety(
+        self,
+        next_earnings: Optional[EarningsRecord],
+        target_date: date,
+        min_days: int,
+        allow_bmo_same_day: bool
+    ) -> tuple:
+        """
+        Evaluates earnings safety for a single symbol.
+
+        Internal helper used by both is_earnings_day_safe() and batch methods.
+        """
+        if not next_earnings:
+            return (False, None, "no_earnings_data")
+
+        days_to = (next_earnings.earnings_date - target_date).days
+        time_of_day = next_earnings.time_of_day or "unknown"
+
+        # Normalize time_of_day
+        time_of_day_lower = time_of_day.lower() if time_of_day else "unknown"
+        is_bmo = time_of_day_lower in ("before open", "bmo", "before market open")
+        is_amc = time_of_day_lower in ("after close", "amc", "after market close")
+
+        # Special case: Earnings today
+        if days_to == 0:
+            if is_amc:
+                return (False, 0, "earnings_amc_today")
+            elif is_bmo:
+                if allow_bmo_same_day:
+                    return (True, 0, "earnings_bmo_today_allowed")
+                else:
+                    return (False, 0, "earnings_bmo_today_conservative")
+            else:
+                return (False, 0, "earnings_today_unknown_time")
+
+        # Standard case: Check minimum distance
+        if days_to >= min_days:
+            return (True, days_to, "safe")
+        else:
+            return (False, days_to, f"too_close_{days_to}d")
+
+    def is_earnings_day_safe_batch(
+        self,
+        symbols: List[str],
+        target_date: date,
+        min_days: int = ENTRY_EARNINGS_MIN_DAYS,
+        allow_bmo_same_day: bool = False
+    ) -> Dict[str, tuple]:
+        """
+        Batch version of is_earnings_day_safe() for multiple symbols.
+
+        Loads all earnings data in a SINGLE SQL query for efficiency.
+        This avoids N+1 query patterns when checking many symbols.
+
+        Args:
+            symbols: List of ticker symbols
+            target_date: Reference date (usually today)
+            min_days: Minimum days to earnings required
+            allow_bmo_same_day: Allow trading on BMO day?
+
+        Returns:
+            Dict mapping symbol -> (is_safe, days_to_earnings, reason)
+        """
+        if not symbols:
+            return {}
+
+        symbols_upper = [s.upper() for s in symbols]
+        search_days = 90
+
+        # Calculate date range for query
+        to_date = target_date + timedelta(days=search_days)
+
+        # Single query for all symbols' future earnings
+        with self._lock:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                placeholders = ",".join("?" * len(symbols_upper))
+                cursor.execute(f"""
+                    SELECT symbol, earnings_date, time_of_day
+                    FROM earnings_history
+                    WHERE symbol IN ({placeholders})
+                      AND earnings_date >= ?
+                      AND earnings_date <= ?
+                    ORDER BY symbol, earnings_date ASC
+                """, (*symbols_upper, target_date.isoformat(), to_date.isoformat()))
+
+                rows = cursor.fetchall()
+
+        # Group earnings by symbol, keep only the nearest future one
+        next_earnings_by_symbol: Dict[str, Optional[EarningsRecord]] = {
+            s: None for s in symbols_upper
+        }
+
+        for row in rows:
+            symbol = row["symbol"]
+            # Only keep the first (nearest) future earnings per symbol
+            if next_earnings_by_symbol[symbol] is None:
+                earnings_date = row["earnings_date"]
+                if isinstance(earnings_date, str):
+                    earnings_date = date.fromisoformat(earnings_date)
+
+                next_earnings_by_symbol[symbol] = EarningsRecord(
+                    symbol=symbol,
+                    earnings_date=earnings_date,
+                    time_of_day=row["time_of_day"]
+                )
+
+        # Evaluate safety for each symbol
+        results: Dict[str, tuple] = {}
+        for symbol in symbols_upper:
+            next_earnings = next_earnings_by_symbol.get(symbol)
+            results[symbol] = self._evaluate_earnings_safety(
+                next_earnings, target_date, min_days, allow_bmo_same_day
+            )
+
+        return results
+
     # =========================================================================
     # Statistics
     # =========================================================================
 
     def get_symbol_count(self) -> int:
-        """Anzahl der Symbole mit Earnings-Daten"""
+        """Number of symbols with earnings data"""
         with self._lock:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
@@ -397,7 +584,7 @@ class EarningsHistoryManager:
                 return cursor.fetchone()[0]
 
     def get_total_earnings_count(self) -> int:
-        """Gesamtanzahl der Earnings-Einträge"""
+        """Total number of earnings entries"""
         with self._lock:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
@@ -405,7 +592,7 @@ class EarningsHistoryManager:
                 return cursor.fetchone()[0]
 
     def get_symbols_with_earnings(self) -> List[str]:
-        """Liste aller Symbole mit Earnings-Daten"""
+        """List of all symbols with earnings data"""
         with self._lock:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
@@ -413,7 +600,7 @@ class EarningsHistoryManager:
                 return [row[0] for row in cursor.fetchall()]
 
     def get_date_range(self) -> Optional[tuple]:
-        """Gibt den Datumsbereich der gespeicherten Earnings zurück"""
+        """Returns the date range of stored earnings"""
         with self._lock:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
@@ -427,7 +614,7 @@ class EarningsHistoryManager:
                 return None
 
     def get_statistics(self) -> Dict[str, Any]:
-        """Gibt Statistiken über die Earnings-History zurück"""
+        """Returns statistics about the earnings history"""
         date_range = self.get_date_range()
         return {
             "total_symbols": self.get_symbol_count(),
@@ -443,7 +630,7 @@ class EarningsHistoryManager:
     # =========================================================================
 
     def _row_to_record(self, row: sqlite3.Row) -> EarningsRecord:
-        """Konvertiert SQLite Row zu EarningsRecord"""
+        """Converts SQLite Row to EarningsRecord"""
         earnings_date = row["earnings_date"]
         if isinstance(earnings_date, str):
             earnings_date = date.fromisoformat(earnings_date)
@@ -462,7 +649,7 @@ class EarningsHistoryManager:
         )
 
     def delete_symbol(self, symbol: str) -> int:
-        """Löscht alle Earnings für ein Symbol"""
+        """Deletes all earnings for a symbol"""
         symbol = symbol.upper()
 
         with self._lock:
@@ -472,11 +659,11 @@ class EarningsHistoryManager:
                 deleted = cursor.rowcount
                 conn.commit()
 
-        logger.info(f"{symbol}: {deleted} Earnings-Einträge gelöscht")
+        logger.info(f"{symbol}: {deleted} earnings entries deleted")
         return deleted
 
     def clear_all(self) -> int:
-        """Löscht alle Earnings-Daten (Vorsicht!)"""
+        """Deletes all earnings data (use with caution!)"""
         with self._lock:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
@@ -484,11 +671,11 @@ class EarningsHistoryManager:
                 deleted = cursor.rowcount
                 conn.commit()
 
-        logger.warning(f"Alle {deleted} Earnings-Einträge gelöscht")
+        logger.warning(f"All {deleted} earnings entries deleted")
         return deleted
 
     # =========================================================================
-    # ASYNC WRAPPERS (für non-blocking I/O in async contexts)
+    # ASYNC WRAPPERS (for non-blocking I/O in async contexts)
     # =========================================================================
 
     async def get_all_earnings_async(
@@ -497,14 +684,14 @@ class EarningsHistoryManager:
         executor: Optional[ThreadPoolExecutor] = None
     ) -> List[EarningsRecord]:
         """
-        Async wrapper für get_all_earnings().
+        Async wrapper for get_all_earnings().
 
         Args:
-            symbol: Ticker-Symbol
+            symbol: Ticker symbol
             executor: Optional ThreadPoolExecutor
 
         Returns:
-            Liste aller Earnings-Einträge
+            List of all earnings entries
         """
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(
@@ -521,17 +708,17 @@ class EarningsHistoryManager:
         executor: Optional[ThreadPoolExecutor] = None
     ) -> bool:
         """
-        Async wrapper für is_near_earnings().
+        Async wrapper for is_near_earnings().
 
         Args:
-            symbol: Ticker-Symbol
-            target_date: Zieldatum
-            days_before: Tage vor Earnings
-            days_after: Tage nach Earnings
+            symbol: Ticker symbol
+            target_date: Target date
+            days_before: Days before earnings
+            days_after: Days after earnings
             executor: Optional ThreadPoolExecutor
 
         Returns:
-            True wenn nahe an Earnings
+            True if near earnings
         """
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(
@@ -547,21 +734,53 @@ class EarningsHistoryManager:
         executor: Optional[ThreadPoolExecutor] = None
     ) -> bool:
         """
-        Async wrapper für had_earnings_recently().
+        Async wrapper for had_earnings_recently().
 
         Args:
-            symbol: Ticker-Symbol
-            target_date: Zieldatum
-            days: Tage zurück
+            symbol: Ticker symbol
+            target_date: Target date
+            days: Days back
             executor: Optional ThreadPoolExecutor
 
         Returns:
-            True wenn kürzlich Earnings waren
+            True if there were recent earnings
         """
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(
             executor,
             partial(self.had_earnings_recently, symbol, target_date, days)
+        )
+
+    async def is_earnings_day_safe_batch_async(
+        self,
+        symbols: List[str],
+        target_date: date,
+        min_days: int = ENTRY_EARNINGS_MIN_DAYS,
+        allow_bmo_same_day: bool = False,
+        executor: Optional[ThreadPoolExecutor] = None
+    ) -> Dict[str, tuple]:
+        """
+        Async wrapper for is_earnings_day_safe_batch().
+
+        Runs the batch query in a thread pool to avoid blocking the event loop.
+
+        Args:
+            symbols: List of ticker symbols
+            target_date: Reference date
+            min_days: Minimum days to earnings
+            allow_bmo_same_day: Allow trading on BMO day?
+            executor: Optional ThreadPoolExecutor
+
+        Returns:
+            Dict mapping symbol -> (is_safe, days_to_earnings, reason)
+        """
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(
+            executor,
+            partial(
+                self.is_earnings_day_safe_batch,
+                symbols, target_date, min_days, allow_bmo_same_day
+            )
         )
 
 
@@ -575,9 +794,9 @@ _manager_lock = threading.Lock()
 
 def get_earnings_history_manager(db_path: Optional[Path] = None) -> EarningsHistoryManager:
     """
-    Gibt globale EarningsHistoryManager Instanz zurück.
+    Returns global EarningsHistoryManager instance.
 
-    Thread-safe Singleton-Pattern.
+    Thread-safe singleton pattern.
     """
     global _default_manager
 
@@ -588,7 +807,7 @@ def get_earnings_history_manager(db_path: Optional[Path] = None) -> EarningsHist
 
 
 def reset_earnings_history_manager() -> None:
-    """Setzt den globalen Manager zurück (für Tests)"""
+    """Resets the global manager (for tests)"""
     global _default_manager
     with _manager_lock:
         _default_manager = None

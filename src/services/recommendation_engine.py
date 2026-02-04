@@ -170,6 +170,13 @@ class DailyPick:
     # Strike-Empfehlung
     suggested_strikes: Optional[SuggestedStrikes] = None
 
+    # Chain-Validierung (echte Marktdaten, Phase 2)
+    spread_validation: Optional[Any] = None  # SpreadValidation from options_chain_validator
+
+    # Entry Quality Score (Phase 3)
+    entry_quality: Optional[Any] = None  # EntryQuality from entry_quality_scorer
+    ranking_score: Optional[float] = None  # Signal Score × (1 + EQS × 0.3)
+
     # Speed Score (Kapitaleffizienz-Prediktor, 0-10)
     speed_score: float = 0.0
 

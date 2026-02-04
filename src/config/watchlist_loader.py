@@ -4,16 +4,20 @@ Watchlist Loader - Lädt Watchlists aus YAML-Konfiguration
 
 Verwendung:
     from src.config import WatchlistLoader, get_watchlist_loader
-    
+
     loader = WatchlistLoader()
     symbols = loader.get_all_symbols()
     tech_symbols = loader.get_sector("information_technology")
+
+    # Stability-basierte Listen
+    stable = loader.get_stable_symbols()  # Stability >= 60
+    risky = loader.get_risk_symbols()     # Stability < 60 oder unbekannt
 """
 
 import yaml
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +28,10 @@ class WatchlistLoader:
 
     Verwendet die `default_list` Einstellung aus settings.yaml um die
     aktive Watchlist zu bestimmen.
+
+    Unterstützt Stability-basierte Aufteilung:
+    - stable_list: Symbole mit Stability Score >= threshold
+    - risk_list: Symbole mit Stability Score < threshold oder unbekannt
     """
 
     def __init__(self, config_path: Optional[Path] = None, default_list: Optional[str] = None):
@@ -43,6 +51,16 @@ class WatchlistLoader:
         self._sectors: Dict[str, List[str]] = {}
         self._all_symbols: List[str] = []
         self._default_list = default_list or self._get_default_list_from_settings()
+
+        # Stability-Split Konfiguration
+        self._stability_split_enabled = False
+        self._stable_min_score = 60.0
+        self._include_unknown_in_risk = True
+        self._load_stability_config()
+
+        # Gecachte Listen
+        self._stable_symbols: Optional[List[str]] = None
+        self._risk_symbols: Optional[List[str]] = None
 
         if self.config_path and self.config_path.exists():
             self._load()
@@ -69,6 +87,30 @@ class WatchlistLoader:
                     logger.warning(f"Konnte settings.yaml nicht lesen: {e}")
 
         return 'default_275'
+
+    def _load_stability_config(self) -> None:
+        """Lädt Stability-Split Konfiguration aus settings.yaml"""
+        possible_paths = [
+            Path.home() / "OptionPlay" / "config" / "settings.yaml",
+            Path(__file__).parent.parent.parent / "config" / "settings.yaml",
+            Path.cwd() / "config" / "settings.yaml"
+        ]
+
+        for path in possible_paths:
+            if path.exists():
+                try:
+                    with open(path, 'r') as f:
+                        data = yaml.safe_load(f)
+                    if data and 'watchlist' in data:
+                        split_config = data['watchlist'].get('stability_split', {})
+                        self._stability_split_enabled = split_config.get('enabled', False)
+                        self._stable_min_score = split_config.get('stable_min_score', 60.0)
+                        self._include_unknown_in_risk = split_config.get('include_unknown_in_risk', True)
+                        if self._stability_split_enabled:
+                            logger.debug(f"Stability split enabled: min_score={self._stable_min_score}")
+                        return
+                except Exception as e:
+                    logger.warning(f"Konnte stability_split config nicht lesen: {e}")
     
     def _load(self) -> None:
         try:
@@ -169,6 +211,168 @@ class WatchlistLoader:
             "materials": "Materials"
         }
         return mapping.get(sector_key, sector_key.replace("_", " ").title())
+
+    # =========================================================================
+    # STABILITY-BASIERTE LISTEN
+    # =========================================================================
+
+    def _compute_stability_split(self) -> Tuple[List[str], List[str]]:
+        """
+        Teilt die Watchlist basierend auf Stability Scores auf.
+
+        Logik:
+        - Symbole auf Blacklist → ausgeschlossen (weder stable noch risk)
+        - Symbole mit Stability Score >= threshold → stable
+        - Symbole mit Stability Score < threshold → risk
+        - Symbole ohne Score → je nach include_unknown_in_risk
+
+        Returns:
+            Tuple: (stable_symbols, risk_symbols)
+        """
+        try:
+            from ..cache import get_fundamentals_manager
+        except ImportError:
+            try:
+                from src.cache import get_fundamentals_manager
+            except ImportError:
+                logger.warning("FundamentalsManager nicht verfügbar, alle Symbole als stable")
+                return self._all_symbols.copy(), []
+
+        # Lade Blacklist aus Konfiguration
+        blacklist = set()
+        try:
+            from ..config.fundamentals_constants import DEFAULT_BLACKLIST
+            blacklist = set(DEFAULT_BLACKLIST)
+        except ImportError:
+            try:
+                from src.config.fundamentals_constants import DEFAULT_BLACKLIST
+                blacklist = set(DEFAULT_BLACKLIST)
+            except ImportError:
+                pass
+
+        manager = get_fundamentals_manager()
+        all_symbols = self._all_symbols
+
+        # Fundamentals für alle Symbole in einem Batch holen
+        fundamentals_map = manager.get_fundamentals_batch(all_symbols)
+
+        stable = []
+        risk = []
+        excluded = 0
+
+        for symbol in all_symbols:
+            # Blacklist-Check zuerst
+            if symbol in blacklist:
+                excluded += 1
+                continue
+
+            fund = fundamentals_map.get(symbol)
+
+            if fund and fund.stability_score is not None:
+                if fund.stability_score >= self._stable_min_score:
+                    stable.append(symbol)
+                else:
+                    risk.append(symbol)
+            else:
+                # Symbol ohne Stability-Daten
+                if self._include_unknown_in_risk:
+                    risk.append(symbol)
+                else:
+                    stable.append(symbol)
+
+        logger.info(
+            f"Stability split: {len(stable)} stable, {len(risk)} risk, "
+            f"{excluded} blacklisted (threshold: {self._stable_min_score})"
+        )
+        return stable, risk
+
+    def get_stable_symbols(self, force_refresh: bool = False) -> List[str]:
+        """
+        Gibt Symbole mit Stability Score >= threshold zurück.
+
+        Diese Liste enthält qualitativ hochwertige Symbole für den Standard-Scan.
+
+        Args:
+            force_refresh: Wenn True, wird der Cache invalidiert
+
+        Returns:
+            Liste von stabilen Symbolen
+        """
+        if not self._stability_split_enabled:
+            return self._all_symbols.copy()
+
+        if self._stable_symbols is None or force_refresh:
+            self._stable_symbols, self._risk_symbols = self._compute_stability_split()
+
+        return self._stable_symbols.copy()
+
+    def get_risk_symbols(self, force_refresh: bool = False) -> List[str]:
+        """
+        Gibt Symbole mit Stability Score < threshold oder unbekannt zurück.
+
+        Diese Liste enthält riskantere Symbole für separate Scans.
+
+        Args:
+            force_refresh: Wenn True, wird der Cache invalidiert
+
+        Returns:
+            Liste von Risk-Symbolen
+        """
+        if not self._stability_split_enabled:
+            return []
+
+        if self._risk_symbols is None or force_refresh:
+            self._stable_symbols, self._risk_symbols = self._compute_stability_split()
+
+        return self._risk_symbols.copy()
+
+    def get_symbols_by_list_type(
+        self,
+        list_type: str = "stable",
+        force_refresh: bool = False
+    ) -> List[str]:
+        """
+        Gibt Symbole basierend auf dem Listen-Typ zurück.
+
+        Args:
+            list_type: "stable", "risk", oder "all"
+            force_refresh: Wenn True, wird der Cache invalidiert
+
+        Returns:
+            Liste von Symbolen
+        """
+        if list_type == "stable":
+            return self.get_stable_symbols(force_refresh)
+        elif list_type == "risk":
+            return self.get_risk_symbols(force_refresh)
+        else:  # "all"
+            return self._all_symbols.copy()
+
+    def get_stability_split_stats(self) -> Dict:
+        """
+        Gibt Statistiken zur Stability-Aufteilung zurück.
+
+        Returns:
+            Dict mit Statistiken
+        """
+        stable = self.get_stable_symbols()
+        risk = self.get_risk_symbols()
+        total = len(self._all_symbols)
+
+        return {
+            "enabled": self._stability_split_enabled,
+            "min_score_threshold": self._stable_min_score,
+            "total_symbols": total,
+            "stable_count": len(stable),
+            "risk_count": len(risk),
+            "stable_pct": round(len(stable) / total * 100, 1) if total > 0 else 0,
+            "risk_pct": round(len(risk) / total * 100, 1) if total > 0 else 0,
+        }
+
+    @property
+    def stability_split_enabled(self) -> bool:
+        """Gibt zurück ob Stability Split aktiviert ist"""
+        return self._stability_split_enabled
 
 
 _loader_instance: Optional[WatchlistLoader] = None

@@ -1,11 +1,11 @@
 # OptionPlay - Bounce Analyzer
 # ==============================
-# Analysiert Bounces von Support-Levels
+# Analyzes bounces from support levels
 #
-# Strategie: Kaufe wenn Aktie von etabliertem Support abprallt
+# Strategy: Buy when stock bounces off established support
 # - Mean-Reversion Signal
-# - Funktioniert am besten bei Range-gebundenen Aktien
-# - Risiko: Support bricht, Trend setzt sich fort
+# - Works best with range-bound stocks
+# - Risk: Support breaks, trend continues
 
 from dataclasses import dataclass
 from typing import List, Optional, Dict, Any, Tuple
@@ -51,18 +51,18 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class BounceConfig:
-    """Konfiguration für Bounce Analyzer (Legacy - für Rückwärtskompatibilität)"""
+    """Configuration for Bounce Analyzer (Legacy - for backward compatibility)"""
     # Support Detection
     support_lookback_days: int = 60
-    support_touches_min: int = 2  # Mindestens 2x getestet
-    support_tolerance_pct: float = 1.5  # Support-Zone Toleranz
+    support_touches_min: int = 2  # Minimum 2x tested
+    support_tolerance_pct: float = 1.5  # Support zone tolerance
 
     # Bounce Confirmation
-    bounce_min_pct: float = 1.0  # Mindest-Bounce vom Low
+    bounce_min_pct: float = 1.0  # Minimum bounce from low
     volume_confirmation: bool = True
     volume_spike_multiplier: float = 1.3
 
-    # RSI für Oversold
+    # RSI for Oversold
     rsi_oversold_threshold: float = 40.0
     rsi_period: int = 14
 
@@ -80,19 +80,19 @@ class BounceConfig:
 
 class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
     """
-    Analysiert Aktien auf Support-Bounces.
+    Analyzes stocks for support bounces.
 
-    Scoring-Kriterien (erweitert):
-    - Support-Test (Preis nahe etabliertem Support): 0-3 Punkte
-    - RSI oversold (< 40): 0-2 Punkte
-    - Bullish Candlestick (Hammer, Engulfing): 0-2 Punkte
-    - Volumen-Analyse: 0-2 Punkte
-    - Trend-Check (über SMA200): 0-2 Punkte
-    - MACD-Signal: 0-2 Punkte (NEU)
-    - Stochastik-Signal: 0-2 Punkte (NEU)
-    - Keltner Channel: 0-2 Punkte (NEU)
+    Scoring criteria (extended):
+    - Support test (price near established support): 0-3 points
+    - RSI oversold (< 40): 0-2 points
+    - Bullish Candlestick (Hammer, Engulfing): 0-2 points
+    - Volume analysis: 0-2 points
+    - Trend check (above SMA200): 0-2 points
+    - MACD signal: 0-2 points (NEW)
+    - Stochastic signal: 0-2 points (NEW)
+    - Keltner Channel: 0-2 points (NEW)
 
-    Verwendung:
+    Usage:
         analyzer = BounceAnalyzer()
         signal = analyzer.analyze("AAPL", prices, volumes, highs, lows)
 
@@ -114,7 +114,7 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
 
     @property
     def description(self) -> str:
-        return "Support Bounce - Kaufe bei Abprall von etabliertem Support-Level"
+        return "Support Bounce - Buy on bounce from established support level"
 
     def analyze(
         self,
@@ -127,32 +127,32 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         **kwargs
     ) -> TradeSignal:
         """
-        Analysiert ein Symbol auf Support-Bounce.
+        Analyzes a symbol for support bounce.
 
         Args:
-            symbol: Ticker-Symbol
-            prices: Schlusskurse (älteste zuerst)
-            volumes: Tagesvolumen
-            highs: Tageshochs
-            lows: Tagestiefs
+            symbol: Ticker symbol
+            prices: Closing prices (oldest first)
+            volumes: Daily volume
+            highs: Daily highs
+            lows: Daily lows
             context: Optional pre-calculated AnalysisContext for performance
 
         Returns:
-            TradeSignal mit Bounce-Bewertung
+            TradeSignal with bounce rating
         """
-        # Input-Validierung
+        # Input validation
         min_data = max(self.config.support_lookback_days, 60)
         self.validate_inputs(prices, volumes, highs, lows, min_length=min_data)
 
         current_price = prices[-1]
         current_low = lows[-1]
 
-        # Score Breakdown initialisieren
+        # Initialize score breakdown
         breakdown = BounceScoreBreakdown()
         reasons = []
         warnings = []
 
-        # 1. Support Detection & Test (0-3 Punkte)
+        # 1. Support Detection & Test (0-3 points)
         if context and context.support_levels:
             support_levels = context.support_levels
         else:
@@ -178,15 +178,15 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         if breakdown.support_score == 0:
             return self.create_neutral_signal(
                 symbol, current_price,
-                f"Kein Support-Test. Nächster Support bei ${support_result[1].get('nearest_support', 'N/A')}"
+                f"No support test. Nearest support at ${support_result[1].get('nearest_support', 'N/A')}"
             )
 
         if 'tested_support' in support_result[1]:
-            reasons.append(f"Support-Test bei ${support_result[1]['tested_support']:.2f}")
+            reasons.append(f"Support test at ${support_result[1]['tested_support']:.2f}")
         elif 'near_support' in support_result[1]:
-            reasons.append(f"Nahe Support bei ${support_result[1].get('nearest_support', 0):.2f}")
+            reasons.append(f"Near support at ${support_result[1].get('nearest_support', 0):.2f}")
 
-        # 2. RSI Oversold (0-2 Punkte)
+        # 2. RSI Oversold (0-2 points)
         rsi_result = self._score_rsi_oversold(prices)
         breakdown.rsi_score = rsi_result[0]
         breakdown.rsi_value = rsi_result[1]
@@ -195,10 +195,10 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         if breakdown.rsi_score > 0:
             reasons.append(f"RSI oversold ({breakdown.rsi_value:.0f})")
         else:
-            warnings.append(f"RSI nicht oversold ({breakdown.rsi_value:.0f})")
+            warnings.append(f"RSI not oversold ({breakdown.rsi_value:.0f})")
 
-        # 2b. RSI Divergenz (0-3 Punkte) - NEU
-        # Bullische Divergenz ist starkes Signal für Bounce
+        # 2b. RSI Divergence (0-3 points) - NEW
+        # Bullish divergence is a strong signal for bounce
         divergence_result = calculate_rsi_divergence(
             prices=prices,
             lows=lows,
@@ -217,11 +217,11 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         breakdown.rsi_divergence_reason = div_score_result[1]
 
         if breakdown.rsi_divergence_score >= 2:
-            reasons.append(f"RSI Bullische Divergenz (Stärke: {breakdown.rsi_divergence_strength:.0%})")
+            reasons.append(f"RSI Bullish Divergence (strength: {breakdown.rsi_divergence_strength:.0%})")
         elif breakdown.rsi_divergence_type == 'bearish':
-            warnings.append("RSI Bärische Divergenz - Vorsicht!")
+            warnings.append("RSI Bearish Divergence - caution!")
 
-        # 3. Candlestick Pattern (0-2 Punkte)
+        # 3. Candlestick Pattern (0-2 points)
         candle_result = self._score_candlestick_pattern(prices, highs, lows)
         breakdown.candlestick_score = candle_result[0]
         breakdown.candlestick_pattern = candle_result[1].get('pattern')
@@ -231,7 +231,7 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         if breakdown.candlestick_score > 0:
             reasons.append(f"Bullish Pattern: {breakdown.candlestick_pattern}")
 
-        # 4. Volume-Analyse (0-2 Punkte) - erweitert
+        # 4. Volume Analysis (0-2 points) - extended
         vol_result = self._score_volume(volumes)
         breakdown.volume_score = vol_result[0]
         breakdown.volume_ratio = vol_result[1].get('multiplier', 0)
@@ -239,22 +239,22 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         breakdown.volume_reason = vol_result[1].get('reason', '')
 
         if breakdown.volume_score > 0:
-            reasons.append("Volumen bestätigt Bounce")
+            reasons.append("Volume confirms bounce")
 
-        # 5. Trend-Check (0-2 Punkte)
+        # 5. Trend Check (0-2 points)
         trend_result = self._score_trend(prices)
         breakdown.trend_score = trend_result[0]
         breakdown.trend_status = trend_result[1].get('trend', 'unknown')
         breakdown.trend_reason = f"Trend: {breakdown.trend_status}"
 
         if breakdown.trend_score >= 2:
-            reasons.append("Aufwärtstrend intakt (über SMA200)")
+            reasons.append("Uptrend intact (above SMA200)")
         elif breakdown.trend_score == 1:
-            reasons.append("Neutraler Trend")
+            reasons.append("Neutral trend")
         else:
-            warnings.append("Abwärtstrend - erhöhtes Risiko")
+            warnings.append("Downtrend - increased risk")
 
-        # 6. MACD Score (0-2 Punkte) - NEU
+        # 6. MACD Score (0-2 points) - NEW
         macd_result = self._calculate_macd(prices)
         macd_score_result = self._score_macd(macd_result)
         breakdown.macd_score = macd_score_result[0]
@@ -267,7 +267,7 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         elif breakdown.macd_score > 0:
             reasons.append("MACD bullish")
 
-        # 7. Stochastik Score (0-2 Punkte) - NEU
+        # 7. Stochastic Score (0-2 points) - NEW
         stoch_result = self._calculate_stochastic(prices, highs, lows)
         stoch_score_result = self._score_stochastic(stoch_result)
         breakdown.stoch_score = stoch_score_result[0]
@@ -281,7 +281,7 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         elif breakdown.stoch_score > 0:
             reasons.append("Stoch oversold")
 
-        # 8. Keltner Channel (0-2 Punkte) - NEU
+        # 8. Keltner Channel (0-2 points) - NEW
         keltner_result = self._calculate_keltner_channel(prices, highs, lows)
         if keltner_result:
             keltner_score_result = self._score_keltner(keltner_result, current_price)
@@ -295,37 +295,41 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             elif breakdown.keltner_score > 0:
                 reasons.append("Near Keltner lower band")
 
-        # NEW: Apply Feature Engineering scores (VWAP, Market Context, Sector)
-        self._apply_feature_scores(breakdown, symbol, prices, volumes, context)
+        # NEW: Apply Feature Engineering scores (VWAP, Market Context, Sector, Gap)
+        self._apply_feature_scores(breakdown, symbol, prices, volumes, highs, lows, context)
 
-        # Total Score berechnen
+        # Calculate total score
         breakdown.total_score = (
             breakdown.support_score +
             breakdown.rsi_score +
-            breakdown.rsi_divergence_score +  # NEU: RSI Divergenz
+            breakdown.rsi_divergence_score +  # NEW: RSI Divergence
             breakdown.candlestick_score +
             breakdown.volume_score +
             breakdown.trend_score +
             breakdown.macd_score +
             breakdown.stoch_score +
             breakdown.keltner_score +
-            breakdown.vwap_score +          # NEW from Feature Engineering
-            breakdown.market_context_score + # NEW from Feature Engineering
-            breakdown.sector_score          # NEW from Feature Engineering
+            breakdown.vwap_score +          # Feature Engineering
+            breakdown.market_context_score + # Feature Engineering
+            breakdown.sector_score +         # Feature Engineering
+            breakdown.gap_score             # Validated with 174k+ events
         )
-        breakdown.max_possible = 26  # 3+2+3+2+2+2+2+2+2+3+2+1 = 26
+        breakdown.max_possible = 27  # +1 for gap score
 
-        # Signal-Stärke bestimmen
-        if breakdown.total_score >= 12:
+        # Normalize score to 0-10 scale for fair cross-strategy comparison
+        normalized_score = (breakdown.total_score / breakdown.max_possible) * 10
+
+        # Determine signal strength (based on normalized 0-10 scale)
+        if normalized_score >= 7:
             strength = SignalStrength.STRONG
-        elif breakdown.total_score >= 8:
+        elif normalized_score >= 5:
             strength = SignalStrength.MODERATE
-        elif breakdown.total_score >= 5:
+        elif normalized_score >= 3:
             strength = SignalStrength.WEAK
         else:
             strength = SignalStrength.NONE
 
-        # Entry/Stop/Target berechnen
+        # Calculate Entry/Stop/Target
         entry_price = current_price
         support = support_result[1].get('tested_support', current_low)
         stop_loss = support * (1 - self.config.stop_below_support_pct / 100)
@@ -345,9 +349,9 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         return TradeSignal(
             symbol=symbol,
             strategy=self.strategy_name,
-            signal_type=SignalType.LONG if breakdown.total_score >= self.scoring_config.min_score_for_signal else SignalType.NEUTRAL,
+            signal_type=SignalType.LONG if normalized_score >= 3.5 else SignalType.NEUTRAL,
             strength=strength,
-            score=min(breakdown.total_score, self.scoring_config.max_score),
+            score=round(normalized_score, 1),  # Normalized 0-10 score
             current_price=current_price,
             entry_price=entry_price,
             stop_loss=stop_loss,
@@ -355,6 +359,8 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             reason=" | ".join(reasons),
             details={
                 'score_breakdown': breakdown.to_dict(),
+                'raw_score': breakdown.total_score,
+                'max_possible': breakdown.max_possible,
                 'support_levels': support_levels[:3],
                 'support_info': support_result[1],
                 'trend_info': trend_result[1],
@@ -372,7 +378,7 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         support_levels: List[float],
         lows: List[float]
     ) -> Tuple[int, Dict[str, Any]]:
-        """Prüft ob aktueller Preis Support testet und bewertet Support-Stärke"""
+        """Checks if current price tests support and evaluates support strength"""
         tolerance = self.config.support_tolerance_pct / 100
 
         info = {
@@ -385,15 +391,15 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             info['nearest_support'] = None
             return 0, info
 
-        # Finde nächsten Support
+        # Find nearest support
         nearest_support = min(support_levels, key=lambda s: abs(current_low - s))
         info['nearest_support'] = nearest_support
 
-        # Prüfe ob Low den Support getestet hat
+        # Check if low tested the support
         distance_pct = abs(current_low - nearest_support) / nearest_support
         info['distance_pct'] = distance_pct * 100
 
-        # Support-Stärke berechnen (Touches zählen)
+        # Calculate support strength (count touches)
         touches = self._count_support_touches(lows, nearest_support, tolerance)
         info['touches'] = touches
 
@@ -408,12 +414,12 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             # Support getestet
             info['tested_support'] = nearest_support
 
-            # Prüfe ob Bounce (Close über Low)
+            # Check if bounce (Close above Low)
             bounce_pct = (current_price - current_low) / current_low * 100
             info['bounce_pct'] = bounce_pct
 
             if bounce_pct >= self.config.bounce_min_pct:
-                # Bonus für starken Support
+                # Bonus for strong support
                 base_score = 3
                 if info['strength'] == 'strong':
                     return base_score, info
@@ -437,7 +443,7 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         support_level: float,
         tolerance: float
     ) -> int:
-        """Zählt wie oft der Support-Level getestet wurde"""
+        """Counts how many times the support level was tested"""
         touches = 0
         lookback = min(len(lows), self.config.support_lookback_days)
 
@@ -480,11 +486,11 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         highs: List[float],
         lows: List[float]
     ) -> Tuple[int, Dict[str, Any]]:
-        """Erkennt bullische Candlestick-Patterns"""
+        """Detects bullish candlestick patterns"""
         if len(prices) < 3:
             return 0, {'pattern': None}
 
-        # Letzte Kerze
+        # Last candle
         open_price = prices[-2]  # Approximation: vorheriger Close
         close = prices[-1]
         high = highs[-1]
@@ -502,7 +508,7 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             if lower_wick >= body_size * 2 and upper_wick < body_size * 0.5:
                 info['pattern'] = 'Hammer'
                 info['bullish'] = True
-                return 2 if body > 0 else 1, info  # Grüner Hammer = besser
+                return 2 if body > 0 else 1, info  # Green hammer = better
 
         # Bullish Engulfing
         if len(prices) >= 3:
@@ -516,7 +522,7 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         total_range = high - low
         if total_range > 0 and body_size / total_range < 0.1:
             info['pattern'] = 'Doji'
-            info['bullish'] = False  # Neutral, aber am Support relevant
+            info['bullish'] = False  # Neutral, but relevant at support
             return 1, info
 
         # Bullish Kerze (grün)
@@ -528,7 +534,7 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         return 0, info
 
     def _score_volume(self, volumes: List[int]) -> Tuple[int, Dict[str, Any]]:
-        """Erweiterte Volume-Analyse"""
+        """Extended volume analysis"""
         avg_period = 20
 
         if len(volumes) < avg_period + 1:
@@ -545,7 +551,7 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             'multiplier': multiplier
         }
 
-        # Volume-Trend der letzten 5 Tage
+        # Volume trend of the last 5 days
         recent_volumes = volumes[-5:]
         if len(recent_volumes) >= 3:
             vol_trend = recent_volumes[-1] / recent_volumes[0] if recent_volumes[0] > 0 else 1
@@ -561,12 +567,12 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         # Scoring
         score = 0
 
-        # 1. Volume-Spike beim Bounce = gut (1 Punkt)
+        # 1. Volume spike at bounce = good (1 point)
         if multiplier >= self.config.volume_spike_multiplier:
             score += 1
             info['reason'] = "Volume spike confirms bounce"
 
-        # 2. Abnehmendes Volume während Pullback = gesund (1 Punkt)
+        # 2. Declining volume during pullback = healthy (1 point)
         if info['trend'] == 'decreasing':
             score += 1
             info['reason'] = info.get('reason', '') + " | Healthy declining volume"
@@ -577,7 +583,7 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         return score, info
 
     def _score_trend(self, prices: List[float]) -> Tuple[int, Dict[str, Any]]:
-        """Trend-Analyse für Bounce-Kontext"""
+        """Trend analysis for bounce context"""
         sma_50 = sum(prices[-50:]) / 50 if len(prices) >= 50 else sum(prices) / len(prices)
         sma_200 = sum(prices[-200:]) / 200 if len(prices) >= 200 else sum(prices) / len(prices)
 
@@ -589,20 +595,20 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             'price': current
         }
 
-        # Für Bounce ist Aufwärtstrend wichtig (Mean Reversion)
+        # For bounce, uptrend is important (Mean Reversion)
         if current > sma_200:
             if current > sma_50:
                 info['trend'] = 'uptrend'
                 return 2, info
             else:
                 info['trend'] = 'pullback_in_uptrend'
-                return 2, info  # Pullback in Aufwärtstrend = ideal für Bounce
+                return 2, info  # Pullback in uptrend = ideal for bounce
         else:
             info['trend'] = 'downtrend'
-            return 0, info  # Downtrend = riskant
+            return 0, info  # Downtrend = risky
 
     # =========================================================================
-    # RSI DIVERGENZ SCORING (NEU)
+    # RSI DIVERGENCE SCORING (NEW)
     # =========================================================================
 
     def _score_rsi_divergence(
@@ -610,42 +616,42 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         divergence: Optional[RSIDivergenceResult]
     ) -> Tuple[float, str]:
         """
-        RSI Divergenz Score (0-3 Punkte).
+        RSI Divergence Score (0-3 points).
 
-        Bullische Divergenz ist ein starkes Signal für Bounce:
-        - Kurs macht tieferes Tief
-        - RSI macht höheres Tief
-        - Verkaufsdruck lässt nach → Bodenbildung wahrscheinlich
+        Bullish divergence is a strong signal for bounce:
+        - Price makes lower low
+        - RSI makes higher low
+        - Selling pressure decreasing -> bottom formation likely
 
-        Bärische Divergenz ist ein Warnsignal (kein Punktabzug, aber Warning).
+        Bearish divergence is a warning signal (no point deduction, but warning).
         """
         if not divergence:
-            return 0, "Keine RSI-Divergenz erkannt"
+            return 0, "No RSI divergence detected"
 
         if divergence.divergence_type == 'bullish':
-            # Scoring basierend auf Stärke der Divergenz
+            # Scoring based on divergence strength
             strength = divergence.strength
 
             if strength >= 0.7:
                 score = 3.0
-                reason = f"Starke bullische Divergenz (Stärke: {strength:.0%}, {divergence.formation_days} Tage)"
+                reason = f"Strong bullish divergence (strength: {strength:.0%}, {divergence.formation_days} days)"
             elif strength >= 0.4:
                 score = 2.0
-                reason = f"Moderate bullische Divergenz (Stärke: {strength:.0%}, {divergence.formation_days} Tage)"
+                reason = f"Moderate bullish divergence (strength: {strength:.0%}, {divergence.formation_days} days)"
             else:
                 score = 1.0
-                reason = f"Schwache bullische Divergenz (Stärke: {strength:.0%}, {divergence.formation_days} Tage)"
+                reason = f"Weak bullish divergence (strength: {strength:.0%}, {divergence.formation_days} days)"
 
             return score, reason
 
         elif divergence.divergence_type == 'bearish':
-            # Bärische Divergenz beim Bounce = Warnsignal, aber kein Abzug
-            return 0, f"Bärische Divergenz erkannt - Vorsicht! (Stärke: {divergence.strength:.0%})"
+            # Bearish divergence in bounce = warning signal, but no deduction
+            return 0, f"Bearish divergence detected - caution! (strength: {divergence.strength:.0%})"
 
-        return 0, "Keine signifikante Divergenz"
+        return 0, "No significant divergence"
 
     # =========================================================================
-    # MACD SCORING (NEU)
+    # MACD SCORING (NEW)
     # =========================================================================
 
     def _calculate_macd(
@@ -655,7 +661,7 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         slow: int = 26,
         signal: int = 9
     ) -> Optional[MACDResult]:
-        """Berechnet MACD"""
+        """Calculates MACD"""
         if len(prices) < slow + signal:
             return None
 
@@ -697,7 +703,7 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         )
 
     def _score_macd(self, macd: Optional[MACDResult]) -> Tuple[float, str, str]:
-        """MACD Score (0-2 Punkte)"""
+        """MACD Score (0-2 points)"""
         if not macd:
             return 0, "No MACD data", "neutral"
 
@@ -715,7 +721,7 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         return 0, "MACD neutral", "neutral"
 
     # =========================================================================
-    # STOCHASTIC SCORING (NEU)
+    # STOCHASTIC SCORING (NEW)
     # =========================================================================
 
     def _calculate_stochastic(
@@ -726,7 +732,7 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         k_period: int = 14,
         d_period: int = 3
     ) -> Optional[StochasticResult]:
-        """Berechnet Stochastic Oscillator"""
+        """Calculates Stochastic Oscillator"""
         if len(prices) < k_period + d_period:
             return None
 
@@ -758,7 +764,7 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         current_k = k_values[-1]
         current_d = d_values[-1] if d_values else current_k
 
-        # Zone bestimmen
+        # Determine zone
         cfg = self.scoring_config.stochastic
         if current_k < cfg.oversold_threshold:
             zone = 'oversold'
@@ -786,7 +792,7 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         )
 
     def _score_stochastic(self, stoch: Optional[StochasticResult]) -> Tuple[float, str, str]:
-        """Stochastic Score (0-2 Punkte)"""
+        """Stochastic Score (0-2 points)"""
         if not stoch:
             return 0, "No Stochastic data", "neutral"
 
@@ -803,7 +809,7 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         return 0, f"Stoch neutral (K={stoch.k:.0f})", "neutral"
 
     # =========================================================================
-    # KELTNER CHANNEL (NEU)
+    # KELTNER CHANNEL (NEW)
     # =========================================================================
 
     def _calculate_keltner_channel(
@@ -812,30 +818,30 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         highs: List[float],
         lows: List[float]
     ) -> Optional[KeltnerChannelResult]:
-        """Berechnet Keltner Channel"""
+        """Calculates Keltner Channel"""
         cfg = self.scoring_config.keltner
         min_required = max(cfg.ema_period, cfg.atr_period) + 1
 
         if len(prices) < min_required:
             return None
 
-        # EMA berechnen (Mittellinie)
+        # Calculate EMA (middle line)
         ema_values = self._calculate_ema(prices, cfg.ema_period)
         if not ema_values:
             return None
         current_ema = ema_values[-1]
 
-        # ATR berechnen
+        # Calculate ATR
         atr = self._calculate_atr(highs, lows, prices, cfg.atr_period)
         if atr is None or atr <= 0:
             return None
 
-        # Bänder berechnen
+        # Calculate bands
         band_width = atr * cfg.atr_multiplier
         upper = current_ema + band_width
         lower = current_ema - band_width
 
-        # Aktuelle Position des Preises bestimmen
+        # Determine current price position
         current_price = prices[-1]
         channel_range = upper - lower
 
@@ -857,7 +863,7 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         else:
             price_position = 'in_channel'
 
-        # Channel-Breite als % des Preises
+        # Channel width as % of price
         channel_width_pct = (channel_range / current_price) * 100 if current_price > 0 else 0
 
         return KeltnerChannelResult(
@@ -875,31 +881,31 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         keltner: KeltnerChannelResult,
         current_price: float
     ) -> Tuple[float, str]:
-        """Keltner Channel Score für Bounce (0-2 Punkte)"""
+        """Keltner Channel Score for Bounce (0-2 points)"""
         cfg = self.scoring_config.keltner
         position = keltner.price_position
         pct = keltner.percent_position
 
         if position == 'below_lower':
-            return cfg.weight_below_lower, f"Preis unter Keltner Lower Band ({pct:.2f})"
+            return cfg.weight_below_lower, f"Price below Keltner Lower Band ({pct:.2f})"
 
         if position == 'near_lower':
-            return cfg.weight_near_lower, f"Preis nahe Keltner Lower Band ({pct:.2f})"
+            return cfg.weight_near_lower, f"Price near Keltner Lower Band ({pct:.2f})"
 
         if position == 'in_channel' and pct < -0.3:
-            return cfg.weight_mean_reversion * 0.5, f"Bounce im unteren Channel-Bereich ({pct:.2f})"
+            return cfg.weight_mean_reversion * 0.5, f"Bounce in lower channel area ({pct:.2f})"
 
         if position == 'above_upper':
-            return 0, f"Preis über Keltner Upper Band ({pct:.2f}) - überkauft"
+            return 0, f"Price above Keltner Upper Band ({pct:.2f}) - overbought"
 
-        return 0, f"Preis in neutraler Channel-Position ({pct:.2f})"
+        return 0, f"Price in neutral channel position ({pct:.2f})"
 
     # =========================================================================
     # HELPER METHODS
     # =========================================================================
 
     def _calculate_ema(self, values: List[float], period: int) -> Optional[List[float]]:
-        """Berechnet Exponential Moving Average"""
+        """Calculates Exponential Moving Average"""
         if len(values) < period:
             return None
 
@@ -918,7 +924,7 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         closes: List[float],
         period: int = 14
     ) -> Optional[float]:
-        """Berechnet Average True Range (ATR)"""
+        """Calculates Average True Range (ATR)"""
         if len(highs) < period + 1:
             return None
 
@@ -941,6 +947,6 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         return float(np.mean(true_ranges[-period:]))
 
     def _calculate_target(self, entry: float, stop: float) -> float:
-        """Berechnet Target basierend auf Risk/Reward"""
+        """Calculates target based on Risk/Reward"""
         risk = entry - stop
         return entry + (risk * self.config.target_risk_reward)

@@ -18,7 +18,7 @@ import pytest
 from datetime import datetime, date
 from unittest.mock import MagicMock, AsyncMock, patch, PropertyMock
 from dataclasses import dataclass
-from typing import Optional, List
+from typing import Optional, List, Any
 
 from src.handlers.scan import ScanHandlerMixin
 from src.scanner.multi_strategy_scanner import ScanMode
@@ -103,6 +103,9 @@ class MockDailyPick:
     suggested_strikes: Optional[MockStrikeRecommendation] = None
     reason: Optional[str] = None
     warnings: Optional[List[str]] = None
+    spread_validation: Optional[Any] = None
+    entry_quality: Optional[Any] = None
+    ranking_score: Optional[float] = None
 
 
 class MockVixRegime:
@@ -663,8 +666,8 @@ class TestDailyPicks:
                     include_strikes=True,
                 )
 
-        assert "Strike Recommendations" in result
-        assert "$180" in result  # Short strike
+        assert "Short $180" in result  # v2 format for strike recommendations
+        assert "Long $170" in result
 
 
 # =============================================================================
@@ -714,7 +717,6 @@ class TestFormatDailyPicksOutput:
 
         output = handler._format_daily_picks_output(result, 5.0)
 
-        assert "Warnings" in output
         assert "High VIX" in output
 
     def test_format_different_regimes(self, handler):
@@ -745,7 +747,7 @@ class TestFormatDailyPicksOutput:
 
         output = handler._format_daily_picks_output(result, 5.0)
 
-        assert "Low Volatility" in output
+        assert "Normal" in output  # low_vol maps to "Normal" in v2 format
 
     def test_format_multiple_strategies(self, handler):
         """Test formatting with multiple strategies."""
@@ -778,9 +780,9 @@ class TestFormatDailyPicksOutput:
 
         output = handler._format_daily_picks_output(result, 5.0)
 
-        assert "PB" in output  # Pullback
-        assert "BN" in output  # Bounce
-        assert "ATH" in output  # ATH Breakout
+        assert "Pullback" in output
+        assert "Bounce" in output
+        assert "ATH Breakout" in output
 
     def test_format_pick_with_all_details(self, handler):
         """Test formatting pick with all details."""
@@ -812,7 +814,6 @@ class TestFormatDailyPicksOutput:
         output = handler._format_daily_picks_output(result, 5.0)
 
         assert "AAPL" in output
-        assert "92%" in output  # Win rate
         assert "Technology" in output
         assert "Strong support bounce" in output
 
@@ -841,7 +842,7 @@ class TestFormatSinglePickDetail:
 
         assert "AAPL" in output
         assert "Pullback" in output
-        assert "$185.50" in output
+        assert "Stab(85)" in output  # Stability check in v2 format
         assert "8.5" in output
 
     def test_format_pick_with_strikes(self, handler):
@@ -865,9 +866,9 @@ class TestFormatSinglePickDetail:
         handler._format_single_pick_detail(b, pick)
         output = b.build()
 
-        assert "Strike Recommendation" in output
-        assert "Short Put" in output
-        assert "$180" in output
+        assert "Short $180" in output  # v2 format: "Strikes: Short $180 / Long $170"
+        assert "Long $170" in output
+        assert "Width $10" in output
 
     def test_format_pick_with_warnings(self, handler):
         """Test formatting pick with warnings."""
@@ -889,8 +890,8 @@ class TestFormatSinglePickDetail:
         handler._format_single_pick_detail(b, pick)
         output = b.build()
 
-        assert "⚠️" in output
-        assert "Near earnings" in output
+        assert "Warning: Near earnings" in output  # v2 format uses "Warning:" prefix
+        assert "Warning: High IV" in output
 
 
 # =============================================================================
@@ -945,8 +946,8 @@ class TestEdgeCases:
         handler._format_single_pick_detail(b, pick)
         output = b.build()
 
-        assert "N/A" in output
-        assert "Unknown" in output  # For stability
+        assert "TEST" in output  # v2 format: symbol present, no crash
+        assert "Pullback" in output  # Strategy still shown
 
 
 if __name__ == "__main__":

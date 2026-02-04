@@ -24,6 +24,7 @@ from ..cache import get_earnings_fetcher
 from ..utils.earnings_aggregator import (
     EarningsResult, get_earnings_aggregator, create_earnings_result
 )
+from ..constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS
 from .base import BaseHandlerMixin
 
 logger = logging.getLogger(__name__)
@@ -48,8 +49,8 @@ class QuoteHandlerMixin(BaseHandlerMixin):
     async def get_options_chain(
         self,
         symbol: str,
-        dte_min: int = 30,
-        dte_max: int = 60,
+        dte_min: int = 60,
+        dte_max: int = 90,
         right: str = "P",
         max_options: int = 15,
     ) -> str:
@@ -72,36 +73,10 @@ class QuoteHandlerMixin(BaseHandlerMixin):
         quote = await self._get_quote_cached(symbol)
         underlying_price = quote.last if quote else None
 
-        options = None
-
-        # Try Tradier first if connected
-        if self._tradier_connected and self._tradier_provider:
-            try:
-                options = await self._tradier_provider.get_option_chain(
-                    symbol,
-                    dte_min=dte_min,
-                    dte_max=dte_max,
-                    right=right.upper()
-                )
-                if options:
-                    self._orchestrator.record_request(ProviderType.TRADIER, success=True)
-                    logger.debug(f"Options chain from Tradier: {len(options)} options")
-            except Exception as e:
-                logger.debug(f"Tradier options chain failed for {symbol}, falling back: {e}")
-                self._orchestrator.record_request(ProviderType.TRADIER, success=False, error=str(e))
-
-        # Fallback to Marketdata
-        if not options:
-            provider = await self._ensure_connected()
-            await self._rate_limiter.acquire()
-            options = await provider.get_option_chain(
-                symbol,
-                dte_min=dte_min,
-                dte_max=dte_max,
-                right=right.upper()
-            )
-            self._rate_limiter.record_success()
-            self._orchestrator.record_request(ProviderType.MARKETDATA, success=True)
+        # Get options chain (Tradier -> IBKR fallback, no Marketdata ATM)
+        options = await self._get_options_chain_with_fallback(
+            symbol, dte_min=dte_min, dte_max=dte_max, right=right
+        )
 
         return formatters.options_chain.format(
             symbol=symbol,
@@ -315,7 +290,7 @@ class QuoteHandlerMixin(BaseHandlerMixin):
     @mcp_endpoint(operation="earnings prefilter")
     async def earnings_prefilter(
         self,
-        min_days: int = 45,
+        min_days: int = ENTRY_EARNINGS_MIN_DAYS,
         symbols: Optional[List[str]] = None,
         show_excluded: bool = False,
     ) -> str:
@@ -575,7 +550,7 @@ class QuoteHandlerMixin(BaseHandlerMixin):
         b.h1(f"Trading Validation: {symbol}").blank()
 
         if days_to_earnings is not None:
-            is_safe = days_to_earnings >= 45
+            is_safe = days_to_earnings >= ENTRY_EARNINGS_MIN_DAYS
             status = "SAFE" if is_safe else "CAUTION"
             icon = "[OK]" if is_safe else "[!]"
 
@@ -583,7 +558,7 @@ class QuoteHandlerMixin(BaseHandlerMixin):
             b.kv_line("Status", f"{icon} {status}")
             b.kv_line("Next Earnings", earnings_date or "Unknown")
             b.kv_line("Days Until", days_to_earnings)
-            b.kv_line("Min Required", "45 days")
+            b.kv_line("Min Required", f"{ENTRY_EARNINGS_MIN_DAYS} days")
         else:
             b.h2("Earnings Check")
             b.kv_line("Status", "[?] UNKNOWN")

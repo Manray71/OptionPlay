@@ -311,13 +311,14 @@ class TestIntegration:
             mock.return_value = mock_bars
             
             result = await provider.get_historical_for_scanner("AAPL")
-            
+
             assert result is not None
-            prices, volumes, highs, lows = result
+            prices, volumes, highs, lows, opens = result
             assert len(prices) == 60
             assert len(volumes) == 60
             assert len(highs) == 60
             assert len(lows) == 60
+            assert len(opens) == 60
     
     @pytest.mark.asyncio
     async def test_context_manager(self, provider):

@@ -31,6 +31,40 @@ from .scanner_service import ScannerService
 from .quote_service import QuoteService
 from .options_service import OptionsService
 from .server_core import ServerCore
+from .portfolio_constraints import (
+    PortfolioConstraints,
+    PortfolioConstraintChecker,
+    ConstraintResult,
+    get_constraint_checker,
+    reset_constraint_checker,
+)
+from .trade_validator import (
+    TradeValidator,
+    TradeValidationRequest,
+    TradeValidationResult,
+    ValidationCheck,
+    get_trade_validator,
+    reset_trade_validator,
+)
+from .position_monitor import (
+    PositionMonitor,
+    PositionSnapshot,
+    PositionSignal,
+    MonitorResult,
+    get_position_monitor,
+    reset_position_monitor,
+    snapshot_from_internal,
+    snapshot_from_ibkr,
+    estimate_pnl_from_theta,
+)
+from .recommendation_engine import (
+    DailyRecommendationEngine,
+    DailyPick,
+    DailyRecommendationResult,
+    SuggestedStrikes,
+    create_recommendation_engine,
+    get_quick_picks,
+)
 
 __all__ = [
     'BaseService',
@@ -41,4 +75,34 @@ __all__ = [
     'QuoteService',
     'OptionsService',
     'ServerCore',
+    # Portfolio Constraints
+    'PortfolioConstraints',
+    'PortfolioConstraintChecker',
+    'ConstraintResult',
+    'get_constraint_checker',
+    'reset_constraint_checker',
+    # Trade Validator
+    'TradeValidator',
+    'TradeValidationRequest',
+    'TradeValidationResult',
+    'ValidationCheck',
+    'get_trade_validator',
+    'reset_trade_validator',
+    # Position Monitor
+    'PositionMonitor',
+    'PositionSnapshot',
+    'PositionSignal',
+    'MonitorResult',
+    'get_position_monitor',
+    'reset_position_monitor',
+    'snapshot_from_internal',
+    'snapshot_from_ibkr',
+    'estimate_pnl_from_theta',
+    # Recommendation Engine
+    'DailyRecommendationEngine',
+    'DailyPick',
+    'DailyRecommendationResult',
+    'SuggestedStrikes',
+    'create_recommendation_engine',
+    'get_quick_picks',
 ]

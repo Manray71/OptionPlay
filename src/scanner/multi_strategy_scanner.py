@@ -40,6 +40,7 @@ try:
         get_fundamentals_manager,
         SymbolFundamentals,
     )
+    from ..constants.trading_rules import ENTRY_STABILITY_MIN, ENTRY_PRICE_MIN, ENTRY_PRICE_MAX
 except ImportError:
     from analyzers.base import BaseAnalyzer
     from analyzers.context import AnalysisContext
@@ -83,6 +84,12 @@ except ImportError:
         SymbolFundamentalsManager = None
         get_fundamentals_manager = None
         SymbolFundamentals = None
+    try:
+        from constants.trading_rules import ENTRY_STABILITY_MIN, ENTRY_PRICE_MIN, ENTRY_PRICE_MAX
+    except ImportError:
+        ENTRY_STABILITY_MIN = 70.0
+        ENTRY_PRICE_MIN = 20.0
+        ENTRY_PRICE_MAX = 1500.0
 
 logger = logging.getLogger(__name__)
 
@@ -146,10 +153,29 @@ class ScanConfig:
 
     # Symbol Stability Filtering (Phase 4 - Outcome-basierte Filterung)
     enable_stability_scoring: bool = True  # Stability Scores aus Backtest-DB
-    stability_min_score: float = 50.0  # Mindest-Stabilität (0-100)
+    stability_min_score: float = ENTRY_STABILITY_MIN  # PLAYBOOK §1: ≥70
     stability_boost_threshold: float = 70.0  # Ab diesem Score wird Score erhöht
     stability_boost_amount: float = 1.0  # Score-Boost für stabile Symbole (LEGACY)
     warn_on_volatile_symbols: bool = True  # Warnung bei volatilen Symbolen
+
+    # =========================================================================
+    # STABILITY-FIRST FILTERING (Phase 6 - Stability > Score)
+    # =========================================================================
+    # Basierend auf Training-Ergebnissen:
+    # - Stability ≥80: 94.5% Win Rate (Premium-Symbole)
+    # - Stability 70-80: 86.1% Win Rate (Gute Symbole)
+    # - Stability 50-70: 75% Win Rate (Akzeptabel)
+    # - Stability <50: 66.0% Win Rate (Blacklist)
+    enable_stability_first: bool = True  # Stability-First-Filterung aktivieren
+
+    # Tiered Thresholds: Je höher Stability, desto niedriger min_score erlaubt
+    stability_premium_threshold: float = 80.0  # Premium-Symbole (94.5% WR)
+    stability_premium_min_score: float = 4.0   # Niedrigerer Score OK für Premium
+    stability_good_threshold: float = 70.0     # Gute Symbole (86.1% WR)
+    stability_good_min_score: float = 5.0      # Standard Score für gute Symbole
+    stability_ok_threshold: float = 50.0       # Akzeptable Symbole
+    stability_ok_min_score: float = 6.0        # Höherer Score für grenzwertige Symbole
+    # Symbole unter stability_ok_threshold werden komplett gefiltert (Blacklist)
 
     # Win Rate Integration (Phase 5 - Proportionale Integration)
     # Formel: adjusted_score = base_score * (base_multiplier + win_rate/win_rate_divisor)
@@ -171,7 +197,7 @@ class ScanConfig:
     enable_fundamentals_filter: bool = True  # Master-Schalter
 
     # Stability-basierte Filterung (aus outcomes.db)
-    fundamentals_min_stability: float = 50.0  # Mindest Stability Score
+    fundamentals_min_stability: float = ENTRY_STABILITY_MIN  # PLAYBOOK §1: ≥70
     fundamentals_min_win_rate: float = 70.0   # Mindest historische Win Rate
 
     # Volatility-basierte Filterung
@@ -434,6 +460,12 @@ class MultiStrategyScanner:
             if f.stability_score is not None:
                 if f.stability_score < self.config.fundamentals_min_stability:
                     filtered[symbol] = f"Stability zu niedrig ({f.stability_score:.0f} < {self.config.fundamentals_min_stability:.0f})"
+                    continue
+
+            # Price Filter (PLAYBOOK §1: $20-$1500)
+            if f.current_price is not None:
+                if f.current_price < ENTRY_PRICE_MIN or f.current_price > ENTRY_PRICE_MAX:
+                    filtered[symbol] = f"Preis ${f.current_price:.2f} außerhalb ${ENTRY_PRICE_MIN:.0f}-${ENTRY_PRICE_MAX:.0f}"
                     continue
 
             # Historical Win Rate Filter
@@ -1042,6 +1074,95 @@ class MultiStrategyScanner:
 
         return " | ".join(reasons) if reasons else "Standard"
 
+    def _filter_by_stability(
+        self,
+        signals: List[TradeSignal]
+    ) -> Tuple[List[TradeSignal], Dict[str, int]]:
+        """
+        Stability-First-Filterung: Filtert Signale basierend auf Symbol-Stability.
+
+        Konzept: Stability ist der stärkste Prädiktor für Win Rate!
+        - Stability ≥80 (Premium): 94.5% WR → niedriger min_score OK
+        - Stability ≥70 (Gut): 86.1% WR → normaler min_score
+        - Stability ≥50 (OK): 75% WR → höherer min_score erforderlich
+        - Stability <50 (Blacklist): 66% WR → komplett gefiltert
+
+        Args:
+            signals: Liste von TradeSignals (müssen bereits stability data haben)
+
+        Returns:
+            Tuple von (gefilterte_signale, statistiken)
+        """
+        if not self.config.enable_stability_first:
+            return signals, {'filtered': 0, 'reason': 'disabled'}
+
+        filtered = []
+        stats = {
+            'total': len(signals),
+            'premium_kept': 0,
+            'good_kept': 0,
+            'ok_kept': 0,
+            'blacklisted': 0,
+            'no_stability_data': 0,
+            'score_too_low': 0,
+        }
+
+        for signal in signals:
+            # Stability-Score aus Signal-Details extrahieren
+            stability_score = 0.0
+            if signal.details and 'stability' in signal.details:
+                stability_score = signal.details['stability'].get('score', 0.0)
+
+            # Kein Stability-Score vorhanden → konservativ behandeln (wie OK-Tier)
+            if stability_score == 0.0:
+                stats['no_stability_data'] += 1
+                # Ohne Stability-Daten: Standard min_score verwenden
+                if signal.score >= self.config.min_score:
+                    filtered.append(signal)
+                else:
+                    stats['score_too_low'] += 1
+                continue
+
+            # Tier-basierte Filterung
+            if stability_score >= self.config.stability_premium_threshold:
+                # Premium-Symbol (94.5% WR): Niedrigerer Score OK
+                if signal.score >= self.config.stability_premium_min_score:
+                    filtered.append(signal)
+                    stats['premium_kept'] += 1
+                else:
+                    stats['score_too_low'] += 1
+
+            elif stability_score >= self.config.stability_good_threshold:
+                # Gutes Symbol (86.1% WR): Standard Score
+                if signal.score >= self.config.stability_good_min_score:
+                    filtered.append(signal)
+                    stats['good_kept'] += 1
+                else:
+                    stats['score_too_low'] += 1
+
+            elif stability_score >= self.config.stability_ok_threshold:
+                # OK Symbol (75% WR): Höherer Score erforderlich
+                if signal.score >= self.config.stability_ok_min_score:
+                    filtered.append(signal)
+                    stats['ok_kept'] += 1
+                else:
+                    stats['score_too_low'] += 1
+
+            else:
+                # Blacklist: Stability < 50 → komplett gefiltert
+                stats['blacklisted'] += 1
+
+        stats['filtered'] = stats['total'] - len(filtered)
+
+        if stats['filtered'] > 0:
+            logger.info(
+                f"Stability-First-Filter: {stats['filtered']}/{stats['total']} Signale gefiltert "
+                f"(Premium: {stats['premium_kept']}, Good: {stats['good_kept']}, "
+                f"OK: {stats['ok_kept']}, Blacklisted: {stats['blacklisted']})"
+            )
+
+        return filtered, stats
+
     def _run_analysis(
         self,
         analyzer: BaseAnalyzer,
@@ -1196,6 +1317,21 @@ class MultiStrategyScanner:
                 symbols_with_signals += 1
                 all_signals.extend(symbol_signals)
 
+        # =====================================================================
+        # STABILITY-FIRST-FILTER (Phase 6)
+        # Filtert Signale basierend auf Symbol-Stability NACH der Analyse
+        # =====================================================================
+        if self.config.enable_stability_first:
+            pre_stability_count = len(all_signals)
+            all_signals, stability_stats = self._filter_by_stability(all_signals)
+            if stability_stats.get('filtered', 0) > 0:
+                logger.info(
+                    f"Stability-First: {pre_stability_count} → {len(all_signals)} signals "
+                    f"(Premium: {stability_stats.get('premium_kept', 0)}, "
+                    f"Good: {stability_stats.get('good_kept', 0)}, "
+                    f"OK: {stability_stats.get('ok_kept', 0)})"
+                )
+
         # PERFORMANCE: nlargest is faster than full sort when k << n
         max_results = self.config.max_total_results
         if len(all_signals) > max_results * 2:
@@ -1309,11 +1445,26 @@ class MultiStrategyScanner:
                     
             except Exception as e:
                 errors.append(f"{symbol}: {str(e)}")
-        
+
+        # =====================================================================
+        # STABILITY-FIRST-FILTER (Phase 6)
+        # Filtert Signale basierend auf Symbol-Stability NACH der Analyse
+        # =====================================================================
+        if self.config.enable_stability_first:
+            pre_stability_count = len(all_signals)
+            all_signals, stability_stats = self._filter_by_stability(all_signals)
+            if stability_stats.get('filtered', 0) > 0:
+                logger.info(
+                    f"Stability-First: {pre_stability_count} → {len(all_signals)} signals "
+                    f"(Premium: {stability_stats.get('premium_kept', 0)}, "
+                    f"Good: {stability_stats.get('good_kept', 0)}, "
+                    f"OK: {stability_stats.get('ok_kept', 0)})"
+                )
+
         # Nach Score sortieren und limitieren
         all_signals.sort(key=lambda x: x.score, reverse=True)
         all_signals = all_signals[:self.config.max_total_results]
-        
+
         if mode == ScanMode.BEST_SIGNAL:
             all_signals = self._keep_best_per_symbol(all_signals)
         

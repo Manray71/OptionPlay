@@ -67,7 +67,7 @@ class TestServiceContainerProvider:
 
         with patch('src.data_providers.marketdata.MarketDataProvider') as MockProvider:
             mock_instance = AsyncMock()
-            mock_instance.connected = False
+            mock_instance.is_connected = AsyncMock(return_value=False)
             mock_instance.connect = AsyncMock()
             MockProvider.return_value = mock_instance
 

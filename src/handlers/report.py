@@ -117,7 +117,7 @@ class ReportHandlerMixin(BaseHandlerMixin):
             "recommended_strategy": strategy_rec.profile_name.title() if strategy_rec else 'Standard',
             "parameters": {
                 "delta": strategy_rec.delta_target if strategy_rec else -0.20,
-                "spread_width": strategy_rec.spread_width if strategy_rec else 5,
+                "spread_width": strategy_rec.spread_width if strategy_rec else None,
                 "min_score": min_score,
                 "min_dte": strategy_rec.dte_min if strategy_rec else 60,
                 "max_dte": strategy_rec.dte_max if strategy_rec else 90,

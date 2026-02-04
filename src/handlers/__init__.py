@@ -37,6 +37,8 @@ from .portfolio import PortfolioHandlerMixin
 from .ibkr import IbkrHandlerMixin
 from .report import ReportHandlerMixin
 from .risk import RiskHandlerMixin
+from .validate import ValidateHandlerMixin
+from .monitor import MonitorHandlerMixin
 
 # Composition-based handler system (new, preferred)
 from .handler_container import (
@@ -57,6 +59,8 @@ __all__ = [
     "IbkrHandlerMixin",
     "ReportHandlerMixin",
     "RiskHandlerMixin",
+    "ValidateHandlerMixin",
+    "MonitorHandlerMixin",
     # New Composition-based (preferred for new code)
     "HandlerContainer",
     "ServerContext",

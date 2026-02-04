@@ -190,10 +190,14 @@ class TestSingleSymbolAnalysis:
 
 class TestSyncScan:
     """Tests für synchrones Scanning"""
-    
+
     @pytest.fixture
     def scanner(self):
-        config = ScanConfig(min_score=0)  # Alle Signale
+        config = ScanConfig(
+            min_score=0,  # Alle Signale
+            enable_liquidity_filter=False,  # Deaktiviere Filter für Tests
+            enable_fundamentals_filter=False,
+        )
         return MultiStrategyScanner(config)
     
     def test_scan_multiple_symbols(self, scanner):
@@ -370,12 +374,12 @@ class TestEarningsFilter:
         should_skip = scanner._should_skip_for_earnings("AAPL", "bounce")
         assert should_skip == False
 
-    def test_unknown_earnings_filtered_conservatively(self, scanner):
-        """Unbekannte Earnings (nicht im Cache) sollten konservativ gefiltert werden"""
+    def test_unknown_earnings_allowed_for_other_strategies(self, scanner):
+        """Unbekannte Earnings sollten andere Strategien nicht blockieren"""
         # MSFT hat KEIN Earnings-Datum im Scanner-Cache
-        # Sollte konservativ übersprungen werden
+        # Neue Logik: erlaubt die Analyse statt konservativ zu überspringen
         should_skip = scanner._should_skip_for_earnings("MSFT", "bounce")
-        assert should_skip == True
+        assert should_skip == False
 
     def test_unknown_earnings_filtered_for_earnings_dip(self, scanner):
         """earnings_dip sollte auch bei unbekannten Earnings gefiltert werden"""
@@ -474,6 +478,153 @@ class TestQuickScan:
         )
         
         assert isinstance(signals, list)
+
+
+# =============================================================================
+# Stability-First Filter Tests (Phase 6)
+# =============================================================================
+
+class TestStabilityFirstFilter:
+    """Tests für Stability-First-Filterung"""
+
+    @pytest.fixture
+    def scanner_stability_enabled(self):
+        """Scanner mit Stability-First aktiviert"""
+        return MultiStrategyScanner(ScanConfig(
+            min_score=3.5,
+            enable_stability_first=True,
+            stability_premium_threshold=80.0,
+            stability_premium_min_score=4.0,
+            stability_good_threshold=70.0,
+            stability_good_min_score=5.0,
+            stability_ok_threshold=50.0,
+            stability_ok_min_score=6.0,
+        ))
+
+    @pytest.fixture
+    def scanner_stability_disabled(self):
+        """Scanner mit Stability-First deaktiviert"""
+        return MultiStrategyScanner(ScanConfig(
+            min_score=3.5,
+            enable_stability_first=False,
+        ))
+
+    def _create_test_signal(self, symbol: str, score: float, stability_score: float = None):
+        """Erstellt ein Test-Signal mit optionalem Stability-Score"""
+        from models.base import TradeSignal, SignalType, SignalStrength
+
+        details = {}
+        if stability_score is not None:
+            details['stability'] = {'score': stability_score}
+
+        return TradeSignal(
+            symbol=symbol,
+            strategy='pullback',
+            signal_type=SignalType.LONG,
+            strength=SignalStrength.MODERATE,
+            score=score,
+            current_price=100.0,
+            details=details
+        )
+
+    def test_premium_symbol_low_score_passes(self, scanner_stability_enabled):
+        """Premium-Symbol (Stability ≥80) mit niedrigem Score sollte durchkommen"""
+        signals = [self._create_test_signal('AAPL', score=4.5, stability_score=85.0)]
+        filtered, stats = scanner_stability_enabled._filter_by_stability(signals)
+
+        assert len(filtered) == 1
+        assert stats['premium_kept'] == 1
+
+    def test_premium_symbol_very_low_score_fails(self, scanner_stability_enabled):
+        """Premium-Symbol mit zu niedrigem Score sollte gefiltert werden"""
+        signals = [self._create_test_signal('MSFT', score=3.5, stability_score=85.0)]
+        filtered, stats = scanner_stability_enabled._filter_by_stability(signals)
+
+        assert len(filtered) == 0
+        assert stats['score_too_low'] == 1
+
+    def test_good_symbol_medium_score_passes(self, scanner_stability_enabled):
+        """Gutes Symbol (Stability 70-80) mit mittlerem Score sollte durchkommen"""
+        signals = [self._create_test_signal('GOOGL', score=5.5, stability_score=75.0)]
+        filtered, stats = scanner_stability_enabled._filter_by_stability(signals)
+
+        assert len(filtered) == 1
+        assert stats['good_kept'] == 1
+
+    def test_good_symbol_low_score_fails(self, scanner_stability_enabled):
+        """Gutes Symbol mit zu niedrigem Score sollte gefiltert werden"""
+        signals = [self._create_test_signal('META', score=4.5, stability_score=75.0)]
+        filtered, stats = scanner_stability_enabled._filter_by_stability(signals)
+
+        assert len(filtered) == 0
+        assert stats['score_too_low'] == 1
+
+    def test_ok_symbol_high_score_passes(self, scanner_stability_enabled):
+        """OK-Symbol (Stability 50-70) mit hohem Score sollte durchkommen"""
+        signals = [self._create_test_signal('NFLX', score=7.0, stability_score=55.0)]
+        filtered, stats = scanner_stability_enabled._filter_by_stability(signals)
+
+        assert len(filtered) == 1
+        assert stats['ok_kept'] == 1
+
+    def test_ok_symbol_medium_score_fails(self, scanner_stability_enabled):
+        """OK-Symbol mit mittlerem Score sollte gefiltert werden"""
+        signals = [self._create_test_signal('AMZN', score=5.5, stability_score=55.0)]
+        filtered, stats = scanner_stability_enabled._filter_by_stability(signals)
+
+        assert len(filtered) == 0
+        assert stats['score_too_low'] == 1
+
+    def test_blacklist_symbol_always_fails(self, scanner_stability_enabled):
+        """Blacklist-Symbol (Stability <50) sollte immer gefiltert werden"""
+        signals = [self._create_test_signal('TSLA', score=9.0, stability_score=40.0)]
+        filtered, stats = scanner_stability_enabled._filter_by_stability(signals)
+
+        assert len(filtered) == 0
+        assert stats['blacklisted'] == 1
+
+    def test_no_stability_data_uses_min_score(self, scanner_stability_enabled):
+        """Symbol ohne Stability-Daten sollte min_score verwenden"""
+        signals = [self._create_test_signal('UNKNOWN', score=4.0, stability_score=None)]
+        filtered, stats = scanner_stability_enabled._filter_by_stability(signals)
+
+        # Score 4.0 >= min_score 3.5, sollte durchkommen
+        assert len(filtered) == 1
+        assert stats['no_stability_data'] == 1
+
+    def test_filter_disabled_passes_all(self, scanner_stability_disabled):
+        """Bei deaktiviertem Filter sollten alle Signale durchkommen"""
+        signals = [
+            self._create_test_signal('AAPL', score=4.0, stability_score=85.0),
+            self._create_test_signal('TSLA', score=9.0, stability_score=40.0),
+        ]
+        filtered, stats = scanner_stability_disabled._filter_by_stability(signals)
+
+        assert len(filtered) == 2
+        assert stats.get('reason') == 'disabled'
+
+    def test_mixed_signals_correctly_filtered(self, scanner_stability_enabled):
+        """Gemischte Signale sollten korrekt gefiltert werden"""
+        signals = [
+            self._create_test_signal('AAPL', score=4.5, stability_score=85.0),  # Premium OK
+            self._create_test_signal('MSFT', score=3.5, stability_score=85.0),  # Premium score too low
+            self._create_test_signal('GOOGL', score=5.5, stability_score=75.0),  # Good OK
+            self._create_test_signal('META', score=4.5, stability_score=75.0),  # Good score too low
+            self._create_test_signal('NFLX', score=7.0, stability_score=55.0),  # OK OK
+            self._create_test_signal('AMZN', score=5.5, stability_score=55.0),  # OK score too low
+            self._create_test_signal('TSLA', score=9.0, stability_score=40.0),  # Blacklist
+        ]
+        filtered, stats = scanner_stability_enabled._filter_by_stability(signals)
+
+        assert len(filtered) == 3
+        passed_symbols = {s.symbol for s in filtered}
+        assert passed_symbols == {'AAPL', 'GOOGL', 'NFLX'}
+
+        assert stats['premium_kept'] == 1
+        assert stats['good_kept'] == 1
+        assert stats['ok_kept'] == 1
+        assert stats['blacklisted'] == 1
+        assert stats['score_too_low'] == 3
 
 
 if __name__ == "__main__":

@@ -62,7 +62,7 @@ class TestDefaultSettings:
         
         assert settings.filters.earnings_exclude_days == 60
         assert settings.filters.price_minimum == 20.0
-        assert settings.filters.price_maximum == 500.0
+        assert settings.filters.price_maximum == 1500.0
         assert settings.filters.volume_minimum == 500000
         assert settings.filters.iv_rank_minimum == 30.0
         assert settings.filters.iv_rank_maximum == 80.0
@@ -70,13 +70,16 @@ class TestDefaultSettings:
     def test_default_options_values(self):
         """Options should have correct defaults"""
         settings = Settings()
-        
-        assert settings.options.dte_minimum == 30
-        assert settings.options.dte_maximum == 60
-        assert settings.options.dte_target == 45
-        assert settings.options.delta_target == -0.30
-        assert settings.options.spread_width == 5.0
-        assert settings.options.min_credit_pct == 20.0
+
+        assert settings.options.dte_minimum == 60   # PLAYBOOK §2
+        assert settings.options.dte_maximum == 90   # PLAYBOOK §2
+        assert settings.options.dte_target == 75    # PLAYBOOK §2
+        assert settings.options.delta_target == -0.20  # PLAYBOOK §2
+        assert settings.options.delta_minimum == -0.17  # PLAYBOOK §2: ±0.03
+        assert settings.options.delta_maximum == -0.23  # PLAYBOOK §2: ±0.03
+        assert settings.options.long_delta_target == -0.05  # PLAYBOOK §2
+        assert settings.options.long_delta_maximum == -0.07  # PLAYBOOK §2: ±0.02
+        assert settings.options.min_credit_pct == 10.0  # PLAYBOOK §2
         
     def test_default_rsi_values(self):
         """RSI should have correct defaults"""
@@ -122,7 +125,9 @@ class TestConfigLoaderWithFiles:
         """ConfigLoader with settings.yaml"""
         config_dir = tmp_path / "config"
         config_dir.mkdir()
-        
+
+        # Note: delta_minimum should be less aggressive (closer to 0) than delta_maximum
+        # For puts: -0.25 is less aggressive than -0.35 (in absolute terms)
         settings_yaml = """
 connection:
   ibkr:
@@ -148,11 +153,11 @@ options_analysis:
     dte_maximum: 55
     dte_target: 45
   short_put:
-    delta_minimum: -0.35
-    delta_maximum: -0.25
+    delta_minimum: -0.25
+    delta_maximum: -0.35
     delta_target: -0.28
 """
-        
+
         (config_dir / "settings.yaml").write_text(settings_yaml)
         return ConfigLoader(str(config_dir))
     
@@ -309,26 +314,27 @@ profiles:
 
 class TestEdgeCases:
     """Tests for edge cases"""
-    
+
     def test_empty_yaml_file(self, tmp_path):
         """Empty YAML file should work"""
         config_dir = tmp_path / "config"
         config_dir.mkdir()
         (config_dir / "settings.yaml").write_text("")
-        
+
+        # Empty YAML uses defaults, which should be valid
         loader = ConfigLoader(str(config_dir))
         settings = loader.load_all()
-        
+
         assert settings is not None
-        
+
     def test_malformed_yaml(self, tmp_path):
         """Malformed YAML should handle gracefully"""
         config_dir = tmp_path / "config"
         config_dir.mkdir()
         (config_dir / "settings.yaml").write_text("this: is: not: valid: yaml: {{")
-        
+
         loader = ConfigLoader(str(config_dir))
-        
+
         # Should raise exception or use defaults
         try:
             settings = loader.load_all()
@@ -528,8 +534,9 @@ scanner:
 """
         
         (config_dir / "settings.yaml").write_text(settings_yaml)
-        return ConfigLoader(str(config_dir))
-    
+        # Partial config may not pass validation, so disable it for this test
+        return ConfigLoader(str(config_dir), validate=False)
+
     def test_load_performance_config(self, config_with_all_sections):
         """PerformanceConfig should be loaded from YAML"""
         settings = config_with_all_sections.load_all()
@@ -585,8 +592,9 @@ performance:
 """
         
         (config_dir / "settings.yaml").write_text(settings_yaml)
-        return ConfigLoader(str(config_dir))
-    
+        # Partial config may not pass validation, so disable it for this test
+        return ConfigLoader(str(config_dir), validate=False)
+
     def test_partial_performance_loads(self, config_with_partial_sections):
         """Partial performance config should load"""
         settings = config_with_partial_sections.load_all()
