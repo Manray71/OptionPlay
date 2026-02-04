@@ -22,6 +22,7 @@ Author: OptionPlay Team
 Created: 2026-02-04
 """
 
+import asyncio
 import logging
 import sqlite3
 from dataclasses import dataclass
@@ -209,6 +210,28 @@ class IVAnalyzer:
 
         return None
 
+    def _query_iv_from_db(self, symbol: str) -> Optional[list]:
+        """Sync DB query for IV data. Runs in thread pool."""
+        conn = sqlite3.connect(str(self._db_path))
+        cursor = conn.cursor()
+        query = """
+            SELECT g.iv_calculated, p.quote_date
+            FROM options_greeks g
+            JOIN options_prices p ON g.options_price_id = p.id
+            WHERE p.underlying = ?
+              AND p.option_type = 'P'
+              AND g.delta BETWEEN -0.55 AND -0.45
+              AND p.dte BETWEEN 25 AND 35
+              AND p.quote_date >= date('now', '-365 days')
+              AND g.iv_calculated IS NOT NULL
+              AND g.iv_calculated > 0
+            ORDER BY p.quote_date
+        """
+        cursor.execute(query, (symbol,))
+        rows = cursor.fetchall()
+        conn.close()
+        return rows
+
     async def _try_local_db(self, symbol: str) -> Optional[IVMetrics]:
         """
         Berechnet IV-Metriken aus der lokalen DB (options_greeks).
@@ -220,26 +243,7 @@ class IVAnalyzer:
             return None
 
         try:
-            conn = sqlite3.connect(str(self._db_path))
-            cursor = conn.cursor()
-
-            # ATM-Puts mit ~30 DTE, letzte 365 Tage
-            query = """
-                SELECT g.iv_calculated, p.quote_date
-                FROM options_greeks g
-                JOIN options_prices p ON g.options_price_id = p.id
-                WHERE p.underlying = ?
-                  AND p.option_type = 'P'
-                  AND g.delta BETWEEN -0.55 AND -0.45
-                  AND p.dte BETWEEN 25 AND 35
-                  AND p.quote_date >= date('now', '-365 days')
-                  AND g.iv_calculated IS NOT NULL
-                  AND g.iv_calculated > 0
-                ORDER BY p.quote_date
-            """
-            cursor.execute(query, (symbol,))
-            rows = cursor.fetchall()
-            conn.close()
+            rows = await asyncio.to_thread(self._query_iv_from_db, symbol)
 
             if not rows or len(rows) < 30:
                 return None
