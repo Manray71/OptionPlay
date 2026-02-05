@@ -16,6 +16,179 @@ from contextlib import contextmanager
 
 logger = logging.getLogger(__name__)
 
+# =============================================================================
+# SQL CONSTANTS — Single Source of Truth for all queries
+# =============================================================================
+
+# --- CRUD: Trades ---
+SQL_SELECT_TRADE_BY_ID = "SELECT * FROM trades WHERE id = ?"
+SQL_DELETE_TRADE_BY_ID = "DELETE FROM trades WHERE id = ?"
+SQL_COUNT_TRADES = "SELECT COUNT(*) FROM trades"
+SQL_INSERT_TRADE = """
+    INSERT INTO trades (
+        symbol, strategy,
+        signal_date, signal_score, signal_strength, score_breakdown,
+        vix_at_signal, iv_rank_at_signal,
+        entry_price, stop_loss, target_price,
+        status, outcome,
+        exit_date, exit_price, exit_reason,
+        pnl_amount, pnl_percent, holding_days,
+        signal_reliability_grade, signal_reliability_win_rate,
+        created_at, updated_at, notes, tags
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+"""
+SQL_UPDATE_TRADE_CLOSE = """
+    UPDATE trades SET
+        status = ?, outcome = ?, exit_date = ?, exit_price = ?,
+        exit_reason = ?, pnl_amount = ?, pnl_percent = ?,
+        holding_days = ?, updated_at = ?
+    WHERE id = ?
+"""
+SQL_INSERT_META = "INSERT OR REPLACE INTO meta (key, value) VALUES ('schema_version', ?)"
+
+# --- CRUD: Price Data ---
+SQL_DELETE_PRICE_DATA_BY_SYMBOL = "DELETE FROM price_data WHERE symbol = ?"
+SQL_SELECT_PRICE_DATA_BY_SYMBOL = "SELECT data_compressed FROM price_data WHERE symbol = ?"
+SQL_SELECT_PRICE_DATA_DATES = """
+    SELECT start_date, end_date FROM price_data WHERE symbol = ?
+"""
+SQL_SELECT_PRICE_DATA_LIST = """
+    SELECT symbol, start_date, end_date, bar_count, updated_at
+    FROM price_data ORDER BY symbol
+"""
+SQL_INSERT_PRICE_DATA = """
+    INSERT INTO price_data (
+        symbol, start_date, end_date, bar_count,
+        data_compressed, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+"""
+SQL_SELECT_PRICE_DATA_STATS = """
+    SELECT COUNT(*), SUM(bar_count), SUM(LENGTH(data_compressed))
+    FROM price_data
+"""
+
+# --- CRUD: VIX ---
+SQL_SELECT_VIX_DATE_RANGE = """
+    SELECT MIN(date) as min_date, MAX(date) as max_date FROM vix_data
+"""
+SQL_SELECT_VIX_AT_DATE = "SELECT value FROM vix_data WHERE date = ?"
+SQL_SELECT_VIX_BEFORE_DATE = """
+    SELECT value FROM vix_data WHERE date < ? ORDER BY date DESC LIMIT 1
+"""
+SQL_INSERT_VIX = "INSERT OR REPLACE INTO vix_data (date, value, created_at) VALUES (?, ?, ?)"
+SQL_COUNT_VIX = "SELECT COUNT(*) FROM vix_data"
+
+# --- CRUD: Options Data ---
+SQL_SELECT_OPTIONS_BY_UNDERLYING = """
+    SELECT * FROM options_data WHERE underlying = ?
+    ORDER BY trade_date, strike
+"""
+SQL_SELECT_OPTION_AT_DATE = """
+    SELECT * FROM options_data WHERE occ_symbol = ? AND trade_date = ?
+"""
+SQL_SELECT_OPTIONS_UNDERLYING_SUMMARY = """
+    SELECT underlying, COUNT(*) as bar_count,
+           COUNT(DISTINCT occ_symbol) as option_count,
+           MIN(trade_date) as first_date, MAX(trade_date) as last_date
+    FROM options_data GROUP BY underlying ORDER BY underlying
+"""
+SQL_INSERT_OPTION = """
+    INSERT OR REPLACE INTO options_data (
+        occ_symbol, underlying, strike, expiry, option_type,
+        trade_date, open, high, low, close, volume, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+"""
+SQL_DELETE_OPTIONS_BY_OCC = "DELETE FROM options_data WHERE occ_symbol = ?"
+SQL_DELETE_OPTIONS_BY_UNDERLYING = "DELETE FROM options_data WHERE underlying = ?"
+SQL_DELETE_OPTIONS_ALL = "DELETE FROM options_data"
+SQL_COUNT_OPTIONS = "SELECT COUNT(*) FROM options_data"
+SQL_COUNT_OPTIONS_BY_UNDERLYING = "SELECT COUNT(*) FROM options_data WHERE underlying = ?"
+
+# --- Schema DDL (executed in order during _init_db) ---
+_SCHEMA_DDL = [
+    # Trades table
+    """CREATE TABLE IF NOT EXISTS trades (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        symbol TEXT NOT NULL,
+        strategy TEXT NOT NULL,
+        signal_date TEXT,
+        signal_score REAL,
+        signal_strength TEXT,
+        score_breakdown TEXT,
+        vix_at_signal REAL,
+        iv_rank_at_signal REAL,
+        entry_price REAL,
+        stop_loss REAL,
+        target_price REAL,
+        status TEXT DEFAULT 'open',
+        outcome TEXT DEFAULT 'pending',
+        exit_date TEXT,
+        exit_price REAL,
+        exit_reason TEXT,
+        pnl_amount REAL,
+        pnl_percent REAL,
+        holding_days INTEGER,
+        signal_reliability_grade TEXT,
+        signal_reliability_win_rate REAL,
+        created_at TEXT,
+        updated_at TEXT,
+        notes TEXT,
+        tags TEXT
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_trades_symbol ON trades(symbol)",
+    "CREATE INDEX IF NOT EXISTS idx_trades_strategy ON trades(strategy)",
+    "CREATE INDEX IF NOT EXISTS idx_trades_status ON trades(status)",
+    "CREATE INDEX IF NOT EXISTS idx_trades_signal_date ON trades(signal_date)",
+    "CREATE INDEX IF NOT EXISTS idx_trades_signal_score ON trades(signal_score)",
+    # Meta table
+    """CREATE TABLE IF NOT EXISTS meta (
+        key TEXT PRIMARY KEY,
+        value TEXT
+    )""",
+    # Price data table
+    """CREATE TABLE IF NOT EXISTS price_data (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        symbol TEXT NOT NULL,
+        start_date TEXT NOT NULL,
+        end_date TEXT NOT NULL,
+        bar_count INTEGER,
+        data_compressed BLOB,
+        created_at TEXT,
+        updated_at TEXT,
+        UNIQUE(symbol, start_date, end_date)
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_price_data_symbol ON price_data(symbol)",
+    "CREATE INDEX IF NOT EXISTS idx_price_data_dates ON price_data(start_date, end_date)",
+    # VIX data table
+    """CREATE TABLE IF NOT EXISTS vix_data (
+        date TEXT PRIMARY KEY,
+        value REAL NOT NULL,
+        created_at TEXT
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_vix_data_date ON vix_data(date)",
+    # Options data table
+    """CREATE TABLE IF NOT EXISTS options_data (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        occ_symbol TEXT NOT NULL,
+        underlying TEXT NOT NULL,
+        strike REAL NOT NULL,
+        expiry TEXT NOT NULL,
+        option_type TEXT NOT NULL,
+        trade_date TEXT NOT NULL,
+        open REAL,
+        high REAL,
+        low REAL,
+        close REAL NOT NULL,
+        volume INTEGER,
+        created_at TEXT,
+        UNIQUE(occ_symbol, trade_date)
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_options_underlying ON options_data(underlying)",
+    "CREATE INDEX IF NOT EXISTS idx_options_expiry ON options_data(expiry)",
+    "CREATE INDEX IF NOT EXISTS idx_options_trade_date ON options_data(trade_date)",
+    "CREATE INDEX IF NOT EXISTS idx_options_occ_symbol ON options_data(occ_symbol)",
+]
+
 
 class TradeStatus(Enum):
     """Status eines Trades"""
@@ -365,167 +538,15 @@ class TradeTracker:
             conn.close()
 
     def _init_db(self):
-        """Initialisiert die Datenbank mit Schema"""
+        """Initialisiert die Datenbank mit Schema aus _SCHEMA_DDL."""
         with self._get_connection() as conn:
             cursor = conn.cursor()
 
-            # Trades-Tabelle
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS trades (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    symbol TEXT NOT NULL,
-                    strategy TEXT NOT NULL,
-
-                    signal_date TEXT,
-                    signal_score REAL,
-                    signal_strength TEXT,
-                    score_breakdown TEXT,
-
-                    vix_at_signal REAL,
-                    iv_rank_at_signal REAL,
-
-                    entry_price REAL,
-                    stop_loss REAL,
-                    target_price REAL,
-
-                    status TEXT DEFAULT 'open',
-                    outcome TEXT DEFAULT 'pending',
-
-                    exit_date TEXT,
-                    exit_price REAL,
-                    exit_reason TEXT,
-
-                    pnl_amount REAL,
-                    pnl_percent REAL,
-                    holding_days INTEGER,
-
-                    signal_reliability_grade TEXT,
-                    signal_reliability_win_rate REAL,
-
-                    created_at TEXT,
-                    updated_at TEXT,
-                    notes TEXT,
-                    tags TEXT
-                )
-            """)
-
-            # Indices für schnelle Queries
-            cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_trades_symbol
-                ON trades(symbol)
-            """)
-            cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_trades_strategy
-                ON trades(strategy)
-            """)
-            cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_trades_status
-                ON trades(status)
-            """)
-            cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_trades_signal_date
-                ON trades(signal_date)
-            """)
-            cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_trades_signal_score
-                ON trades(signal_score)
-            """)
-
-            # Meta-Tabelle für Schema-Version
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS meta (
-                    key TEXT PRIMARY KEY,
-                    value TEXT
-                )
-            """)
-
-            # ================================================
-            # Historische Preisdaten (für Re-Training)
-            # ================================================
-
-            # Symbol-Preisdaten (komprimiert als JSON-Blobs)
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS price_data (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    symbol TEXT NOT NULL,
-                    start_date TEXT NOT NULL,
-                    end_date TEXT NOT NULL,
-                    bar_count INTEGER,
-                    data_compressed BLOB,
-                    created_at TEXT,
-                    updated_at TEXT,
-                    UNIQUE(symbol, start_date, end_date)
-                )
-            """)
-
-            cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_price_data_symbol
-                ON price_data(symbol)
-            """)
-            cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_price_data_dates
-                ON price_data(start_date, end_date)
-            """)
-
-            # VIX-Historie
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS vix_data (
-                    date TEXT PRIMARY KEY,
-                    value REAL NOT NULL,
-                    created_at TEXT
-                )
-            """)
-
-            cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_vix_data_date
-                ON vix_data(date)
-            """)
-
-            # ================================================
-            # Historische Options-Daten
-            # ================================================
-
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS options_data (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    occ_symbol TEXT NOT NULL,
-                    underlying TEXT NOT NULL,
-                    strike REAL NOT NULL,
-                    expiry TEXT NOT NULL,
-                    option_type TEXT NOT NULL,
-                    trade_date TEXT NOT NULL,
-                    open REAL,
-                    high REAL,
-                    low REAL,
-                    close REAL NOT NULL,
-                    volume INTEGER,
-                    created_at TEXT,
-                    UNIQUE(occ_symbol, trade_date)
-                )
-            """)
-
-            cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_options_underlying
-                ON options_data(underlying)
-            """)
-            cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_options_expiry
-                ON options_data(expiry)
-            """)
-            cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_options_trade_date
-                ON options_data(trade_date)
-            """)
-            cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_options_occ_symbol
-                ON options_data(occ_symbol)
-            """)
+            for ddl in _SCHEMA_DDL:
+                cursor.execute(ddl)
 
             # Schema-Version setzen
-            cursor.execute("""
-                INSERT OR REPLACE INTO meta (key, value)
-                VALUES ('schema_version', ?)
-            """, (str(self.SCHEMA_VERSION),))
+            cursor.execute(SQL_INSERT_META, (str(self.SCHEMA_VERSION),))
 
     def add_trade(self, trade: TrackedTrade) -> int:
         """
@@ -542,19 +563,7 @@ class TradeTracker:
 
             now = datetime.now().isoformat()
 
-            cursor.execute("""
-                INSERT INTO trades (
-                    symbol, strategy,
-                    signal_date, signal_score, signal_strength, score_breakdown,
-                    vix_at_signal, iv_rank_at_signal,
-                    entry_price, stop_loss, target_price,
-                    status, outcome,
-                    exit_date, exit_price, exit_reason,
-                    pnl_amount, pnl_percent, holding_days,
-                    signal_reliability_grade, signal_reliability_win_rate,
-                    created_at, updated_at, notes, tags
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
+            cursor.execute(SQL_INSERT_TRADE, (
                 trade.symbol,
                 trade.strategy,
                 trade.signal_date.isoformat() if trade.signal_date else None,
@@ -598,7 +607,7 @@ class TradeTracker:
         """
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT * FROM trades WHERE id = ?", (trade_id,))
+            cursor.execute(SQL_SELECT_TRADE_BY_ID, (trade_id,))
             row = cursor.fetchone()
 
             if row is None:
@@ -683,19 +692,7 @@ class TradeTracker:
 
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("""
-                UPDATE trades SET
-                    status = ?,
-                    outcome = ?,
-                    exit_date = ?,
-                    exit_price = ?,
-                    exit_reason = ?,
-                    pnl_amount = ?,
-                    pnl_percent = ?,
-                    holding_days = ?,
-                    updated_at = ?
-                WHERE id = ?
-            """, (
+            cursor.execute(SQL_UPDATE_TRADE_CLOSE, (
                 TradeStatus.CLOSED.value,
                 outcome.value,
                 exit_date.isoformat(),
@@ -1029,7 +1026,7 @@ class TradeTracker:
         """
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("DELETE FROM trades WHERE id = ?", (trade_id,))
+            cursor.execute(SQL_DELETE_TRADE_BY_ID, (trade_id,))
 
             if cursor.rowcount > 0:
                 logger.info(f"Deleted trade {trade_id}")
@@ -1115,15 +1112,10 @@ class TradeTracker:
             cursor = conn.cursor()
 
             # Lösche alte Einträge für dieses Symbol
-            cursor.execute("DELETE FROM price_data WHERE symbol = ?", (symbol,))
+            cursor.execute(SQL_DELETE_PRICE_DATA_BY_SYMBOL, (symbol,))
 
             # Speichere neue Daten
-            cursor.execute("""
-                INSERT INTO price_data (
-                    symbol, start_date, end_date, bar_count,
-                    data_compressed, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (
+            cursor.execute(SQL_INSERT_PRICE_DATA, (
                 symbol,
                 start_date.isoformat(),
                 end_date.isoformat(),
@@ -1162,10 +1154,7 @@ class TradeTracker:
 
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("""
-                SELECT data_compressed FROM price_data
-                WHERE symbol = ?
-            """, (symbol,))
+            cursor.execute(SQL_SELECT_PRICE_DATA_BY_SYMBOL, (symbol,))
             row = cursor.fetchone()
 
             if row is None:
@@ -1198,10 +1187,7 @@ class TradeTracker:
 
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("""
-                SELECT start_date, end_date FROM price_data
-                WHERE symbol = ?
-            """, (symbol,))
+            cursor.execute(SQL_SELECT_PRICE_DATA_DATES, (symbol,))
             row = cursor.fetchone()
 
             if row is None:
@@ -1221,11 +1207,7 @@ class TradeTracker:
         """
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("""
-                SELECT symbol, start_date, end_date, bar_count, updated_at
-                FROM price_data
-                ORDER BY symbol
-            """)
+            cursor.execute(SQL_SELECT_PRICE_DATA_LIST)
 
             return [
                 {
@@ -1244,7 +1226,7 @@ class TradeTracker:
 
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("DELETE FROM price_data WHERE symbol = ?", (symbol,))
+            cursor.execute(SQL_DELETE_PRICE_DATA_BY_SYMBOL, (symbol,))
             return cursor.rowcount > 0
 
     # =========================================================================
@@ -1271,10 +1253,7 @@ class TradeTracker:
             cursor = conn.cursor()
 
             for point in vix_points:
-                cursor.execute("""
-                    INSERT OR REPLACE INTO vix_data (date, value, created_at)
-                    VALUES (?, ?, ?)
-                """, (point.date.isoformat(), point.value, now))
+                cursor.execute(SQL_INSERT_VIX, (point.date.isoformat(), point.value, now))
                 count += 1
 
             logger.info(f"Stored {count} VIX data points")
@@ -1340,21 +1319,14 @@ class TradeTracker:
             cursor = conn.cursor()
 
             # Exaktes Datum
-            cursor.execute("""
-                SELECT value FROM vix_data WHERE date = ?
-            """, (target_date.isoformat(),))
+            cursor.execute(SQL_SELECT_VIX_AT_DATE, (target_date.isoformat(),))
             row = cursor.fetchone()
 
             if row:
                 return row['value']
 
             # Nächster verfügbarer Wert davor
-            cursor.execute("""
-                SELECT value FROM vix_data
-                WHERE date < ?
-                ORDER BY date DESC
-                LIMIT 1
-            """, (target_date.isoformat(),))
+            cursor.execute(SQL_SELECT_VIX_BEFORE_DATE, (target_date.isoformat(),))
             row = cursor.fetchone()
 
             return row['value'] if row else None
@@ -1368,10 +1340,7 @@ class TradeTracker:
         """
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("""
-                SELECT MIN(date) as min_date, MAX(date) as max_date
-                FROM vix_data
-            """)
+            cursor.execute(SQL_SELECT_VIX_DATE_RANGE)
             row = cursor.fetchone()
 
             if row['min_date'] is None:
@@ -1386,7 +1355,7 @@ class TradeTracker:
         """Zählt VIX-Datenpunkte"""
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT COUNT(*) FROM vix_data")
+            cursor.execute(SQL_COUNT_VIX)
             return cursor.fetchone()[0]
 
     # =========================================================================
@@ -1414,12 +1383,7 @@ class TradeTracker:
 
             for bar in bars:
                 try:
-                    cursor.execute("""
-                        INSERT OR REPLACE INTO options_data (
-                            occ_symbol, underlying, strike, expiry, option_type,
-                            trade_date, open, high, low, close, volume, created_at
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (
+                    cursor.execute(SQL_INSERT_OPTION, (
                         bar.occ_symbol,
                         bar.underlying.upper(),
                         bar.strike,
@@ -1540,10 +1504,7 @@ class TradeTracker:
         """
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("""
-                SELECT * FROM options_data
-                WHERE occ_symbol = ? AND trade_date = ?
-            """, (occ_symbol, trade_date.isoformat()))
+            cursor.execute(SQL_SELECT_OPTION_AT_DATE, (occ_symbol, trade_date.isoformat()))
 
             row = cursor.fetchone()
             return self._row_to_option_bar(row) if row else None
@@ -1615,17 +1576,7 @@ class TradeTracker:
         """
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("""
-                SELECT
-                    underlying,
-                    COUNT(*) as bar_count,
-                    COUNT(DISTINCT occ_symbol) as option_count,
-                    MIN(trade_date) as first_date,
-                    MAX(trade_date) as last_date
-                FROM options_data
-                GROUP BY underlying
-                ORDER BY underlying
-            """)
+            cursor.execute(SQL_SELECT_OPTIONS_UNDERLYING_SUMMARY)
 
             return [
                 {
@@ -1643,12 +1594,9 @@ class TradeTracker:
         with self._get_connection() as conn:
             cursor = conn.cursor()
             if underlying:
-                cursor.execute(
-                    "SELECT COUNT(*) FROM options_data WHERE underlying = ?",
-                    (underlying.upper(),)
-                )
+                cursor.execute(SQL_COUNT_OPTIONS_BY_UNDERLYING, (underlying.upper(),))
             else:
-                cursor.execute("SELECT COUNT(*) FROM options_data")
+                cursor.execute(SQL_COUNT_OPTIONS)
             return cursor.fetchone()[0]
 
     def delete_option_data(self, underlying: Optional[str] = None, occ_symbol: Optional[str] = None) -> int:
@@ -1666,11 +1614,11 @@ class TradeTracker:
             cursor = conn.cursor()
 
             if occ_symbol:
-                cursor.execute("DELETE FROM options_data WHERE occ_symbol = ?", (occ_symbol,))
+                cursor.execute(SQL_DELETE_OPTIONS_BY_OCC, (occ_symbol,))
             elif underlying:
-                cursor.execute("DELETE FROM options_data WHERE underlying = ?", (underlying.upper(),))
+                cursor.execute(SQL_DELETE_OPTIONS_BY_UNDERLYING, (underlying.upper(),))
             else:
-                cursor.execute("DELETE FROM options_data")
+                cursor.execute(SQL_DELETE_OPTIONS_ALL)
 
             count = cursor.rowcount
             logger.info(f"Deleted {count} option bars")
@@ -1748,21 +1696,18 @@ class TradeTracker:
             cursor = conn.cursor()
 
             # Trades
-            cursor.execute("SELECT COUNT(*) FROM trades")
+            cursor.execute(SQL_COUNT_TRADES)
             trades_count = cursor.fetchone()[0]
 
             # Price Data
-            cursor.execute("""
-                SELECT COUNT(*), SUM(bar_count), SUM(LENGTH(data_compressed))
-                FROM price_data
-            """)
+            cursor.execute(SQL_SELECT_PRICE_DATA_STATS)
             row = cursor.fetchone()
             symbols_count = row[0] or 0
             total_bars = row[1] or 0
             compressed_bytes = row[2] or 0
 
             # VIX
-            cursor.execute("SELECT COUNT(*) FROM vix_data")
+            cursor.execute(SQL_COUNT_VIX)
             vix_count = cursor.fetchone()[0]
 
             # DB File Size
