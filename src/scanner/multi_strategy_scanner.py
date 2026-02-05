@@ -14,6 +14,7 @@ import asyncio
 import heapq
 import logging
 from dataclasses import dataclass, field
+from functools import cached_property
 from typing import List, Dict, Optional, Callable, Tuple, Any
 from datetime import datetime, date
 from enum import Enum
@@ -342,57 +343,53 @@ class MultiStrategyScanner:
         if self.config.enable_reliability_scoring and ReliabilityScorer is not None:
             self._reliability_scorer = reliability_scorer or self._create_reliability_scorer()
 
-        # Symbol Stability Cache (Phase 4 - Outcome-basiert)
-        self._stability_cache: Dict[str, Dict] = {}
-        if self.config.enable_stability_scoring and calculate_symbol_stability is not None:
-            self._load_stability_cache()
-
-        # Fundamentals Cache (Phase 6 - symbol_fundamentals Integration)
-        self._fundamentals_cache: Dict[str, 'SymbolFundamentals'] = {}
+        # Fundamentals Manager (lazy-loaded via _fundamentals_cache)
         self._fundamentals_manager: Optional['SymbolFundamentalsManager'] = None
-        if self.config.enable_fundamentals_filter and get_fundamentals_manager is not None:
-            self._load_fundamentals_cache()
 
-    def _load_stability_cache(self) -> None:
-        """Lädt Symbol-Stabilitätsdaten aus der Outcome-Datenbank"""
-        if calculate_symbol_stability is None:
-            return
+    @cached_property
+    def _stability_cache(self) -> Dict[str, Dict]:
+        """Lädt Symbol-Stabilitätsdaten aus der Outcome-Datenbank (lazy, einmalig)."""
+        if not self.config.enable_stability_scoring or calculate_symbol_stability is None:
+            return {}
 
         try:
             if OUTCOME_DB_PATH and OUTCOME_DB_PATH.exists():
-                self._stability_cache = calculate_symbol_stability(OUTCOME_DB_PATH)
-                if self._stability_cache:
-                    stable_count = sum(1 for d in self._stability_cache.values() if d.get('recommended'))
-                    volatile_count = sum(1 for d in self._stability_cache.values() if d.get('blacklisted'))
+                cache = calculate_symbol_stability(OUTCOME_DB_PATH)
+                if cache:
+                    stable_count = sum(1 for d in cache.values() if d.get('recommended'))
+                    volatile_count = sum(1 for d in cache.values() if d.get('blacklisted'))
                     logger.info(
-                        f"Loaded stability data for {len(self._stability_cache)} symbols "
+                        f"Loaded stability data for {len(cache)} symbols "
                         f"({stable_count} stable, {volatile_count} volatile)"
                     )
+                    return cache
         except Exception as e:
             logger.warning(f"Could not load stability cache: {e}")
+        return {}
 
-    def _load_fundamentals_cache(self) -> None:
-        """Lädt Fundamentaldaten aus der symbol_fundamentals Tabelle"""
-        if get_fundamentals_manager is None:
-            return
+    @cached_property
+    def _fundamentals_cache(self) -> Dict[str, 'SymbolFundamentals']:
+        """Lädt Fundamentaldaten aus der symbol_fundamentals Tabelle (lazy, einmalig)."""
+        if not self.config.enable_fundamentals_filter or get_fundamentals_manager is None:
+            return {}
 
         try:
             self._fundamentals_manager = get_fundamentals_manager()
             all_fundamentals = self._fundamentals_manager.get_all_fundamentals()
 
-            for f in all_fundamentals:
-                self._fundamentals_cache[f.symbol] = f
+            cache = {f.symbol: f for f in all_fundamentals}
 
-            # Statistiken loggen
             with_stability = sum(1 for f in all_fundamentals if f.stability_score is not None)
             with_iv_rank = sum(1 for f in all_fundamentals if f.iv_rank_252d is not None)
 
             logger.info(
-                f"Loaded fundamentals for {len(self._fundamentals_cache)} symbols "
+                f"Loaded fundamentals for {len(cache)} symbols "
                 f"({with_stability} with stability, {with_iv_rank} with IV rank)"
             )
+            return cache
         except Exception as e:
             logger.warning(f"Could not load fundamentals cache: {e}")
+        return {}
 
     def get_symbol_fundamentals(self, symbol: str) -> Optional['SymbolFundamentals']:
         """
