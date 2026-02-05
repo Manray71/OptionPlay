@@ -27,6 +27,7 @@ from typing import Optional, List, Any, Dict
 
 from src.handlers.scan import ScanHandlerMixin
 from src.scanner.multi_strategy_scanner import ScanMode, ScanResult
+from src.services.pick_formatter import format_single_pick_v2
 
 
 # =============================================================================
@@ -1649,7 +1650,7 @@ class TestFormatSinglePickV2:
             reliability_grade="A",
         )
 
-        handler._format_single_pick_v2(b, pick)
+        format_single_pick_v2(b, pick)
         output = b.build()
 
         assert "AAPL" in output
@@ -1675,7 +1676,7 @@ class TestFormatSinglePickV2:
             suggested_strikes=mock_strikes,
         )
 
-        handler._format_single_pick_v2(b, pick)
+        format_single_pick_v2(b, pick)
         output = b.build()
 
         assert "Short $180" in output
@@ -1719,7 +1720,7 @@ class TestFormatSinglePickV2:
             spread_validation=mock_spread,
         )
 
-        handler._format_single_pick_v2(b, pick)
+        format_single_pick_v2(b, pick)
         output = b.build()
 
         # Check for spread validation data
@@ -1746,7 +1747,7 @@ class TestFormatSinglePickV2:
             entry_quality=mock_eq,
         )
 
-        handler._format_single_pick_v2(b, pick)
+        format_single_pick_v2(b, pick)
         output = b.build()
 
         assert "EQS 65" in output
@@ -1770,7 +1771,7 @@ class TestFormatSinglePickV2:
             warnings=["Near earnings", "High IV"],
         )
 
-        handler._format_single_pick_v2(b, pick)
+        format_single_pick_v2(b, pick)
         output = b.build()
 
         assert "Warning: Near earnings" in output
@@ -1898,7 +1899,7 @@ class TestEdgeCases:
             reliability_grade=None,
         )
 
-        handler._format_single_pick_v2(b, pick)
+        format_single_pick_v2(b, pick)
         output = b.build()
 
         assert "TEST" in output
@@ -1920,7 +1921,7 @@ class TestEdgeCases:
             reliability_grade=None,
         )
 
-        handler._format_single_pick_v2(b, pick)
+        format_single_pick_v2(b, pick)
         output = b.build()
 
         assert "TEST" in output
@@ -2023,7 +2024,7 @@ class TestEdgeCases:
                 reliability_grade="B",
             )
 
-            handler._format_single_pick_v2(b, pick)
+            format_single_pick_v2(b, pick)
             output = b.build()
 
             assert expected in output
@@ -2047,7 +2048,7 @@ class TestEdgeCases:
             entry_quality=mock_eq_oversold,
         )
 
-        handler._format_single_pick_v2(b, pick)
+        format_single_pick_v2(b, pick)
         output = b.build()
         assert "oversold" in output
 
@@ -2056,7 +2057,7 @@ class TestEdgeCases:
         mock_eq_overbought = MockEntryQuality(rsi=70.0)
         pick.entry_quality = mock_eq_overbought
 
-        handler._format_single_pick_v2(b, pick)
+        format_single_pick_v2(b, pick)
         output = b.build()
         assert "overbought" in output
 

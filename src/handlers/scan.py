@@ -19,6 +19,7 @@ from ..services.recommendation_engine import (
     DailyPick,
     DailyRecommendationResult,
 )
+from ..services.pick_formatter import format_picks_v2, format_single_pick_v2
 from ..utils.error_handler import endpoint
 from ..utils.markdown_builder import MarkdownBuilder, truncate
 from ..utils.validation import validate_symbols, is_etf
@@ -768,192 +769,12 @@ class ScanHandlerMixin(BaseHandlerMixin):
         duration: float,
         excluded_by_earnings: int = 0,
     ) -> str:
-        """Format daily picks result as Markdown (v2 format with real chain data)."""
-        b = MarkdownBuilder()
-        today_str = date.today().isoformat()
+        """Format daily picks result as Markdown (v2 format with real chain data).
 
-        # Header
-        b.h1(f"Daily Picks -- {today_str}").blank()
-
-        # Market Overview (compact single-line)
-        if result.vix_level:
-            regime_display = {
-                'low_vol': 'Normal',
-                'normal': 'Normal',
-                'danger_zone': 'Danger Zone',
-                'elevated': 'Elevated',
-                'high_vol': 'High Volatility',
-                'unknown': 'Unknown',
-            }
-            regime_str = regime_display.get(
-                result.market_regime.value, result.market_regime.value
-            )
-            b.kv("Regime", f"{regime_str} (VIX {result.vix_level:.2f})")
-
-        b.kv("Scanned", f"{result.symbols_scanned} symbols | Duration: {duration:.1f}s")
-        b.blank()
-
-        # Warnings (compact)
-        if result.warnings:
-            for warning in result.warnings:
-                b.bullet(warning)
-            b.blank()
-
-        # Picks — detailed v2 format
-        if result.picks:
-            for pick in result.picks:
-                self._format_single_pick_v2(b, pick)
-        else:
-            b.hint("No candidates found matching criteria.")
-
-        return b.build()
-
-    def _format_single_pick_v2(self, b: MarkdownBuilder, pick: DailyPick) -> None:
+        Delegates to pick_formatter.format_picks_v2 (Phase 3.5).
         """
-        Format a single pick in v2 format with real chain data.
+        return format_picks_v2(result, duration, excluded_by_earnings)
 
-        Output matches TASKS_DAILY_PICKS_V2.md Task 4.1 specification.
-        """
-        # Strategy display
-        strategy_display = {
-            "pullback": "Pullback",
-            "bounce": "Bounce",
-            "ath_breakout": "ATH Breakout",
-            "earnings_dip": "Earnings Dip",
-        }
-        strategy_str = strategy_display.get(pick.strategy, pick.strategy.replace('_', ' ').title())
-
-        # EQS display
-        eqs_str = ""
-        if pick.entry_quality and hasattr(pick.entry_quality, 'eqs_total'):
-            eqs_str = f" | EQS {pick.entry_quality.eqs_total:.0f}"
-
-        # Header
-        b.h2(f"#{pick.rank} -- {pick.symbol} | {strategy_str} | Score {pick.score:.1f}{eqs_str}")
-        b.blank()
-
-        # Chain-validated spread data (if available from SpreadValidation)
-        sv = pick.spread_validation
-        if sv and sv.tradeable:
-            # Legs table
-            short = sv.short_leg
-            long = sv.long_leg
-
-            leg_rows = [
-                [
-                    f"${short.strike:.0f}",
-                    f"{short.delta:.2f}",
-                    f"{short.iv * 100:.1f}%" if short.iv else "-",
-                    f"{short.open_interest:,}",
-                    f"${short.bid:.2f}/${short.ask:.2f}",
-                ],
-                [
-                    f"${long.strike:.0f}",
-                    f"{long.delta:.2f}",
-                    f"{long.iv * 100:.1f}%" if long.iv else "-",
-                    f"{long.open_interest:,}",
-                    f"${long.bid:.2f}/${long.ask:.2f}",
-                ],
-            ]
-            b.table(
-                ["Strike", "Delta", "IV", "OI", "Bid/Ask"],
-                leg_rows
-            )
-            b.blank()
-
-            # Spread details
-            b.text(
-                f"**Spread:** ${sv.spread_width:.0f} breit | "
-                f"**Expiry:** {sv.expiration} ({sv.dte} DTE)"
-            )
-
-            # Credit line
-            credit_check = "OK" if sv.credit_pct and sv.credit_pct >= 10 else "LOW"
-            b.text(
-                f"**Credit:** ${sv.credit_bid:.2f} (Bid) -- "
-                f"${sv.credit_mid:.2f} (Mid) | "
-                f"**Credit/Breite:** {sv.credit_pct:.1f}% {credit_check}"
-            )
-
-            # Risk targets
-            max_loss = sv.max_loss_per_contract if sv.max_loss_per_contract else 0
-            profit_target_50 = sv.credit_bid * 0.5 if sv.credit_bid else 0
-            stop_loss_200 = sv.credit_bid * 2.0 if sv.credit_bid else 0
-            b.text(
-                f"**Max Loss:** ${max_loss:.0f}/Kontrakt | "
-                f"**50% Target:** ${profit_target_50:.2f} | "
-                f"**200% Stop:** ${stop_loss_200:.2f}"
-            )
-            b.blank()
-
-        elif pick.suggested_strikes:
-            # Fallback: theoretical strikes (no chain data)
-            s = pick.suggested_strikes
-            b.text(
-                f"**Strikes:** Short ${s.short_strike:.0f} / Long ${s.long_strike:.0f} "
-                f"| Width ${s.spread_width:.0f}"
-            )
-            if s.estimated_credit:
-                b.text(f"**Est. Credit:** ${s.estimated_credit:.2f}")
-            if s.expiry:
-                dte_str = f" ({s.dte} DTE)" if s.dte is not None else ""
-                b.text(f"**Expiry:** {s.expiry}{dte_str}")
-            if s.tradeable_status and s.tradeable_status != "unknown":
-                b.text(f"**Status:** {s.tradeable_status}")
-            b.blank()
-
-        # Entry Quality line (if EQS available)
-        eq = pick.entry_quality
-        if eq and hasattr(eq, 'iv_rank'):
-            parts = []
-            if eq.iv_rank is not None:
-                parts.append(f"IV Rank {eq.iv_rank:.0f}%")
-            if eq.iv_percentile is not None:
-                parts.append(f"IV Pctl {eq.iv_percentile:.0f}%")
-            if eq.rsi is not None:
-                rsi_label = ""
-                if eq.rsi < 35:
-                    rsi_label = " (oversold)"
-                elif eq.rsi > 65:
-                    rsi_label = " (overbought)"
-                parts.append(f"RSI {eq.rsi:.0f}{rsi_label}")
-            if eq.pullback_pct is not None:
-                parts.append(f"Pullback {eq.pullback_pct:.1f}%")
-            if sv and sv.spread_theta:
-                parts.append(f"Theta ${sv.spread_theta:.3f}/d")
-
-            if parts:
-                b.text(f"**Entry:** {' | '.join(parts)}")
-                b.blank()
-
-        # Checklist line
-        checklist_parts = []
-        if pick.stability_score:
-            checklist_parts.append(f"Stab({pick.stability_score:.0f})")
-        if pick.current_price:
-            checklist_parts.append(f"Preis(${pick.current_price:.0f})")
-        if sv and sv.dte:
-            checklist_parts.append(f"DTE({sv.dte})")
-        if sv and sv.credit_pct:
-            checklist_parts.append(f"Credit({sv.credit_pct:.1f}%)")
-        if pick.sector:
-            checklist_parts.append(pick.sector[:12])
-
-        if checklist_parts:
-            b.text(f"**Checks:** {' | '.join(checklist_parts)}")
-
-        # Signal reason
-        if pick.reason:
-            b.text(f"**Signal:** {truncate(pick.reason, 120)}")
-
-        # Warnings
-        if pick.warnings:
-            for warning in pick.warnings:
-                b.bullet(f"Warning: {warning}")
-
-        b.blank()
-
-    # Keep old method for backward compatibility
     def _format_single_pick_detail(self, b: MarkdownBuilder, pick: DailyPick) -> None:
-        """Format a single pick with details (legacy format, kept for compatibility)."""
-        self._format_single_pick_v2(b, pick)
+        """Format a single pick with details (delegates to pick_formatter)."""
+        format_single_pick_v2(b, pick)
