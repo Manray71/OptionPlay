@@ -62,6 +62,8 @@ from ..constants.trading_rules import (
     FILTER_ORDER,
 )
 
+from .cache_mixin import CacheManagerMixin
+
 logger = logging.getLogger(__name__)
 
 
@@ -136,7 +138,7 @@ class TradeValidationResult:
 # TRADE VALIDATOR
 # =============================================================================
 
-class TradeValidator:
+class TradeValidator(CacheManagerMixin):
     """
     Validates trades against PLAYBOOK rules.
 
@@ -148,31 +150,10 @@ class TradeValidator:
     """
 
     def __init__(self, quote_provider=None):
-        self._fundamentals_manager = None
-        self._earnings_manager = None
+        self._init_cache_managers()
         self._quote_provider = quote_provider
 
-    @property
-    def fundamentals(self):
-        """Lazy-load Fundamentals Manager."""
-        if self._fundamentals_manager is None:
-            try:
-                from ..cache import get_fundamentals_manager
-                self._fundamentals_manager = get_fundamentals_manager()
-            except ImportError:
-                logger.warning("Fundamentals manager not available")
-        return self._fundamentals_manager
-
-    @property
-    def earnings(self):
-        """Lazy-load Earnings History Manager."""
-        if self._earnings_manager is None:
-            try:
-                from ..cache import get_earnings_history_manager
-                self._earnings_manager = get_earnings_history_manager()
-            except ImportError:
-                logger.warning("Earnings history manager not available")
-        return self._earnings_manager
+    # earnings and fundamentals properties provided by CacheManagerMixin
 
     async def validate(
         self,

@@ -26,11 +26,11 @@ except ImportError:
 # Import shared indicators
 try:
     from ..indicators.momentum import calculate_rsi, calculate_rsi_divergence, calculate_macd, calculate_stochastic
-    from ..indicators.trend import calculate_ema
+    from ..indicators.trend import calculate_ema, calculate_sma
     from ..indicators.volatility import calculate_atr_simple, calculate_keltner_channel
 except ImportError:
     from indicators.momentum import calculate_rsi, calculate_rsi_divergence, calculate_macd, calculate_stochastic
-    from indicators.trend import calculate_ema
+    from indicators.trend import calculate_ema, calculate_sma
     from indicators.volatility import calculate_atr_simple, calculate_keltner_channel
 
 # Import central constants (with alias to avoid naming conflicts)
@@ -653,10 +653,8 @@ class PullbackAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         return calculate_rsi(prices, period)
     
     def _calculate_sma(self, prices: List[float], period: int) -> float:
-        """Simple Moving Average"""
-        if len(prices) < period:
-            return prices[-1]
-        return float(np.mean(prices[-period:]))
+        """Simple Moving Average. Delegates to indicators.trend."""
+        return calculate_sma(prices, period)
     
     def _calculate_ema(self, prices: List[float], period: int) -> List[float]:
         """Calculates EMA. Delegates to shared indicators library."""

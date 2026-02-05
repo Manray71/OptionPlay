@@ -27,6 +27,11 @@ try:
 except ImportError:
     from constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS
 
+try:
+    from ..data_providers.connection_pool import get_connection_pool
+except ImportError:
+    from data_providers.connection_pool import get_connection_pool
+
 logger = logging.getLogger(__name__)
 
 # =============================================================================
@@ -88,6 +93,7 @@ class EarningsHistoryManager:
     def __init__(self, db_path: Optional[Path] = None):
         self.db_path = db_path or DEFAULT_DB_PATH
         self._lock = threading.RLock()
+        self._pool = None
         self._ensure_db_exists()
         self._create_table()
 
@@ -97,13 +103,11 @@ class EarningsHistoryManager:
 
     @contextmanager
     def _get_connection(self):
-        """Context Manager for thread-safe DB connection"""
-        conn = sqlite3.connect(str(self.db_path), timeout=30.0)
-        conn.row_factory = sqlite3.Row
-        try:
+        """Context Manager for thread-safe DB connection (pooled)."""
+        if self._pool is None:
+            self._pool = get_connection_pool(str(self.db_path))
+        with self._pool.get_connection() as conn:
             yield conn
-        finally:
-            conn.close()
 
     def _create_table(self) -> None:
         """Creates the earnings_history table if it does not exist"""

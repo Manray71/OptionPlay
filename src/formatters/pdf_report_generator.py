@@ -200,7 +200,7 @@ class PDFReportGenerator:
     def __init__(self, output_dir: str = "reports"):
         # Use absolute path to ensure write access in sandboxed environments
         if not os.path.isabs(output_dir):
-            base_dir = os.environ.get("OPTIONPLAY_HOME", "/Users/larschristiansen/OptionPlay")
+            base_dir = os.environ.get("OPTIONPLAY_HOME", str(Path.home() / "OptionPlay"))
             output_dir = os.path.join(base_dir, output_dir)
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)

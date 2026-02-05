@@ -44,6 +44,8 @@ from ..constants.trading_rules import (
     VIXRegimeRules,
 )
 
+from .cache_mixin import CacheManagerMixin
+
 logger = logging.getLogger(__name__)
 
 
@@ -88,7 +90,7 @@ class ConstraintResult:
         return self.blockers + self.warnings
 
 
-class PortfolioConstraintChecker:
+class PortfolioConstraintChecker(CacheManagerMixin):
     """
     Prüft Portfolio-Constraints vor dem Öffnen neuer Positionen.
 
@@ -103,7 +105,7 @@ class PortfolioConstraintChecker:
             constraints: Optionale Custom-Constraints
         """
         self.constraints = constraints or PortfolioConstraints()
-        self._fundamentals_manager = None
+        self._init_cache_managers()
         self._daily_risk_used: float = 0.0
         self._weekly_risk_used: float = 0.0
         self._vix_provider = None  # Callable that returns current VIX
@@ -157,17 +159,7 @@ class PortfolioConstraintChecker:
             "notes": "Keine VIX-Daten, verwende statische Defaults",
         }
 
-    @property
-    def fundamentals(self):
-        """Lazy-load Fundamentals Manager."""
-        if self._fundamentals_manager is None:
-            try:
-                from ..cache import get_fundamentals_manager
-                self._fundamentals_manager = get_fundamentals_manager()
-            except ImportError:
-                logger.warning("Fundamentals manager not available")
-                self._fundamentals_manager = None
-        return self._fundamentals_manager
+    # fundamentals property provided by CacheManagerMixin
 
     def can_open_position(
         self,

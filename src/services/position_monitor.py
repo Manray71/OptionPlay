@@ -45,6 +45,8 @@ from ..constants.trading_rules import (
     get_regime_rules,
 )
 
+from .cache_mixin import CacheManagerMixin
+
 logger = logging.getLogger(__name__)
 
 
@@ -240,7 +242,7 @@ def estimate_pnl_from_theta(snapshot: PositionSnapshot) -> PositionSnapshot:
 # POSITION MONITOR
 # =============================================================================
 
-class PositionMonitor:
+class PositionMonitor(CacheManagerMixin):
     """
     Monitors positions and generates exit signals per PLAYBOOK §4.
 
@@ -248,30 +250,9 @@ class PositionMonitor:
     """
 
     def __init__(self):
-        self._earnings_manager = None
-        self._fundamentals_manager = None
+        self._init_cache_managers()
 
-    @property
-    def earnings(self):
-        """Lazy-load Earnings History Manager."""
-        if self._earnings_manager is None:
-            try:
-                from ..cache import get_earnings_history_manager
-                self._earnings_manager = get_earnings_history_manager()
-            except ImportError:
-                logger.warning("Earnings history manager not available")
-        return self._earnings_manager
-
-    @property
-    def fundamentals(self):
-        """Lazy-load Fundamentals Manager for stability checks."""
-        if self._fundamentals_manager is None:
-            try:
-                from ..cache import get_fundamentals_manager
-                self._fundamentals_manager = get_fundamentals_manager()
-            except ImportError:
-                logger.debug("Fundamentals manager not available")
-        return self._fundamentals_manager
+    # earnings and fundamentals properties provided by CacheManagerMixin
 
     async def check_positions(
         self,

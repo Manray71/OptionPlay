@@ -24,6 +24,7 @@ from contextlib import contextmanager
 T = TypeVar('T')
 
 from .interface import DataProvider, HistoricalBar, PriceQuote, DataQuality
+from .connection_pool import get_connection_pool
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +61,7 @@ class LocalDBProvider(DataProvider):
         self._available_symbols: Optional[List[str]] = None
         self._symbol_date_ranges: Dict[str, Tuple[date, date]] = {}
         self._connected = False
+        self._pool = None  # Lazy-init connection pool
 
         if not self.db_path.exists():
             logger.warning(f"Database not found: {self.db_path}")
@@ -367,13 +369,11 @@ class LocalDBProvider(DataProvider):
 
     @contextmanager
     def _get_connection(self):
-        """Context manager for database connection."""
-        conn = sqlite3.connect(str(self.db_path))
-        conn.row_factory = sqlite3.Row
-        try:
+        """Context manager for database connection (uses connection pool)."""
+        if self._pool is None:
+            self._pool = get_connection_pool(str(self.db_path))
+        with self._pool.get_connection() as conn:
             yield conn
-        finally:
-            conn.close()
 
     async def _run_sync(self, func: Callable[..., T], *args: Any) -> T:
         """Run a sync function in a thread pool to avoid blocking the event loop."""

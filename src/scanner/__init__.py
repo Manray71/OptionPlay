@@ -4,11 +4,10 @@
 
 from .market_scanner import MarketScanner
 from .signal_aggregator import SignalAggregator
+from .scan_config import ScanMode, ScanConfig
+from .scan_result import ScanResult, DataFetcher, AsyncDataFetcher
 from .multi_strategy_scanner import (
     MultiStrategyScanner,
-    ScanConfig,
-    ScanResult,
-    ScanMode,
     create_scanner,
     quick_scan
 )

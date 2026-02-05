@@ -29,10 +29,16 @@ Created: 2026-02-01
 import logging
 import sqlite3
 import threading
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
+
+try:
+    from ..data_providers.connection_pool import get_connection_pool
+except ImportError:
+    from data_providers.connection_pool import get_connection_pool
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +76,7 @@ class VixCacheManager:
         """
         self.db_path = db_path or DB_PATH
         self._lock = threading.RLock()
+        self._pool = None
 
     def _ensure_db_exists(self) -> bool:
         """Check if database exists. Thread-safe."""
@@ -79,11 +86,13 @@ class VixCacheManager:
                 return False
             return True
 
-    def _get_connection(self) -> sqlite3.Connection:
-        """Get database connection."""
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-        return conn
+    @contextmanager
+    def _get_connection(self):
+        """Get pooled database connection."""
+        if self._pool is None:
+            self._pool = get_connection_pool(str(self.db_path))
+        with self._pool.get_connection() as conn:
+            yield conn
 
     def get_latest_vix(self) -> Optional[float]:
         """
@@ -96,18 +105,17 @@ class VixCacheManager:
             return None
 
         try:
-            conn = self._get_connection()
-            cursor = conn.execute("""
-                SELECT value FROM vix_data
-                ORDER BY date DESC
-                LIMIT 1
-            """)
-            row = cursor.fetchone()
-            conn.close()
+            with self._get_connection() as conn:
+                cursor = conn.execute("""
+                    SELECT value FROM vix_data
+                    ORDER BY date DESC
+                    LIMIT 1
+                """)
+                row = cursor.fetchone()
 
-            if row:
-                return float(row['value'])
-            return None
+                if row:
+                    return float(row['value'])
+                return None
 
         except sqlite3.Error as e:
             logger.error(f"Error fetching latest VIX: {e}")
@@ -129,32 +137,29 @@ class VixCacheManager:
             return None
 
         try:
-            conn = self._get_connection()
+            with self._get_connection() as conn:
+                # Try exact match first
+                cursor = conn.execute(
+                    "SELECT value FROM vix_data WHERE date = ?",
+                    (target_date.isoformat(),)
+                )
+                row = cursor.fetchone()
 
-            # Try exact match first
-            cursor = conn.execute(
-                "SELECT value FROM vix_data WHERE date = ?",
-                (target_date.isoformat(),)
-            )
-            row = cursor.fetchone()
+                if row:
+                    return float(row['value'])
 
-            if row:
-                conn.close()
-                return float(row['value'])
+                # Fallback: closest previous date
+                cursor = conn.execute("""
+                    SELECT value FROM vix_data
+                    WHERE date < ?
+                    ORDER BY date DESC
+                    LIMIT 1
+                """, (target_date.isoformat(),))
+                row = cursor.fetchone()
 
-            # Fallback: closest previous date
-            cursor = conn.execute("""
-                SELECT value FROM vix_data
-                WHERE date < ?
-                ORDER BY date DESC
-                LIMIT 1
-            """, (target_date.isoformat(),))
-            row = cursor.fetchone()
-            conn.close()
-
-            if row:
-                return float(row['value'])
-            return None
+                if row:
+                    return float(row['value'])
+                return None
 
         except sqlite3.Error as e:
             logger.error(f"Error fetching VIX for {target_date}: {e}")
@@ -171,20 +176,19 @@ class VixCacheManager:
             return None
 
         try:
-            conn = self._get_connection()
-            cursor = conn.execute("""
-                SELECT MIN(date) as first_date, MAX(date) as last_date
-                FROM vix_data
-            """)
-            row = cursor.fetchone()
-            conn.close()
+            with self._get_connection() as conn:
+                cursor = conn.execute("""
+                    SELECT MIN(date) as first_date, MAX(date) as last_date
+                    FROM vix_data
+                """)
+                row = cursor.fetchone()
 
-            if row['first_date'] and row['last_date']:
-                return (
-                    date.fromisoformat(row['first_date']),
-                    date.fromisoformat(row['last_date'])
-                )
-            return None
+                if row['first_date'] and row['last_date']:
+                    return (
+                        date.fromisoformat(row['first_date']),
+                        date.fromisoformat(row['last_date'])
+                    )
+                return None
 
         except sqlite3.Error as e:
             logger.error(f"Error fetching VIX range: {e}")
@@ -196,11 +200,10 @@ class VixCacheManager:
             return 0
 
         try:
-            conn = self._get_connection()
-            cursor = conn.execute("SELECT COUNT(*) FROM vix_data")
-            count = cursor.fetchone()[0]
-            conn.close()
-            return count
+            with self._get_connection() as conn:
+                cursor = conn.execute("SELECT COUNT(*) FROM vix_data")
+                count = cursor.fetchone()[0]
+                return count
         except sqlite3.Error:
             return 0
 
@@ -218,16 +221,15 @@ class VixCacheManager:
             return []
 
         try:
-            conn = self._get_connection()
-            cursor = conn.execute("""
-                SELECT value FROM vix_data
-                ORDER BY date DESC
-                LIMIT ?
-            """, (days,))
-            values = [row['value'] for row in cursor.fetchall()]
-            conn.close()
+            with self._get_connection() as conn:
+                cursor = conn.execute("""
+                    SELECT value FROM vix_data
+                    ORDER BY date DESC
+                    LIMIT ?
+                """, (days,))
+                values = [row['value'] for row in cursor.fetchall()]
 
-            return list(reversed(values))  # Oldest first
+                return list(reversed(values))  # Oldest first
 
         except sqlite3.Error as e:
             logger.error(f"Error fetching VIX history: {e}")
@@ -247,14 +249,13 @@ class VixCacheManager:
             return None
 
         try:
-            conn = self._get_connection()
-            cursor = conn.execute("""
-                SELECT value FROM vix_data
-                ORDER BY date DESC
-                LIMIT ?
-            """, (days,))
-            values = [row['value'] for row in cursor.fetchall()]
-            conn.close()
+            with self._get_connection() as conn:
+                cursor = conn.execute("""
+                    SELECT value FROM vix_data
+                    ORDER BY date DESC
+                    LIMIT ?
+                """, (days,))
+                values = [row['value'] for row in cursor.fetchall()]
 
             if not values:
                 return None
@@ -294,14 +295,13 @@ class VixCacheManager:
             return []
 
         try:
-            conn = self._get_connection()
-            start = (date.today() - timedelta(days=days_back)).isoformat()
-            cursor = conn.execute(
-                "SELECT date FROM vix_data WHERE date >= ? ORDER BY date",
-                (start,)
-            )
-            existing = {date.fromisoformat(row['date']) for row in cursor.fetchall()}
-            conn.close()
+            with self._get_connection() as conn:
+                start = (date.today() - timedelta(days=days_back)).isoformat()
+                cursor = conn.execute(
+                    "SELECT date FROM vix_data WHERE date >= ? ORDER BY date",
+                    (start,)
+                )
+                existing = {date.fromisoformat(row['date']) for row in cursor.fetchall()}
 
             # Generate expected trading days (Mon-Fri)
             gaps = []
