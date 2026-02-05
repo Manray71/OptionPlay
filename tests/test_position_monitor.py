@@ -771,3 +771,381 @@ class TestFactory:
         reset_position_monitor()
         m2 = get_position_monitor()
         assert m1 is not m2
+
+
+# =============================================================================
+# ADDITIONAL COMPREHENSIVE TESTS
+# =============================================================================
+
+class TestPositionMonitorInit:
+    """Tests for PositionMonitor initialization."""
+
+    def test_initialization_lazy_managers(self):
+        """Test monitor initializes with None managers (lazy loading)."""
+        reset_position_monitor()
+        m = PositionMonitor()
+        assert m._earnings_manager is None
+        assert m._fundamentals_manager is None
+
+    def test_reset_clears_singleton(self):
+        """Test reset_position_monitor clears the singleton."""
+        m1 = get_position_monitor()
+        reset_position_monitor()
+        m2 = get_position_monitor()
+        # Should be a new instance
+        assert m1 is not m2
+
+
+class TestPositionSnapshotDataclass:
+    """Additional tests for PositionSnapshot dataclass."""
+
+    def test_snapshot_with_all_optional_fields(self):
+        """Test snapshot with all optional fields set."""
+        snap = PositionSnapshot(
+            position_id="test_full",
+            symbol="AAPL",
+            short_strike=180.0,
+            long_strike=170.0,
+            spread_width=10.0,
+            net_credit=2.50,
+            contracts=1,
+            expiration="2026-06-01",
+            dte=45,
+            max_profit=250.0,
+            max_loss=750.0,
+            breakeven=177.50,
+            source="ibkr",
+            current_spread_value=1.50,
+            unrealized_pnl=100.0,
+            pnl_pct_of_max_profit=40.0,
+            pnl_estimated=True,
+        )
+
+        assert snap.current_spread_value == 1.50
+        assert snap.unrealized_pnl == 100.0
+        assert snap.pnl_pct_of_max_profit == 40.0
+        assert snap.pnl_estimated is True
+
+    def test_snapshot_default_values(self):
+        """Test snapshot default values for optional fields."""
+        snap = make_snapshot()
+        assert snap.source == "internal"
+        assert snap.current_spread_value is None
+        assert snap.pnl_estimated is False
+
+
+class TestPositionSignalDataclass:
+    """Additional tests for PositionSignal dataclass."""
+
+    def test_signal_with_details(self):
+        """Test signal with custom details dict."""
+        signal = PositionSignal(
+            position_id="test_123",
+            symbol="AAPL",
+            action=ExitAction.CLOSE,
+            reason="Test reason",
+            priority=3,
+            dte=45,
+            pnl_pct=50.0,
+            details={"target_pct": 50.0, "regime": "NORMAL"},
+        )
+        assert signal.details["target_pct"] == 50.0
+        assert signal.details["regime"] == "NORMAL"
+
+    def test_signal_default_details_empty(self):
+        """Test signal with default empty details."""
+        signal = PositionSignal(
+            position_id="test",
+            symbol="AAPL",
+            action=ExitAction.HOLD,
+            reason="Hold",
+            priority=8,
+            dte=45,
+        )
+        assert signal.details == {}
+        assert signal.pnl_pct is None
+
+
+class TestMonitorResultProperties:
+    """Additional tests for MonitorResult properties."""
+
+    def test_result_timestamp_format(self):
+        """Test result timestamp is valid ISO format."""
+        result = MonitorResult(signals=[], positions_count=0)
+        # Should not raise on parsing
+        from datetime import datetime
+        parsed = datetime.fromisoformat(result.timestamp)
+        assert parsed is not None
+
+    def test_mixed_action_types(self):
+        """Test result with all action types."""
+        signals = [
+            PositionSignal("1", "AAPL", ExitAction.CLOSE, "close", 1, 0),
+            PositionSignal("2", "MSFT", ExitAction.ROLL, "roll", 5, 20),
+            PositionSignal("3", "JPM", ExitAction.ALERT, "alert", 6, 45),
+            PositionSignal("4", "GOOGL", ExitAction.HOLD, "hold", 8, 60),
+            PositionSignal("5", "AMZN", ExitAction.CLOSE, "close2", 2, 5),
+        ]
+        result = MonitorResult(signals=signals, vix=25.0, positions_count=5)
+
+        assert len(result.close_signals) == 2
+        assert len(result.roll_signals) == 1
+        assert len(result.alert_signals) == 1
+        assert len(result.hold_signals) == 1
+
+
+class TestAlertGenerationScenarios:
+    """Additional tests for alert generation scenarios."""
+
+    @pytest.mark.asyncio
+    async def test_alert_for_high_vix_losing_position(self, monitor):
+        """Test ALERT is generated for losing position in HIGH VIX."""
+        snap = make_snapshot(dte=45, pnl_pct=-15.0, unrealized_pnl=-37.50)
+        result = await monitor.check_positions([snap], current_vix=32.0)
+
+        # In HIGH VIX, losing positions get ALERT (priority 6)
+        signal = result.signals[0]
+        assert signal.action == ExitAction.ALERT
+        assert signal.priority == 6
+        assert "HIGH VIX" in signal.reason
+        assert "Verlust" in signal.reason
+
+    @pytest.mark.asyncio
+    async def test_alert_contains_vix_level(self, monitor):
+        """Test ALERT signal contains VIX level in reason."""
+        snap = make_snapshot(dte=45, pnl_pct=-10.0, unrealized_pnl=-25.0)
+        result = await monitor.check_positions([snap], current_vix=33.5)
+
+        signal = result.signals[0]
+        assert signal.action == ExitAction.ALERT
+        assert "33.5" in signal.reason
+
+    @pytest.mark.asyncio
+    async def test_alert_contains_details(self, monitor):
+        """Test ALERT signal contains VIX in details."""
+        snap = make_snapshot(dte=45, pnl_pct=-10.0, unrealized_pnl=-25.0)
+        result = await monitor.check_positions([snap], current_vix=35.0)
+
+        signal = result.signals[0]
+        assert signal.action == ExitAction.ALERT
+        assert signal.details.get("vix") == 35.0
+
+
+class TestStatusUpdateScenarios:
+    """Tests for position status update scenarios."""
+
+    @pytest.mark.asyncio
+    async def test_position_near_expiration_progression(self, monitor):
+        """Test status progression as position approaches expiration."""
+        # At 45 DTE - HOLD
+        snap_45 = make_snapshot(dte=45, pnl_pct=30.0, unrealized_pnl=75.0)
+        result_45 = await monitor.check_positions([snap_45], current_vix=18.0)
+        assert result_45.signals[0].action == ExitAction.HOLD
+
+        # At 21 DTE - ROLL (if profitable and rollable)
+        snap_21 = make_snapshot(dte=21, pnl_pct=30.0, unrealized_pnl=75.0)
+        with patch("src.utils.validation.is_etf", return_value=False):
+            result_21 = await monitor.check_positions([snap_21], current_vix=18.0)
+        assert result_21.signals[0].action == ExitAction.ROLL
+
+        # At 7 DTE - FORCE CLOSE
+        snap_7 = make_snapshot(dte=7, pnl_pct=30.0, unrealized_pnl=75.0)
+        result_7 = await monitor.check_positions([snap_7], current_vix=18.0)
+        assert result_7.signals[0].action == ExitAction.CLOSE
+        assert result_7.signals[0].priority == 2
+
+        # At 0 DTE - EXPIRED
+        snap_0 = make_snapshot(dte=0)
+        result_0 = await monitor.check_positions([snap_0], current_vix=18.0)
+        assert result_0.signals[0].action == ExitAction.CLOSE
+        assert result_0.signals[0].priority == 1
+
+    @pytest.mark.asyncio
+    async def test_profit_progression_to_close(self, monitor):
+        """Test status change when profit target is reached."""
+        # At 30% profit - HOLD (target is 50% in normal VIX)
+        snap_30 = make_snapshot(dte=45, pnl_pct=30.0, unrealized_pnl=75.0)
+        result_30 = await monitor.check_positions([snap_30], current_vix=18.0)
+        assert result_30.signals[0].action == ExitAction.HOLD
+
+        # At 50% profit - CLOSE (profit target reached)
+        snap_50 = make_snapshot(dte=45, pnl_pct=50.0, unrealized_pnl=125.0)
+        result_50 = await monitor.check_positions([snap_50], current_vix=18.0)
+        assert result_50.signals[0].action == ExitAction.CLOSE
+        assert result_50.signals[0].priority == 3
+
+
+class TestVIXRegimeTransitions:
+    """Tests for VIX regime transitions and their effects."""
+
+    @pytest.mark.asyncio
+    async def test_all_vix_regimes_profit_targets(self, monitor):
+        """Test profit target adjustment across VIX regimes."""
+        # LOW_VOL (VIX < 15): 50% target
+        snap = make_snapshot(dte=45, pnl_pct=50.0, unrealized_pnl=125.0)
+        result = await monitor.check_positions([snap], current_vix=12.0)
+        assert result.signals[0].action == ExitAction.CLOSE
+        assert "LOW_VOL" in result.regime
+
+        # NORMAL (VIX 15-20): 50% target
+        result = await monitor.check_positions([snap], current_vix=17.0)
+        assert result.signals[0].action == ExitAction.CLOSE
+        assert "NORMAL" in result.regime
+
+        # DANGER_ZONE (VIX 20-25): 30% target
+        snap_30 = make_snapshot(dte=45, pnl_pct=30.0, unrealized_pnl=75.0)
+        result = await monitor.check_positions([snap_30], current_vix=22.0)
+        assert result.signals[0].action == ExitAction.CLOSE
+        assert "DANGER_ZONE" in result.regime
+
+        # ELEVATED (VIX 25-30): 30% target
+        result = await monitor.check_positions([snap_30], current_vix=27.0)
+        assert result.signals[0].action == ExitAction.CLOSE
+        assert "ELEVATED" in result.regime
+
+    @pytest.mark.asyncio
+    async def test_high_vol_closes_any_winner(self, monitor):
+        """Test HIGH_VOL regime (VIX > 30) closes any profitable position."""
+        # Even tiny profit triggers close in HIGH_VOL
+        snap = make_snapshot(dte=45, pnl_pct=5.0, unrealized_pnl=12.50)
+        result = await monitor.check_positions([snap], current_vix=32.0)
+        assert result.signals[0].action == ExitAction.CLOSE
+        assert "HIGH_VOL" in result.regime
+
+    @pytest.mark.asyncio
+    async def test_no_trading_regime(self, monitor):
+        """Test NO_TRADING regime (VIX > 35)."""
+        snap = make_snapshot(dte=45, pnl_pct=10.0, unrealized_pnl=25.0)
+        result = await monitor.check_positions([snap], current_vix=40.0)
+        assert result.signals[0].action == ExitAction.CLOSE
+        assert "NO_TRADING" in result.regime
+
+
+class TestEdgeCasesAndBoundaries:
+    """Tests for edge cases and boundary conditions."""
+
+    @pytest.mark.asyncio
+    async def test_dte_exactly_at_thresholds(self, monitor):
+        """Test DTE at exact threshold values."""
+        # DTE exactly 21 (EXIT_ROLL_DTE)
+        snap = make_snapshot(dte=21, pnl_pct=30.0, unrealized_pnl=75.0)
+        with patch("src.utils.validation.is_etf", return_value=False):
+            result = await monitor.check_positions([snap], current_vix=18.0)
+        assert result.signals[0].priority == 5  # 21 DTE decision
+
+        # DTE exactly 7 (EXIT_FORCE_CLOSE_DTE)
+        snap = make_snapshot(dte=7, pnl_pct=30.0, unrealized_pnl=75.0)
+        result = await monitor.check_positions([snap], current_vix=18.0)
+        assert result.signals[0].priority == 2  # Force close
+
+    @pytest.mark.asyncio
+    async def test_vix_exactly_at_thresholds(self, monitor):
+        """Test VIX at exact threshold values."""
+        snap = make_snapshot(dte=45, pnl_pct=20.0, unrealized_pnl=50.0)
+
+        # VIX exactly 30 (VIX_ELEVATED_MAX)
+        result = await monitor.check_positions([snap], current_vix=30.0)
+        assert result.signals[0].action == ExitAction.CLOSE  # High VIX triggers
+
+        # VIX exactly 35 (NO_TRADING threshold)
+        result = await monitor.check_positions([snap], current_vix=35.0)
+        assert "NO_TRADING" in result.regime
+
+    @pytest.mark.asyncio
+    async def test_pnl_exactly_zero(self, monitor):
+        """Test P&L exactly at zero."""
+        snap = make_snapshot(dte=45, pnl_pct=0.0, unrealized_pnl=0.0)
+        result = await monitor.check_positions([snap], current_vix=32.0)
+
+        # Zero profit is not "profitable", so HIGH VIX check treats as loser
+        signal = result.signals[0]
+        assert signal.action == ExitAction.ALERT
+
+    @pytest.mark.asyncio
+    async def test_very_large_loss(self, monitor):
+        """Test handling of very large losses (max loss scenario)."""
+        # Max loss = (10 - 2.50) * 1 * 100 = $750
+        snap = make_snapshot(dte=30, pnl_pct=-300.0, unrealized_pnl=-750.0)
+        result = await monitor.check_positions([snap], current_vix=18.0)
+
+        # Should hit stop loss (200% of credit = $500)
+        assert result.signals[0].action == ExitAction.CLOSE
+        assert result.signals[0].priority == 4  # Stop loss
+
+    @pytest.mark.asyncio
+    async def test_multiple_contracts_calculations(self, monitor):
+        """Test calculations with multiple contracts."""
+        # 3 contracts, credit $2.50, stop loss = 2.50 * 3 * 100 * 2 = $1500
+        snap = make_snapshot(
+            dte=45,
+            contracts=3,
+            pnl_pct=-200.0,
+            unrealized_pnl=-1500.0  # At stop loss
+        )
+        result = await monitor.check_positions([snap], current_vix=18.0)
+        assert result.signals[0].action == ExitAction.CLOSE
+        assert result.signals[0].priority == 4
+
+    @pytest.mark.asyncio
+    async def test_ibkr_source_snapshot(self, monitor):
+        """Test handling of IBKR source snapshots."""
+        snap = make_snapshot(dte=45, pnl_pct=20.0, unrealized_pnl=50.0, source="ibkr")
+        result = await monitor.check_positions([snap], current_vix=18.0)
+        assert result.signals[0].action == ExitAction.HOLD
+
+    @pytest.mark.asyncio
+    async def test_signal_priority_sorting(self, monitor):
+        """Test that signals are sorted by priority (1=highest, 8=lowest)."""
+        snapshots = [
+            make_snapshot(symbol="HOLD", dte=45, pnl_pct=20.0, unrealized_pnl=50.0),  # Priority 8
+            make_snapshot(symbol="EXPIRED", dte=0),  # Priority 1
+            make_snapshot(symbol="FORCE", dte=5, pnl_pct=20.0, unrealized_pnl=50.0),  # Priority 2
+        ]
+        result = await monitor.check_positions(snapshots, current_vix=18.0)
+
+        # Should be sorted: priority 1, 2, 8
+        assert result.signals[0].priority == 1
+        assert result.signals[0].symbol == "EXPIRED"
+        assert result.signals[1].priority == 2
+        assert result.signals[1].symbol == "FORCE"
+        assert result.signals[2].priority == 8
+        assert result.signals[2].symbol == "HOLD"
+
+
+class TestEvaluatePositionInternal:
+    """Tests for _evaluate_position internal method."""
+
+    def test_priority_ordering(self, monitor):
+        """Test that first matching exit condition wins."""
+        # Create a snapshot that would match multiple conditions
+        # DTE=0 (expired) should win over everything else
+        snap = make_snapshot(dte=0, pnl_pct=100.0, unrealized_pnl=250.0)
+        signal = monitor._evaluate_position(snap, current_vix=35.0)
+
+        # Expired (priority 1) should win
+        assert signal.priority == 1
+        assert signal.action == ExitAction.CLOSE
+        assert "ABGELAUFEN" in signal.reason
+
+    def test_no_match_returns_hold(self, monitor):
+        """Test that no matching condition returns HOLD."""
+        snap = make_snapshot(dte=45, pnl_pct=20.0, unrealized_pnl=50.0)
+        signal = monitor._evaluate_position(snap, current_vix=18.0)
+
+        assert signal.action == ExitAction.HOLD
+        assert signal.priority == 8
+        assert "Keine Aktion" in signal.reason
+
+    def test_signal_includes_pnl_pct(self, monitor):
+        """Test that signal includes P&L percentage."""
+        snap = make_snapshot(dte=45, pnl_pct=25.5, unrealized_pnl=63.75)
+        signal = monitor._evaluate_position(snap, current_vix=18.0)
+
+        assert signal.pnl_pct == 25.5
+
+    def test_signal_includes_dte(self, monitor):
+        """Test that signal includes DTE."""
+        snap = make_snapshot(dte=42, pnl_pct=20.0, unrealized_pnl=50.0)
+        signal = monitor._evaluate_position(snap, current_vix=18.0)
+
+        assert signal.dte == 42

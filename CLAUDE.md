@@ -3,8 +3,9 @@
 Session-Kontext für Claude Code. Enthält DB-Schema, API-Beispiele und Code-Konventionen.
 Für alle Trading-Regeln → siehe `docs/PLAYBOOK.md`
 
-**Version:** 4.0.0
-**Zuletzt aktualisiert:** 2026-02-03
+**Version:** 3.7.0
+**Zuletzt aktualisiert:** 2026-02-05
+**Test-Coverage:** 80.19% (6,740 Tests)
 
 ---
 
@@ -214,6 +215,8 @@ python scripts/daily_data_fetcher.py         # VIX täglich (Cronjob)
 |-------|--------|
 | `docs/PLAYBOOK.md` | **DAS Regelwerk** — Entry, Exit, Sizing, VIX, Disziplin |
 | `docs/ARCHITECTURE.md` | System-Architektur |
+| `docs/ROADMAP.md` | Stabilisierungs-Roadmap (Phase 1 ✅, Phase 4.1 ✅) |
 | `CLAUDE.md` | Diese Datei — DB, API, Code |
+| `SKILL.md` | MCP-Tool-Referenz (53 Tools + 55 Aliases) |
 
 *Alle Trading-Regeln, VIX-Regime, Stability-Schwellen, Watchlist und Blacklist stehen ausschließlich in PLAYBOOK.md.*

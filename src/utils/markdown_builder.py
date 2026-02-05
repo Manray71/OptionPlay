@@ -350,7 +350,6 @@ class MarkdownBuilder:
             return self.status_ok(ok_text)
         else:
             return self.status_warning(fail_text)
-        return self
     
     # =========================================================================
     # SPECIAL SECTIONS

@@ -4,6 +4,10 @@ OptionPlay MCP Tool Registry v3.7.0
 
 Zentrales Registry für alle MCP Tools mit Handler-Definitionen.
 
+Stats (2026-02-05):
+- 53 Tools + 55 Aliases = 108 MCP Endpoints
+- 80.19% Test Coverage
+
 Pattern:
     @tool_registry.register(
         name="optionplay_xxx",
@@ -14,7 +18,7 @@ Pattern:
     async def handle_xxx(server, arguments):
         return await server.method_name(...)
 
-Alle 66 Tools sind hier definiert mit:
+Alle Tools sind hier definiert mit:
 - Vollständigem Namen (optionplay_xxx)
 - Kurz-Alias (xxx)
 - JSON-Schema für Eingabe

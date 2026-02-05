@@ -745,3 +745,748 @@ GOOGL
 
         assert len(symbols) == 3
         assert "" not in symbols
+
+    @pytest.mark.asyncio
+    async def test_date_filtering_in_incremental(self, mock_provider, temp_db):
+        """Test date filtering in incremental mode with existing data"""
+        today = date.today()
+
+        # Create bars spanning multiple days
+        old_bars = [
+            MockBar(
+                date=today - timedelta(days=i),
+                open=100.0,
+                high=105.0,
+                low=95.0,
+                close=102.0,
+                volume=1000000,
+            )
+            for i in range(20, 30)  # 20-30 days ago
+        ]
+
+        new_bars = [
+            MockBar(
+                date=today - timedelta(days=i),
+                open=100.0,
+                high=105.0,
+                low=95.0,
+                close=102.0,
+                volume=1000000,
+            )
+            for i in range(0, 20)  # 0-20 days ago
+        ]
+
+        provider = AsyncMock()
+        provider.get_historical = AsyncMock(side_effect=[old_bars, new_bars])
+        provider.get_index_candles = AsyncMock(return_value=[])
+
+        config = CollectionConfig(
+            symbols=["AAPL"],
+            db_path=temp_db,
+            update_mode="full",  # First full
+            delay_between_symbols=0.0,
+        )
+        collector = DataCollector(config)
+
+        # First collection (full)
+        await collector.collect(provider)
+
+        # Reset mock and do incremental
+        provider.get_historical.reset_mock()
+        provider.get_historical.return_value = new_bars
+        config.update_mode = "incremental"
+
+        await collector.collect(provider)
+
+        # Should have called get_historical for incremental update
+        provider.get_historical.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_provider_timeout_handling(self, temp_db):
+        """Test handling of provider timeouts"""
+        provider = AsyncMock()
+        provider.get_historical = AsyncMock(side_effect=asyncio.TimeoutError())
+        provider.get_index_candles = AsyncMock(return_value=[])
+
+        config = CollectionConfig(
+            symbols=["AAPL"],
+            db_path=temp_db,
+            update_mode="full",
+        )
+        collector = DataCollector(config)
+
+        result = await collector.collect(provider)
+
+        assert result.symbols_collected == 0
+        assert "AAPL" in result.symbols_failed
+        assert len(result.errors) > 0
+
+    @pytest.mark.asyncio
+    async def test_partial_bar_data(self, temp_db):
+        """Test handling of bars with missing/partial data"""
+        # Bar with string date instead of date object
+        bar_with_string_date = MockBar(
+            date="2024-01-15",  # String instead of date
+            open=100.0,
+            high=105.0,
+            low=95.0,
+            close=102.0,
+            volume=1000000,
+        )
+
+        provider = AsyncMock()
+        provider.get_historical = AsyncMock(return_value=[bar_with_string_date])
+        provider.get_index_candles = AsyncMock(return_value=[])
+
+        config = CollectionConfig(
+            symbols=["AAPL"],
+            db_path=temp_db,
+            update_mode="full",
+        )
+        collector = DataCollector(config)
+
+        # Should handle string dates gracefully
+        result = await collector.collect(provider)
+
+        assert result.symbols_collected == 1
+        assert result.total_bars_collected == 1
+
+
+# =============================================================================
+# Data Validation Tests
+# =============================================================================
+
+class TestDataValidation:
+    """Tests for data validation during collection"""
+
+    @pytest.mark.asyncio
+    async def test_empty_bars_filtered(self, temp_db):
+        """Test that empty bar lists are handled"""
+        provider = AsyncMock()
+        provider.get_historical = AsyncMock(return_value=[])
+        provider.get_index_candles = AsyncMock(return_value=[])
+
+        config = CollectionConfig(
+            symbols=["AAPL"],
+            db_path=temp_db,
+        )
+        collector = DataCollector(config)
+
+        result = await collector.collect(provider)
+
+        assert "AAPL" in result.symbols_failed
+        assert "No data returned" in result.errors[0]
+
+    @pytest.mark.asyncio
+    async def test_none_bars_handled(self, temp_db):
+        """Test that None response from provider is handled"""
+        provider = AsyncMock()
+        provider.get_historical = AsyncMock(return_value=None)
+        provider.get_index_candles = AsyncMock(return_value=None)
+
+        config = CollectionConfig(
+            symbols=["AAPL"],
+            db_path=temp_db,
+        )
+        collector = DataCollector(config)
+
+        result = await collector.collect(provider)
+
+        assert result.symbols_collected == 0
+
+    @pytest.mark.asyncio
+    async def test_bars_sorted_by_date(self, mock_provider, temp_db):
+        """Test that bars are sorted by date before storage"""
+        today = date.today()
+        # Create unsorted bars
+        unsorted_bars = [
+            MockBar(date=today - timedelta(days=5), open=100, high=105, low=95, close=102, volume=1000),
+            MockBar(date=today - timedelta(days=10), open=100, high=105, low=95, close=102, volume=1000),
+            MockBar(date=today - timedelta(days=1), open=100, high=105, low=95, close=102, volume=1000),
+        ]
+
+        provider = AsyncMock()
+        provider.get_historical = AsyncMock(return_value=unsorted_bars)
+        provider.get_index_candles = AsyncMock(return_value=[])
+
+        config = CollectionConfig(
+            symbols=["AAPL"],
+            db_path=temp_db,
+            update_mode="full",
+        )
+        collector = DataCollector(config)
+
+        await collector.collect(provider)
+
+        # Verify bars are sorted in tracker
+        data = collector.tracker.get_price_data("AAPL")
+        assert data is not None
+        dates = [b.date for b in data.bars]
+        assert dates == sorted(dates)
+
+
+# =============================================================================
+# Storage and Retrieval Tests
+# =============================================================================
+
+class TestStorageRetrieval:
+    """Tests for data storage and retrieval integrity"""
+
+    @pytest.mark.asyncio
+    async def test_price_data_integrity(self, mock_bars, temp_db):
+        """Test that stored price data maintains integrity"""
+        provider = AsyncMock()
+        provider.get_historical = AsyncMock(return_value=mock_bars)
+        provider.get_index_candles = AsyncMock(return_value=[])
+
+        config = CollectionConfig(
+            symbols=["AAPL"],
+            db_path=temp_db,
+            update_mode="full",
+        )
+        collector = DataCollector(config)
+
+        await collector.collect(provider)
+
+        # Retrieve and verify
+        data = collector.tracker.get_price_data("AAPL")
+        assert data is not None
+        assert len(data.bars) == len(mock_bars)
+
+        # Verify OHLCV values match
+        for original, stored in zip(sorted(mock_bars, key=lambda b: b.date),
+                                     sorted(data.bars, key=lambda b: b.date)):
+            assert stored.open == original.open
+            assert stored.high == original.high
+            assert stored.low == original.low
+            assert stored.close == original.close
+            assert stored.volume == original.volume
+
+    @pytest.mark.asyncio
+    async def test_vix_data_integrity(self, mock_vix_bars, temp_db):
+        """Test that stored VIX data maintains integrity"""
+        provider = AsyncMock()
+        provider.get_historical = AsyncMock(return_value=[
+            MockBar(date.today(), 100, 105, 95, 102, 1000000)
+        ])
+        provider.get_index_candles = AsyncMock(return_value=mock_vix_bars)
+
+        config = CollectionConfig(
+            symbols=["AAPL"],
+            db_path=temp_db,
+            update_mode="full",
+        )
+        collector = DataCollector(config)
+
+        await collector.collect(provider)
+
+        # Retrieve and verify VIX
+        vix_data = collector.tracker.get_vix_data()
+        assert len(vix_data) == len(mock_vix_bars)
+
+        # VIX should use close values
+        for original, stored in zip(sorted(mock_vix_bars, key=lambda b: b.date),
+                                     sorted(vix_data, key=lambda v: v.date)):
+            assert stored.value == original.close
+
+    @pytest.mark.asyncio
+    async def test_multiple_symbols_stored_separately(self, mock_bars, temp_db):
+        """Test that multiple symbols are stored separately"""
+        provider = AsyncMock()
+        provider.get_historical = AsyncMock(return_value=mock_bars)
+        provider.get_index_candles = AsyncMock(return_value=[])
+
+        config = CollectionConfig(
+            symbols=["AAPL", "MSFT", "GOOGL"],
+            db_path=temp_db,
+            update_mode="full",
+            delay_between_symbols=0.0,
+        )
+        collector = DataCollector(config)
+
+        await collector.collect(provider)
+
+        # Verify each symbol has separate data
+        for symbol in ["AAPL", "MSFT", "GOOGL"]:
+            data = collector.tracker.get_price_data(symbol)
+            assert data is not None
+            assert data.symbol == symbol
+
+    @pytest.mark.asyncio
+    async def test_incremental_merge_preserves_old_data(self, temp_db):
+        """Test that incremental updates merge with existing data"""
+        today = date.today()
+
+        # Old data (10-20 days ago)
+        old_bars = [
+            MockBar(
+                date=today - timedelta(days=i),
+                open=100.0, high=105.0, low=95.0, close=100.0 + i, volume=1000000,
+            )
+            for i in range(10, 20)
+        ]
+
+        # New data (0-10 days ago)
+        new_bars = [
+            MockBar(
+                date=today - timedelta(days=i),
+                open=110.0, high=115.0, low=105.0, close=110.0 + i, volume=2000000,
+            )
+            for i in range(0, 10)
+        ]
+
+        provider = AsyncMock()
+        provider.get_index_candles = AsyncMock(return_value=[])
+
+        # First: full collection with old data
+        provider.get_historical = AsyncMock(return_value=old_bars)
+        config = CollectionConfig(
+            symbols=["AAPL"],
+            db_path=temp_db,
+            update_mode="full",
+            delay_between_symbols=0.0,
+        )
+        collector = DataCollector(config)
+        await collector.collect(provider)
+
+        # Second: incremental with new data
+        provider.get_historical = AsyncMock(return_value=new_bars)
+        config.update_mode = "incremental"
+        await collector.collect(provider)
+
+        # Verify merged data contains both old and new
+        data = collector.tracker.get_price_data("AAPL")
+        assert data is not None
+        # Should have data from both collections
+        assert data.bar_count >= len(new_bars)
+
+
+# =============================================================================
+# Run Daily Collection Tests
+# =============================================================================
+
+class TestRunDailyCollection:
+    """Tests for run_daily_collection convenience function"""
+
+    @pytest.mark.asyncio
+    async def test_run_daily_collection_with_symbols(self, temp_db):
+        """Test run_daily_collection with explicit symbols"""
+        # The import happens inside run_daily_collection, so we need to patch where it's imported
+        with patch.dict('sys.modules', {'src.data_providers.marketdata': MagicMock()}):
+            # Import after patching
+            import sys
+            mock_module = sys.modules['src.data_providers.marketdata']
+
+            # Setup mock provider
+            mock_instance = AsyncMock()
+            mock_instance.get_historical = AsyncMock(return_value=[
+                MockBar(date.today(), 100, 105, 95, 102, 1000000)
+            ])
+            mock_instance.get_index_candles = AsyncMock(return_value=[
+                MockBar(date.today(), 18, 20, 17, 19, 0)
+            ])
+            mock_module.MarketDataProvider.return_value = mock_instance
+            mock_module.MarketDataConfig.return_value = MagicMock()
+
+            result = await run_daily_collection(
+                api_key="test_key",
+                symbols=["AAPL"],
+            )
+
+            assert result.symbols_requested == 1
+            mock_instance.connect.assert_called_once()
+            mock_instance.close.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_run_daily_collection_with_watchlist(self, temp_watchlist, temp_db):
+        """Test run_daily_collection with watchlist"""
+        with patch.dict('sys.modules', {'src.data_providers.marketdata': MagicMock()}):
+            import sys
+            mock_module = sys.modules['src.data_providers.marketdata']
+
+            mock_instance = AsyncMock()
+            mock_instance.get_historical = AsyncMock(return_value=[
+                MockBar(date.today(), 100, 105, 95, 102, 1000000)
+            ])
+            mock_instance.get_index_candles = AsyncMock(return_value=[])
+            mock_module.MarketDataProvider.return_value = mock_instance
+            mock_module.MarketDataConfig.return_value = MagicMock()
+
+            result = await run_daily_collection(
+                api_key="test_key",
+                watchlist_path=temp_watchlist,
+            )
+
+            # Watchlist has 4 symbols
+            assert result.symbols_requested == 4
+
+    @pytest.mark.asyncio
+    async def test_run_daily_collection_closes_on_error(self, temp_db):
+        """Test that provider is closed even on error"""
+        with patch.dict('sys.modules', {'src.data_providers.marketdata': MagicMock()}):
+            import sys
+            mock_module = sys.modules['src.data_providers.marketdata']
+
+            mock_instance = AsyncMock()
+            mock_instance.connect = AsyncMock(side_effect=Exception("Connection failed"))
+            mock_instance.close = AsyncMock()
+            mock_module.MarketDataProvider.return_value = mock_instance
+            mock_module.MarketDataConfig.return_value = MagicMock()
+
+            with pytest.raises(Exception, match="Connection failed"):
+                await run_daily_collection(api_key="test_key", symbols=["AAPL"])
+
+            # Close should still be called
+            mock_instance.close.assert_called_once()
+
+
+# =============================================================================
+# Batch Processing Tests
+# =============================================================================
+
+class TestBatchProcessing:
+    """Tests for batch processing logic"""
+
+    @pytest.mark.asyncio
+    async def test_batch_boundaries(self, mock_provider, temp_db):
+        """Test that batch boundaries are handled correctly"""
+        # 27 symbols with batch_size=10 should create 3 batches: 10, 10, 7
+        symbols = [f"SYM{i:02d}" for i in range(27)]
+
+        config = CollectionConfig(
+            symbols=symbols,
+            db_path=temp_db,
+            batch_size=10,
+            delay_between_symbols=0.0,
+        )
+        collector = DataCollector(config)
+
+        result = await collector.collect(mock_provider)
+
+        assert result.symbols_requested == 27
+        assert mock_provider.get_historical.call_count == 27
+
+    @pytest.mark.asyncio
+    async def test_rate_limiting_respected(self, mock_provider, temp_db):
+        """Test that rate limiting delay is applied between symbols"""
+        config = CollectionConfig(
+            symbols=["AAPL", "MSFT"],
+            db_path=temp_db,
+            delay_between_symbols=0.01,  # 10ms delay
+        )
+        collector = DataCollector(config)
+
+        start_time = datetime.now()
+        await collector.collect(mock_provider)
+        elapsed = (datetime.now() - start_time).total_seconds()
+
+        # Should have at least one delay (between AAPL and MSFT)
+        # Allow some margin for test execution overhead
+        assert elapsed >= 0.01
+
+
+# =============================================================================
+# Error Limit Tests
+# =============================================================================
+
+class TestErrorHandling:
+    """Tests for error handling and limits"""
+
+    @pytest.mark.asyncio
+    async def test_errors_limited_to_20(self, temp_db):
+        """Test that errors list is limited to 20 entries"""
+        # Create 30 failing symbols
+        symbols = [f"FAIL{i:02d}" for i in range(30)]
+
+        provider = AsyncMock()
+        provider.get_historical = AsyncMock(side_effect=Exception("API Error"))
+        provider.get_index_candles = AsyncMock(return_value=[])
+
+        config = CollectionConfig(
+            symbols=symbols,
+            db_path=temp_db,
+            delay_between_symbols=0.0,
+        )
+        collector = DataCollector(config)
+
+        result = await collector.collect(provider)
+
+        # All should fail
+        assert result.symbols_collected == 0
+        assert len(result.symbols_failed) == 30
+        # But errors list should be limited to 20
+        assert len(result.errors) == 20
+
+    @pytest.mark.asyncio
+    async def test_mixed_success_failure(self, temp_db):
+        """Test collection with mix of successful and failed symbols"""
+        success_bar = MockBar(date.today(), 100, 105, 95, 102, 1000000)
+
+        call_count = [0]
+
+        async def mock_get_historical(symbol, days=None):
+            call_count[0] += 1
+            if call_count[0] % 2 == 0:
+                raise Exception(f"Error for {symbol}")
+            return [success_bar]
+
+        provider = AsyncMock()
+        provider.get_historical = AsyncMock(side_effect=mock_get_historical)
+        provider.get_index_candles = AsyncMock(return_value=[])
+
+        config = CollectionConfig(
+            symbols=["SYM1", "SYM2", "SYM3", "SYM4"],
+            db_path=temp_db,
+            delay_between_symbols=0.0,
+        )
+        collector = DataCollector(config)
+
+        result = await collector.collect(provider)
+
+        assert result.symbols_collected == 2
+        assert len(result.symbols_failed) == 2
+
+
+# =============================================================================
+# Config Edge Cases
+# =============================================================================
+
+class TestConfigEdgeCases:
+    """Tests for configuration edge cases"""
+
+    def test_config_with_all_options(self, temp_watchlist, temp_db):
+        """Test config with all options specified"""
+        config = CollectionConfig(
+            symbols=["AAPL"],
+            watchlist_path=temp_watchlist,
+            lookback_days=500,
+            update_mode="full",
+            delay_between_symbols=0.5,
+            batch_size=100,
+            db_path=temp_db,
+        )
+
+        assert config.symbols == ["AAPL"]
+        assert config.watchlist_path == temp_watchlist
+        assert config.lookback_days == 500
+        assert config.update_mode == "full"
+        assert config.delay_between_symbols == 0.5
+        assert config.batch_size == 100
+        assert config.db_path == temp_db
+
+    def test_collector_with_none_config(self):
+        """Test collector initialization with None config"""
+        collector = DataCollector(None)
+
+        assert collector.config is not None
+        assert collector.config.symbols == []
+        assert collector.config.lookback_days == 260
+
+    def test_watchlist_no_path_returns_empty(self, temp_db):
+        """Test _load_watchlist returns empty when no path configured"""
+        config = CollectionConfig(db_path=temp_db)
+        collector = DataCollector(config)
+
+        symbols = collector._load_watchlist()
+
+        assert symbols == []
+
+
+# =============================================================================
+# Tracker Property Tests
+# =============================================================================
+
+class TestTrackerProperty:
+    """Tests for tracker property and lazy loading"""
+
+    def test_tracker_same_instance(self, temp_db):
+        """Test that tracker property returns same instance"""
+        config = CollectionConfig(db_path=temp_db)
+        collector = DataCollector(config)
+
+        tracker1 = collector.tracker
+        tracker2 = collector.tracker
+
+        assert tracker1 is tracker2
+
+    def test_tracker_uses_config_db_path(self, temp_db):
+        """Test that tracker uses db_path from config"""
+        config = CollectionConfig(db_path=temp_db)
+        collector = DataCollector(config)
+
+        tracker = collector.tracker
+
+        assert tracker.db_path == temp_db
+
+
+# =============================================================================
+# Status Formatting Edge Cases
+# =============================================================================
+
+class TestStatusFormattingEdgeCases:
+    """Additional tests for status formatting"""
+
+    def test_format_status_many_stale_symbols(self):
+        """Test formatting with more than 10 stale symbols"""
+        stale_symbols = [
+            {"symbol": f"STALE{i}", "last_date": "2023-01-01", "days_old": 100 + i}
+            for i in range(15)
+        ]
+
+        status = {
+            "total_symbols": 20,
+            "symbols": [],
+            "stale_symbols": stale_symbols,
+            "vix_range": {"start": "2023-01-01", "end": "2024-01-01"},
+            "storage": {
+                "total_price_bars": 5000,
+                "database_size_mb": 2.5,
+                "vix_data_points": 260,
+            },
+        }
+
+        output = format_collection_status(status)
+
+        assert "STALE SYMBOLS" in output
+        # Should show first 10
+        assert "STALE0" in output
+        assert "STALE9" in output
+        # Should show "and X more"
+        assert "and 5 more" in output
+
+    def test_format_status_with_vix_data(self):
+        """Test formatting with VIX data present"""
+        status = {
+            "total_symbols": 5,
+            "symbols": [],
+            "stale_symbols": [],
+            "vix_range": {"start": "2023-06-01", "end": "2024-06-01"},
+            "storage": {
+                "total_price_bars": 1300,
+                "database_size_mb": 1.5,
+                "vix_data_points": 260,
+            },
+        }
+
+        output = format_collection_status(status)
+
+        assert "VIX Data:" in output
+        assert "2023-06-01" in output
+        assert "2024-06-01" in output
+        assert "VIX Points: 260" in output
+
+
+# =============================================================================
+# Collect Single Extended Tests
+# =============================================================================
+
+class TestCollectSingleExtended:
+    """Extended tests for collect_single method"""
+
+    @pytest.mark.asyncio
+    async def test_collect_single_restores_config(self, mock_provider, temp_db):
+        """Test that collect_single restores original config after completion"""
+        config = CollectionConfig(db_path=temp_db, lookback_days=260)
+        collector = DataCollector(config)
+
+        # Collect with custom days
+        await collector.collect_single(mock_provider, "AAPL", days=30)
+
+        # Config should be restored
+        assert collector.config.lookback_days == 260
+
+    @pytest.mark.asyncio
+    async def test_collect_single_restores_on_exception(self, temp_db):
+        """Test that config is restored even when exception occurs"""
+        provider = AsyncMock()
+        provider.get_historical = AsyncMock(side_effect=Exception("Test error"))
+
+        config = CollectionConfig(db_path=temp_db, lookback_days=260)
+        collector = DataCollector(config)
+
+        # collect_single propagates exceptions but still restores config
+        with pytest.raises(Exception, match="Test error"):
+            await collector.collect_single(provider, "AAPL", days=30)
+
+        # Config should still be restored due to try/finally
+        assert collector.config.lookback_days == 260
+
+    @pytest.mark.asyncio
+    async def test_collect_single_uses_default_days(self, mock_provider, temp_db):
+        """Test collect_single uses config lookback_days when days not specified"""
+        config = CollectionConfig(db_path=temp_db, lookback_days=100)
+        collector = DataCollector(config)
+
+        await collector.collect_single(mock_provider, "AAPL")
+
+        # Should call with 100 days
+        mock_provider.get_historical.assert_called_with("AAPL", days=100)
+
+
+# =============================================================================
+# VIX Collection Extended Tests
+# =============================================================================
+
+class TestVixCollectionExtended:
+    """Extended tests for VIX data collection"""
+
+    @pytest.mark.asyncio
+    async def test_vix_incremental_update(self, temp_db):
+        """Test VIX incremental update logic"""
+        today = date.today()
+
+        # Old VIX data
+        old_vix = [
+            MockBar(date=today - timedelta(days=i), open=18, high=20, low=17, close=18 + i * 0.1, volume=0)
+            for i in range(30, 40)
+        ]
+
+        # New VIX data
+        new_vix = [
+            MockBar(date=today - timedelta(days=i), open=18, high=20, low=17, close=19 + i * 0.1, volume=0)
+            for i in range(0, 10)
+        ]
+
+        provider = AsyncMock()
+        provider.get_historical = AsyncMock(return_value=[
+            MockBar(today, 100, 105, 95, 102, 1000000)
+        ])
+
+        # First collection
+        provider.get_index_candles = AsyncMock(return_value=old_vix)
+        config = CollectionConfig(
+            symbols=["AAPL"],
+            db_path=temp_db,
+            update_mode="full",
+        )
+        collector = DataCollector(config)
+        await collector.collect(provider)
+
+        # Second collection (incremental)
+        provider.get_index_candles = AsyncMock(return_value=new_vix)
+        config.update_mode = "incremental"
+        result = await collector.collect(provider)
+
+        # VIX should have been collected
+        assert result.vix_points_collected > 0
+
+    @pytest.mark.asyncio
+    async def test_vix_empty_response(self, temp_db):
+        """Test handling of empty VIX response"""
+        provider = AsyncMock()
+        provider.get_historical = AsyncMock(return_value=[
+            MockBar(date.today(), 100, 105, 95, 102, 1000000)
+        ])
+        provider.get_index_candles = AsyncMock(return_value=[])
+
+        config = CollectionConfig(
+            symbols=["AAPL"],
+            db_path=temp_db,
+        )
+        collector = DataCollector(config)
+
+        result = await collector.collect(provider)
+
+        assert result.vix_points_collected == 0
+        # But symbol collection should still succeed
+        assert result.symbols_collected == 1

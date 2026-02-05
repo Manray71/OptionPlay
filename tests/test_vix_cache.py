@@ -124,10 +124,10 @@ class TestVixCacheManagerInit:
 
         assert manager.db_path == temp_db
 
-    def test_init_cache_empty(self, manager):
-        """Test: Cache ist nach Init leer."""
-        assert manager._cache == {}
-        assert manager._cache_loaded == False
+    def test_init_has_lock(self, manager):
+        """Test: Manager has a thread-safe lock initialized."""
+        assert hasattr(manager, '_lock')
+        assert manager._lock is not None
 
 
 # =============================================================================

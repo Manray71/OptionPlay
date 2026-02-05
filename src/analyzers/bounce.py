@@ -50,6 +50,38 @@ try:
 except ImportError:
     from analyzers.feature_scoring_mixin import FeatureScoringMixin
 
+# Import central constants
+try:
+    from ..constants import (
+        RSI_PERIOD, RSI_OVERSOLD,
+        MACD_FAST, MACD_SLOW, MACD_SIGNAL,
+        STOCH_K_PERIOD, STOCH_D_PERIOD, STOCH_SMOOTH,
+        SMA_MEDIUM, SMA_LONG,
+        VOLUME_AVG_PERIOD, VOLUME_RECENT_WINDOW,
+        VOLUME_TREND_LOW, VOLUME_TREND_HIGH,
+        KELTNER_NEUTRAL_LOW,
+        DIVERGENCE_SWING_WINDOW, DIVERGENCE_MIN_BARS, DIVERGENCE_MAX_BARS,
+        DIVERGENCE_STRENGTH_STRONG, DIVERGENCE_STRENGTH_MODERATE,
+        SR_LOOKBACK_DAYS_EXTENDED,
+        SUPPORT_LOOKBACK_DAYS,
+        BOUNCE_MIN_TOUCHES,
+    )
+except ImportError:
+    from constants import (
+        RSI_PERIOD, RSI_OVERSOLD,
+        MACD_FAST, MACD_SLOW, MACD_SIGNAL,
+        STOCH_K_PERIOD, STOCH_D_PERIOD, STOCH_SMOOTH,
+        SMA_MEDIUM, SMA_LONG,
+        VOLUME_AVG_PERIOD, VOLUME_RECENT_WINDOW,
+        VOLUME_TREND_LOW, VOLUME_TREND_HIGH,
+        KELTNER_NEUTRAL_LOW,
+        DIVERGENCE_SWING_WINDOW, DIVERGENCE_MIN_BARS, DIVERGENCE_MAX_BARS,
+        DIVERGENCE_STRENGTH_STRONG, DIVERGENCE_STRENGTH_MODERATE,
+        SR_LOOKBACK_DAYS_EXTENDED,
+        SUPPORT_LOOKBACK_DAYS,
+        BOUNCE_MIN_TOUCHES,
+    )
+
 logger = logging.getLogger(__name__)
 
 
@@ -57,8 +89,8 @@ logger = logging.getLogger(__name__)
 class BounceConfig:
     """Configuration for Bounce Analyzer (Legacy - for backward compatibility)"""
     # Support Detection
-    support_lookback_days: int = 60
-    support_touches_min: int = 2  # Minimum 2x tested
+    support_lookback_days: int = SUPPORT_LOOKBACK_DAYS
+    support_touches_min: int = BOUNCE_MIN_TOUCHES  # Minimum 2x tested
     support_tolerance_pct: float = 1.5  # Support zone tolerance
 
     # Bounce Confirmation
@@ -68,7 +100,7 @@ class BounceConfig:
 
     # RSI for Oversold
     rsi_oversold_threshold: float = 40.0
-    rsi_period: int = 14
+    rsi_period: int = RSI_PERIOD
 
     # Candlestick Patterns
     require_bullish_candle: bool = True
@@ -145,7 +177,7 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             TradeSignal with bounce rating
         """
         # Input validation
-        min_data = max(self.config.support_lookback_days, 60)
+        min_data = max(self.config.support_lookback_days, SUPPORT_LOOKBACK_DAYS)
         self.validate_inputs(prices, volumes, highs, lows, min_length=min_data)
 
         current_price = prices[-1]
@@ -208,10 +240,10 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             lows=lows,
             highs=highs,
             rsi_period=self.config.rsi_period,
-            lookback=60,
-            swing_window=3,  # Relaxiert für bessere Swing-Erkennung
-            min_divergence_bars=5,
-            max_divergence_bars=50  # Längere Formationen erlauben
+            lookback=SUPPORT_LOOKBACK_DAYS,
+            swing_window=DIVERGENCE_SWING_WINDOW,
+            min_divergence_bars=DIVERGENCE_MIN_BARS,
+            max_divergence_bars=DIVERGENCE_MAX_BARS
         )
         div_score_result = self._score_rsi_divergence(divergence_result)
         breakdown.rsi_divergence_score = div_score_result[0]
@@ -318,7 +350,7 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             breakdown.sector_score +         # Feature Engineering
             breakdown.gap_score             # Validated with 174k+ events
         )
-        breakdown.max_possible = 27  # +1 for gap score
+        breakdown.max_possible = 27
 
         # Normalize score to 0-10 scale for fair cross-strategy comparison
         normalized_score = (breakdown.total_score / breakdown.max_possible) * 10
@@ -346,7 +378,7 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             highs=highs,
             lows=lows,
             volumes=volumes,
-            lookback=252,  # 12 months
+            lookback=SR_LOOKBACK_DAYS_EXTENDED,
             num_levels=3
         )
 
@@ -407,9 +439,9 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         touches = self._count_support_touches(lows, nearest_support, tolerance)
         info['touches'] = touches
 
-        if touches >= 4:
+        if touches >= BOUNCE_MIN_TOUCHES + 2:
             info['strength'] = 'strong'
-        elif touches >= 2:
+        elif touches >= BOUNCE_MIN_TOUCHES:
             info['strength'] = 'moderate'
         else:
             info['strength'] = 'weak'
@@ -477,7 +509,7 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         rs = avg_gain / avg_loss
         rsi = 100 - (100 / (1 + rs))
 
-        if rsi < 30:
+        if rsi < RSI_OVERSOLD:
             return 2, rsi  # Stark oversold
         elif rsi < self.config.rsi_oversold_threshold:
             return 1, rsi  # Oversold
@@ -539,7 +571,7 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
 
     def _score_volume(self, volumes: List[int]) -> Tuple[int, Dict[str, Any]]:
         """Extended volume analysis"""
-        avg_period = 20
+        avg_period = VOLUME_AVG_PERIOD
 
         if len(volumes) < avg_period + 1:
             return 0, {'trend': 'unknown', 'reason': 'Insufficient data'}
@@ -555,13 +587,13 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             'multiplier': multiplier
         }
 
-        # Volume trend of the last 5 days
-        recent_volumes = volumes[-5:]
+        # Volume trend of the last N days
+        recent_volumes = volumes[-VOLUME_RECENT_WINDOW:]
         if len(recent_volumes) >= 3:
             vol_trend = recent_volumes[-1] / recent_volumes[0] if recent_volumes[0] > 0 else 1
-            if vol_trend < 0.7:
+            if vol_trend < VOLUME_TREND_LOW:
                 info['trend'] = 'decreasing'
-            elif vol_trend > 1.3:
+            elif vol_trend > VOLUME_TREND_HIGH:
                 info['trend'] = 'increasing'
             else:
                 info['trend'] = 'stable'
@@ -588,8 +620,8 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
 
     def _score_trend(self, prices: List[float]) -> Tuple[int, Dict[str, Any]]:
         """Trend analysis for bounce context"""
-        sma_50 = sum(prices[-50:]) / 50 if len(prices) >= 50 else sum(prices) / len(prices)
-        sma_200 = sum(prices[-200:]) / 200 if len(prices) >= 200 else sum(prices) / len(prices)
+        sma_50 = sum(prices[-SMA_MEDIUM:]) / SMA_MEDIUM if len(prices) >= SMA_MEDIUM else sum(prices) / len(prices)
+        sma_200 = sum(prices[-SMA_LONG:]) / SMA_LONG if len(prices) >= SMA_LONG else sum(prices) / len(prices)
 
         current = prices[-1]
 
@@ -636,10 +668,10 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             # Scoring based on divergence strength
             strength = divergence.strength
 
-            if strength >= 0.7:
+            if strength >= DIVERGENCE_STRENGTH_STRONG:
                 score = 3.0
                 reason = f"Strong bullish divergence (strength: {strength:.0%}, {divergence.formation_days} days)"
-            elif strength >= 0.4:
+            elif strength >= DIVERGENCE_STRENGTH_MODERATE:
                 score = 2.0
                 reason = f"Moderate bullish divergence (strength: {strength:.0%}, {divergence.formation_days} days)"
             else:
@@ -661,9 +693,9 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
     def _calculate_macd(
         self,
         prices: List[float],
-        fast: int = 12,
-        slow: int = 26,
-        signal: int = 9
+        fast: int = MACD_FAST,
+        slow: int = MACD_SLOW,
+        signal: int = MACD_SIGNAL
     ) -> Optional[MACDResult]:
         """Calculates MACD. Delegates to shared indicators library."""
         return calculate_macd(prices, fast_period=fast, slow_period=slow, signal_period=signal)
@@ -695,14 +727,14 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         prices: List[float],
         highs: List[float],
         lows: List[float],
-        k_period: int = 14,
-        d_period: int = 3
+        k_period: int = STOCH_K_PERIOD,
+        d_period: int = STOCH_D_PERIOD
     ) -> Optional[StochasticResult]:
         """Calculates Stochastic Oscillator. Delegates to shared indicators library."""
         cfg = self.scoring_config.stochastic
         return calculate_stochastic(
             highs=highs, lows=lows, closes=prices,
-            k_period=k_period, d_period=d_period, smooth=1,
+            k_period=k_period, d_period=d_period, smooth=STOCH_SMOOTH,
             oversold=cfg.oversold_threshold, overbought=cfg.overbought_threshold
         )
 
@@ -757,7 +789,7 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         if position == 'near_lower':
             return cfg.weight_near_lower, f"Price near Keltner Lower Band ({pct:.2f})"
 
-        if position == 'in_channel' and pct < -0.3:
+        if position == 'in_channel' and pct < KELTNER_NEUTRAL_LOW:
             return cfg.weight_mean_reversion * 0.5, f"Bounce in lower channel area ({pct:.2f})"
 
         if position == 'above_upper':
@@ -780,7 +812,7 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         highs: List[float],
         lows: List[float],
         closes: List[float],
-        period: int = 14
+        period: int = RSI_PERIOD  # ATR uses same default period as RSI (14)
     ) -> Optional[float]:
         """Calculates ATR (SMA-based). Delegates to shared indicators library."""
         return calculate_atr_simple(highs, lows, closes, period)

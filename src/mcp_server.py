@@ -6,6 +6,12 @@ MCP Server for options trading analysis with multi-strategy support.
 
 This is the refactored version using modular handlers.
 
+Stats:
+- 53 Tools + 55 Aliases = 108 MCP Endpoints
+- 80.19% Test Coverage (6,740 tests)
+- Thread-safe singletons with RLock
+- Async SQLite via asyncio.to_thread()
+
 Modules:
 - handlers.vix: VIX, strategy, regime handlers
 - handlers.scan: Scan operations (pullback, bounce, breakout, etc.)
@@ -47,7 +53,7 @@ from .formatters import formatters, HealthCheckData
 from .config import get_config, get_scan_config, get_watchlist_loader
 from .container import ServiceContainer
 
-# Handler Mixins
+# Handler Mixins (legacy, gradually migrating to Composition — Phase 3.3)
 from .handlers import (
     VixHandlerMixin,
     ScanHandlerMixin,
@@ -59,6 +65,13 @@ from .handlers import (
     RiskHandlerMixin,
     ValidateHandlerMixin,
     MonitorHandlerMixin,
+)
+
+# Composition-based handler architecture (Phase 3.3)
+from .handlers.handler_container import (
+    HandlerContainer,
+    ServerContext,
+    create_handler_container_from_server,
 )
 
 # IBKR Bridge (optional)
@@ -215,6 +228,27 @@ class OptionPlayServer(
             self._local_db_provider = get_local_db_provider()
             if self._local_db_provider.is_available():
                 logger.info(f"Local DB provider available: {self._local_db_provider.db_path}")
+
+        # Phase 3.3: Composition-based handler container
+        # Initialized lazily via create_handler_container_from_server()
+        # when handlers need to be accessed via composition pattern.
+        self._handler_container: Optional[HandlerContainer] = None
+
+    @property
+    def handlers(self) -> HandlerContainer:
+        """
+        Access composition-based handlers (Phase 3.3).
+
+        Lazily creates the HandlerContainer on first access,
+        bridging from the existing Mixin architecture.
+
+        Usage:
+            await server.handlers.vix.get_vix()
+            await server.handlers.scan.scan_multi_strategy()
+        """
+        if self._handler_container is None:
+            self._handler_container = create_handler_container_from_server(self)
+        return self._handler_container
 
     @property
     def api_key_masked(self) -> str:

@@ -50,18 +50,40 @@ try:
 except ImportError:
     from analyzers.feature_scoring_mixin import FeatureScoringMixin
 
+# Import central constants
+try:
+    from ..constants import (
+        RSI_PERIOD,
+        MACD_FAST, MACD_SLOW, MACD_SIGNAL,
+        SMA_SHORT, SMA_MEDIUM, SMA_LONG,
+        VOLUME_RECENT_WINDOW, VOLUME_TREND_LOW, VOLUME_TREND_HIGH,
+        KELTNER_NEUTRAL_LOW,
+        SR_LOOKBACK_DAYS_EXTENDED,
+        ATH_LOOKBACK_DAYS, ATH_CONFIRMATION_DAYS, ATH_CONFIRMATION_THRESHOLD,
+    )
+except ImportError:
+    from constants import (
+        RSI_PERIOD,
+        MACD_FAST, MACD_SLOW, MACD_SIGNAL,
+        SMA_SHORT, SMA_MEDIUM, SMA_LONG,
+        VOLUME_RECENT_WINDOW, VOLUME_TREND_LOW, VOLUME_TREND_HIGH,
+        KELTNER_NEUTRAL_LOW,
+        SR_LOOKBACK_DAYS_EXTENDED,
+        ATH_LOOKBACK_DAYS, ATH_CONFIRMATION_DAYS, ATH_CONFIRMATION_THRESHOLD,
+    )
+
 
 @dataclass
 class ATHBreakoutConfig:
     """Configuration for ATH Breakout Analyzer (Legacy - for backward compatibility)"""
     # ATH Detection
-    ath_lookback_days: int = 252  # 1 year for ATH
+    ath_lookback_days: int = ATH_LOOKBACK_DAYS  # 1 year for ATH
     consolidation_days: int = 20  # Minimum consolidation time
     breakout_threshold_pct: float = 1.0  # Min % above old ATH
 
     # Multi-Day Confirmation (NEW - P1-B)
-    confirmation_days: int = 2  # Breakout must hold N days above ATH
-    confirmation_threshold_pct: float = 0.5  # Min % above ATH during confirmation
+    confirmation_days: int = ATH_CONFIRMATION_DAYS  # Breakout must hold N days above ATH
+    confirmation_threshold_pct: float = ATH_CONFIRMATION_THRESHOLD  # Min % above ATH during confirmation
 
     # Volume Confirmation
     volume_spike_multiplier: float = 1.5  # Volume must be 1.5x average
@@ -69,7 +91,7 @@ class ATHBreakoutConfig:
 
     # Technical Filters
     rsi_max: float = 80.0  # Don't buy if too overbought
-    rsi_period: int = 14
+    rsi_period: int = RSI_PERIOD
     min_uptrend_days: int = 50  # SMA50 must point upward
 
     # Scoring
@@ -311,7 +333,7 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             highs=highs,
             lows=lows,
             volumes=volumes,
-            lookback=252,  # 12 months
+            lookback=SR_LOOKBACK_DAYS_EXTENDED,
             num_levels=3
         )
 
@@ -512,13 +534,13 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             'multiplier': multiplier
         }
 
-        # Volume trend of the last 5 days (for breakout should increase)
-        recent_volumes = volumes[-5:]
+        # Volume trend of the last N days (for breakout should increase)
+        recent_volumes = volumes[-VOLUME_RECENT_WINDOW:]
         if len(recent_volumes) >= 3:
             vol_trend = recent_volumes[-1] / recent_volumes[0] if recent_volumes[0] > 0 else 1
-            if vol_trend > 1.3:
+            if vol_trend > VOLUME_TREND_HIGH:
                 info['trend'] = 'increasing'
-            elif vol_trend < 0.7:
+            elif vol_trend < VOLUME_TREND_LOW:
                 info['trend'] = 'decreasing'
             else:
                 info['trend'] = 'stable'
@@ -539,9 +561,9 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
 
     def _score_trend(self, prices: List[float]) -> Tuple[int, Dict[str, Any]]:
         """Analyzes trend via SMAs"""
-        sma_20 = sum(prices[-20:]) / 20
-        sma_50 = sum(prices[-50:]) / 50
-        sma_200 = sum(prices[-200:]) / 200 if len(prices) >= 200 else sum(prices) / len(prices)
+        sma_20 = sum(prices[-SMA_SHORT:]) / SMA_SHORT
+        sma_50 = sum(prices[-SMA_MEDIUM:]) / SMA_MEDIUM
+        sma_200 = sum(prices[-SMA_LONG:]) / SMA_LONG if len(prices) >= SMA_LONG else sum(prices) / len(prices)
 
         current = prices[-1]
 
@@ -649,9 +671,9 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
     def _calculate_macd(
         self,
         prices: List[float],
-        fast: int = 12,
-        slow: int = 26,
-        signal: int = 9
+        fast: int = MACD_FAST,
+        slow: int = MACD_SLOW,
+        signal: int = MACD_SIGNAL
     ) -> Optional[MACDResult]:
         """Calculates MACD. Delegates to shared indicators library."""
         return calculate_macd(prices, fast_period=fast, slow_period=slow, signal_period=signal)
@@ -710,7 +732,7 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         if position == 'near_upper':
             return cfg.weight_near_upper, f"Near Keltner Upper Band ({pct:.2f})"
 
-        if position == 'in_channel' and pct > 0.3:
+        if position == 'in_channel' and pct > abs(KELTNER_NEUTRAL_LOW):
             return cfg.weight_near_upper * 0.5, f"Upper channel area ({pct:.2f})"
 
         if position == 'below_lower':
@@ -733,7 +755,7 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         highs: List[float],
         lows: List[float],
         closes: List[float],
-        period: int = 14
+        period: int = RSI_PERIOD
     ) -> Optional[float]:
         """Calculates ATR (SMA-based). Delegates to shared indicators library."""
         return calculate_atr_simple(highs, lows, closes, period)

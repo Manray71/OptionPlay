@@ -3,8 +3,8 @@
 
 [project]
 name = "optionplay"
-version = "4.0.0"
-description = "Options trading analysis system with MCP server for Claude Desktop"
+version = "3.7.0"
+description = "Options trading analysis system with MCP server for Claude Desktop (80%+ test coverage)"
 readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "MIT"}
@@ -91,6 +91,7 @@ sections = ["FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
 python_version = "3.11"
 warn_return_any = true
 warn_unused_configs = true
+warn_unreachable = true
 ignore_missing_imports = true
 no_strict_optional = true
 exclude = ["tests/", "venv/", ".venv/"]

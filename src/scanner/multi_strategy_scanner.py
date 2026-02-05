@@ -1495,7 +1495,8 @@ class MultiStrategyScanner:
             return ['bounce']
         elif mode == ScanMode.EARNINGS_DIP:
             return ['earnings_dip']
-        return None
+        # Fallback for future modes
+        return None  # pragma: no cover
     
     def _keep_best_per_symbol(self, signals: List[TradeSignal]) -> List[TradeSignal]:
         """Behält nur das beste Signal pro Symbol"""

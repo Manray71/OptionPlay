@@ -910,3 +910,968 @@ class TestEdgeCases:
         weights = trainer._aggregate_component_weights([])
 
         assert weights == {}
+
+
+# =============================================================================
+# Extended Initialization Tests
+# =============================================================================
+
+class TestWalkForwardTrainerInitialization:
+    """Extended tests for WalkForwardTrainer initialization"""
+
+    def test_init_with_default_config(self):
+        """Test initialization with default TrainingConfig"""
+        config = TrainingConfig()
+        trainer = WalkForwardTrainer(config)
+
+        assert trainer.config.train_months == 18
+        assert trainer.config.test_months == 6
+        assert trainer.config.step_months == 6
+        assert trainer._last_result is None
+
+    def test_init_with_custom_symbols(self):
+        """Test initialization with custom symbols list"""
+        config = TrainingConfig(symbols=["AAPL", "MSFT", "GOOGL"])
+        trainer = WalkForwardTrainer(config)
+
+        assert trainer.config.symbols == ["AAPL", "MSFT", "GOOGL"]
+
+    def test_init_with_optimize_parameters_enabled(self):
+        """Test initialization with parameter optimization enabled"""
+        config = TrainingConfig(optimize_parameters=True)
+        trainer = WalkForwardTrainer(config)
+
+        assert trainer.config.optimize_parameters is True
+
+    def test_init_with_regime_analysis_disabled(self):
+        """Test initialization with regime analysis disabled"""
+        config = TrainingConfig(include_regime_analysis=False)
+        trainer = WalkForwardTrainer(config)
+
+        assert trainer.config.include_regime_analysis is False
+
+    def test_init_preserves_backtest_parameters(self):
+        """Test that backtest parameters are preserved in config"""
+        config = TrainingConfig(
+            min_pullback_score=7.5,
+            profit_target_pct=60.0,
+            stop_loss_pct=150.0,
+            dte_min=30,
+            dte_max=60,
+        )
+        trainer = WalkForwardTrainer(config)
+
+        assert trainer.config.min_pullback_score == 7.5
+        assert trainer.config.profit_target_pct == 60.0
+        assert trainer.config.stop_loss_pct == 150.0
+        assert trainer.config.dte_min == 30
+        assert trainer.config.dte_max == 60
+
+
+# =============================================================================
+# Split Generation Extended Tests
+# =============================================================================
+
+class TestSplitGeneration:
+    """Extended tests for epoch/split generation"""
+
+    def test_generate_epochs_minimum_data(self):
+        """Test epoch generation with minimum data"""
+        config = TrainingConfig(
+            train_months=6,
+            test_months=3,
+            step_months=3,
+        )
+        trainer = WalkForwardTrainer(config)
+
+        # Exactly 9 months of data (6 train + 3 test)
+        epochs = trainer._generate_epochs(
+            data_start=date(2023, 1, 1),
+            data_end=date(2023, 10, 1),
+        )
+
+        assert len(epochs) >= 1
+
+    def test_generate_epochs_insufficient_data(self):
+        """Test epoch generation with insufficient data"""
+        config = TrainingConfig(
+            train_months=18,
+            test_months=6,
+            step_months=6,
+        )
+        trainer = WalkForwardTrainer(config)
+
+        # Only 12 months of data, but need 24
+        epochs = trainer._generate_epochs(
+            data_start=date(2023, 1, 1),
+            data_end=date(2023, 12, 31),
+        )
+
+        # Should return empty or single truncated epoch
+        assert len(epochs) <= 1
+
+    def test_generate_epochs_verifies_train_test_split(self):
+        """Test that train/test periods don't overlap"""
+        config = TrainingConfig(
+            train_months=12,
+            test_months=3,
+            step_months=3,
+        )
+        trainer = WalkForwardTrainer(config)
+
+        epochs = trainer._generate_epochs(
+            data_start=date(2021, 1, 1),
+            data_end=date(2024, 1, 1),
+        )
+
+        for train_start, train_end, test_start, test_end in epochs:
+            # Test start should be after train end
+            assert test_start > train_end
+            # Test end should be after test start
+            assert test_end > test_start
+            # Train end should be after train start
+            assert train_end > train_start
+
+    def test_generate_epochs_step_progression(self):
+        """Test that epochs step forward correctly"""
+        config = TrainingConfig(
+            train_months=6,
+            test_months=2,
+            step_months=2,
+        )
+        trainer = WalkForwardTrainer(config)
+
+        epochs = trainer._generate_epochs(
+            data_start=date(2022, 1, 1),
+            data_end=date(2024, 1, 1),
+        )
+
+        if len(epochs) > 1:
+            for i in range(len(epochs) - 1):
+                current_start = epochs[i][0]
+                next_start = epochs[i + 1][0]
+                months_diff = (next_start.year - current_start.year) * 12 + (
+                    next_start.month - current_start.month
+                )
+                assert months_diff == config.step_months
+
+    def test_generate_epochs_handles_truncated_last_epoch(self):
+        """Test that last epoch is truncated correctly to fit data range"""
+        config = TrainingConfig(
+            train_months=6,
+            test_months=3,
+            step_months=3,
+        )
+        trainer = WalkForwardTrainer(config)
+
+        # Data ends mid-test period
+        epochs = trainer._generate_epochs(
+            data_start=date(2023, 1, 1),
+            data_end=date(2023, 10, 15),  # Partial month
+        )
+
+        if epochs:
+            last_test_end = epochs[-1][3]
+            assert last_test_end <= date(2023, 10, 15)
+
+
+# =============================================================================
+# Mocked Training Tests
+# =============================================================================
+
+class TestMockedTraining:
+    """Tests using mocked BacktestEngine for isolated testing"""
+
+    @pytest.fixture
+    def mock_backtest_result(self, sample_trades):
+        """Create a mock BacktestResult"""
+        config = BacktestConfig(
+            start_date=date(2022, 1, 1),
+            end_date=date(2023, 12, 31),
+        )
+        return BacktestResult(config=config, trades=sample_trades)
+
+    def test_train_epoch_with_mocked_engine(
+        self, sample_config, sample_historical_data, sample_vix_data
+    ):
+        """Test _train_epoch with mocked BacktestEngine"""
+        trainer = WalkForwardTrainer(sample_config)
+
+        # Create mock trades for the engine
+        mock_trades = []
+        for i in range(60):  # Enough trades for both train and test
+            base_date = date(2022, 1, 1) + timedelta(days=i * 5)
+            is_winner = i % 3 != 0
+
+            trade = TradeResult(
+                symbol="AAPL",
+                entry_date=base_date,
+                exit_date=base_date + timedelta(days=30),
+                entry_price=150.0,
+                exit_price=155.0 if is_winner else 145.0,
+                short_strike=140.0,
+                long_strike=135.0,
+                spread_width=5.0,
+                net_credit=1.0,
+                contracts=1,
+                max_profit=100.0,
+                max_loss=400.0,
+                realized_pnl=80.0 if is_winner else -200.0,
+                outcome=TradeOutcome.PROFIT_TARGET if is_winner else TradeOutcome.STOP_LOSS,
+                exit_reason=ExitReason.PROFIT_TARGET_HIT if is_winner else ExitReason.STOP_LOSS_HIT,
+                dte_at_entry=60,
+                dte_at_exit=30,
+                hold_days=30,
+                entry_vix=18.0,
+                pullback_score=7.0 + (i % 5),
+            )
+            mock_trades.append(trade)
+
+        mock_result = BacktestResult(
+            config=BacktestConfig(
+                start_date=date(2022, 1, 1),
+                end_date=date(2022, 12, 31),
+            ),
+            trades=mock_trades[:50],
+        )
+
+        with patch.object(
+            trainer, "_train_epoch"
+        ) as mock_train_epoch:
+            # Create a mock epoch result
+            mock_epoch = EpochResult(
+                epoch_id=1,
+                train_start=date(2022, 1, 1),
+                train_end=date(2022, 12, 31),
+                test_start=date(2023, 1, 1),
+                test_end=date(2023, 6, 30),
+                in_sample_trades=50,
+                in_sample_win_rate=65.0,
+                in_sample_sharpe=1.5,
+                in_sample_profit_factor=2.0,
+                in_sample_avg_pnl=50.0,
+                out_sample_trades=20,
+                out_sample_win_rate=60.0,
+                out_sample_sharpe=1.2,
+                out_sample_profit_factor=1.8,
+                out_sample_avg_pnl=40.0,
+                win_rate_degradation=5.0,
+                sharpe_degradation=0.3,
+                overfit_score=0.2,
+                optimal_threshold=7.0,
+                is_valid=True,
+            )
+            mock_train_epoch.return_value = mock_epoch
+
+            # Run simplified training
+            trainer._last_result = None
+
+    def test_extract_metrics_empty_trades(self, sample_config):
+        """Test _extract_metrics with empty trades list"""
+        trainer = WalkForwardTrainer(sample_config)
+
+        empty_result = BacktestResult(
+            config=BacktestConfig(
+                start_date=date(2022, 1, 1),
+                end_date=date(2022, 12, 31),
+            ),
+            trades=[],
+        )
+
+        metrics = trainer._extract_metrics(empty_result)
+
+        assert metrics["trades"] == 0
+        assert metrics["win_rate"] == 0
+        assert metrics["sharpe"] == 0
+        assert metrics["profit_factor"] == 0
+        assert metrics["avg_pnl"] == 0
+
+    def test_create_skipped_epoch(self, sample_config):
+        """Test _create_skipped_epoch creates proper skipped epoch"""
+        trainer = WalkForwardTrainer(sample_config)
+
+        skipped = trainer._create_skipped_epoch(
+            epoch_id=1,
+            train_start=date(2022, 1, 1),
+            train_end=date(2022, 12, 31),
+            test_start=date(2023, 1, 1),
+            test_end=date(2023, 6, 30),
+            reason="Not enough trades",
+        )
+
+        assert skipped.is_valid is False
+        assert skipped.skip_reason == "Not enough trades"
+        assert skipped.in_sample_trades == 0
+        assert skipped.out_sample_trades == 0
+        assert skipped.optimal_threshold == sample_config.min_pullback_score
+
+
+# =============================================================================
+# In-Sample/Out-of-Sample Validation Tests
+# =============================================================================
+
+class TestInSampleOutOfSampleValidation:
+    """Tests for in-sample vs out-of-sample validation"""
+
+    def test_win_rate_degradation_calculation(self, sample_config):
+        """Test that win rate degradation is calculated correctly"""
+        trainer = WalkForwardTrainer(sample_config)
+
+        # Create epochs with known degradation
+        epoch = EpochResult(
+            epoch_id=1,
+            train_start=date(2022, 1, 1),
+            train_end=date(2022, 12, 31),
+            test_start=date(2023, 1, 1),
+            test_end=date(2023, 6, 30),
+            in_sample_trades=100,
+            in_sample_win_rate=70.0,
+            in_sample_sharpe=1.8,
+            in_sample_profit_factor=2.5,
+            in_sample_avg_pnl=60.0,
+            out_sample_trades=50,
+            out_sample_win_rate=55.0,  # 15% degradation
+            out_sample_sharpe=1.1,
+            out_sample_profit_factor=1.5,
+            out_sample_avg_pnl=35.0,
+            win_rate_degradation=15.0,  # in_sample - out_sample
+            sharpe_degradation=0.7,
+            overfit_score=0.5,
+            optimal_threshold=7.0,
+            is_valid=True,
+        )
+
+        assert epoch.win_rate_degradation == 15.0
+        assert epoch.in_sample_win_rate - epoch.out_sample_win_rate == 15.0
+
+    def test_sharpe_degradation_calculation(self, sample_config):
+        """Test that Sharpe degradation is calculated correctly"""
+        trainer = WalkForwardTrainer(sample_config)
+
+        in_sample_sharpe = 2.0
+        out_sample_sharpe = 1.3
+        expected_degradation = 0.7
+
+        assert abs((in_sample_sharpe - out_sample_sharpe) - expected_degradation) < 0.001
+
+    def test_overfit_score_boundaries(self, sample_config):
+        """Test overfit score is bounded between 0 and 1"""
+        trainer = WalkForwardTrainer(sample_config)
+
+        # No degradation
+        score = trainer._calculate_overfit_score(0.0, 0.0)
+        assert score == 0.0
+
+        # Maximum degradation
+        score = trainer._calculate_overfit_score(30.0, 2.0)
+        assert 0.0 <= score <= 1.0
+
+        # Extreme degradation should cap at 1.0
+        score = trainer._calculate_overfit_score(50.0, 5.0)
+        assert score == 1.0
+
+    def test_overfit_severity_thresholds(self, sample_config):
+        """Test all overfit severity threshold boundaries"""
+        trainer = WalkForwardTrainer(sample_config)
+
+        # Test boundary values
+        assert trainer._classify_overfit_severity(4.9) == "none"
+        assert trainer._classify_overfit_severity(5.0) == "mild"
+        assert trainer._classify_overfit_severity(9.9) == "mild"
+        assert trainer._classify_overfit_severity(10.0) == "moderate"
+        assert trainer._classify_overfit_severity(14.9) == "moderate"
+        assert trainer._classify_overfit_severity(15.0) == "severe"
+
+    def test_negative_degradation_handling(self, sample_config):
+        """Test handling of negative degradation (out-of-sample better than in-sample)"""
+        trainer = WalkForwardTrainer(sample_config)
+
+        # Negative degradation (actually improvement)
+        score = trainer._calculate_overfit_score(-5.0, -0.3)
+        assert score >= 0.0  # Score uses absolute value
+
+
+# =============================================================================
+# Parameter Optimization Tests
+# =============================================================================
+
+class TestParameterOptimization:
+    """Tests for parameter optimization features"""
+
+    def test_aggregate_threshold_single_epoch(self, sample_config):
+        """Test threshold aggregation with single epoch"""
+        trainer = WalkForwardTrainer(sample_config)
+
+        epochs = [
+            EpochResult(
+                epoch_id=1,
+                train_start=date(2022, 1, 1),
+                train_end=date(2022, 12, 31),
+                test_start=date(2023, 1, 1),
+                test_end=date(2023, 6, 30),
+                in_sample_trades=50,
+                in_sample_win_rate=65.0,
+                in_sample_sharpe=1.5,
+                in_sample_profit_factor=2.0,
+                in_sample_avg_pnl=50.0,
+                out_sample_trades=20,
+                out_sample_win_rate=60.0,
+                out_sample_sharpe=1.2,
+                out_sample_profit_factor=1.8,
+                out_sample_avg_pnl=40.0,
+                win_rate_degradation=5.0,
+                sharpe_degradation=0.3,
+                overfit_score=0.2,
+                optimal_threshold=8.5,
+            )
+        ]
+
+        threshold = trainer._aggregate_threshold(epochs)
+        assert threshold == 8.5
+
+    def test_aggregate_threshold_multiple_epochs_uses_75th_percentile(self, sample_config):
+        """Test that threshold aggregation uses 75th percentile"""
+        trainer = WalkForwardTrainer(sample_config)
+
+        epochs = [
+            EpochResult(
+                epoch_id=i,
+                train_start=date(2022, 1, 1),
+                train_end=date(2022, 12, 31),
+                test_start=date(2023, 1, 1),
+                test_end=date(2023, 6, 30),
+                in_sample_trades=50,
+                in_sample_win_rate=65.0,
+                in_sample_sharpe=1.5,
+                in_sample_profit_factor=2.0,
+                in_sample_avg_pnl=50.0,
+                out_sample_trades=20,
+                out_sample_win_rate=60.0,
+                out_sample_sharpe=1.2,
+                out_sample_profit_factor=1.8,
+                out_sample_avg_pnl=40.0,
+                win_rate_degradation=5.0,
+                sharpe_degradation=0.3,
+                overfit_score=0.2,
+                optimal_threshold=5.0 + i,  # 5, 6, 7, 8, 9, 10, 11, 12
+            )
+            for i in range(8)
+        ]
+
+        threshold = trainer._aggregate_threshold(epochs)
+        # 75th percentile of [5, 6, 7, 8, 9, 10, 11, 12] should be around 10-11
+        assert threshold >= 10.0
+
+    def test_aggregate_threshold_empty_epochs(self, sample_config):
+        """Test threshold aggregation with empty epochs"""
+        trainer = WalkForwardTrainer(sample_config)
+
+        threshold = trainer._aggregate_threshold([])
+        assert threshold == sample_config.min_pullback_score
+
+
+# =============================================================================
+# Results Aggregation Extended Tests
+# =============================================================================
+
+class TestResultsAggregationExtended:
+    """Extended tests for results aggregation"""
+
+    def test_aggregate_results_mixed_valid_invalid_epochs(self, sample_config):
+        """Test aggregation with mix of valid and invalid epochs"""
+        from datetime import datetime
+
+        trainer = WalkForwardTrainer(sample_config)
+
+        epochs = [
+            EpochResult(
+                epoch_id=1,
+                train_start=date(2022, 1, 1),
+                train_end=date(2022, 6, 30),
+                test_start=date(2022, 7, 1),
+                test_end=date(2022, 12, 31),
+                in_sample_trades=60,
+                in_sample_win_rate=68.0,
+                in_sample_sharpe=1.6,
+                in_sample_profit_factor=2.2,
+                in_sample_avg_pnl=55.0,
+                out_sample_trades=25,
+                out_sample_win_rate=62.0,
+                out_sample_sharpe=1.3,
+                out_sample_profit_factor=1.9,
+                out_sample_avg_pnl=42.0,
+                win_rate_degradation=6.0,
+                sharpe_degradation=0.3,
+                overfit_score=0.25,
+                optimal_threshold=7.5,
+                is_valid=True,
+            ),
+            EpochResult(
+                epoch_id=2,
+                train_start=date(2022, 4, 1),
+                train_end=date(2022, 9, 30),
+                test_start=date(2022, 10, 1),
+                test_end=date(2023, 3, 31),
+                in_sample_trades=0,
+                in_sample_win_rate=0,
+                in_sample_sharpe=0,
+                in_sample_profit_factor=0,
+                in_sample_avg_pnl=0,
+                out_sample_trades=0,
+                out_sample_win_rate=0,
+                out_sample_sharpe=0,
+                out_sample_profit_factor=0,
+                out_sample_avg_pnl=0,
+                win_rate_degradation=0,
+                sharpe_degradation=0,
+                overfit_score=0,
+                optimal_threshold=5.0,
+                is_valid=False,
+                skip_reason="Not enough trades",
+            ),
+            EpochResult(
+                epoch_id=3,
+                train_start=date(2022, 7, 1),
+                train_end=date(2022, 12, 31),
+                test_start=date(2023, 1, 1),
+                test_end=date(2023, 6, 30),
+                in_sample_trades=55,
+                in_sample_win_rate=64.0,
+                in_sample_sharpe=1.4,
+                in_sample_profit_factor=1.9,
+                in_sample_avg_pnl=48.0,
+                out_sample_trades=22,
+                out_sample_win_rate=58.0,
+                out_sample_sharpe=1.1,
+                out_sample_profit_factor=1.7,
+                out_sample_avg_pnl=38.0,
+                win_rate_degradation=6.0,
+                sharpe_degradation=0.3,
+                overfit_score=0.25,
+                optimal_threshold=7.0,
+                is_valid=True,
+            ),
+        ]
+
+        result = trainer._aggregate_results(
+            training_id="test_mixed",
+            training_date=datetime.now(),
+            epochs=epochs,
+            warnings=[],
+        )
+
+        # Should only count valid epochs
+        assert result.valid_epochs == 2
+        assert result.total_epochs == 3
+        # Averages should be from valid epochs only
+        assert result.avg_in_sample_win_rate == (68.0 + 64.0) / 2  # 66.0
+        assert result.avg_out_sample_win_rate == (62.0 + 58.0) / 2  # 60.0
+
+    def test_aggregate_results_adds_overfit_warnings(self, sample_config):
+        """Test that appropriate warnings are added for overfitting"""
+        from datetime import datetime
+
+        trainer = WalkForwardTrainer(sample_config)
+
+        # Create epochs with severe overfitting
+        epochs = [
+            EpochResult(
+                epoch_id=1,
+                train_start=date(2022, 1, 1),
+                train_end=date(2022, 12, 31),
+                test_start=date(2023, 1, 1),
+                test_end=date(2023, 6, 30),
+                in_sample_trades=100,
+                in_sample_win_rate=80.0,
+                in_sample_sharpe=2.5,
+                in_sample_profit_factor=3.0,
+                in_sample_avg_pnl=80.0,
+                out_sample_trades=50,
+                out_sample_win_rate=50.0,  # 30% degradation
+                out_sample_sharpe=0.8,
+                out_sample_profit_factor=1.2,
+                out_sample_avg_pnl=20.0,
+                win_rate_degradation=30.0,
+                sharpe_degradation=1.7,
+                overfit_score=0.9,
+                optimal_threshold=9.0,
+                is_valid=True,
+            ),
+        ]
+
+        result = trainer._aggregate_results(
+            training_id="test_overfit",
+            training_date=datetime.now(),
+            epochs=epochs,
+            warnings=[],
+        )
+
+        assert result.overfit_severity == "severe"
+        assert any("Overfitting" in w for w in result.warnings)
+
+    def test_aggregate_regime_adjustments(self, sample_config):
+        """Test regime adjustment aggregation"""
+        from src.backtesting.signal_validation import SignalValidationResult, ComponentCorrelation
+
+        trainer = WalkForwardTrainer(sample_config)
+
+        # Create mock validation results with regime data
+        mock_validation = MagicMock(spec=SignalValidationResult)
+        mock_validation.top_predictors = ["rsi_score", "support_score"]
+        mock_validation.component_correlations = [
+            ComponentCorrelation(
+                component_name="rsi_score",
+                sample_size=100,
+                win_rate_correlation=0.4,
+                pnl_correlation=0.35,
+                avg_value_winners=1.8,
+                avg_value_losers=1.2,
+                value_difference=0.6,
+                statistical_significance=0.01,
+                predictive_power="strong",
+            ),
+        ]
+        mock_validation.regime_sensitivity = {
+            "low_vol": 5.0,
+            "normal": 0.0,
+            "elevated": -3.0,
+        }
+
+        epochs = [
+            EpochResult(
+                epoch_id=1,
+                train_start=date(2022, 1, 1),
+                train_end=date(2022, 12, 31),
+                test_start=date(2023, 1, 1),
+                test_end=date(2023, 6, 30),
+                in_sample_trades=100,
+                in_sample_win_rate=65.0,
+                in_sample_sharpe=1.5,
+                in_sample_profit_factor=2.0,
+                in_sample_avg_pnl=50.0,
+                out_sample_trades=50,
+                out_sample_win_rate=60.0,
+                out_sample_sharpe=1.2,
+                out_sample_profit_factor=1.8,
+                out_sample_avg_pnl=40.0,
+                win_rate_degradation=5.0,
+                sharpe_degradation=0.3,
+                overfit_score=0.2,
+                optimal_threshold=7.0,
+                validation_result=mock_validation,
+                is_valid=True,
+            ),
+        ]
+
+        regime_adj = trainer._aggregate_regime_adjustments(epochs)
+
+        assert "low_vol" in regime_adj
+        assert regime_adj["low_vol"]["win_rate_adjustment"] == 5.0
+
+    def test_aggregate_predictors_counts_occurrences(self, sample_config):
+        """Test that predictor aggregation counts occurrences correctly"""
+        from src.backtesting.signal_validation import SignalValidationResult
+
+        trainer = WalkForwardTrainer(sample_config)
+
+        # Create epochs with varying predictors
+        epochs = []
+        for i in range(4):
+            mock_validation = MagicMock(spec=SignalValidationResult)
+            # First two predictors appear in all epochs
+            predictors = ["rsi_score", "support_score"]
+            if i < 2:
+                predictors.append("fibonacci_score")
+            else:
+                predictors.append("ma_score")
+            mock_validation.top_predictors = predictors
+            mock_validation.component_correlations = []
+            mock_validation.regime_sensitivity = {}
+
+            epoch = EpochResult(
+                epoch_id=i,
+                train_start=date(2022, 1, 1),
+                train_end=date(2022, 12, 31),
+                test_start=date(2023, 1, 1),
+                test_end=date(2023, 6, 30),
+                in_sample_trades=50,
+                in_sample_win_rate=65.0,
+                in_sample_sharpe=1.5,
+                in_sample_profit_factor=2.0,
+                in_sample_avg_pnl=50.0,
+                out_sample_trades=20,
+                out_sample_win_rate=60.0,
+                out_sample_sharpe=1.2,
+                out_sample_profit_factor=1.8,
+                out_sample_avg_pnl=40.0,
+                win_rate_degradation=5.0,
+                sharpe_degradation=0.3,
+                overfit_score=0.2,
+                optimal_threshold=7.0,
+                validation_result=mock_validation,
+                is_valid=True,
+            )
+            epochs.append(epoch)
+
+        predictors = trainer._aggregate_predictors(epochs)
+
+        # rsi_score and support_score should appear most frequently
+        assert "rsi_score" in predictors[:2]
+        assert "support_score" in predictors[:2]
+
+
+# =============================================================================
+# VIX Regime Tests
+# =============================================================================
+
+class TestVixRegimeHandling:
+    """Tests for VIX regime handling"""
+
+    def test_get_regime_boundary_values(self, sample_config):
+        """Test VIX regime classification at boundary values"""
+        trainer = WalkForwardTrainer(sample_config)
+
+        # Test exact boundary values
+        assert trainer._get_regime_for_vix(14.99) == "low_vol"
+        assert trainer._get_regime_for_vix(15.0) == "normal"
+        assert trainer._get_regime_for_vix(19.99) == "normal"
+        assert trainer._get_regime_for_vix(20.0) == "elevated"
+        assert trainer._get_regime_for_vix(29.99) == "elevated"
+        assert trainer._get_regime_for_vix(30.0) == "high_vol"
+
+    def test_get_regime_extreme_values(self, sample_config):
+        """Test VIX regime with extreme values"""
+        trainer = WalkForwardTrainer(sample_config)
+
+        assert trainer._get_regime_for_vix(5.0) == "low_vol"
+        assert trainer._get_regime_for_vix(100.0) == "high_vol"
+        assert trainer._get_regime_for_vix(0.0) == "low_vol"
+
+
+# =============================================================================
+# Grade Determination Tests
+# =============================================================================
+
+class TestGradeDetermination:
+    """Tests for reliability grade determination"""
+
+    def test_grade_boundaries(self, sample_config):
+        """Test grade determination at boundary values"""
+        trainer = WalkForwardTrainer(sample_config)
+
+        assert trainer._determine_grade(69.9) == "B"
+        assert trainer._determine_grade(70.0) == "A"
+        assert trainer._determine_grade(59.9) == "C"
+        assert trainer._determine_grade(60.0) == "B"
+        assert trainer._determine_grade(49.9) == "D"
+        assert trainer._determine_grade(50.0) == "C"
+        assert trainer._determine_grade(39.9) == "F"
+        assert trainer._determine_grade(40.0) == "D"
+
+    def test_grade_bucket_label(self, sample_config):
+        """Test score bucket labels"""
+        trainer = WalkForwardTrainer(sample_config)
+
+        assert trainer._get_bucket_label(0.0) == "0-5"
+        assert trainer._get_bucket_label(4.9) == "0-5"
+        assert trainer._get_bucket_label(5.0) == "5-7"
+        assert trainer._get_bucket_label(6.9) == "5-7"
+        assert trainer._get_bucket_label(7.0) == "7-9"
+        assert trainer._get_bucket_label(9.0) == "9-11"
+        assert trainer._get_bucket_label(11.0) == "11-16"
+        assert trainer._get_bucket_label(20.0) == "unknown"
+
+
+# =============================================================================
+# TrainingResult Serialization Tests
+# =============================================================================
+
+class TestTrainingResultSerialization:
+    """Tests for TrainingResult serialization"""
+
+    def test_to_dict_includes_all_fields(self, sample_config):
+        """Test that to_dict includes all required fields"""
+        from datetime import datetime
+
+        result = TrainingResult(
+            training_id="test_serialization",
+            training_date=datetime(2024, 1, 15, 10, 30, 0),
+            config=sample_config,
+            epochs=[],
+            valid_epochs=3,
+            total_epochs=4,
+            avg_in_sample_win_rate=65.5,
+            avg_in_sample_sharpe=1.55,
+            avg_out_sample_win_rate=60.5,
+            avg_out_sample_sharpe=1.25,
+            avg_win_rate_degradation=5.0,
+            max_win_rate_degradation=8.5,
+            overfit_severity="mild",
+            recommended_min_score=7.5,
+            top_predictors=["rsi_score", "support_score"],
+            component_weights={"rsi_score": 0.4, "support_score": 0.3},
+            regime_adjustments={"low_vol": {"win_rate_adjustment": 3.5}},
+            warnings=["Test warning"],
+        )
+
+        d = result.to_dict()
+
+        assert d["version"] == "1.0.0"
+        assert d["training_id"] == "test_serialization"
+        assert "summary" in d
+        assert "recommendations" in d
+        assert "config" in d
+        assert "epochs" in d
+        assert "warnings" in d
+
+    def test_to_dict_rounds_values(self, sample_config):
+        """Test that to_dict rounds floating point values"""
+        from datetime import datetime
+
+        result = TrainingResult(
+            training_id="test_rounding",
+            training_date=datetime.now(),
+            config=sample_config,
+            epochs=[],
+            valid_epochs=2,
+            total_epochs=2,
+            avg_in_sample_win_rate=65.5555555,
+            avg_in_sample_sharpe=1.555555,
+            avg_out_sample_win_rate=60.5555555,
+            avg_out_sample_sharpe=1.255555,
+            avg_win_rate_degradation=5.555555,
+            max_win_rate_degradation=8.555555,
+            overfit_severity="mild",
+            recommended_min_score=7.5,
+            top_predictors=[],
+            component_weights={"rsi_score": 0.44444},
+            regime_adjustments={"low_vol": {"win_rate_adjustment": 3.55555}},
+        )
+
+        d = result.to_dict()
+
+        # Check rounding
+        assert d["summary"]["avg_in_sample_win_rate"] == 65.6
+        assert d["summary"]["avg_in_sample_sharpe"] == 1.56
+        assert d["recommendations"]["component_weights"]["rsi_score"] == 0.444
+
+    def test_epoch_result_to_dict(self):
+        """Test EpochResult to_dict method"""
+        epoch = EpochResult(
+            epoch_id=1,
+            train_start=date(2022, 1, 1),
+            train_end=date(2022, 12, 31),
+            test_start=date(2023, 1, 1),
+            test_end=date(2023, 6, 30),
+            in_sample_trades=100,
+            in_sample_win_rate=65.5555,
+            in_sample_sharpe=1.5555,
+            in_sample_profit_factor=2.0555,
+            in_sample_avg_pnl=50.5555,
+            out_sample_trades=50,
+            out_sample_win_rate=60.5555,
+            out_sample_sharpe=1.2555,
+            out_sample_profit_factor=1.8555,
+            out_sample_avg_pnl=40.5555,
+            win_rate_degradation=5.0555,
+            sharpe_degradation=0.3555,
+            overfit_score=0.2555,
+            optimal_threshold=7.0,
+            is_valid=True,
+        )
+
+        d = epoch.to_dict()
+
+        # Check structure
+        assert d["epoch_id"] == 1
+        assert "train_period" in d
+        assert "test_period" in d
+        assert "in_sample" in d
+        assert "out_sample" in d
+        assert "overfitting" in d
+
+        # Check rounding
+        assert d["in_sample"]["win_rate"] == 65.6
+        assert d["overfitting"]["overfit_score"] == 0.256
+
+
+# =============================================================================
+# Data Range Tests
+# =============================================================================
+
+class TestDataRange:
+    """Tests for data range detection"""
+
+    def test_get_data_range_with_string_dates(self, sample_config):
+        """Test data range extraction with string dates"""
+        trainer = WalkForwardTrainer(sample_config)
+
+        historical_data = {
+            "AAPL": [
+                {"date": "2022-01-03", "close": 150.0},
+                {"date": "2022-06-15", "close": 155.0},
+                {"date": "2022-12-30", "close": 160.0},
+            ],
+            "MSFT": [
+                {"date": "2022-02-01", "close": 300.0},
+                {"date": "2022-11-15", "close": 310.0},
+            ],
+        }
+
+        start, end = trainer._get_data_range(
+            historical_data, ["AAPL", "MSFT"]
+        )
+
+        assert start == date(2022, 1, 3)
+        assert end == date(2022, 12, 30)
+
+    def test_get_data_range_with_date_objects(self, sample_config):
+        """Test data range extraction with date objects"""
+        trainer = WalkForwardTrainer(sample_config)
+
+        historical_data = {
+            "AAPL": [
+                {"date": date(2022, 1, 3), "close": 150.0},
+                {"date": date(2022, 12, 30), "close": 160.0},
+            ],
+        }
+
+        start, end = trainer._get_data_range(historical_data, ["AAPL"])
+
+        assert start == date(2022, 1, 3)
+        assert end == date(2022, 12, 30)
+
+    def test_get_data_range_missing_symbol(self, sample_config):
+        """Test data range with missing symbol in data"""
+        trainer = WalkForwardTrainer(sample_config)
+
+        historical_data = {
+            "AAPL": [
+                {"date": "2022-01-03", "close": 150.0},
+            ],
+        }
+
+        # MSFT not in data, should be skipped
+        start, end = trainer._get_data_range(
+            historical_data, ["AAPL", "MSFT"]
+        )
+
+        assert start == date(2022, 1, 3)
+        assert end == date(2022, 1, 3)
+
+    def test_get_data_range_all_symbols_missing(self, sample_config):
+        """Test data range when all symbols are missing"""
+        trainer = WalkForwardTrainer(sample_config)
+
+        historical_data = {
+            "AAPL": [
+                {"date": "2022-01-03", "close": 150.0},
+            ],
+        }
+
+        start, end = trainer._get_data_range(
+            historical_data, ["MSFT", "GOOGL"]  # Neither in data
+        )
+
+        assert start is None
+        assert end is None

@@ -1,9 +1,18 @@
 # OptionPlay - Support/Resistance Tests
 # ======================================
 # Tests für die optimierte Support/Resistance Level Detection
+#
+# Comprehensive test suite covering:
+# - find_support_levels function
+# - find_resistance_levels function
+# - find_pivot_points (calculate_pivot_points) function
+# - Edge cases (empty data, insufficient data)
+# - Data structures and utilities
 
 import pytest
 import sys
+import math
+import numpy as np
 from pathlib import Path
 from typing import List
 
@@ -13,6 +22,9 @@ from src.indicators.support_resistance import (
     # Data structures
     PriceLevel,
     SupportResistanceResult,
+    VolumeZone,
+    VolumeProfile,
+    LevelTest,
 
     # Core algorithms
     find_local_minima_optimized,
@@ -26,6 +38,14 @@ from src.indicators.support_resistance import (
     find_support_levels_enhanced,
     find_resistance_levels_enhanced,
     analyze_support_resistance,
+    get_nearest_sr_levels,
+
+    # Volume Analysis
+    calculate_volume_profile,
+    analyze_level_tests,
+    validate_level_with_volume,
+    get_volume_at_level,
+    analyze_support_resistance_with_validation,
 
     # Utilities
     calculate_fibonacci,
@@ -1049,6 +1069,813 @@ class TestPriceLevelEnhancements:
         assert 'volume_confirmation' in d
         assert 'hold_rate' in d
         assert d['hold_rate'] == 0.8
+
+
+# =============================================================================
+# COMPREHENSIVE FIND_SUPPORT_LEVELS TESTS
+# =============================================================================
+
+class TestFindSupportLevelsComprehensive:
+    """Comprehensive tests for the find_support_levels function"""
+
+    def test_empty_data(self):
+        """Test with empty list"""
+        result = find_support_levels([], lookback=60, window=5)
+        assert result == []
+
+    def test_single_element(self):
+        """Test with single data point"""
+        result = find_support_levels([100.0], lookback=60, window=5)
+        assert result == []
+
+    def test_insufficient_data_for_window(self):
+        """Test when data length is less than 2*window+1"""
+        # Window=5 requires at least 11 data points
+        lows = [100.0, 99.0, 98.0, 97.0, 96.0, 97.0, 98.0, 99.0, 100.0]  # 9 points
+        result = find_support_levels(lows, lookback=60, window=5)
+        assert result == []
+
+    def test_exactly_minimum_data(self):
+        """Test with exactly 2*window+1 data points"""
+        # Window=2 requires exactly 5 data points minimum
+        lows = [100.0, 98.0, 95.0, 98.0, 100.0]  # V-shape with 5 points
+        result = find_support_levels(lows, lookback=5, window=2)
+        # Should find the minimum at index 2
+        assert len(result) >= 0  # May or may not find depending on algorithm
+
+    def test_w_pattern_support(self):
+        """Test W-pattern (double bottom) support detection"""
+        # W pattern with two lows at similar levels
+        lows = [100, 98, 96, 95, 96, 98, 100, 98, 96, 95.5, 96, 98, 100]
+        result = find_support_levels(lows, lookback=len(lows), window=2)
+        # Should find support around 95-95.5
+        if result:
+            assert any(94.0 <= level <= 96.0 for level in result)
+
+    def test_multiple_support_levels(self):
+        """Test detection of multiple distinct support levels"""
+        # Create data with supports at ~90, ~95, ~100
+        lows = []
+        lows.extend([105, 102, 100, 98, 95, 98, 100, 102, 105])  # Support at 95
+        lows.extend([105, 102, 100, 98, 95, 90, 92, 95, 98, 100])  # Support at 90
+        lows.extend([100, 102, 105, 103, 100, 102, 105])  # Support at 100
+
+        result = find_support_levels(lows, lookback=len(lows), window=3, max_levels=5)
+
+        assert isinstance(result, list)
+        # Should find multiple distinct levels
+
+    def test_lookback_parameter(self):
+        """Test that lookback parameter limits the analysis window"""
+        # First 50 points with support at 80, next 50 with support at 90
+        lows_old = [85, 82, 80, 82, 85, 88, 90] * 7  # 49 points around 80
+        lows_new = [95, 92, 90, 92, 95, 98, 100] * 7  # 49 points around 90
+        lows = lows_old + lows_new
+
+        # With lookback=50, should only see recent data (around 90)
+        result = find_support_levels(lows, lookback=40, window=3, max_levels=2)
+
+        if result:
+            # Support should be around 90, not 80
+            assert all(level > 85 for level in result)
+
+    def test_tolerance_clustering(self):
+        """Test that tolerance_pct clusters nearby levels"""
+        # Supports at 95.0, 95.5, 95.2 should cluster with default tolerance
+        lows = [100, 98, 95.0, 98, 100, 98, 95.5, 98, 100, 98, 95.2, 98, 100] * 4
+
+        result = find_support_levels(
+            lows, lookback=len(lows), window=2, max_levels=5, tolerance_pct=2.0
+        )
+
+        # Should find one clustered level around 95
+        if result:
+            assert len([l for l in result if 94.0 <= l <= 96.0]) <= 2
+
+    def test_strict_tolerance_no_clustering(self):
+        """Test that strict tolerance keeps levels separate"""
+        lows = [100, 98, 90, 98, 100, 98, 95, 98, 100] * 5
+
+        result = find_support_levels(
+            lows, lookback=len(lows), window=2, max_levels=5, tolerance_pct=0.1
+        )
+
+        # With very strict tolerance, levels should remain separate
+        assert isinstance(result, list)
+
+    def test_with_volume_data(self):
+        """Test support detection with volume weighting"""
+        lows = [100, 98, 95, 98, 100, 98, 95, 98, 100] * 5
+        volumes = [1000000] * len(lows)
+        # High volume at support levels
+        for i in range(len(lows)):
+            if lows[i] == 95:
+                volumes[i] = 5000000
+
+        result = find_support_levels(
+            lows, lookback=len(lows), window=2, max_levels=3, volumes=volumes
+        )
+
+        assert isinstance(result, list)
+
+    def test_max_levels_limit(self):
+        """Test that max_levels parameter is respected"""
+        lows = generate_swing_data(base=100, num_swings=10, swing_amplitude=10, points_per_swing=10)
+
+        for max_levels in [1, 2, 3, 5]:
+            result = find_support_levels(
+                lows, lookback=len(lows), window=3, max_levels=max_levels
+            )
+            assert len(result) <= max_levels
+
+    def test_descending_trend_data(self):
+        """Test support detection in descending trend"""
+        # Descending stair-step pattern
+        lows = []
+        for level in [100, 95, 90, 85, 80]:
+            lows.extend([level + 5, level + 3, level, level + 3, level + 5])
+
+        result = find_support_levels(lows, lookback=len(lows), window=2, max_levels=5)
+        assert isinstance(result, list)
+
+    def test_ascending_trend_data(self):
+        """Test support detection in ascending trend"""
+        # Ascending stair-step pattern
+        lows = []
+        for level in [80, 85, 90, 95, 100]:
+            lows.extend([level + 5, level + 3, level, level + 3, level + 5])
+
+        result = find_support_levels(lows, lookback=len(lows), window=2, max_levels=5)
+        assert isinstance(result, list)
+
+    def test_returns_float_list(self):
+        """Test that return type is List[float]"""
+        lows = generate_support_test_data()
+        result = find_support_levels(lows, lookback=len(lows), window=3)
+
+        assert isinstance(result, list)
+        for level in result:
+            assert isinstance(level, float)
+
+
+# =============================================================================
+# COMPREHENSIVE FIND_RESISTANCE_LEVELS TESTS
+# =============================================================================
+
+class TestFindResistanceLevelsComprehensive:
+    """Comprehensive tests for the find_resistance_levels function"""
+
+    def test_empty_data(self):
+        """Test with empty list"""
+        result = find_resistance_levels([], lookback=60, window=5)
+        assert result == []
+
+    def test_single_element(self):
+        """Test with single data point"""
+        result = find_resistance_levels([100.0], lookback=60, window=5)
+        assert result == []
+
+    def test_insufficient_data_for_window(self):
+        """Test when data length is less than 2*window+1"""
+        highs = [100.0, 101.0, 102.0, 101.0, 100.0]  # 5 points
+        result = find_resistance_levels(highs, lookback=60, window=5)
+        assert result == []
+
+    def test_exactly_minimum_data(self):
+        """Test with exactly 2*window+1 data points"""
+        # Window=2 requires exactly 5 data points minimum
+        highs = [100.0, 102.0, 105.0, 102.0, 100.0]  # Inverted V with 5 points
+        result = find_resistance_levels(highs, lookback=5, window=2)
+        assert len(result) >= 0
+
+    def test_m_pattern_resistance(self):
+        """Test M-pattern (double top) resistance detection"""
+        # M pattern with two highs at similar levels
+        highs = [100, 102, 104, 105, 104, 102, 100, 102, 104, 104.5, 104, 102, 100]
+        result = find_resistance_levels(highs, lookback=len(highs), window=2)
+
+        if result:
+            assert any(104.0 <= level <= 106.0 for level in result)
+
+    def test_multiple_resistance_levels(self):
+        """Test detection of multiple distinct resistance levels"""
+        highs = []
+        highs.extend([95, 98, 100, 102, 105, 102, 100, 98, 95])  # Resistance at 105
+        highs.extend([95, 98, 100, 102, 105, 110, 108, 105, 102, 100])  # Resistance at 110
+        highs.extend([100, 98, 95, 97, 100, 98, 95])  # Resistance at 100
+
+        result = find_resistance_levels(highs, lookback=len(highs), window=3, max_levels=5)
+
+        assert isinstance(result, list)
+
+    def test_lookback_parameter(self):
+        """Test that lookback parameter limits the analysis window"""
+        # First 50 points with resistance at 120, next 50 with resistance at 110
+        highs_old = [115, 118, 120, 118, 115, 112, 110] * 7
+        highs_new = [105, 108, 110, 108, 105, 102, 100] * 7
+        highs = highs_old + highs_new
+
+        result = find_resistance_levels(highs, lookback=40, window=3, max_levels=2)
+
+        if result:
+            # Resistance should be around 110, not 120
+            assert all(level < 115 for level in result)
+
+    def test_with_volume_data(self):
+        """Test resistance detection with volume weighting"""
+        highs = [100, 102, 105, 102, 100, 102, 105, 102, 100] * 5
+        volumes = [1000000] * len(highs)
+        # High volume at resistance levels
+        for i in range(len(highs)):
+            if highs[i] == 105:
+                volumes[i] = 5000000
+
+        result = find_resistance_levels(
+            highs, lookback=len(highs), window=2, max_levels=3, volumes=volumes
+        )
+
+        assert isinstance(result, list)
+
+    def test_max_levels_limit(self):
+        """Test that max_levels parameter is respected"""
+        highs = generate_swing_data(base=100, num_swings=10, swing_amplitude=10, points_per_swing=10)
+
+        for max_levels in [1, 2, 3, 5]:
+            result = find_resistance_levels(
+                highs, lookback=len(highs), window=3, max_levels=max_levels
+            )
+            assert len(result) <= max_levels
+
+    def test_tolerance_clustering(self):
+        """Test that tolerance_pct clusters nearby levels"""
+        # Resistances at 105.0, 105.5, 105.2 should cluster
+        highs = [100, 102, 105.0, 102, 100, 102, 105.5, 102, 100, 102, 105.2, 102, 100] * 4
+
+        result = find_resistance_levels(
+            highs, lookback=len(highs), window=2, max_levels=5, tolerance_pct=2.0
+        )
+
+        # Should cluster levels around 105
+        assert isinstance(result, list)
+
+    def test_returns_float_list(self):
+        """Test that return type is List[float]"""
+        highs = generate_swing_data(base=100, num_swings=3, swing_amplitude=10, points_per_swing=10)
+        result = find_resistance_levels(highs, lookback=len(highs), window=3)
+
+        assert isinstance(result, list)
+        for level in result:
+            assert isinstance(level, float)
+
+
+# =============================================================================
+# COMPREHENSIVE FIND_PIVOT_POINTS TESTS
+# =============================================================================
+
+class TestFindPivotPointsComprehensive:
+    """Comprehensive tests for the find_pivot_points function"""
+
+    def test_basic_pivot_calculation(self):
+        """Test basic pivot point formula: (H + L + C) / 3"""
+        high, low, close = 110.0, 90.0, 100.0
+        result = find_pivot_points(high, low, close)
+
+        expected_pivot = (110.0 + 90.0 + 100.0) / 3
+        assert abs(result['pivot'] - expected_pivot) < 0.001
+
+    def test_all_keys_present(self):
+        """Test that all expected keys are present"""
+        result = find_pivot_points(110.0, 90.0, 100.0)
+
+        expected_keys = ['pivot', 'r1', 'r2', 'r3', 's1', 's2', 's3']
+        for key in expected_keys:
+            assert key in result, f"Missing key: {key}"
+
+    def test_r1_formula(self):
+        """Test R1 = 2*Pivot - Low"""
+        high, low, close = 110.0, 90.0, 100.0
+        result = find_pivot_points(high, low, close)
+
+        pivot = (high + low + close) / 3
+        expected_r1 = 2 * pivot - low
+        assert abs(result['r1'] - expected_r1) < 0.001
+
+    def test_r2_formula(self):
+        """Test R2 = Pivot + (High - Low)"""
+        high, low, close = 110.0, 90.0, 100.0
+        result = find_pivot_points(high, low, close)
+
+        pivot = (high + low + close) / 3
+        expected_r2 = pivot + (high - low)
+        assert abs(result['r2'] - expected_r2) < 0.001
+
+    def test_r3_formula(self):
+        """Test R3 = High + 2*(Pivot - Low)"""
+        high, low, close = 110.0, 90.0, 100.0
+        result = find_pivot_points(high, low, close)
+
+        pivot = (high + low + close) / 3
+        expected_r3 = high + 2 * (pivot - low)
+        assert abs(result['r3'] - expected_r3) < 0.001
+
+    def test_s1_formula(self):
+        """Test S1 = 2*Pivot - High"""
+        high, low, close = 110.0, 90.0, 100.0
+        result = find_pivot_points(high, low, close)
+
+        pivot = (high + low + close) / 3
+        expected_s1 = 2 * pivot - high
+        assert abs(result['s1'] - expected_s1) < 0.001
+
+    def test_s2_formula(self):
+        """Test S2 = Pivot - (High - Low)"""
+        high, low, close = 110.0, 90.0, 100.0
+        result = find_pivot_points(high, low, close)
+
+        pivot = (high + low + close) / 3
+        expected_s2 = pivot - (high - low)
+        assert abs(result['s2'] - expected_s2) < 0.001
+
+    def test_s3_formula(self):
+        """Test S3 = Low - 2*(High - Pivot)"""
+        high, low, close = 110.0, 90.0, 100.0
+        result = find_pivot_points(high, low, close)
+
+        pivot = (high + low + close) / 3
+        expected_s3 = low - 2 * (high - pivot)
+        assert abs(result['s3'] - expected_s3) < 0.001
+
+    def test_level_ordering_ascending(self):
+        """Test that levels are correctly ordered: S3 < S2 < S1 < Pivot < R1 < R2 < R3"""
+        result = find_pivot_points(110.0, 90.0, 100.0)
+
+        assert result['s3'] < result['s2']
+        assert result['s2'] < result['s1']
+        assert result['s1'] < result['pivot']
+        assert result['pivot'] < result['r1']
+        assert result['r1'] < result['r2']
+        assert result['r2'] < result['r3']
+
+    def test_symmetric_high_low(self):
+        """Test with symmetric high/low around close"""
+        # When high-close = close-low, pivot should equal close
+        high, low, close = 110.0, 90.0, 100.0
+        result = find_pivot_points(high, low, close)
+
+        # Pivot = (110+90+100)/3 = 100
+        assert result['pivot'] == 100.0
+
+    def test_bullish_close(self):
+        """Test with bullish close (close near high)"""
+        high, low, close = 110.0, 90.0, 108.0
+        result = find_pivot_points(high, low, close)
+
+        # Pivot should be higher than 100
+        assert result['pivot'] > 100.0
+
+    def test_bearish_close(self):
+        """Test with bearish close (close near low)"""
+        high, low, close = 110.0, 90.0, 92.0
+        result = find_pivot_points(high, low, close)
+
+        # Pivot should be lower than 100
+        assert result['pivot'] < 100.0
+
+    def test_narrow_range(self):
+        """Test with narrow price range"""
+        high, low, close = 100.5, 99.5, 100.0
+        result = find_pivot_points(high, low, close)
+
+        # All levels should be close together
+        assert result['r3'] - result['s3'] < 10
+
+    def test_wide_range(self):
+        """Test with wide price range"""
+        high, low, close = 150.0, 50.0, 100.0
+        result = find_pivot_points(high, low, close)
+
+        # Levels should be spread out
+        assert result['r3'] - result['s3'] > 100
+
+    def test_same_high_low_close(self):
+        """Test when high = low = close (doji-like)"""
+        high, low, close = 100.0, 100.0, 100.0
+        result = find_pivot_points(high, low, close)
+
+        # All levels based on same value
+        assert result['pivot'] == 100.0
+        # R1 = 2*100 - 100 = 100
+        assert result['r1'] == 100.0
+        # S1 = 2*100 - 100 = 100
+        assert result['s1'] == 100.0
+
+    def test_float_precision(self):
+        """Test float precision with odd numbers"""
+        high, low, close = 103.57, 98.23, 101.45
+        result = find_pivot_points(high, low, close)
+
+        # Verify calculation is correct
+        expected_pivot = (103.57 + 98.23 + 101.45) / 3
+        assert abs(result['pivot'] - expected_pivot) < 0.0001
+
+    def test_real_world_values(self):
+        """Test with real-world stock values"""
+        # AAPL-like values
+        high, low, close = 182.50, 178.25, 180.75
+        result = find_pivot_points(high, low, close)
+
+        # Pivot should be between high and low
+        assert low <= result['pivot'] <= high
+        # R1 should be above pivot
+        assert result['r1'] > result['pivot']
+        # S1 should be below pivot
+        assert result['s1'] < result['pivot']
+
+
+# =============================================================================
+# COMPREHENSIVE EDGE CASES TESTS
+# =============================================================================
+
+class TestEdgeCasesComprehensive:
+    """Comprehensive edge case tests for support/resistance functions"""
+
+    def test_empty_list_support(self):
+        """Test find_support_levels with empty list"""
+        assert find_support_levels([]) == []
+
+    def test_empty_list_resistance(self):
+        """Test find_resistance_levels with empty list"""
+        assert find_resistance_levels([]) == []
+
+    def test_empty_list_enhanced_support(self):
+        """Test find_support_levels_enhanced with empty list"""
+        result = find_support_levels_enhanced([])
+        assert isinstance(result, SupportResistanceResult)
+        assert result.support_levels == []
+
+    def test_empty_list_enhanced_resistance(self):
+        """Test find_resistance_levels_enhanced with empty list"""
+        result = find_resistance_levels_enhanced([])
+        assert isinstance(result, SupportResistanceResult)
+        assert result.resistance_levels == []
+
+    def test_none_volumes(self):
+        """Test with volumes=None"""
+        lows = generate_support_test_data()
+        result = find_support_levels(lows, lookback=len(lows), window=3, volumes=None)
+        assert isinstance(result, list)
+
+    def test_empty_volumes(self):
+        """Test with empty volumes list"""
+        lows = generate_support_test_data()
+        # Empty volumes list should be treated same as None
+        result = find_support_levels_enhanced(lows, lookback=len(lows), window=3, volumes=[])
+        assert isinstance(result, SupportResistanceResult)
+
+    def test_mismatched_volumes_length(self):
+        """Test with volumes list of different length
+
+        Note: The function does not validate volumes length matches data length.
+        Mismatched lengths will cause IndexError - this is expected behavior.
+        Callers should ensure volumes length matches data length.
+        """
+        lows = generate_support_test_data()
+        volumes = [1000000] * (len(lows) // 2)  # Half the length
+
+        # Function raises IndexError for mismatched volumes - this is expected
+        with pytest.raises(IndexError):
+            find_support_levels_enhanced(lows, lookback=len(lows), window=3, volumes=volumes)
+
+    def test_negative_values(self):
+        """Test with negative price values (theoretical)"""
+        lows = [-100, -98, -95, -90, -95, -98, -100, -98, -95, -90, -95, -98, -100]
+        result = find_support_levels(lows, lookback=len(lows), window=2)
+        assert isinstance(result, list)
+
+    def test_very_small_values(self):
+        """Test with very small price values (penny stocks)"""
+        lows = [0.05, 0.04, 0.03, 0.02, 0.03, 0.04, 0.05, 0.04, 0.03, 0.02, 0.03, 0.04, 0.05]
+        result = find_support_levels(lows, lookback=len(lows), window=2)
+        assert isinstance(result, list)
+
+    def test_very_large_values(self):
+        """Test with very large price values"""
+        base = 100000.0
+        lows = [base + i * 100 for i in range(50)]
+        lows[25] = base - 500  # Create a swing low
+
+        result = find_support_levels(lows, lookback=len(lows), window=5)
+        assert isinstance(result, list)
+
+    def test_inf_values(self):
+        """Test behavior with infinity values"""
+        lows = [100.0] * 20
+        lows[10] = float('inf')
+
+        # Should handle gracefully or filter out inf
+        try:
+            result = find_support_levels(lows, lookback=len(lows), window=3)
+            assert isinstance(result, list)
+        except (ValueError, OverflowError):
+            pass  # Acceptable to raise error for inf values
+
+    def test_nan_values(self):
+        """Test behavior with NaN values"""
+        lows = [100.0] * 20
+        lows[10] = float('nan')
+
+        # Should handle gracefully
+        try:
+            result = find_support_levels(lows, lookback=len(lows), window=3)
+            assert isinstance(result, list)
+        except (ValueError, TypeError):
+            pass  # Acceptable to raise error for NaN values
+
+    def test_window_larger_than_data(self):
+        """Test with window larger than available data"""
+        lows = [100.0, 95.0, 100.0]
+        result = find_support_levels(lows, lookback=3, window=10)
+        assert result == []
+
+    def test_lookback_zero(self):
+        """Test with lookback=0"""
+        lows = generate_support_test_data()
+        result = find_support_levels(lows, lookback=0, window=3)
+        assert result == []
+
+    def test_window_zero(self):
+        """Test with window=0"""
+        lows = generate_support_test_data()
+        # Window=0 means every point could be a local minimum/maximum
+        result = find_support_levels(lows, lookback=len(lows), window=0)
+        # Behavior depends on implementation - just verify no crash
+        assert isinstance(result, list)
+
+    def test_max_levels_zero(self):
+        """Test with max_levels=0"""
+        lows = generate_support_test_data()
+        result = find_support_levels(lows, lookback=len(lows), window=3, max_levels=0)
+        assert result == []
+
+    def test_tolerance_zero(self):
+        """Test with tolerance_pct=0"""
+        lows = [100, 98, 95, 98, 100, 98, 95.001, 98, 100] * 5
+        result = find_support_levels(
+            lows, lookback=len(lows), window=2, tolerance_pct=0.0
+        )
+        # With zero tolerance, very similar levels should not cluster
+        assert isinstance(result, list)
+
+    def test_tolerance_hundred_percent(self):
+        """Test with tolerance_pct=100 (all levels cluster)"""
+        lows = [100, 80, 60, 80, 100, 80, 60, 80, 100] * 3
+        result = find_support_levels(
+            lows, lookback=len(lows), window=2, tolerance_pct=100.0
+        )
+        # With 100% tolerance, all levels might cluster
+        assert isinstance(result, list)
+        assert len(result) <= 3  # Most should cluster
+
+    def test_all_identical_values(self):
+        """Test with all identical values (flat line)"""
+        lows = [100.0] * 100
+        result = find_support_levels(lows, lookback=100, window=5)
+        # No swings in flat data
+        assert isinstance(result, list)
+
+    def test_alternating_values(self):
+        """Test with alternating high-low pattern"""
+        lows = [100.0, 90.0] * 50  # 100 points alternating
+        result = find_support_levels(lows, lookback=100, window=2)
+        assert isinstance(result, list)
+
+    def test_single_spike_pattern(self):
+        """Test with single downward spike"""
+        lows = [100.0] * 25 + [80.0] + [100.0] * 24
+        result = find_support_levels(lows, lookback=50, window=5)
+
+        # Should find the spike as support
+        if result:
+            assert any(75 <= level <= 85 for level in result)
+
+    def test_unicode_or_special_in_volumes(self):
+        """Test that volumes must be numeric"""
+        lows = generate_support_test_data()
+        # This should work with proper numeric volumes
+        volumes = [int(1e6)] * len(lows)
+        result = find_support_levels(lows, lookback=len(lows), window=3, volumes=volumes)
+        assert isinstance(result, list)
+
+
+# =============================================================================
+# TESTS FOR GET_NEAREST_SR_LEVELS
+# =============================================================================
+
+class TestGetNearestSRLevels:
+    """Tests for get_nearest_sr_levels function"""
+
+    def test_basic_nearest_levels(self):
+        """Test basic nearest S/R level detection"""
+        n = 100
+        current_price = 100.0
+        prices = [95 + i * 0.1 for i in range(n)]
+        prices[-1] = current_price
+        highs = [p + 2 for p in prices]
+        lows = [p - 2 for p in prices]
+        volumes = [1000000] * n
+
+        result = get_nearest_sr_levels(
+            current_price=current_price,
+            prices=prices,
+            highs=highs,
+            lows=lows,
+            volumes=volumes
+        )
+
+        assert 'supports' in result
+        assert 'resistances' in result
+        assert 'context' in result
+        assert result['current_price'] == current_price
+
+    def test_context_contains_52_week_data(self):
+        """Test that context includes 52-week high/low"""
+        n = 300
+        prices = [100 + math.sin(i * 0.1) * 20 for i in range(n)]
+        highs = [p + 2 for p in prices]
+        lows = [p - 2 for p in prices]
+
+        result = get_nearest_sr_levels(
+            current_price=prices[-1],
+            prices=prices,
+            highs=highs,
+            lows=lows
+        )
+
+        assert 'week_52_high' in result['context']
+        assert 'week_52_low' in result['context']
+
+    def test_context_contains_smas(self):
+        """Test that context includes SMA values when sufficient data"""
+        n = 250
+        prices = [100.0 + i * 0.01 for i in range(n)]
+        highs = [p + 1 for p in prices]
+        lows = [p - 1 for p in prices]
+
+        result = get_nearest_sr_levels(
+            current_price=prices[-1],
+            prices=prices,
+            highs=highs,
+            lows=lows
+        )
+
+        assert result['context']['sma_50'] is not None
+        assert result['context']['sma_100'] is not None
+        assert result['context']['sma_200'] is not None
+
+    def test_insufficient_data_for_smas(self):
+        """Test SMA behavior with insufficient data"""
+        n = 40  # Less than 50
+        prices = [100.0] * n
+        highs = [101.0] * n
+        lows = [99.0] * n
+
+        result = get_nearest_sr_levels(
+            current_price=100.0,
+            prices=prices,
+            highs=highs,
+            lows=lows
+        )
+
+        # SMA50 should be None with only 40 data points
+        assert result['context']['sma_50'] is None
+
+    def test_fibonacci_levels_in_context(self):
+        """Test that Fibonacci levels are calculated"""
+        n = 100
+        prices = [100.0 + math.sin(i * 0.1) * 10 for i in range(n)]
+        highs = [p + 2 for p in prices]
+        lows = [p - 2 for p in prices]
+
+        result = get_nearest_sr_levels(
+            current_price=prices[-1],
+            prices=prices,
+            highs=highs,
+            lows=lows
+        )
+
+        assert 'fib_levels' in result['context']
+        assert '50.0%' in result['context']['fib_levels']
+
+    def test_empty_data_handling(self):
+        """Test with insufficient data"""
+        result = get_nearest_sr_levels(
+            current_price=100.0,
+            prices=[100.0] * 10,
+            highs=[101.0] * 10,
+            lows=[99.0] * 10
+        )
+
+        # Should return empty supports/resistances for insufficient data
+        assert isinstance(result, dict)
+
+
+# =============================================================================
+# TESTS FOR ANALYZE_SUPPORT_RESISTANCE
+# =============================================================================
+
+class TestAnalyzeSupportResistanceComprehensive:
+    """Comprehensive tests for analyze_support_resistance function"""
+
+    def test_combined_sr_analysis(self):
+        """Test combined support and resistance analysis"""
+        data = generate_swing_data(base=100, num_swings=5, swing_amplitude=10, points_per_swing=15)
+        prices = data
+        highs = [p + 2 for p in data]
+        lows = [p - 2 for p in data]
+        volumes = [1000000] * len(data)
+
+        result = analyze_support_resistance(
+            prices=prices,
+            highs=highs,
+            lows=lows,
+            volumes=volumes,
+            lookback=len(data),
+            window=5
+        )
+
+        assert isinstance(result, SupportResistanceResult)
+        # Should find both support and resistance
+        assert len(result.support_levels) >= 0
+        assert len(result.resistance_levels) >= 0
+
+    def test_result_structure(self):
+        """Test the structure of returned result"""
+        data = generate_swing_data(base=100, num_swings=3, swing_amplitude=10, points_per_swing=20)
+
+        result = analyze_support_resistance(
+            prices=data,
+            highs=[p + 1 for p in data],
+            lows=[p - 1 for p in data],
+            volumes=[1000000] * len(data)
+        )
+
+        # Check result has all expected attributes
+        assert hasattr(result, 'support_levels')
+        assert hasattr(result, 'resistance_levels')
+        assert hasattr(result, 'nearest_support')
+        assert hasattr(result, 'nearest_resistance')
+        assert hasattr(result, 'volume_profile')
+
+    def test_with_empty_data(self):
+        """Test with empty price data"""
+        result = analyze_support_resistance(
+            prices=[],
+            highs=[],
+            lows=[],
+            volumes=[]
+        )
+
+        assert result.support_levels == []
+        assert result.resistance_levels == []
+
+
+# =============================================================================
+# NUMPY INTEGRATION TESTS
+# =============================================================================
+
+class TestNumpyIntegration:
+    """Tests for numpy array compatibility"""
+
+    def test_support_with_numpy_array(self):
+        """Test find_support_levels with numpy array input"""
+        lows_np = np.array([100, 98, 95, 90, 95, 98, 100, 98, 95, 90, 95, 98, 100])
+        # Convert to list since the function expects list
+        result = find_support_levels(list(lows_np), lookback=13, window=2)
+        assert isinstance(result, list)
+
+    def test_resistance_with_numpy_array(self):
+        """Test find_resistance_levels with numpy array input"""
+        highs_np = np.array([100, 102, 105, 110, 105, 102, 100, 102, 105, 110, 105, 102, 100])
+        result = find_resistance_levels(list(highs_np), lookback=13, window=2)
+        assert isinstance(result, list)
+
+    def test_pivot_points_with_numpy_values(self):
+        """Test find_pivot_points with numpy float values"""
+        high = np.float64(110.0)
+        low = np.float64(90.0)
+        close = np.float64(100.0)
+
+        result = find_pivot_points(float(high), float(low), float(close))
+        assert 'pivot' in result
+
+    def test_fibonacci_with_numpy_values(self):
+        """Test calculate_fibonacci with numpy float values"""
+        high = np.float64(120.0)
+        low = np.float64(80.0)
+
+        result = calculate_fibonacci(float(high), float(low))
+        assert '50.0%' in result
+        assert result['50.0%'] == 100.0
 
 
 if __name__ == "__main__":

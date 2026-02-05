@@ -238,5 +238,148 @@ class TestCreateServiceContext:
         assert context.api_key == "env_key"
 
 
+# =============================================================================
+# SERVICE CONTEXT: get_provider / _connect_provider / disconnect TESTS
+# =============================================================================
+
+class TestServiceContextProvider:
+    """Tests for provider connection lifecycle."""
+
+    @pytest.fixture
+    def context(self):
+        """Create a ServiceContext with mocked config."""
+        with patch('src.services.base.get_config') as mock_config:
+            mock_settings = MagicMock()
+            mock_settings.performance.cache_ttl_seconds = 300
+            mock_settings.performance.cache_max_entries = 1000
+            mock_settings.circuit_breaker.failure_threshold = 5
+            mock_settings.circuit_breaker.recovery_timeout = 30
+            mock_config.return_value.settings = mock_settings
+            ctx = ServiceContext(api_key="test_key_12345")
+        return ctx
+
+    @pytest.mark.asyncio
+    async def test_get_provider_lazy_creates_provider(self, context):
+        """Test get_provider creates MarketDataProvider lazily."""
+        assert context._provider is None
+
+        with patch('src.services.base.get_config') as mock_config:
+            mock_api = MagicMock()
+            mock_api.max_retries = 3
+            mock_api.retry_base_delay = 1
+            mock_config.return_value.settings.api_connection = mock_api
+
+            mock_provider_class = MagicMock()
+            mock_provider_instance = MagicMock()
+            mock_provider_instance.connect = AsyncMock(return_value=True)
+            mock_provider_class.return_value = mock_provider_instance
+
+            with patch(
+                'src.data_providers.marketdata.MarketDataProvider',
+                mock_provider_class
+            ):
+                provider = await context.get_provider()
+
+        assert provider is not None
+        assert context._connected is True
+
+    @pytest.mark.asyncio
+    async def test_get_provider_returns_cached_instance(self, context):
+        """Test second call returns same provider instance."""
+        mock_provider = MagicMock()
+        mock_provider.connect = AsyncMock(return_value=True)
+        context._provider = mock_provider
+        context._connected = True
+
+        provider = await context.get_provider()
+        assert provider is mock_provider
+        # connect should NOT be called again
+        mock_provider.connect.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_connect_provider_circuit_breaker_open(self, context):
+        """Test _connect_provider raises when circuit breaker is open."""
+        context._provider = MagicMock()
+        context._circuit_breaker.can_execute = MagicMock(return_value=False)
+        context._circuit_breaker.get_retry_after = MagicMock(return_value=30)
+
+        from src.utils.circuit_breaker import CircuitBreakerOpen
+        with pytest.raises(CircuitBreakerOpen):
+            await context._connect_provider()
+
+    @pytest.mark.asyncio
+    async def test_connect_provider_retries_on_failure(self, context):
+        """Test _connect_provider retries and eventually succeeds."""
+        mock_provider = MagicMock()
+        # Fail twice, then succeed
+        mock_provider.connect = AsyncMock(
+            side_effect=[Exception("conn fail"), Exception("conn fail"), True]
+        )
+        context._provider = mock_provider
+
+        # Mock circuit breaker to always allow execution
+        context._circuit_breaker = MagicMock()
+        context._circuit_breaker.can_execute = MagicMock(return_value=True)
+        context._circuit_breaker.record_success = MagicMock()
+        context._circuit_breaker.record_failure = MagicMock()
+
+        with patch('src.services.base.get_config') as mock_config:
+            mock_api = MagicMock()
+            mock_api.max_retries = 3
+            mock_api.retry_base_delay = 1
+            mock_config.return_value.settings.api_connection = mock_api
+
+            with patch('src.services.base.asyncio.sleep', new_callable=AsyncMock):
+                await context._connect_provider()
+
+        assert context._connected is True
+        assert mock_provider.connect.call_count == 3
+
+    @pytest.mark.asyncio
+    async def test_connect_provider_exhausted_retries(self, context):
+        """Test _connect_provider raises ConnectionError after all retries fail."""
+        mock_provider = MagicMock()
+        mock_provider.connect = AsyncMock(side_effect=Exception("always fails"))
+        context._provider = mock_provider
+
+        # Mock circuit breaker to always allow execution
+        context._circuit_breaker = MagicMock()
+        context._circuit_breaker.can_execute = MagicMock(return_value=True)
+        context._circuit_breaker.record_failure = MagicMock()
+
+        with patch('src.services.base.get_config') as mock_config:
+            mock_api = MagicMock()
+            mock_api.max_retries = 2
+            mock_api.retry_base_delay = 1
+            mock_config.return_value.settings.api_connection = mock_api
+
+            with patch('src.services.base.asyncio.sleep', new_callable=AsyncMock):
+                with pytest.raises(ConnectionError, match="Cannot connect"):
+                    await context._connect_provider()
+
+    @pytest.mark.asyncio
+    async def test_disconnect_when_connected(self, context):
+        """Test disconnect when provider is connected."""
+        mock_provider = MagicMock()
+        mock_provider.disconnect = AsyncMock()
+        context._provider = mock_provider
+        context._connected = True
+
+        await context.disconnect()
+
+        assert context._connected is False
+        mock_provider.disconnect.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_disconnect_when_provider_is_none(self, context):
+        """Test disconnect when no provider exists."""
+        context._provider = None
+        context._connected = False
+
+        # Should not raise
+        await context.disconnect()
+        assert context._connected is False
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

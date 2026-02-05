@@ -45,6 +45,32 @@ try:
 except ImportError:
     from analyzers.feature_scoring_mixin import FeatureScoringMixin
 
+# Import central constants
+try:
+    from ..constants import (
+        RSI_PERIOD,
+        MACD_FAST, MACD_SLOW, MACD_SIGNAL,
+        STOCH_K_PERIOD, STOCH_D_PERIOD, STOCH_SMOOTH,
+        SMA_MEDIUM, SMA_LONG,
+        VOLUME_AVG_PERIOD, VOLUME_RECENT_WINDOW,
+        VOLUME_TREND_LOW, VOLUME_TREND_HIGH,
+        VOLUME_SPIKE_MULTIPLIER,
+        KELTNER_NEUTRAL_LOW,
+        SUPPORT_LOOKBACK_DAYS,
+    )
+except ImportError:
+    from constants import (
+        RSI_PERIOD,
+        MACD_FAST, MACD_SLOW, MACD_SIGNAL,
+        STOCH_K_PERIOD, STOCH_D_PERIOD, STOCH_SMOOTH,
+        SMA_MEDIUM, SMA_LONG,
+        VOLUME_AVG_PERIOD, VOLUME_RECENT_WINDOW,
+        VOLUME_TREND_LOW, VOLUME_TREND_HIGH,
+        VOLUME_SPIKE_MULTIPLIER,
+        KELTNER_NEUTRAL_LOW,
+        SUPPORT_LOOKBACK_DAYS,
+    )
+
 
 @dataclass
 class GapInfo:
@@ -499,7 +525,7 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
 
     def _score_rsi_oversold(self, prices: List[float]) -> Tuple[int, float]:
         """RSI score for strong oversold condition"""
-        period = 14
+        period = RSI_PERIOD
 
         if len(prices) < period + 1:
             return 0, 50.0
@@ -554,9 +580,9 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         if len(volumes) < 10:
             return 0, {'trend': 'unknown', 'reason': 'Insufficient data'}
 
-        early_volume = sum(volumes[-5:-3]) / 2
+        early_volume = sum(volumes[-VOLUME_RECENT_WINDOW:-3]) / 2
         current_volume = volumes[-1]
-        avg_volume = sum(volumes[-20:-5]) / 15
+        avg_volume = sum(volumes[-VOLUME_AVG_PERIOD:-VOLUME_RECENT_WINDOW]) / (VOLUME_AVG_PERIOD - VOLUME_RECENT_WINDOW)
 
         multiplier = current_volume / avg_volume if avg_volume > 0 else 0
 
@@ -567,13 +593,13 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             'multiplier': multiplier
         }
 
-        # Volume trend of the last 5 days
-        recent_volumes = volumes[-5:]
+        # Volume trend of the last N days
+        recent_volumes = volumes[-VOLUME_RECENT_WINDOW:]
         if len(recent_volumes) >= 3:
             vol_trend = recent_volumes[-1] / recent_volumes[0] if recent_volumes[0] > 0 else 1
-            if vol_trend < 0.7:
+            if vol_trend < VOLUME_TREND_LOW:
                 info['trend'] = 'normalizing'
-            elif vol_trend > 1.3:
+            elif vol_trend > VOLUME_TREND_HIGH:
                 info['trend'] = 'still_elevated'
             else:
                 info['trend'] = 'stable'
@@ -583,7 +609,7 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         score = 0
 
         # 1. Volume normalizing from spike (1 point)
-        if early_volume > avg_volume * 2:
+        if early_volume > avg_volume * VOLUME_SPIKE_MULTIPLIER:
             if current_volume < early_volume * 0.6:
                 score += 1
                 info['reason'] = "Volume normalizing from spike"
@@ -600,8 +626,8 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
 
     def _score_long_term_trend(self, prices: List[float]) -> Tuple[int, Dict[str, Any]]:
         """Long-term trend check"""
-        sma_200 = sum(prices[-200:]) / 200 if len(prices) >= 200 else sum(prices) / len(prices)
-        sma_50 = sum(prices[-50:]) / 50 if len(prices) >= 50 else sum(prices) / len(prices)
+        sma_200 = sum(prices[-SMA_LONG:]) / SMA_LONG if len(prices) >= SMA_LONG else sum(prices) / len(prices)
+        sma_50 = sum(prices[-SMA_MEDIUM:]) / SMA_MEDIUM if len(prices) >= SMA_MEDIUM else sum(prices) / len(prices)
 
         current = prices[-1]
         pre_dip = prices[-10] if len(prices) >= 10 else prices[0]
@@ -637,9 +663,9 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
     def _calculate_macd(
         self,
         prices: List[float],
-        fast: int = 12,
-        slow: int = 26,
-        signal: int = 9
+        fast: int = MACD_FAST,
+        slow: int = MACD_SLOW,
+        signal: int = MACD_SIGNAL
     ) -> Optional[MACDResult]:
         """Calculates MACD. Delegates to shared indicators library."""
         return calculate_macd(prices, fast_period=fast, slow_period=slow, signal_period=signal)
@@ -657,7 +683,7 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
 
         # Check if histogram is turning up (Recovery signal)
         turning_up = False
-        if len(prices) >= 37:  # Need enough data for MACD history
+        if len(prices) >= MACD_SLOW + MACD_SIGNAL + 2:  # Need enough data for MACD history
             prev_macd = self._calculate_macd(prices[:-1])
             if prev_macd and macd.histogram > prev_macd.histogram:
                 turning_up = True
@@ -682,14 +708,14 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         prices: List[float],
         highs: List[float],
         lows: List[float],
-        k_period: int = 14,
-        d_period: int = 3
+        k_period: int = STOCH_K_PERIOD,
+        d_period: int = STOCH_D_PERIOD
     ) -> Optional[StochasticResult]:
         """Calculates Stochastic Oscillator. Delegates to shared indicators library."""
         cfg = self.scoring_config.stochastic
         return calculate_stochastic(
             highs=highs, lows=lows, closes=prices,
-            k_period=k_period, d_period=d_period, smooth=1,
+            k_period=k_period, d_period=d_period, smooth=STOCH_SMOOTH,
             oversold=cfg.oversold_threshold, overbought=cfg.overbought_threshold
         )
 
@@ -744,7 +770,7 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         if position == 'near_lower':
             return cfg.weight_near_lower, f"Price near Keltner Lower Band ({pct:.2f})"
 
-        if position == 'in_channel' and pct < -0.3:
+        if position == 'in_channel' and pct < KELTNER_NEUTRAL_LOW:
             return cfg.weight_mean_reversion * 0.5, f"Recovery in lower channel ({pct:.2f})"
 
         if position == 'above_upper':
@@ -767,7 +793,7 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         highs: List[float],
         lows: List[float],
         closes: List[float],
-        period: int = 14
+        period: int = RSI_PERIOD  # ATR uses same default period as RSI (14)
     ) -> Optional[float]:
         """Calculates ATR (SMA-based). Delegates to shared indicators library."""
         return calculate_atr_simple(highs, lows, closes, period)
