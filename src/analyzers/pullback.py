@@ -9,6 +9,7 @@ import logging
 
 from .base import BaseAnalyzer
 from .context import AnalysisContext
+from .feature_scoring_mixin import FeatureScoringMixin
 from .score_normalization import normalize_score, get_signal_strength, STRATEGY_SCORE_CONFIGS
 
 try:
@@ -44,13 +45,11 @@ try:
         STOCH_OVERSOLD as _STOCH_OVERSOLD,
         STOCH_OVERBOUGHT as _STOCH_OVERBOUGHT,
         RSI_PERIOD, RSI_OVERSOLD, RSI_OVERBOUGHT,
-        SMA_SHORT, SMA_MEDIUM, SMA_LONG,
         FIB_LEVELS, FIB_LOOKBACK_DAYS,
         SUPPORT_LOOKBACK_DAYS, SUPPORT_WINDOW, SUPPORT_MAX_LEVELS, SUPPORT_TOLERANCE_PCT,
         VOLUME_AVG_PERIOD, VOLUME_SPIKE_MULTIPLIER,
         KELTNER_ATR_MULTIPLIER, KELTNER_LOWER_THRESHOLD, KELTNER_NEUTRAL_LOW,
         DIVERGENCE_SWING_WINDOW, DIVERGENCE_MIN_BARS, DIVERGENCE_MAX_BARS,
-        VWAP_PERIOD, VWAP_STRONG_ABOVE, VWAP_ABOVE, VWAP_BELOW, VWAP_STRONG_BELOW,
         GAP_LOOKBACK_DAYS, GAP_SIZE_LARGE, GAP_SIZE_MEDIUM, GAP_SIZE_SMALL_NEG, GAP_SIZE_LARGE_NEG,
         PRICE_TOLERANCE,
     )
@@ -66,29 +65,13 @@ except ImportError:
         STOCH_OVERSOLD as _STOCH_OVERSOLD,
         STOCH_OVERBOUGHT as _STOCH_OVERBOUGHT,
         RSI_PERIOD, RSI_OVERSOLD, RSI_OVERBOUGHT,
-        SMA_SHORT, SMA_MEDIUM, SMA_LONG,
         FIB_LEVELS, FIB_LOOKBACK_DAYS,
         SUPPORT_LOOKBACK_DAYS, SUPPORT_WINDOW, SUPPORT_MAX_LEVELS, SUPPORT_TOLERANCE_PCT,
         VOLUME_AVG_PERIOD, VOLUME_SPIKE_MULTIPLIER,
         KELTNER_ATR_MULTIPLIER, KELTNER_LOWER_THRESHOLD, KELTNER_NEUTRAL_LOW,
         DIVERGENCE_SWING_WINDOW, DIVERGENCE_MIN_BARS, DIVERGENCE_MAX_BARS,
-        VWAP_PERIOD, VWAP_STRONG_ABOVE, VWAP_ABOVE, VWAP_BELOW, VWAP_STRONG_BELOW,
         GAP_LOOKBACK_DAYS, GAP_SIZE_LARGE, GAP_SIZE_MEDIUM, GAP_SIZE_SMALL_NEG, GAP_SIZE_LARGE_NEG,
         PRICE_TOLERANCE,
-    )
-
-# Import Volume Profile indicators (NEW from Feature Engineering)
-try:
-    from ..indicators.volume_profile import (
-        calculate_vwap,
-        get_sector,
-        get_sector_adjustment,
-    )
-except ImportError:
-    from indicators.volume_profile import (
-        calculate_vwap,
-        get_sector,
-        get_sector_adjustment,
     )
 
 # Import optimized support/resistance functions
@@ -112,7 +95,7 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
-class PullbackAnalyzer(BaseAnalyzer):
+class PullbackAnalyzer(BaseAnalyzer, FeatureScoringMixin):
     """
     Analyzes stocks for pullback setups.
 
@@ -1086,131 +1069,10 @@ class PullbackAnalyzer(BaseAnalyzer):
         return 0, f"Price in neutral channel position ({pct:.2f})"
 
     # =========================================================================
-    # NEW SCORING METHODS (from Feature Engineering Training)
+    # SCORING METHODS from FeatureScoringMixin:
+    # _score_vwap, _score_market_context, _score_sector inherited
+    # _score_gap is strategy-specific (uses pullback-specific constants)
     # =========================================================================
-
-    def _score_vwap(
-        self,
-        prices: List[float],
-        volumes: List[int]
-    ) -> Tuple[float, float, float, str, str]:
-        """
-        VWAP Score (0-3 points).
-
-        Based on Feature Engineering Training:
-        - Above VWAP >3%: 91.9% win rate → 3 points
-        - Above VWAP 1-3%: 87.6% win rate → 2 points
-        - Near VWAP: 78.3% win rate → 1 point
-        - Below VWAP: 51.7-66.1% win rate → 0 points
-
-        Returns:
-            (score, vwap_value, distance_pct, position, reason)
-        """
-        vwap_result = calculate_vwap(prices, volumes, period=VWAP_PERIOD)
-
-        if not vwap_result:
-            return 0, 0, 0, "unknown", "Insufficient data for VWAP"
-
-        vwap = vwap_result.vwap
-        distance = vwap_result.distance_pct
-        position = vwap_result.position
-
-        # Scoring based on training results
-        if distance > VWAP_STRONG_ABOVE:
-            score = 3.0
-            reason = f"Strong momentum: {distance:.1f}% above VWAP (91.9% win rate)"
-        elif distance > VWAP_ABOVE:
-            score = 2.0
-            reason = f"Above VWAP: {distance:.1f}% (87.6% win rate)"
-        elif distance > VWAP_BELOW:
-            score = 1.0
-            reason = f"Near VWAP: {distance:.1f}% (78.3% win rate)"
-        elif distance > VWAP_STRONG_BELOW:
-            score = 0.0
-            reason = f"Below VWAP: {distance:.1f}% (66.1% win rate)"
-        else:
-            score = 0.0
-            reason = f"Weak: {distance:.1f}% below VWAP (51.7% win rate)"
-
-        return score, vwap, distance, position, reason
-
-    def _score_market_context(
-        self,
-        spy_prices: Optional[List[float]]
-    ) -> Tuple[float, str, str]:
-        """
-        Market Context Score (0-2 points).
-
-        Based on Feature Engineering Training:
-        - Strong uptrend: 76.1% win rate, +$1.03M → 2 points
-        - Uptrend: 70.9% win rate → 1 point
-        - Sideways: neutral → 0 points
-        - Downtrend: 60.1% win rate, -$470k → -0.5 points (penalty)
-        - Strong downtrend: 59.3% win rate → -1 point (penalty)
-
-        Returns:
-            (score, spy_trend, reason)
-        """
-        if not spy_prices or len(spy_prices) < SMA_MEDIUM:
-            return 0, "unknown", "No SPY data for market context"
-
-        # Determine SPY trend
-        current = spy_prices[-1]
-        sma20 = float(np.mean(spy_prices[-SMA_SHORT:]))
-        sma50 = float(np.mean(spy_prices[-SMA_MEDIUM:]))
-
-        if current > sma20 > sma50:
-            trend = "strong_uptrend"
-            score = 2.0
-            reason = "Strong market uptrend (76.1% win rate)"
-        elif current > sma50 and current > sma20:
-            trend = "uptrend"
-            score = 1.0
-            reason = "Market uptrend (70.9% win rate)"
-        elif current > sma50:
-            trend = "sideways"
-            score = 0.0
-            reason = "Market sideways"
-        elif current < sma20 < sma50:
-            trend = "strong_downtrend"
-            score = -1.0
-            reason = "Strong market downtrend - CAUTION (59.3% win rate)"
-        else:
-            trend = "downtrend"
-            score = -0.5
-            reason = "Market downtrend - reduced expectation (60.1% win rate)"
-
-        return score, trend, reason
-
-    def _score_sector(self, symbol: str) -> Tuple[float, str, str]:
-        """
-        Sector Score (-1 to +1 point).
-
-        Based on Feature Engineering Training:
-        - Consumer Staples: +9% win rate → +0.9 points
-        - Utilities: +6.8% → +0.7 points
-        - Financials: +6.4% → +0.6 points
-        - Technology: -10% → -1.0 points
-        - Materials: -7.5% → -0.75 points
-
-        Returns:
-            (score, sector_name, reason)
-        """
-        sector = get_sector(symbol)
-        adjustment = get_sector_adjustment(symbol)
-
-        if adjustment > 0.5:
-            reason = f"{sector}: strong sector (+{adjustment*10:.0f}% win rate)"
-        elif adjustment > 0:
-            reason = f"{sector}: favorable sector (+{adjustment*10:.0f}% win rate)"
-        elif adjustment < -0.5:
-            reason = f"{sector}: challenging sector ({adjustment*10:.0f}% win rate)"
-        elif adjustment < 0:
-            reason = f"{sector}: slightly unfavorable ({adjustment*10:.0f}% win rate)"
-        else:
-            reason = f"{sector}: neutral sector"
-
-        return adjustment, sector, reason
 
     def _score_gap(
         self,
