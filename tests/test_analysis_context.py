@@ -585,26 +585,27 @@ class TestPythonFallback:
     """Tests for pure Python calculation fallback."""
 
     def test_calc_rsi_pure_python(self):
-        """Test pure Python RSI calculation."""
-        ctx = AnalysisContext(symbol="TEST", current_price=100.0)
+        """Test RSI calculation via canonical calculate_rsi."""
+        from src.indicators.momentum import calculate_rsi
 
         # Generate prices with uptrend
         prices = [100.0 + i * 0.5 for i in range(30)]
 
-        rsi = ctx._calc_rsi(prices, 14)
+        rsi = calculate_rsi(prices, 14)
 
         assert rsi is not None
         assert 0 <= rsi <= 100
 
     def test_calc_rsi_insufficient_data(self):
-        """Test RSI with insufficient data."""
-        ctx = AnalysisContext(symbol="TEST")
+        """Test RSI with insufficient data returns 50.0 (neutral)."""
+        from src.indicators.momentum import calculate_rsi
 
         prices = [100.0, 101.0, 102.0]  # Too few
 
-        rsi = ctx._calc_rsi(prices, 14)
+        # calculate_rsi returns 50.0 for insufficient data
+        rsi = calculate_rsi(prices, 14)
 
-        assert rsi is None
+        assert rsi == 50.0
 
     def test_calc_sma_pure_python(self):
         """Test pure Python SMA calculation."""

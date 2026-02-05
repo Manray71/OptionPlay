@@ -251,7 +251,7 @@ class TestServerCoreConvenience:
         # Mock VIX service
         mock_result = Mock()
         mock_result.success = True
-        mock_result.data = {"vix": 20.0}
+        mock_result.data = 20.0
         core._vix_service = Mock()
         core._vix_service.get_vix = AsyncMock(return_value=mock_result)
 

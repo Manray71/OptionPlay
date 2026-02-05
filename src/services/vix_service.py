@@ -19,12 +19,14 @@ Verwendung:
     recommendation = await vix_service.get_strategy_recommendation()
 """
 
+from __future__ import annotations
+
 import asyncio
 import json
 import logging
 import urllib.request
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
 from .base import BaseService, ServiceContext
 from ..models.result import ServiceResult
@@ -192,7 +194,7 @@ class VIXService(BaseService):
         
         start_time = datetime.now()
         
-        async def fetch_marketdata() -> Optional[tuple]:
+        async def fetch_marketdata() -> Optional[tuple[Any, ...]]:
             try:
                 provider = await self._get_provider()
                 async with self._rate_limited():
@@ -203,7 +205,7 @@ class VIXService(BaseService):
                 logger.debug(f"VIX fetch from marketdata failed: {e}")
             return None
 
-        async def fetch_yahoo() -> Optional[tuple]:
+        async def fetch_yahoo() -> Optional[tuple[Any, ...]]:
             try:
                 vix = await asyncio.to_thread(self._fetch_vix_yahoo)
                 if vix:

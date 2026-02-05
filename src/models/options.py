@@ -2,10 +2,12 @@
 # ============================
 # Dataclasses für Options-spezifische Daten
 
+from __future__ import annotations
+
 import math
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, List, Optional, Any
+from typing import Optional, Any
 
 
 class StrikeQuality(Enum):
@@ -74,8 +76,9 @@ class MaxPainResult:
             return "down" if self.current_price > self.max_pain else "up"
         return "neutral"
     
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict[str, Any]:
         # PCR kann unendlich sein wenn keine Calls vorhanden
+        pcr_value: str | float
         if math.isinf(self.pcr):
             pcr_value = "inf"
         else:
@@ -138,9 +141,9 @@ class StrikeRecommendation:
     # Bewertung
     quality: StrikeQuality = StrikeQuality.GOOD
     confidence_score: float = 0.0
-    warnings: List[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
     
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict[str, Any]:
         """Konvertiert zu Dictionary für JSON-Output"""
         support_dict = None
         if self.support_level_used:

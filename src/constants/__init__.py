@@ -360,5 +360,13 @@ __all__ = [
     'BLACKLIST_SYMBOLS',
     'PRIMARY_WATCHLIST',
 
-    # Individual constants are also exported (see imports above)
+    # Thresholds
+    'VIX_LOW',
+    'VIX_NORMAL',
+    'VIX_ELEVATED',
+    'VIX_HIGH',
+    'STABILITY_PREMIUM',
+    'STABILITY_GOOD',
+    'STABILITY_OK',
+    'MIN_SCORE_DEFAULT',
 ]

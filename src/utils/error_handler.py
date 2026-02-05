@@ -12,10 +12,13 @@
 #   - ProviderError (data provider issues)
 #   - SymbolNotFoundError (invalid symbol)
 
+import asyncio
 import functools
+import inspect
 import logging
 from enum import Enum
-from typing import Callable, Any, TypeVar, Coroutine, Optional
+from collections.abc import Callable, Coroutine
+from typing import Any, TypeVar, Optional, Union
 
 from .validation import ValidationError
 from .circuit_breaker import CircuitBreakerOpen
@@ -62,12 +65,12 @@ class MCPError(Exception):
     def __init__(
         self,
         message: str,
-        user_message: str = None,
-        error_code: ErrorCode = None,
-        retryable: bool = None,
-        retry_after: int = None,
-        cause: Exception = None
-    ):
+        user_message: Optional[str] = None,
+        error_code: Optional[ErrorCode] = None,
+        retryable: Optional[bool] = None,
+        retry_after: Optional[int] = None,
+        cause: Optional[Exception] = None
+    ) -> None:
         """
         Initialize MCP error.
 
@@ -89,7 +92,7 @@ class MCPError(Exception):
             self.retry_after = retry_after
         self.__cause__ = cause
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """Convert error to dictionary for logging/serialization."""
         return {
             'error_code': self.error_code.value,
@@ -145,7 +148,7 @@ class SymbolNotFoundError(MCPError):
     error_code = ErrorCode.SYMBOL_NOT_FOUND
     retryable = False
 
-    def __init__(self, symbol: str, **kwargs):
+    def __init__(self, symbol: str, **kwargs: Any) -> None:
         message = f"Symbol not found: {symbol}"
         user_message = f"The symbol '{symbol}' was not found. Please verify it's a valid ticker symbol."
         super().__init__(message, user_message=user_message, **kwargs)
@@ -163,7 +166,7 @@ class DataParseError(MCPError):
     error_code = ErrorCode.DATA_PARSE_ERROR
     retryable = False
 
-    def __init__(self, message: str, raw_data: Any = None, **kwargs):
+    def __init__(self, message: str, raw_data: Any = None, **kwargs: Any) -> None:
         super().__init__(message, **kwargs)
         self.raw_data = raw_data
 
@@ -176,8 +179,8 @@ class InsufficientDataError(MCPError):
 
 def format_error_response(
     error: Exception,
-    symbol: str = None,
-    operation: str = None,
+    symbol: Optional[str] = None,
+    operation: Optional[str] = None,
     include_error_code: bool = True
 ) -> str:
     """
@@ -198,7 +201,7 @@ def format_error_response(
     b = MarkdownBuilder()
 
     # Helper to add error code and retry info
-    def add_error_metadata(err: MCPError):
+    def add_error_metadata(err: MCPError) -> None:
         if include_error_code:
             b.kv("Code", f"{err.error_code.name} ({err.error_code.value})")
         if err.retryable and err.retry_after:
@@ -327,10 +330,121 @@ def format_error_response(
     return b.build()
 
 
+# =============================================================================
+# UNIFIED ENDPOINT DECORATOR
+# =============================================================================
+
+
+def _extract_symbol(
+    func: Callable[..., Any],
+    symbol_param: Optional[str],
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any]
+) -> Optional[str]:
+    """
+    Extract symbol parameter from function arguments.
+
+    Args:
+        func: The decorated function
+        symbol_param: Name of the symbol parameter
+        args: Positional arguments
+        kwargs: Keyword arguments
+
+    Returns:
+        Symbol value or None
+    """
+    if not symbol_param:
+        return None
+
+    # Try kwargs first
+    symbol: Any = kwargs.get(symbol_param)
+    if symbol is not None:
+        return str(symbol)
+
+    # Try positional args (skip self for methods)
+    if len(args) > 1:
+        sig = inspect.signature(func)
+        params = list(sig.parameters.keys())
+        if symbol_param in params:
+            idx = params.index(symbol_param)
+            if idx < len(args):
+                return str(args[idx])
+
+    return None
+
+
+def endpoint(
+    operation: Optional[str] = None,
+    symbol_param: Optional[str] = None
+) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+    """
+    Unified decorator for MCP endpoints with automatic sync/async detection.
+
+    Automatically detects whether the decorated function is synchronous or
+    asynchronous and applies the appropriate wrapper. Catches all exceptions
+    and converts them to user-friendly Markdown responses.
+
+    Args:
+        operation: Name of the operation (for error messages). Defaults to function name.
+        symbol_param: Name of the symbol parameter (for error messages)
+
+    Returns:
+        Decorated function with error handling
+
+    Usage::
+
+        @endpoint(operation="quote lookup", symbol_param="symbol")
+        async def get_quote(self, symbol: str) -> str:
+            ...
+
+        @endpoint(operation="health check")
+        def get_health(self) -> str:
+            ...
+
+    Note:
+        This replaces both mcp_endpoint (async) and sync_endpoint (sync).
+        The function type is detected at decoration time using asyncio.iscoroutinefunction().
+    """
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
+        op_name = operation or func.__name__
+
+        if asyncio.iscoroutinefunction(func):
+            # Async wrapper
+            @functools.wraps(func)
+            async def async_wrapper(*args: Any, **kwargs: Any) -> str:
+                symbol = _extract_symbol(func, symbol_param, args, kwargs)
+                try:
+                    result: str = await func(*args, **kwargs)
+                    return result
+                except Exception as e:
+                    logger.exception(f"Error in {op_name}: {e}")
+                    return format_error_response(e, symbol=symbol, operation=op_name)
+            return async_wrapper
+        else:
+            # Sync wrapper
+            @functools.wraps(func)
+            def sync_wrapper(*args: Any, **kwargs: Any) -> str:
+                symbol = _extract_symbol(func, symbol_param, args, kwargs)
+                try:
+                    result: str = func(*args, **kwargs)
+                    return result
+                except Exception as e:
+                    logger.exception(f"Error in {op_name}: {e}")
+                    return format_error_response(e, symbol=symbol, operation=op_name)
+            return sync_wrapper
+
+    return decorator
+
+
+# =============================================================================
+# LEGACY DECORATORS (deprecated, use endpoint() instead)
+# =============================================================================
+
+
 def mcp_endpoint(
-    operation: str = None,
-    symbol_param: str = None
-) -> Callable:
+    operation: Optional[str] = None,
+    symbol_param: Optional[str] = None
+) -> Callable[[Callable[..., Coroutine[Any, Any, str]]], Callable[..., Coroutine[Any, Any, str]]]:
     """
     Decorator for MCP server endpoints with unified error handling.
     
@@ -350,7 +464,7 @@ def mcp_endpoint(
     """
     def decorator(func: Callable[..., Coroutine[Any, Any, str]]) -> Callable[..., Coroutine[Any, Any, str]]:
         @functools.wraps(func)
-        async def wrapper(*args, **kwargs) -> str:
+        async def wrapper(*args: Any, **kwargs: Any) -> str:
             # Extract symbol from args/kwargs if specified
             symbol = None
             if symbol_param:
@@ -379,9 +493,9 @@ def mcp_endpoint(
 
 
 def sync_endpoint(
-    operation: str = None,
-    symbol_param: str = None
-) -> Callable:
+    operation: Optional[str] = None,
+    symbol_param: Optional[str] = None
+) -> Callable[[Callable[..., str]], Callable[..., str]]:
     """
     Decorator for synchronous endpoints with unified error handling.
     
@@ -389,7 +503,7 @@ def sync_endpoint(
     """
     def decorator(func: Callable[..., str]) -> Callable[..., str]:
         @functools.wraps(func)
-        def wrapper(*args, **kwargs) -> str:
+        def wrapper(*args: Any, **kwargs: Any) -> str:
             symbol = None
             if symbol_param:
                 symbol = kwargs.get(symbol_param)
@@ -417,7 +531,7 @@ def sync_endpoint(
 # HELPER FUNCTIONS
 # =============================================================================
 
-def safe_format(template: str, **kwargs) -> str:
+def safe_format(template: str, **kwargs: Any) -> str:
     """
     Safely format a template string, replacing missing keys with 'N/A'.
     
@@ -428,8 +542,8 @@ def safe_format(template: str, **kwargs) -> str:
     Returns:
         Formatted string with missing values as 'N/A'
     """
-    class SafeDict(dict):
-        def __missing__(self, key):
+    class SafeDict(dict):  # type: ignore[type-arg]
+        def __missing__(self, key: str) -> str:
             return 'N/A'
     
     return template.format_map(SafeDict(**kwargs))

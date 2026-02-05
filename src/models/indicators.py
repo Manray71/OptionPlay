@@ -2,8 +2,10 @@
 # ==============================
 # Dataclasses für technische Indikatoren
 
+from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Dict, Optional
+from typing import Any, Optional
 
 
 @dataclass
@@ -14,7 +16,7 @@ class MACDResult:
     histogram: float
     crossover: Optional[str] = None  # 'bullish', 'bearish', or None
     
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict[str, Any]:
         return {
             'macd': round(self.macd_line, 4),
             'signal': round(self.signal_line, 4),
@@ -31,7 +33,7 @@ class StochasticResult:
     crossover: Optional[str] = None  # 'bullish', 'bearish', or None
     zone: Optional[str] = None  # 'oversold', 'overbought', 'neutral'
     
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict[str, Any]:
         return {
             'k': round(self.k, 2),
             'd': round(self.d, 2),
@@ -59,7 +61,7 @@ class TechnicalIndicators:
     # Gap Analysis (optional, für mittelfristige Strategien)
     gap: Optional['GapResult'] = None
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict[str, Any]:
         return {
             'rsi_14': round(self.rsi_14, 2),
             'sma_20': round(self.sma_20, 2),
@@ -84,7 +86,7 @@ class BollingerBands:
     bandwidth: float  # (upper - lower) / middle
     percent_b: float  # (price - lower) / (upper - lower)
     
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict[str, Any]:
         return {
             'upper': round(self.upper, 2),
             'middle': round(self.middle, 2),
@@ -100,7 +102,7 @@ class ATRResult:
     atr: float
     atr_percent: float  # ATR als % des Preises
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict[str, Any]:
         return {
             'atr': round(self.atr, 2),
             'atr_percent': round(self.atr_percent, 2)
@@ -138,7 +140,7 @@ class RSIDivergenceResult:
     pivot_1_idx: int = 0  # Index des ersten Pivots
     pivot_2_idx: int = 0  # Index des zweiten Pivots
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict[str, Any]:
         return {
             'type': self.divergence_type,
             'price_pivot_1': round(self.price_pivot_1, 2),
@@ -187,7 +189,7 @@ class GapResult:
     # Qualitäts-Score für Strategie
     quality_score: float  # -1 (bearish/schlecht) bis +1 (bullish/gut für Entry)
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict[str, Any]:
         return {
             'gap_type': self.gap_type,
             'gap_size_pct': round(self.gap_size_pct, 3),
@@ -232,7 +234,7 @@ class GapStatistics:
     win_rate_after_up_gap: float  # % positive Returns nach Up-Gap
     win_rate_after_down_gap: float  # % positive Returns nach Down-Gap
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict[str, Any]:
         return {
             'symbol': self.symbol,
             'period_days': self.analysis_period_days,
@@ -274,7 +276,7 @@ class KeltnerChannelResult:
     # Band-Breite (Volatilitätsindikator)
     channel_width_pct: float  # Channel-Breite als % des Preises
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict[str, Any]:
         return {
             'upper': round(self.upper, 2),
             'middle': round(self.middle, 2),

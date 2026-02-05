@@ -25,6 +25,8 @@ Verwendung:
     result = await options_service.get_strike_recommendation("AAPL")
 """
 
+from __future__ import annotations
+
 import asyncio
 import logging
 from datetime import datetime
@@ -75,7 +77,7 @@ class OptionsService(BaseService):
         dte_min: int = 60,
         dte_max: int = 90,
         right: str = "P"
-    ) -> ServiceResult[Dict[str, Any]]:
+    ) -> ServiceResult[dict[str, Any]]:
         """
         Holt Options-Chain für ein Symbol.
 
@@ -144,7 +146,7 @@ class OptionsService(BaseService):
         dte_max: int = 90,
         num_alternatives: int = 3,
         regime: Optional[MarketRegime] = None
-    ) -> ServiceResult[Dict[str, Any]]:
+    ) -> ServiceResult[dict[str, Any]]:
         """
         Generiert Strike-Empfehlung für Bull-Put-Spread.
 
@@ -197,12 +199,11 @@ class OptionsService(BaseService):
             )
 
             # Fibonacci-Levels
-            fib_levels = calculate_fibonacci(
-                prices=prices,
-                highs=highs,
-                lows=lows,
-                lookback=min(90, len(prices))
-            )
+            lookback = min(90, len(prices))
+            fib_high = max(highs[-lookback:]) if highs else max(prices[-lookback:])
+            fib_low = min(lows[-lookback:]) if lows else min(prices[-lookback:])
+            fib_levels_dict = calculate_fibonacci(high=fib_high, low=fib_low)
+            fib_levels: Optional[list[dict[Any, Any]]] = [fib_levels_dict]
 
             # Optional: Options-Chain für Delta-basierte Empfehlung
             options_data = None
@@ -324,10 +325,11 @@ class OptionsService(BaseService):
     # PRIVATE METHODS
     # =========================================================================
 
-    def _option_to_dict(self, option: Any) -> Dict[str, Any]:
+    def _option_to_dict(self, option: Any) -> dict[str, Any]:
         """Konvertiert Option-Objekt zu Dictionary."""
         if hasattr(option, 'to_dict'):
-            return option.to_dict()
+            result: dict[str, Any] = option.to_dict()
+            return result
 
         return {
             'strike': getattr(option, 'strike', None),
@@ -345,7 +347,7 @@ class OptionsService(BaseService):
             'iv': getattr(option, 'iv', None) or getattr(option, 'impliedVolatility', None),
         }
 
-    def _format_options_chain(self, data: Dict[str, Any]) -> str:
+    def _format_options_chain(self, data: dict[str, Any]) -> str:
         """Formatiert Options-Chain als Markdown."""
         b = MarkdownBuilder()
 
@@ -366,7 +368,7 @@ class OptionsService(BaseService):
             return b.build()
 
         # Gruppiere nach Expiration
-        by_expiry: Dict[str, List[Dict]] = {}
+        by_expiry: dict[str, list[dict[str, Any]]] = {}
         for opt in options:
             exp = opt.get('expiration', 'Unknown')[:10]  # Nur Datum
             if exp not in by_expiry:
@@ -399,7 +401,7 @@ class OptionsService(BaseService):
 
         return b.build()
 
-    def _format_strike_recommendation(self, data: Dict[str, Any]) -> str:
+    def _format_strike_recommendation(self, data: dict[str, Any]) -> str:
         """Formatiert Strike-Empfehlung als Markdown."""
         b = MarkdownBuilder()
 

@@ -22,6 +22,9 @@ Author: OptionPlay Team
 Created: 2026-02-04
 """
 
+# mypy: warn_unused_ignores=False
+from __future__ import annotations
+
 import asyncio
 import logging
 import sqlite3
@@ -42,7 +45,7 @@ try:
     )
     from ..cache.symbol_fundamentals import get_fundamentals_manager
 except ImportError:
-    from cache.iv_cache_impl import (
+    from cache.iv_cache_impl import (  # type: ignore[no-redef]
         IVCache,
         IVData,
         IVFetcher,
@@ -52,7 +55,7 @@ except ImportError:
         get_iv_cache,
         get_iv_fetcher,
     )
-    from cache.symbol_fundamentals import get_fundamentals_manager
+    from cache.symbol_fundamentals import get_fundamentals_manager  # type: ignore[no-redef]
 
 logger = logging.getLogger(__name__)
 
@@ -115,7 +118,7 @@ class IVAnalyzer:
         """
         self._fetcher = iv_fetcher
         self._db_path = db_path or DEFAULT_DB_PATH
-        self._fundamentals = None
+        self._fundamentals: Any = None
 
     @property
     def fetcher(self) -> IVFetcher:
@@ -125,7 +128,7 @@ class IVAnalyzer:
         return self._fetcher
 
     @property
-    def fundamentals(self):
+    def fundamentals(self) -> Any:
         """Lazy-load Fundamentals Manager."""
         if self._fundamentals is None:
             try:
@@ -210,7 +213,7 @@ class IVAnalyzer:
 
         return None
 
-    def _query_iv_from_db(self, symbol: str) -> Optional[list]:
+    def _query_iv_from_db(self, symbol: str) -> Optional[list[Any]]:
         """Sync DB query for IV data. Runs in thread pool."""
         conn = sqlite3.connect(str(self._db_path))
         cursor = conn.cursor()
@@ -249,7 +252,7 @@ class IVAnalyzer:
                 return None
 
             # Tages-Durchschnitt berechnen (mehrere Strikes pro Tag)
-            daily_ivs: Dict[str, List[float]] = {}
+            daily_ivs: dict[str, list[float]] = {}
             for iv, qdate in rows:
                 if qdate not in daily_ivs:
                     daily_ivs[qdate] = []
@@ -325,8 +328,8 @@ class IVAnalyzer:
 
     async def get_iv_metrics_many(
         self,
-        symbols: List[str],
-    ) -> Dict[str, IVMetrics]:
+        symbols: list[str],
+    ) -> dict[str, IVMetrics]:
         """
         Berechnet IV-Metriken für mehrere Symbole.
 
@@ -360,7 +363,7 @@ def get_iv_analyzer(
     return _iv_analyzer
 
 
-def reset_iv_analyzer():
+def reset_iv_analyzer() -> None:
     """Setzt Singleton zurück (für Tests)."""
     global _iv_analyzer
     _iv_analyzer = None

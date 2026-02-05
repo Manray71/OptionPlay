@@ -2,10 +2,12 @@
 # =================================
 # Dataclasses für Earnings, IV und andere Marktdaten
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from typing import Dict, Optional
+from typing import Any, Optional
 
 
 class EarningsSource(Enum):
@@ -41,7 +43,7 @@ class EarningsInfo:
             return True  # Unbekannt = akzeptieren (mit Warnung)
         return self.days_to_earnings >= min_days
     
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict[str, Any]:
         return {
             'symbol': self.symbol,
             'earnings_date': self.earnings_date,
@@ -81,7 +83,7 @@ class IVData:
         else:
             return "low"
     
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict[str, Any]:
         return {
             'symbol': self.symbol,
             'current_iv': round(self.current_iv * 100, 2),  # Als Prozent
@@ -107,7 +109,7 @@ class HistoricalBar:
     close: float
     volume: int
     
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict[str, Any]:
         return {
             'timestamp': self.timestamp.isoformat(),
             'open': self.open,

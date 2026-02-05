@@ -20,6 +20,9 @@ Usage:
         print(f"{pick.rank}. {pick.symbol} ({pick.strategy}) - Score: {pick.score}")
 """
 
+# mypy: warn_unused_ignores=False
+from __future__ import annotations
+
 import asyncio
 import logging
 from dataclasses import dataclass, field
@@ -79,38 +82,38 @@ try:
         format_single_pick as _format_single_pick,
     )
 except ImportError:
-    from scanner.multi_strategy_scanner import (
+    from scanner.multi_strategy_scanner import (  # type: ignore[no-redef]
         MultiStrategyScanner,
         ScanConfig,
         ScanResult,
         ScanMode,
     )
-    from vix_strategy import (
+    from vix_strategy import (  # type: ignore[no-redef]
         VIXStrategySelector,
         MarketRegime,
         StrategyRecommendation,
         VIXThresholds,
     )
-    from strike_recommender import (
+    from strike_recommender import (  # type: ignore[no-redef]
         StrikeRecommender,
         StrikeRecommendation,
     )
-    from models.base import TradeSignal
-    from cache.symbol_fundamentals import (
+    from models.base import TradeSignal  # type: ignore[no-redef]
+    from cache.symbol_fundamentals import (  # type: ignore[no-redef]
         get_fundamentals_manager,
         SymbolFundamentals,
     )
-    from constants import (
+    from constants import (  # type: ignore[no-redef]
         VIX_LOW, VIX_NORMAL, VIX_ELEVATED, VIX_HIGH,
         STABILITY_PREMIUM, STABILITY_GOOD, STABILITY_OK,
         MIN_SCORE_DEFAULT,
     )
-    from services.signal_filter import (
+    from services.signal_filter import (  # type: ignore[no-redef]
         apply_blacklist_filter,
         apply_stability_filter,
         apply_sector_diversification,
     )
-    from services.pick_formatter import (
+    from services.pick_formatter import (  # type: ignore[no-redef]
         format_picks_markdown as _format_picks_markdown,
         format_single_pick as _format_single_pick,
     )
@@ -146,7 +149,7 @@ class SuggestedStrikes:
     dte_warning: Optional[str] = None
     tradeable_status: str = "unknown"         # "READY" / "WARNING" / "NOT_TRADEABLE"
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             'short_strike': self.short_strike,
             'long_strike': self.long_strike,
@@ -207,12 +210,12 @@ class DailyPick:
 
     # Begründung und Warnungen
     reason: str = ""
-    warnings: List[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
 
     # Metadata
     timestamp: datetime = field(default_factory=datetime.now)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             'rank': self.rank,
             'symbol': self.symbol,
@@ -235,7 +238,7 @@ class DailyPick:
 @dataclass
 class DailyRecommendationResult:
     """Ergebnis des täglichen Recommendation-Prozesses."""
-    picks: List[DailyPick]
+    picks: list[DailyPick]
     vix_level: Optional[float]
     market_regime: MarketRegime
     strategy_recommendation: Optional[StrategyRecommendation]
@@ -251,9 +254,9 @@ class DailyRecommendationResult:
     # Metadata
     timestamp: datetime = field(default_factory=datetime.now)
     generation_time_seconds: float = 0.0
-    warnings: List[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             'picks': [p.to_dict() for p in self.picks],
             'vix_level': self.vix_level,
@@ -313,7 +316,7 @@ class DailyRecommendationEngine:
         scanner: Optional[MultiStrategyScanner] = None,
         vix_selector: Optional[VIXStrategySelector] = None,
         strike_recommender: Optional[StrikeRecommender] = None,
-        config: Optional[Dict[str, Any]] = None,
+        config: Optional[dict[str, Any]] = None,
     ):
         """
         Initialisiert die Recommendation Engine.
@@ -370,11 +373,11 @@ class DailyRecommendationEngine:
 
     async def get_daily_picks(
         self,
-        symbols: List[str],
-        data_fetcher: Callable,
+        symbols: list[str],
+        data_fetcher: Callable[..., Any],
         max_picks: int = 3,
         vix: Optional[float] = None,
-        options_fetcher: Optional[Callable] = None,
+        options_fetcher: Optional[Callable[..., Any]] = None,
     ) -> DailyRecommendationResult:
         """
         Generiert die täglichen Trading-Empfehlungen.
@@ -390,7 +393,7 @@ class DailyRecommendationEngine:
             DailyRecommendationResult mit Picks und Statistiken
         """
         start_time = datetime.now()
-        warnings: List[str] = []
+        warnings: list[str] = []
 
         # 1. VIX-Level und Regime bestimmen
         vix_level = vix or self._vix_cache
@@ -486,7 +489,7 @@ class DailyRecommendationEngine:
         # Overfetch: process more candidates to account for liquidity filtering
         overfetch_factor = 3 if options_fetcher else 1
         candidate_signals = ranked_signals[:max_picks * overfetch_factor]
-        picks = []
+        picks: list[DailyPick] = []
         liquidity_rejected = 0
 
         for signal in candidate_signals:
@@ -570,17 +573,17 @@ class DailyRecommendationEngine:
 
     def _apply_blacklist_filter(
         self,
-        signals: List[TradeSignal],
-    ) -> List[TradeSignal]:
+        signals: list[TradeSignal],
+    ) -> list[TradeSignal]:
         """Delegates to signal_filter.apply_blacklist_filter (Phase 3.2)."""
         return apply_blacklist_filter(signals)
 
     def _apply_stability_filter(
         self,
-        signals: List[TradeSignal],
+        signals: list[TradeSignal],
         min_stability: float,
         vix: Optional[float] = None,
-    ) -> List[TradeSignal]:
+    ) -> list[TradeSignal]:
         """Delegates to signal_filter.apply_stability_filter (Phase 3.2)."""
         return apply_stability_filter(
             signals, min_stability, vix, self._fundamentals_manager
@@ -588,9 +591,9 @@ class DailyRecommendationEngine:
 
     def _apply_sector_diversification(
         self,
-        signals: List[TradeSignal],
+        signals: list[TradeSignal],
         max_per_sector: int,
-    ) -> List[TradeSignal]:
+    ) -> list[TradeSignal]:
         """Delegates to signal_filter.apply_sector_diversification (Phase 3.2)."""
         return apply_sector_diversification(
             signals, max_per_sector, self._fundamentals_manager
@@ -657,8 +660,8 @@ class DailyRecommendationEngine:
 
     def _rank_signals(
         self,
-        signals: List[TradeSignal],
-    ) -> List[TradeSignal]:
+        signals: list[TradeSignal],
+    ) -> list[TradeSignal]:
         """
         Rankt Signale nach kombiniertem Score mit Speed-Multiplikator.
 
@@ -676,8 +679,8 @@ class DailyRecommendationEngine:
         Returns:
             Nach kombiniertem Score sortierte Signal-Liste
         """
-        weight = self.config['stability_weight']
-        speed_exponent = self.config.get('speed_exponent', 0.3)
+        weight: float = self.config['stability_weight']
+        speed_exponent: float = self.config.get('speed_exponent', 0.3)
 
         def get_combined_score(signal: TradeSignal) -> float:
             """Returns combined score with speed multiplier."""
@@ -728,7 +731,7 @@ class DailyRecommendationEngine:
             speed_normalized = 0.5 + (speed / 10.0)
             combined = base * (speed_normalized ** speed_exponent)
 
-            return combined
+            return float(combined)
 
         # Scores berechnen und sortieren
         signals_with_scores = [(s, get_combined_score(s)) for s in signals]
@@ -741,7 +744,7 @@ class DailyRecommendationEngine:
         rank: int,
         signal: TradeSignal,
         regime: MarketRegime,
-        options_fetcher: Optional[Callable] = None,
+        options_fetcher: Optional[Callable[..., Any]] = None,
     ) -> DailyPick:
         """
         Erstellt einen DailyPick aus einem Signal.
@@ -837,7 +840,7 @@ class DailyRecommendationEngine:
         current_price: float,
         signal: TradeSignal,
         regime: MarketRegime,
-        options_fetcher: Optional[Callable] = None,
+        options_fetcher: Optional[Callable[..., Any]] = None,
     ) -> Optional[SuggestedStrikes]:
         """
         Generiert Strike-Empfehlung für einen Bull-Put-Spread.
@@ -1027,7 +1030,7 @@ class DailyRecommendationEngine:
         result = result or self._last_result
         return _format_picks_markdown(result)
 
-    def _format_single_pick(self, pick: DailyPick) -> List[str]:
+    def _format_single_pick(self, pick: DailyPick) -> list[str]:
         """Delegates to pick_formatter.format_single_pick (Phase 3.2)."""
         return _format_single_pick(pick)
 
@@ -1061,11 +1064,11 @@ def create_recommendation_engine(
 
 
 async def get_quick_picks(
-    symbols: List[str],
-    data_fetcher: Callable,
+    symbols: list[str],
+    data_fetcher: Callable[..., Any],
     vix: Optional[float] = None,
     max_picks: int = 20,
-) -> List[DailyPick]:
+) -> list[DailyPick]:
     """
     Schnelle Empfehlungen ohne Engine-Instanz.
 

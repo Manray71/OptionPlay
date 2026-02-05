@@ -7,8 +7,11 @@ Extrahiert aus recommendation_engine.py (Phase 3.2).
 Enthält reine Filter-Logik: Blacklist, Stability, Sektor-Diversifikation.
 """
 
+# mypy: warn_unused_ignores=False
+from __future__ import annotations
+
 import logging
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -21,22 +24,22 @@ try:
         get_adjusted_stability_min,
     )
 except ImportError:
-    from models.base import TradeSignal
-    from cache.symbol_fundamentals import SymbolFundamentals
-    from constants.trading_rules import (
+    from models.base import TradeSignal  # type: ignore[no-redef]
+    from cache.symbol_fundamentals import SymbolFundamentals  # type: ignore[no-redef]
+    from constants.trading_rules import (  # type: ignore[no-redef]
         is_blacklisted,
         get_adjusted_stability_min,
     )
 
 
 def apply_blacklist_filter(
-    signals: List[TradeSignal],
-) -> List[TradeSignal]:
+    signals: list[TradeSignal],
+) -> list[TradeSignal]:
     """
     Remove blacklisted symbols (PLAYBOOK §1, Check 1).
 
     Args:
-        signals: List of signals
+        signals: list[Any] of signals
 
     Returns:
         Filtered signal list without blacklisted symbols
@@ -51,18 +54,18 @@ def apply_blacklist_filter(
 
 
 def apply_stability_filter(
-    signals: List[TradeSignal],
+    signals: list[TradeSignal],
     min_stability: float,
     vix: Optional[float] = None,
-    fundamentals_manager=None,
-) -> List[TradeSignal]:
+    fundamentals_manager: Any = None,
+) -> list[TradeSignal]:
     """
     Filter signals by minimum stability score (PLAYBOOK §1, Check 2).
 
     VIX-Regime-aware: at VIX > 20, stability minimum increases to 80.
 
     Args:
-        signals: List of signals
+        signals: list[Any] of signals
         min_stability: Base minimum stability score (0-100)
         vix: Current VIX level for regime adjustment
         fundamentals_manager: Optional FundamentalsManager for batch lookup
@@ -75,7 +78,7 @@ def apply_stability_filter(
 
     # Collect symbols that need fundamentals lookup (batch query instead of N+1)
     symbols_needing_lookup = []
-    stability_from_signal: Dict[str, float] = {}
+    stability_from_signal: dict[str, float] = {}
 
     for signal in signals:
         stability = 0.0
@@ -88,7 +91,7 @@ def apply_stability_filter(
             symbols_needing_lookup.append(signal.symbol)
 
     # Batch lookup for symbols without stability in signal details
-    fundamentals_map: Dict[str, float] = {}
+    fundamentals_map: dict[str, float] = {}
     if symbols_needing_lookup and fundamentals_manager:
         batch_result = fundamentals_manager.get_fundamentals_batch(symbols_needing_lookup)
         for symbol, fund in batch_result.items():
@@ -113,10 +116,10 @@ def apply_stability_filter(
 
 
 def apply_sector_diversification(
-    signals: List[TradeSignal],
+    signals: list[TradeSignal],
     max_per_sector: int,
-    fundamentals_manager=None,
-) -> List[TradeSignal]:
+    fundamentals_manager: Any = None,
+) -> list[TradeSignal]:
     """
     Stellt Sektor-Diversifikation sicher.
 
@@ -135,7 +138,7 @@ def apply_sector_diversification(
     symbols = [s.symbol for s in signals]
     fundamentals_map = fundamentals_manager.get_fundamentals_batch(symbols)
 
-    sector_counts: Dict[str, int] = {}
+    sector_counts: dict[str, int] = {}
     diversified = []
 
     for signal in signals:

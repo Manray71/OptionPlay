@@ -19,13 +19,16 @@ Verwendung:
             return ServiceResult.ok(result)
 """
 
+from __future__ import annotations
+
 import asyncio
 import logging
 from abc import ABC
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional, Any, Dict
+from collections.abc import AsyncIterator
+from typing import Optional, Any
 
 from ..config import get_config
 from ..utils.rate_limiter import get_marketdata_limiter, AdaptiveRateLimiter
@@ -61,7 +64,7 @@ class ServiceContext:
     _vix_cache: Optional[float] = None
     _vix_updated: Optional[datetime] = None
     
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Initialize components after dataclass creation."""
         config = get_config()
         perf = config.settings.performance
@@ -90,22 +93,22 @@ class ServiceContext:
         """Maskierter API Key für Logging."""
         return mask_api_key(self.api_key)
     
-    async def get_provider(self):
+    async def get_provider(self) -> Any:
         """
         Gibt den verbundenen Provider zurück.
-        
+
         Lazy-initialisiert die Verbindung wenn nötig.
         """
         if self._provider is None:
             from ..data_providers.marketdata import MarketDataProvider
             self._provider = MarketDataProvider(self.api_key)
-        
+
         if not self._connected:
             await self._connect_provider()
-        
+
         return self._provider
     
-    async def _connect_provider(self):
+    async def _connect_provider(self) -> None:
         """Verbindet den Provider mit Retry-Logik."""
         if not self._circuit_breaker.can_execute():
             retry_after = self._circuit_breaker.get_retry_after()
@@ -136,7 +139,7 @@ class ServiceContext:
             f"Cannot connect to Marketdata.app after {api_conn.max_retries} attempts"
         )
     
-    async def disconnect(self):
+    async def disconnect(self) -> None:
         """Trennt die Verbindung zum Provider."""
         if self._provider and self._connected:
             await self._provider.disconnect()
@@ -177,15 +180,15 @@ class BaseService(ABC):
         """Maskierter API Key für Logging."""
         return self._context.api_key_masked
     
-    async def _get_provider(self):
+    async def _get_provider(self) -> Any:
         """Gibt den verbundenen Provider zurück."""
         return await self._context.get_provider()
     
     @asynccontextmanager
-    async def _rate_limited(self):
+    async def _rate_limited(self) -> AsyncIterator[None]:
         """
         Context Manager für rate-limited API Calls.
-        
+
         Verwendung:
             async with self._rate_limited():
                 result = await provider.api_call()
@@ -194,8 +197,8 @@ class BaseService(ABC):
         try:
             yield
             self._context.rate_limiter.record_success()
-        except Exception as e:
-            self._context.rate_limiter.record_failure()
+        except Exception:
+            self._context.rate_limiter.record_rate_limit()
             raise
     
     def _get_historical_cache(self) -> HistoricalCache:

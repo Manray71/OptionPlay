@@ -2,8 +2,10 @@
 # =======================================
 # Dataclasses für detaillierte Score-Aufschlüsselung aller Strategien
 
+from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Dict, Optional
+from typing import Any, Optional
 
 
 @dataclass
@@ -87,7 +89,7 @@ class BounceScoreBreakdown:
     total_score: float = 0
     max_possible: int = 26  # 3+2+3+2+2+2+2+2+2+3+2+1 = 26
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict[str, Any]:
         return {
             'total_score': self.total_score,
             'max_possible': self.max_possible,
@@ -239,7 +241,7 @@ class ATHBreakoutScoreBreakdown:
     total_score: float = 0
     max_possible: int = 22  # 3+2+2+1+2+2+2+2+3+2+1 = 22
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict[str, Any]:
         return {
             'total_score': self.total_score,
             'max_possible': self.max_possible,
@@ -392,7 +394,7 @@ class EarningsDipScoreBreakdown:
     total_score: float = 0
     max_possible: int = 24  # 3+1+2+2+2+2+2+2+2+3+2+1 = 24
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict[str, Any]:
         return {
             'total_score': self.total_score,
             'max_possible': self.max_possible,

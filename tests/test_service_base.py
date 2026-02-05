@@ -178,7 +178,7 @@ class TestBaseService:
             async with service._rate_limited():
                 raise ValueError("test error")
 
-        mock_context.rate_limiter.record_failure.assert_called_once()
+        mock_context.rate_limiter.record_rate_limit.assert_called_once()
 
     def test_get_historical_cache(self, mock_context):
         """Test _get_historical_cache method."""

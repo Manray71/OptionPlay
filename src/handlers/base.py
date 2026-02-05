@@ -10,7 +10,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import date, datetime
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Optional
 
 if TYPE_CHECKING:
     from ..data_providers.marketdata import MarketDataProvider
@@ -21,7 +21,7 @@ if TYPE_CHECKING:
     from ..utils.circuit_breaker import CircuitBreaker
     from ..utils.request_dedup import RequestDeduplicator
     from ..vix_strategy import VIXStrategySelector
-    from ..config import Config
+    from ..config import ConfigLoader
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +52,7 @@ class BaseHandlerMixin:
     """
 
     # Type hints for attributes provided by OptionPlayServer
-    _config: "Config"
+    _config: "ConfigLoader"
     _provider: Optional["MarketDataProvider"]
     _tradier_provider: Optional["TradierProvider"]
     _rate_limiter: "AdaptiveRateLimiter"
@@ -65,8 +65,8 @@ class BaseHandlerMixin:
     _tradier_connected: bool
     _current_vix: Optional[float]
     _vix_updated: Optional[datetime]
-    _quote_cache: Dict[str, tuple]
-    _scan_cache: Dict[str, tuple]
+    _quote_cache: dict[str, tuple[Any, ...]]
+    _scan_cache: dict[str, tuple[Any, ...]]
     _scan_cache_ttl: int
     _quote_cache_hits: int
     _quote_cache_misses: int
@@ -87,7 +87,7 @@ class BaseHandlerMixin:
         self,
         symbol: str,
         days: Optional[int] = None
-    ) -> Optional[Tuple]:
+    ) -> Optional[tuple[Any, ...]]:
         """Fetch historical data with caching."""
         raise NotImplementedError
 
@@ -116,10 +116,10 @@ class BaseHandlerMixin:
 
     async def _apply_earnings_prefilter(
         self,
-        symbols: List[str],
+        symbols: list[str],
         min_days: int,
         for_earnings_dip: bool = False
-    ) -> Tuple[List[str], int, int]:
+    ) -> tuple[list[str], int, int]:
         """Apply earnings pre-filter to symbols."""
         raise NotImplementedError
 
@@ -133,7 +133,7 @@ class BaseHandlerMixin:
         dte_min: int = 60,
         dte_max: int = 90,
         right: str = "P",
-    ) -> list:
+    ) -> list[Any]:
         """
         Fetch options chain with Tradier-first, IBKR-fallback provider strategy.
 

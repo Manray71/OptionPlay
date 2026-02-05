@@ -33,8 +33,11 @@ Author: OptionPlay Team
 Created: 2026-02-01
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple, Any
+from collections.abc import Callable
+from typing import Optional, Any
 import logging
 
 from ..constants.trading_rules import (
@@ -68,22 +71,22 @@ class PortfolioConstraints:
     min_cash_reserve_pct: float = 0.20  # Min. 20% Cash-Reserve
 
     # Sector-spezifische Limits (optional)
-    sector_limits: Dict[str, int] = field(default_factory=dict)
+    sector_limits: dict[str, int] = field(default_factory=dict)
 
     # Blacklist (Symbole die nicht gehandelt werden) — Single Source: trading_rules.py
-    symbol_blacklist: List[str] = field(default_factory=lambda: list(BLACKLIST_SYMBOLS))
+    symbol_blacklist: list[str] = field(default_factory=lambda: list(BLACKLIST_SYMBOLS))
 
 
 @dataclass
 class ConstraintResult:
     """Ergebnis einer Constraint-Prüfung."""
     allowed: bool
-    blockers: List[str]        # Harte Blocker (Position darf nicht geöffnet werden)
-    warnings: List[str]        # Warnungen (Position erlaubt, aber Vorsicht)
-    details: Dict[str, Any]    # Zusätzliche Details
+    blockers: list[str]        # Harte Blocker (Position darf nicht geöffnet werden)
+    warnings: list[str]        # Warnungen (Position erlaubt, aber Vorsicht)
+    details: dict[str, Any]    # Zusätzliche Details
 
     @property
-    def messages(self) -> List[str]:
+    def messages(self) -> list[str]:
         """Alle Nachrichten (Blocker + Warnungen)."""
         return self.blockers + self.warnings
 
@@ -103,16 +106,16 @@ class PortfolioConstraintChecker:
             constraints: Optionale Custom-Constraints
         """
         self.constraints = constraints or PortfolioConstraints()
-        self._fundamentals_manager = None
+        self._fundamentals_manager: Any = None
         self._daily_risk_used: float = 0.0
         self._weekly_risk_used: float = 0.0
-        self._vix_provider = None  # Callable that returns current VIX
+        self._vix_provider: Optional[Callable[[], float]] = None
 
-    def set_vix_provider(self, provider) -> None:
+    def set_vix_provider(self, provider: Callable[[], float]) -> None:
         """Set a callable that returns the current VIX value."""
         self._vix_provider = provider
 
-    def get_position_limits(self, vix: Optional[float] = None) -> Dict[str, Any]:
+    def get_position_limits(self, vix: Optional[float] = None) -> dict[str, Any]:
         """
         Gibt VIX-abhaengige Position-Limits zurueck (PLAYBOOK Sec.5).
 
@@ -158,7 +161,7 @@ class PortfolioConstraintChecker:
         }
 
     @property
-    def fundamentals(self):
+    def fundamentals(self) -> Any:
         """Lazy-load Fundamentals Manager."""
         if self._fundamentals_manager is None:
             try:
@@ -173,9 +176,9 @@ class PortfolioConstraintChecker:
         self,
         symbol: str,
         max_risk: float,
-        open_positions: List[Dict[str, Any]],
+        open_positions: list[dict[str, Any]],
         account_value: Optional[float] = None,
-    ) -> Tuple[bool, List[str]]:
+    ) -> tuple[bool, list[str]]:
         """
         Prüft ob eine neue Position geöffnet werden kann.
 
@@ -187,7 +190,7 @@ class PortfolioConstraintChecker:
             account_value: Optionaler Account-Wert für Cash-Reserve-Check
 
         Returns:
-            Tuple von (erlaubt: bool, nachrichten: List[str])
+            Tuple von (erlaubt: bool, nachrichten: list[str])
             - erlaubt=True: Position kann geöffnet werden
             - erlaubt=False: Position wird geblockt
             - nachrichten: Blocker und Warnungen
@@ -204,7 +207,7 @@ class PortfolioConstraintChecker:
         self,
         symbol: str,
         max_risk: float,
-        open_positions: List[Dict[str, Any]],
+        open_positions: list[dict[str, Any]],
         account_value: Optional[float] = None,
         current_vix: Optional[float] = None,
     ) -> ConstraintResult:
@@ -223,8 +226,8 @@ class PortfolioConstraintChecker:
         Returns:
             ConstraintResult mit Blockern, Warnungen und Details
         """
-        blockers: List[str] = []
-        warnings: List[str] = []
+        blockers: list[str] = []
+        warnings: list[str] = []
 
         # Get VIX-adjusted limits (falls back to static defaults if no VIX)
         limits = self.get_position_limits(vix=current_vix)
@@ -232,7 +235,7 @@ class PortfolioConstraintChecker:
         max_per_sector = limits["max_per_sector"]
         regime = limits.get("regime", "UNKNOWN")
 
-        details: Dict[str, Any] = {
+        details: dict[str, Any] = {
             'symbol': symbol,
             'max_risk': max_risk,
             'current_positions': len(open_positions),
@@ -315,9 +318,9 @@ class PortfolioConstraintChecker:
 
     def _check_position_limit(
         self,
-        open_positions: List[Dict[str, Any]],
+        open_positions: list[dict[str, Any]],
         max_positions: Optional[int] = None,
-    ) -> Tuple[bool, str]:
+    ) -> tuple[bool, str]:
         """Prüft Positions-Limit (VIX-adjusted wenn max_positions übergeben)."""
         current = len(open_positions)
         max_pos = max_positions if max_positions is not None else self.constraints.max_positions
@@ -330,9 +333,9 @@ class PortfolioConstraintChecker:
     def _check_sector_limit(
         self,
         symbol: str,
-        open_positions: List[Dict[str, Any]],
+        open_positions: list[dict[str, Any]],
         max_per_sector: Optional[int] = None,
-    ) -> Tuple[bool, str, str, int]:
+    ) -> tuple[bool, str, str, int]:
         """
         Prüft Sektor-Limit (VIX-adjusted wenn max_per_sector übergeben).
 
@@ -362,7 +365,7 @@ class PortfolioConstraintChecker:
 
         return True, "", sector, count
 
-    def _check_daily_risk(self, max_risk: float) -> Tuple[bool, str]:
+    def _check_daily_risk(self, max_risk: float) -> tuple[bool, str]:
         """Prüft tägliches Risk-Budget."""
         potential_total = self._daily_risk_used + max_risk
         max_daily = self.constraints.max_daily_risk_usd
@@ -380,8 +383,8 @@ class PortfolioConstraintChecker:
     def _check_correlations(
         self,
         symbol: str,
-        open_positions: List[Dict[str, Any]]
-    ) -> List[str]:
+        open_positions: list[dict[str, Any]]
+    ) -> list[str]:
         """
         Prüft Korrelationen mit bestehenden Positionen.
 
@@ -419,7 +422,7 @@ class PortfolioConstraintChecker:
     def _count_sector_positions(
         self,
         symbol: str,
-        open_positions: List[Dict[str, Any]]
+        open_positions: list[dict[str, Any]]
     ) -> int:
         """Zählt offene Positionen im gleichen Sektor."""
         target_sector = self._get_sector(symbol)
@@ -468,7 +471,7 @@ class PortfolioConstraintChecker:
                 corr1 = f1.spy_correlation_60d
                 corr2 = f2.spy_correlation_60d
                 # Wenn beide > 0.7 mit SPY, dann > 0.5 miteinander
-                approx_corr = corr1 * corr2
+                approx_corr = float(corr1) * float(corr2)
                 return round(approx_corr, 2)
 
             return None
@@ -480,8 +483,8 @@ class PortfolioConstraintChecker:
     def update_risk_used(
         self,
         daily_risk: Optional[float] = None,
-        weekly_risk: Optional[float] = None
-    ):
+        weekly_risk: Optional[float] = None,
+    ) -> None:
         """
         Aktualisiert verbrauchtes Risk-Budget.
 
@@ -494,15 +497,15 @@ class PortfolioConstraintChecker:
         if weekly_risk is not None:
             self._weekly_risk_used = weekly_risk
 
-    def reset_daily_risk(self):
+    def reset_daily_risk(self) -> None:
         """Setzt tägliches Risk-Budget zurück (für neuen Trading-Tag)."""
         self._daily_risk_used = 0.0
 
-    def reset_weekly_risk(self):
+    def reset_weekly_risk(self) -> None:
         """Setzt wöchentliches Risk-Budget zurück (für neue Woche)."""
         self._weekly_risk_used = 0.0
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Gibt aktuellen Constraint-Status zurück."""
         return {
             'constraints': {
@@ -547,7 +550,7 @@ def get_constraint_checker(
     return _constraint_checker
 
 
-def reset_constraint_checker():
+def reset_constraint_checker() -> None:
     """Setzt Singleton zurück (für Tests)."""
     global _constraint_checker
     _constraint_checker = None

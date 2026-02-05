@@ -22,10 +22,12 @@ Verwendung:
     result = await scanner.scan(Strategy.PULLBACK, symbols=["AAPL", "MSFT"])
 """
 
+from __future__ import annotations
+
 import asyncio
 import logging
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, Optional
 
 from .base import BaseService, ServiceContext
 from .vix_service import VIXService
@@ -87,7 +89,7 @@ class ScannerService(BaseService):
     async def scan(
         self,
         strategy: Strategy,
-        symbols: Optional[List[str]] = None,
+        symbols: Optional[list[str]] = None,
         max_results: int = 10,
         min_score: Optional[float] = None,
         use_vix_strategy: bool = True,
@@ -144,15 +146,15 @@ class ScannerService(BaseService):
         historical_days = self._get_historical_days(strategy)
         
         # Data fetcher with caching
-        async def data_fetcher(symbol: str):
+        async def data_fetcher(symbol: str) -> Any:
             return await self._fetch_historical_cached(symbol, historical_days)
-        
+
         # Execute scan
         try:
             mode = STRATEGY_TO_MODE.get(strategy, ScanMode.ALL)
             result = await scanner.scan_async(
                 symbols=symbols,
-                data_fetcher=data_fetcher,
+                data_fetcher=data_fetcher,  # type: ignore[arg-type]
                 mode=mode
             )
             
@@ -170,10 +172,10 @@ class ScannerService(BaseService):
     
     async def scan_multi(
         self,
-        symbols: Optional[List[str]] = None,
+        symbols: Optional[list[str]] = None,
         max_results: int = 20,
         min_score: float = 5.0,
-        strategies: Optional[List[Strategy]] = None,
+        strategies: Optional[list[Strategy]] = None,
     ) -> ServiceResult[ScanResult]:
         """
         Multi-Strategy Scan - alle Strategien, bestes Signal pro Symbol.
@@ -223,14 +225,14 @@ class ScannerService(BaseService):
         )
         
         # Data fetcher with caching
-        async def data_fetcher(symbol: str):
+        async def data_fetcher(symbol: str) -> Any:
             return await self._fetch_historical_cached(symbol, historical_days)
-        
+
         # Execute scan
         try:
             result = await scanner.scan_async(
                 symbols=symbols,
-                data_fetcher=data_fetcher,
+                data_fetcher=data_fetcher,  # type: ignore[arg-type]
                 mode=ScanMode.BEST_SIGNAL
             )
             
@@ -249,7 +251,7 @@ class ScannerService(BaseService):
     async def scan_formatted(
         self,
         strategy: Strategy,
-        symbols: Optional[List[str]] = None,
+        symbols: Optional[list[str]] = None,
         max_results: int = 10,
         min_score: Optional[float] = None,
         use_vix_strategy: bool = True,
@@ -288,7 +290,7 @@ class ScannerService(BaseService):
     
     async def scan_multi_formatted(
         self,
-        symbols: Optional[List[str]] = None,
+        symbols: Optional[list[str]] = None,
         max_results: int = 20,
         min_score: float = 5.0,
     ) -> str:
@@ -315,7 +317,7 @@ class ScannerService(BaseService):
     # HELPER METHODS
     # =========================================================================
     
-    async def _prepare_symbols(self, symbols: Optional[List[str]]) -> List[str]:
+    async def _prepare_symbols(self, symbols: Optional[list[str]]) -> list[str]:
         """Bereitet Symbolliste vor (Validation, Default-Watchlist)."""
         if not symbols:
             watchlist_loader = get_watchlist_loader()
@@ -388,7 +390,7 @@ class ScannerService(BaseService):
         self,
         symbol: str,
         days: int
-    ) -> Optional[tuple]:
+    ) -> Optional[tuple[Any, ...]]:
         """Holt Historical Data mit Caching."""
         cache = self._get_historical_cache()
         
@@ -406,8 +408,9 @@ class ScannerService(BaseService):
             
             if data:
                 cache.set(symbol, data, days=days)
-            
-            return data
+
+            result: Optional[tuple[Any, ...]] = data
+            return result
             
         except Exception as e:
             self._logger.warning(f"Failed to fetch historical for {symbol}: {e}")
@@ -470,7 +473,7 @@ class ScannerService(BaseService):
         
         if result.signals:
             # Group by strategy
-            by_strategy = {}
+            by_strategy: dict[str, list[Any]] = {}
             for signal in result.signals:
                 strat = signal.strategy
                 if strat not in by_strategy:

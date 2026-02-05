@@ -2,9 +2,11 @@
 # ==============================
 # Dataclasses für Analyse-Kandidaten
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Any, Optional
 
 from .indicators import TechnicalIndicators
 
@@ -113,7 +115,7 @@ class ScoreBreakdown:
     total_score: float = 0
     max_possible: int = 26  # Erhöht: +1 Gap Score (0-1 für down-gaps)
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict[str, Any]:
         return {
             'total_score': self.total_score,
             'max_possible': self.max_possible,
@@ -221,9 +223,9 @@ class PullbackCandidate:
     technicals: TechnicalIndicators
     
     # Support/Resistance
-    support_levels: List[float]
-    resistance_levels: List[float]
-    fib_levels: Dict[str, float]
+    support_levels: list[float]
+    resistance_levels: list[float]
+    fib_levels: dict[str, float]
     
     # Volume
     avg_volume: int
@@ -249,7 +251,7 @@ class PullbackCandidate:
     def is_qualified(self, min_score: int = 5) -> bool:
         return self.score >= min_score
     
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict[str, Any]:
         return {
             'symbol': self.symbol,
             'price': round(self.current_price, 2),

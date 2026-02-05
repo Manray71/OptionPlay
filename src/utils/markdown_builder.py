@@ -29,6 +29,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date, datetime
+from collections.abc import Callable
 from typing import Any, List, Optional, Tuple, Union
 from enum import Enum
 
@@ -74,7 +75,7 @@ class MarkdownBuilder:
         )
     """
     
-    def __init__(self):
+    def __init__(self) -> None:
         self._lines: List[str] = []
     
     # =========================================================================
@@ -390,7 +391,7 @@ class MarkdownBuilder:
     def if_true(
         self,
         condition: bool,
-        callback: callable
+        callback: Callable[[MarkdownBuilder], Any]
     ) -> MarkdownBuilder:
         """
         Conditional content.
@@ -405,7 +406,7 @@ class MarkdownBuilder:
     def if_value(
         self,
         value: Any,
-        callback: callable
+        callback: Callable[[MarkdownBuilder], Any]
     ) -> MarkdownBuilder:
         """
         Conditional auf Wert (nicht None/empty).

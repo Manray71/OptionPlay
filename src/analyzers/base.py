@@ -2,13 +2,15 @@
 # ===========================
 # Abstract interface for all strategy analyzers
 
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any, Optional
+from typing import Any
 
 try:
     from ..models.base import TradeSignal, SignalType, SignalStrength
 except ImportError:
-    from models.base import TradeSignal, SignalType, SignalStrength
+    from models.base import TradeSignal, SignalType, SignalStrength  # type: ignore[no-redef]
 
 
 class BaseAnalyzer(ABC):
@@ -48,11 +50,11 @@ class BaseAnalyzer(ABC):
     def analyze(
         self,
         symbol: str,
-        prices: List[float],
-        volumes: List[int],
-        highs: List[float],
-        lows: List[float],
-        **kwargs
+        prices: list[float],
+        volumes: list[int],
+        highs: list[float],
+        lows: list[float],
+        **kwargs: Any
     ) -> TradeSignal:
         """
         Analyzes a symbol and returns a TradeSignal.
@@ -72,10 +74,10 @@ class BaseAnalyzer(ABC):
     
     def validate_inputs(
         self,
-        prices: List[float],
-        volumes: List[int],
-        highs: List[float],
-        lows: List[float],
+        prices: list[float],
+        volumes: list[int],
+        highs: list[float],
+        lows: list[float],
         min_length: int = 50
     ) -> None:
         """
@@ -84,7 +86,9 @@ class BaseAnalyzer(ABC):
         Raises:
             ValueError: For invalid inputs
         """
-        arrays = {'prices': prices, 'volumes': volumes, 'highs': highs, 'lows': lows}
+        arrays: dict[str, list[Any]] = {
+            'prices': prices, 'volumes': volumes, 'highs': highs, 'lows': lows
+        }
         lengths = {name: len(arr) for name, arr in arrays.items()}
         unique_lengths = set(lengths.values())
         
@@ -126,6 +130,7 @@ class BaseAnalyzer(ABC):
             reason=reason or "No actionable signal"
         )
     
-    def get_config(self) -> Dict[str, Any]:
+    def get_config(self) -> dict[str, Any]:
         """Returns the current configuration"""
-        return getattr(self, 'config', {})
+        config: dict[str, Any] = getattr(self, 'config', {})
+        return config

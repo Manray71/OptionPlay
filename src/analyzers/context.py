@@ -12,8 +12,11 @@
 #     context = AnalysisContext.from_data(prices, volumes, highs, lows)
 #     signal = analyzer.analyze(symbol, prices, volumes, highs, lows, context=context)
 
+# mypy: warn_unused_ignores=False
+from __future__ import annotations
+
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Any
+from typing import Any, Optional
 import logging
 import numpy as np
 
@@ -38,11 +41,11 @@ try:
     _NUMPY_AVAILABLE = True
 except ImportError:
     try:
-        from indicators.support_resistance import (
+        from indicators.support_resistance import (  # type: ignore[no-redef,import-untyped]
             find_support_levels as find_support_optimized,
             find_resistance_levels as find_resistance_optimized,
         )
-        from indicators.optimized import (
+        from indicators.optimized import (  # type: ignore[no-redef,import-untyped]
             calc_rsi_numpy,
             calc_sma_numpy,
             calc_ema_numpy,
@@ -52,13 +55,30 @@ except ImportError:
             calc_fibonacci_levels,
             find_high_low_numpy,
         )
-        from indicators.gap_analysis import analyze_gap
-        from models.indicators import GapResult
+        from indicators.gap_analysis import analyze_gap  # type: ignore[no-redef,import-untyped]
+        from models.indicators import GapResult  # type: ignore[no-redef,import-untyped]
         _NUMPY_AVAILABLE = True
     except ImportError:
         _NUMPY_AVAILABLE = False
-        analyze_gap = None
-        GapResult = None
+        analyze_gap = None  # type: ignore[assignment]
+        GapResult = None  # type: ignore[assignment,misc]
+
+# Import canonical indicator functions (used in Python fallback path)
+try:
+    from ..indicators.momentum import calculate_rsi, calculate_macd, calculate_stochastic
+    from ..indicators.trend import calculate_ema
+    from ..indicators.volatility import calculate_atr_simple
+except ImportError:
+    try:
+        from indicators.momentum import calculate_rsi, calculate_macd, calculate_stochastic  # type: ignore[no-redef,import-untyped]
+        from indicators.trend import calculate_ema  # type: ignore[no-redef,import-untyped]
+        from indicators.volatility import calculate_atr_simple  # type: ignore[no-redef,import-untyped]
+    except ImportError:
+        calculate_rsi = None  # type: ignore[assignment]
+        calculate_macd = None  # type: ignore[assignment]
+        calculate_stochastic = None  # type: ignore[assignment]
+        calculate_ema = None  # type: ignore[assignment]
+        calculate_atr_simple = None  # type: ignore[assignment]
 
 logger = logging.getLogger(__name__)
 
@@ -85,8 +105,8 @@ class AnalysisContext:
     sma_20: Optional[float] = None
     sma_50: Optional[float] = None
     sma_200: Optional[float] = None
-    ema_12: Optional[List[float]] = None
-    ema_26: Optional[List[float]] = None
+    ema_12: Optional[list[float]] = None
+    ema_26: Optional[list[float]] = None
 
     # MACD
     macd_line: Optional[float] = None
@@ -98,11 +118,11 @@ class AnalysisContext:
     stoch_d: Optional[float] = None
 
     # Support/Resistance
-    support_levels: List[float] = field(default_factory=list)
-    resistance_levels: List[float] = field(default_factory=list)
+    support_levels: list[float] = field(default_factory=list)
+    resistance_levels: list[float] = field(default_factory=list)
 
     # Fibonacci levels
-    fib_levels: Dict[str, float] = field(default_factory=dict)
+    fib_levels: dict[str, float] = field(default_factory=dict)
 
     # ATR for volatility
     atr_14: Optional[float] = None
@@ -129,11 +149,11 @@ class AnalysisContext:
     def from_data(
         cls,
         symbol: str,
-        prices: List[float],
-        volumes: List[int],
-        highs: List[float],
-        lows: List[float],
-        opens: Optional[List[float]] = None,
+        prices: list[float],
+        volumes: list[int],
+        highs: list[float],
+        lows: list[float],
+        opens: Optional[list[float]] = None,
         calculate_all: bool = True
     ) -> 'AnalysisContext':
         """
@@ -167,11 +187,11 @@ class AnalysisContext:
 
     def _calculate_indicators(
         self,
-        prices: List[float],
-        volumes: List[int],
-        highs: List[float],
-        lows: List[float],
-        opens: Optional[List[float]] = None
+        prices: list[float],
+        volumes: list[int],
+        highs: list[float],
+        lows: list[float],
+        opens: Optional[list[float]] = None
     ) -> None:
         """
         Calculate all technical indicators.
@@ -186,11 +206,11 @@ class AnalysisContext:
 
     def _calculate_indicators_numpy(
         self,
-        prices: List[float],
-        volumes: List[int],
-        highs: List[float],
-        lows: List[float],
-        opens: Optional[List[float]] = None
+        prices: list[float],
+        volumes: list[int],
+        highs: list[float],
+        lows: list[float],
+        opens: Optional[list[float]] = None
     ) -> None:
         """
         Calculate indicators using NumPy (5-10x faster).
@@ -219,8 +239,8 @@ class AnalysisContext:
         ema_26_last = calc_ema_numpy(prices_arr, 26, return_last_only=True)
 
         # For backward compatibility, store as single-element list
-        self.ema_12 = [ema_12_last] if ema_12_last is not None else None
-        self.ema_26 = [ema_26_last] if ema_26_last is not None else None
+        self.ema_12 = [float(ema_12_last)] if ema_12_last is not None else None
+        self.ema_26 = [float(ema_26_last)] if ema_26_last is not None else None
 
         # MACD (vectorized)
         macd_result = calc_macd_numpy(prices_arr)
@@ -282,11 +302,11 @@ class AnalysisContext:
 
     def _calculate_indicators_python(
         self,
-        prices: List[float],
-        volumes: List[int],
-        highs: List[float],
-        lows: List[float],
-        opens: Optional[List[float]] = None
+        prices: list[float],
+        volumes: list[int],
+        highs: list[float],
+        lows: list[float],
+        opens: Optional[list[float]] = None
     ) -> None:
         """
         Calculate indicators using pure Python (fallback).
@@ -363,42 +383,13 @@ class AnalysisContext:
         # Trend
         self._determine_trend()
 
-    def _calc_rsi(self, prices: List[float], period: int = 14) -> Optional[float]:
-        """
-        Calculate RSI using Wilder's smoothing method.
-
-        This uses the same algorithm as momentum.py for consistency.
-        """
-        if len(prices) < period + 1:
-            return None
-
-        changes = [prices[i] - prices[i-1] for i in range(1, len(prices))]
-
-        gains = [c if c > 0 else 0 for c in changes]
-        losses = [-c if c < 0 else 0 for c in changes]
-
-        # Initial averages (simple average for first period)
-        avg_gain = sum(gains[:period]) / period
-        avg_loss = sum(losses[:period]) / period
-
-        # Apply Wilder's smoothing for remaining periods
-        for i in range(period, len(gains)):
-            avg_gain = (avg_gain * (period - 1) + gains[i]) / period
-            avg_loss = (avg_loss * (period - 1) + losses[i]) / period
-
-        if avg_loss == 0:
-            return 100.0
-
-        rs = avg_gain / avg_loss
-        return 100 - (100 / (1 + rs))
-
-    def _calc_sma(self, prices: List[float], period: int) -> Optional[float]:
+    def _calc_sma(self, prices: list[float], period: int) -> Optional[float]:
         """Calculate Simple Moving Average."""
         if len(prices) < period:
             return None
         return sum(prices[-period:]) / period
 
-    def _calc_ema(self, prices: List[float], period: int) -> Optional[List[float]]:
+    def _calc_ema(self, prices: list[float], period: int) -> Optional[list[float]]:
         """Calculate Exponential Moving Average."""
         if len(prices) < period:
             return None
@@ -432,9 +423,9 @@ class AnalysisContext:
 
     def _calc_stochastic(
         self,
-        highs: List[float],
-        lows: List[float],
-        prices: List[float],
+        highs: list[float],
+        lows: list[float],
+        prices: list[float],
         k_period: int = 14,
         d_period: int = 3
     ) -> None:
@@ -472,7 +463,7 @@ class AnalysisContext:
         # %D is the 3-period SMA of %K values
         self.stoch_d = sum(k_values) / len(k_values)
 
-    def _calc_fibonacci(self, high: float, low: float) -> Dict[str, float]:
+    def _calc_fibonacci(self, high: float, low: float) -> dict[str, float]:
         """Calculate Fibonacci retracement levels."""
         diff = high - low
         return {
@@ -487,9 +478,9 @@ class AnalysisContext:
 
     def _calc_atr(
         self,
-        highs: List[float],
-        lows: List[float],
-        prices: List[float],
+        highs: list[float],
+        lows: list[float],
+        prices: list[float],
         period: int = 14
     ) -> Optional[float]:
         """Calculate Average True Range."""
@@ -512,9 +503,9 @@ class AnalysisContext:
 
     def _calculate_gap(
         self,
-        prices: List[float],
-        highs: List[float],
-        lows: List[float]
+        prices: list[float],
+        highs: list[float],
+        lows: list[float]
     ) -> None:
         """
         Calculate gap analysis for medium-term trading strategies.
@@ -569,7 +560,7 @@ class AnalysisContext:
         else:
             self.trend = 'sideways'
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for debugging/logging."""
         return {
             'symbol': self.symbol,

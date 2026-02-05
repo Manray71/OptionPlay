@@ -20,6 +20,8 @@ Usage:
         print("Trade is valid!")
 """
 
+from __future__ import annotations
+
 import asyncio
 import logging
 from dataclasses import dataclass, field
@@ -88,7 +90,7 @@ class ValidationCheck:
     passed: bool
     decision: TradeDecision       # GO, NO_GO, or WARNING
     message: str
-    details: Dict[str, Any] = field(default_factory=dict)
+    details: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -96,23 +98,23 @@ class TradeValidationResult:
     """Complete validation result."""
     symbol: str
     decision: TradeDecision
-    checks: List[ValidationCheck]
+    checks: list[ValidationCheck]
     regime: Optional[str] = None
     regime_notes: Optional[str] = None
-    sizing_recommendation: Optional[Dict[str, Any]] = None
+    sizing_recommendation: Optional[dict[str, Any]] = None
 
     @property
-    def blockers(self) -> List[ValidationCheck]:
+    def blockers(self) -> list[ValidationCheck]:
         """All checks that returned NO_GO."""
         return [c for c in self.checks if c.decision == TradeDecision.NO_GO]
 
     @property
-    def warnings(self) -> List[ValidationCheck]:
+    def warnings(self) -> list[ValidationCheck]:
         """All checks that returned WARNING."""
         return [c for c in self.checks if c.decision == TradeDecision.WARNING]
 
     @property
-    def passed(self) -> List[ValidationCheck]:
+    def passed(self) -> list[ValidationCheck]:
         """All checks that returned GO."""
         return [c for c in self.checks if c.decision == TradeDecision.GO]
 
@@ -147,13 +149,13 @@ class TradeValidator:
     - Quote provider (Tradier/IBKR) for live volume data
     """
 
-    def __init__(self, quote_provider=None):
-        self._fundamentals_manager = None
-        self._earnings_manager = None
+    def __init__(self, quote_provider: Any = None) -> None:
+        self._fundamentals_manager: Any = None
+        self._earnings_manager: Any = None
         self._quote_provider = quote_provider
 
     @property
-    def fundamentals(self):
+    def fundamentals(self) -> Any:
         """Lazy-load Fundamentals Manager."""
         if self._fundamentals_manager is None:
             try:
@@ -164,7 +166,7 @@ class TradeValidator:
         return self._fundamentals_manager
 
     @property
-    def earnings(self):
+    def earnings(self) -> Any:
         """Lazy-load Earnings History Manager."""
         if self._earnings_manager is None:
             try:
@@ -178,7 +180,7 @@ class TradeValidator:
         self,
         request: TradeValidationRequest,
         current_vix: Optional[float] = None,
-        open_positions: Optional[List[Dict[str, Any]]] = None,
+        open_positions: Optional[list[dict[str, Any]]] = None,
     ) -> TradeValidationResult:
         """
         Run all PLAYBOOK checks against a trade idea.
@@ -192,7 +194,7 @@ class TradeValidator:
             TradeValidationResult with GO/NO_GO/WARNING decision
         """
         symbol = request.symbol.upper()
-        checks: List[ValidationCheck] = []
+        checks: list[ValidationCheck] = []
 
         # Get VIX if not provided
         if current_vix is None:
@@ -400,7 +402,7 @@ class TradeValidator:
 
     async def _fetch_earnings_from_api(
         self, symbol: str
-    ) -> tuple:
+    ) -> tuple[Optional[bool], Optional[int], str]:
         """
         Fetch earnings from Live-APIs as fallback when DB has no future data.
 
@@ -436,7 +438,7 @@ class TradeValidator:
             req = urllib.request.Request(url)
             req.add_header('User-Agent', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)')
 
-            def _fetch():
+            def _fetch() -> Any:
                 with urllib.request.urlopen(req, timeout=10) as response:
                     return json.loads(response.read().decode())
 
@@ -769,11 +771,11 @@ class TradeValidator:
         self,
         symbol: str,
         fundamentals: Any,
-        open_positions: List[Dict[str, Any]],
+        open_positions: list[dict[str, Any]],
         current_vix: Optional[float],
-    ) -> List[ValidationCheck]:
+    ) -> list[ValidationCheck]:
         """Portfolio constraint checks (PLAYBOOK §5)."""
-        checks: List[ValidationCheck] = []
+        checks: list[ValidationCheck] = []
         num_positions = len(open_positions)
 
         # Max positions (VIX-adjusted)
@@ -836,7 +838,7 @@ class TradeValidator:
         request: TradeValidationRequest,
         fundamentals: Any,
         current_vix: Optional[float],
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Calculate position sizing recommendation (PLAYBOOK §5)."""
         spread_width = abs(request.short_strike - request.long_strike)
         max_loss_per_contract = (spread_width - request.credit) * 100
@@ -891,8 +893,9 @@ class TradeValidator:
     async def _get_current_vix(self) -> Optional[float]:
         """Get current VIX from cache or DB."""
         try:
-            from ..cache.vix_cache import get_latest_vix
-            return await asyncio.to_thread(get_latest_vix)
+            from ..cache.vix_cache import get_vix_manager
+            manager = get_vix_manager()
+            return await asyncio.to_thread(manager.get_latest_vix)
         except ImportError:
             logger.debug("vix_cache module not available, trying DB fallback")
 
@@ -911,7 +914,7 @@ class TradeValidator:
 _validator: Optional[TradeValidator] = None
 
 
-def get_trade_validator(quote_provider=None) -> TradeValidator:
+def get_trade_validator(quote_provider: Any = None) -> TradeValidator:
     """Get singleton TradeValidator instance.
 
     Args:
@@ -924,7 +927,7 @@ def get_trade_validator(quote_provider=None) -> TradeValidator:
     return _validator
 
 
-def reset_trade_validator():
+def reset_trade_validator() -> None:
     """Reset singleton (for tests)."""
     global _validator
     _validator = None

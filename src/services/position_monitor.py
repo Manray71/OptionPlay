@@ -24,6 +24,8 @@ Usage:
         print(f"{signal.symbol}: {signal.reason}")
 """
 
+from __future__ import annotations
+
 import logging
 import math
 from dataclasses import dataclass, field
@@ -92,32 +94,32 @@ class PositionSignal:
     priority: int             # 1=highest, 8=HOLD
     dte: int
     pnl_pct: Optional[float] = None
-    details: Dict[str, Any] = field(default_factory=dict)
+    details: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
 class MonitorResult:
     """Result of monitoring all positions."""
-    signals: List[PositionSignal]
+    signals: list[PositionSignal]
     vix: Optional[float] = None
     regime: Optional[str] = None
     timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
     positions_count: int = 0
 
     @property
-    def close_signals(self) -> List[PositionSignal]:
+    def close_signals(self) -> list[PositionSignal]:
         return [s for s in self.signals if s.action == ExitAction.CLOSE]
 
     @property
-    def roll_signals(self) -> List[PositionSignal]:
+    def roll_signals(self) -> list[PositionSignal]:
         return [s for s in self.signals if s.action == ExitAction.ROLL]
 
     @property
-    def alert_signals(self) -> List[PositionSignal]:
+    def alert_signals(self) -> list[PositionSignal]:
         return [s for s in self.signals if s.action == ExitAction.ALERT]
 
     @property
-    def hold_signals(self) -> List[PositionSignal]:
+    def hold_signals(self) -> list[PositionSignal]:
         return [s for s in self.signals if s.action == ExitAction.HOLD]
 
 
@@ -125,7 +127,7 @@ class MonitorResult:
 # SNAPSHOT BUILDERS
 # =============================================================================
 
-def snapshot_from_internal(position) -> PositionSnapshot:
+def snapshot_from_internal(position: Any) -> PositionSnapshot:
     """
     Build PositionSnapshot from internal BullPutSpread.
 
@@ -149,7 +151,7 @@ def snapshot_from_internal(position) -> PositionSnapshot:
     )
 
 
-def snapshot_from_ibkr(spread: Dict[str, Any]) -> PositionSnapshot:
+def snapshot_from_ibkr(spread: dict[str, Any]) -> PositionSnapshot:
     """
     Build PositionSnapshot from IBKR spread dict.
 
@@ -247,12 +249,12 @@ class PositionMonitor:
     Does NOT execute trades — only generates signals.
     """
 
-    def __init__(self):
-        self._earnings_manager = None
-        self._fundamentals_manager = None
+    def __init__(self) -> None:
+        self._earnings_manager: Any = None
+        self._fundamentals_manager: Any = None
 
     @property
-    def earnings(self):
+    def earnings(self) -> Any:
         """Lazy-load Earnings History Manager."""
         if self._earnings_manager is None:
             try:
@@ -263,7 +265,7 @@ class PositionMonitor:
         return self._earnings_manager
 
     @property
-    def fundamentals(self):
+    def fundamentals(self) -> Any:
         """Lazy-load Fundamentals Manager for stability checks."""
         if self._fundamentals_manager is None:
             try:
@@ -275,7 +277,7 @@ class PositionMonitor:
 
     async def check_positions(
         self,
-        snapshots: List[PositionSnapshot],
+        snapshots: list[PositionSnapshot],
         current_vix: Optional[float] = None,
     ) -> MonitorResult:
         """
@@ -288,7 +290,7 @@ class PositionMonitor:
         Returns:
             MonitorResult with signals for each position
         """
-        signals: List[PositionSignal] = []
+        signals: list[PositionSignal] = []
 
         for snap in snapshots:
             signal = self._evaluate_position(snap, current_vix)
@@ -665,7 +667,7 @@ def get_position_monitor() -> PositionMonitor:
     return _monitor
 
 
-def reset_position_monitor():
+def reset_position_monitor() -> None:
     """Reset singleton (for tests)."""
     global _monitor
     _monitor = None

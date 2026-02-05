@@ -33,9 +33,11 @@ Author: OptionPlay Team
 Created: 2026-02-04
 """
 
+from __future__ import annotations
+
 import logging
 from dataclasses import dataclass
-from typing import Optional, Dict
+from typing import Any, Optional, Dict
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +69,7 @@ class EntryQuality:
     pullback_pct: Optional[float]
     rsi: Optional[float]
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict[str, Any]:
         """Gibt Entry Quality als Dict zurueck."""
         return {
             'eqs_total': self.eqs_total,
@@ -106,7 +108,7 @@ class EntryQualityScorer:
     """
 
     # Gewichtung der Faktoren (Summe = 1.0)
-    WEIGHTS: Dict[str, float] = {
+    WEIGHTS: dict[str, float] = {
         "iv_rank":          0.20,  # IV Range-Position
         "iv_percentile":    0.15,  # IV Haeufigkeitsverteilung
         "credit_ratio":     0.20,  # Credit / Spread-Breite
@@ -143,7 +145,7 @@ class EntryQualityScorer:
         Returns:
             EntryQuality mit gewichtetem Score und Einzelfaktoren
         """
-        scores: Dict[str, float] = {}
+        scores: dict[str, float] = {}
 
         # --- IV Rank Score ---
         # Sweet Spot: 40-65% -> hoechstes IV-Crush-Potenzial
@@ -368,7 +370,7 @@ def get_entry_scorer() -> EntryQualityScorer:
     return _entry_scorer
 
 
-def reset_entry_scorer():
+def reset_entry_scorer() -> None:
     """Setzt Singleton zurueck (fuer Tests)."""
     global _entry_scorer
     _entry_scorer = None

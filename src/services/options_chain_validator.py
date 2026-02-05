@@ -13,6 +13,9 @@ Author: OptionPlay Team
 Created: 2026-02-04
 """
 
+# mypy: warn_unused_ignores=False
+from __future__ import annotations
+
 import logging
 from dataclasses import dataclass, field
 from typing import Optional, List, Any
@@ -34,7 +37,7 @@ try:
         ENTRY_BID_ASK_SPREAD_MAX,
     )
 except ImportError:
-    from constants.trading_rules import (
+    from constants.trading_rules import (  # type: ignore[no-redef]
         SPREAD_DTE_MIN,
         SPREAD_DTE_MAX,
         SPREAD_DTE_TARGET,
@@ -290,7 +293,7 @@ class OptionsChainValidator:
     # PRIVATE METHODS
     # =========================================================================
 
-    async def _get_valid_expirations(self, symbol: str) -> List[tuple]:
+    async def _get_valid_expirations(self, symbol: str) -> list[tuple[date, int]]:
         """
         Gibt Liste von (expiration_date, dte) im gültigen DTE-Fenster zurück.
 
@@ -334,11 +337,11 @@ class OptionsChainValidator:
 
         return sorted(expirations, key=lambda x: x[1])
 
-    def _select_optimal_expiration(self, expirations: List[tuple]) -> tuple:
+    def _select_optimal_expiration(self, expirations: list[tuple[date, int]]) -> tuple[date, int]:
         """Wählt Expiration am nächsten an DTE_TARGET (75 Tage)."""
         return min(expirations, key=lambda x: abs(x[1] - SPREAD_DTE_TARGET))
 
-    async def _get_puts_chain(self, symbol: str, expiration: date) -> List[OptionLeg]:
+    async def _get_puts_chain(self, symbol: str, expiration: date) -> list[OptionLeg]:
         """
         Ruft Put-Options für Symbol+Expiration ab.
 
@@ -408,7 +411,7 @@ class OptionsChainValidator:
 
     def _find_strike_by_delta(
         self,
-        chain: List[OptionLeg],
+        chain: list[OptionLeg],
         target: float,
         min_delta: float,
         max_delta: float,

@@ -25,6 +25,8 @@ Verwendung:
     result = await quote_service.get_batch_quotes(["AAPL", "MSFT", "GOOGL"])
 """
 
+from __future__ import annotations
+
 import asyncio
 import logging
 from collections import OrderedDict
@@ -73,7 +75,7 @@ class QuoteService(BaseService):
         """
         super().__init__(context)
         # Use OrderedDict for LRU behavior - most recently used at end
-        self._quote_cache: OrderedDict[str, Tuple[Dict[str, Any], datetime]] = OrderedDict()
+        self._quote_cache: OrderedDict[str, tuple[dict[str, Any], datetime]] = OrderedDict()
         self._cache_ttl_seconds = cache_ttl_seconds
         self._max_cache_size = max_cache_size
         self._cache_hits = 0
@@ -84,7 +86,7 @@ class QuoteService(BaseService):
         self,
         symbol: str,
         use_cache: bool = True
-    ) -> ServiceResult[Dict[str, Any]]:
+    ) -> ServiceResult[dict[str, Any]]:
         """
         Holt Quote für ein Symbol.
 
@@ -145,10 +147,10 @@ class QuoteService(BaseService):
 
     async def get_batch_quotes(
         self,
-        symbols: List[str],
+        symbols: list[str],
         use_cache: bool = True,
         max_concurrent: int = 10
-    ) -> ServiceResult[Dict[str, Dict[str, Any]]]:
+    ) -> ServiceResult[dict[str, dict[str, Any]]]:
         """
         Holt Quotes für mehrere Symbole.
 
@@ -158,7 +160,7 @@ class QuoteService(BaseService):
             max_concurrent: Max parallele Requests
 
         Returns:
-            ServiceResult mit Dict[symbol, quote_data]
+            ServiceResult mit dict[symbol, quote_data]
         """
         start_time = datetime.now()
 
@@ -172,8 +174,8 @@ class QuoteService(BaseService):
             return ServiceResult.fail("No valid symbols provided")
 
         # Teile in cached und nicht-cached
-        results: Dict[str, Dict[str, Any]] = {}
-        to_fetch: List[str] = []
+        results: dict[str, dict[str, Any]] = {}
+        to_fetch: list[str] = []
 
         if use_cache:
             for symbol in symbols:
@@ -205,12 +207,13 @@ class QuoteService(BaseService):
 
                     # Ergebnisse verarbeiten
                     for symbol, result in zip(chunk, chunk_results):
-                        if isinstance(result, Exception):
+                        if isinstance(result, BaseException):
                             self._logger.warning(f"Quote fetch failed for {symbol}: {result}")
                             continue
                         if result is not None:
-                            results[symbol] = result
-                            self._set_cache(symbol, result)
+                            quote_data: dict[str, Any] = result
+                            results[symbol] = quote_data
+                            self._set_cache(symbol, quote_data)
 
             except Exception as e:
                 self._logger.error(f"Batch quote fetch failed: {e}")
@@ -248,7 +251,7 @@ class QuoteService(BaseService):
 
         return self._format_quote(result.data)
 
-    async def get_batch_quotes_formatted(self, symbols: List[str]) -> str:
+    async def get_batch_quotes_formatted(self, symbols: list[str]) -> str:
         """
         Holt Batch Quotes und formatiert als Markdown.
 
@@ -265,7 +268,7 @@ class QuoteService(BaseService):
 
         return self._format_batch_quotes(result.data)
 
-    def get_cache_stats(self) -> Dict[str, Any]:
+    def get_cache_stats(self) -> dict[str, Any]:
         """Gibt Cache-Statistiken zurück inkl. LRU-Metriken."""
         total = self._cache_hits + self._cache_misses
         hit_rate = (self._cache_hits / total * 100) if total > 0 else 0
@@ -292,7 +295,7 @@ class QuoteService(BaseService):
     # PRIVATE METHODS
     # =========================================================================
 
-    def _get_from_cache(self, symbol: str) -> Optional[Dict[str, Any]]:
+    def _get_from_cache(self, symbol: str) -> Optional[dict[str, Any]]:
         """
         Holt Quote aus Cache wenn nicht expired.
 
@@ -312,7 +315,7 @@ class QuoteService(BaseService):
         self._quote_cache.move_to_end(symbol)
         return quote_data
 
-    def _set_cache(self, symbol: str, quote_data: Dict[str, Any]) -> None:
+    def _set_cache(self, symbol: str, quote_data: dict[str, Any]) -> None:
         """
         Setzt Quote im Cache mit LRU eviction.
 
@@ -338,7 +341,7 @@ class QuoteService(BaseService):
         self,
         provider: Any,
         symbol: str
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[dict[str, Any]]:
         """Holt einzelnes Quote mit Rate Limiting."""
         try:
             async with self._rate_limited():
@@ -350,14 +353,15 @@ class QuoteService(BaseService):
             self._logger.warning(f"Quote fetch for {symbol} failed: {e}")
             return None
 
-    def _quote_to_dict(self, quote: Any, symbol: str) -> Dict[str, Any]:
+    def _quote_to_dict(self, quote: Any, symbol: str) -> dict[str, Any]:
         """Konvertiert Quote-Objekt zu Dictionary."""
         # Handle verschiedene Quote-Formate
         if hasattr(quote, 'to_dict'):
-            return quote.to_dict()
+            result: dict[str, Any] = quote.to_dict()
+            return result
 
         if hasattr(quote, '__dict__'):
-            data = quote.__dict__.copy()
+            data: dict[str, Any] = quote.__dict__.copy()
             data['symbol'] = symbol
             return data
 
@@ -378,7 +382,7 @@ class QuoteService(BaseService):
             'change_pct': getattr(quote, 'change_pct', None) or getattr(quote, 'changepct', None),
         }
 
-    def _format_quote(self, quote_data: Dict[str, Any]) -> str:
+    def _format_quote(self, quote_data: dict[str, Any]) -> str:
         """Formatiert einzelnes Quote als Markdown."""
         b = MarkdownBuilder()
 
@@ -411,7 +415,7 @@ class QuoteService(BaseService):
 
         return b.build()
 
-    def _format_batch_quotes(self, quotes: Dict[str, Dict[str, Any]]) -> str:
+    def _format_batch_quotes(self, quotes: dict[str, dict[str, Any]]) -> str:
         """Formatiert Batch Quotes als Markdown-Tabelle."""
         b = MarkdownBuilder()
         b.h1(f"📊 Batch Quotes ({len(quotes)} symbols)").blank()

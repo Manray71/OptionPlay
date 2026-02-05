@@ -27,7 +27,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass, field
-from typing import Optional, TYPE_CHECKING
+from typing import Any, Optional, TYPE_CHECKING
 
 from ..state import ServerState, ConnectionStatus
 from ..container import ServiceContainer
@@ -82,7 +82,7 @@ class ServerCore:
     _vix_service: Optional['VIXService'] = field(default=None, repr=False)
     _scanner_service: Optional['ScannerService'] = field(default=None, repr=False)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Initialize after dataclass creation."""
         if not self._api_key:
             try:
@@ -299,7 +299,7 @@ class ServerCore:
         await self.connect()
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         """Exit async context - disconnect."""
         await self.disconnect()
         return None
@@ -308,7 +308,7 @@ class ServerCore:
     # HEALTH & STATS
     # =========================================================================
 
-    def health_summary(self) -> dict:
+    def health_summary(self) -> dict[str, Any]:
         """
         Gibt Health-Zusammenfassung zurück.
 
@@ -317,7 +317,7 @@ class ServerCore:
         """
         return self.state.health_summary()
 
-    def get_stats(self) -> dict:
+    def get_stats(self) -> dict[str, Any]:
         """
         Gibt detaillierte Statistiken zurück.
 
@@ -359,15 +359,14 @@ class ServerCore:
         # Fetch via service
         result = await self.vix.get_vix()
 
-        if result.success and result.data:
-            vix_value = result.data.get("vix")
-            if vix_value:
-                self.state.vix.update(vix_value)
+        if result.success and result.data is not None:
+            vix_value: float = result.data
+            self.state.vix.update(vix_value)
             return vix_value
 
         return self.state.vix.current_value
 
-    async def get_quote(self, symbol: str) -> Optional[dict]:
+    async def get_quote(self, symbol: str) -> Optional[dict[str, Any]]:
         """
         Holt Quote (Convenience-Methode).
 
