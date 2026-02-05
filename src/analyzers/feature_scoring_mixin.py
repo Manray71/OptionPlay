@@ -51,7 +51,7 @@ def get_trained_weights() -> Dict:
         return _trained_weights_cache
 
     try:
-        from ..config.config_loader import ConfigLoader
+        from ..config import ConfigLoader
         loader = ConfigLoader()
         loader._load_trained_weights()
         tw = loader.trained_weights

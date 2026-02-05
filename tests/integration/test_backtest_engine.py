@@ -11,19 +11,17 @@ import statistics
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.backtesting.engine import (
+from src.backtesting import (
     BacktestEngine,
     BacktestConfig,
     BacktestResult,
     TradeResult,
     TradeOutcome,
     ExitReason,
-)
-from src.backtesting.options_simulator import (
     OptionsSimulator,
     SpreadEntry,
     SpreadSnapshot,
-    SimulatorConfig,
+    OptionsSimulatorConfig as SimulatorConfig,
 )
 
 

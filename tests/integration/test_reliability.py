@@ -19,18 +19,18 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.backtesting.reliability import (
+from src.backtesting import (
     ReliabilityScorer,
     ReliabilityResult,
     ScorerConfig,
     create_scorer_from_latest_model,
     format_reliability_badge,
 )
-from src.backtesting.walk_forward import (
+from src.backtesting import (
     TrainingConfig,
     TrainingResult,
 )
-from src.backtesting.signal_validation import (
+from src.backtesting import (
     SignalValidationResult,
     ScoreBucketStats,
 )
@@ -1342,7 +1342,7 @@ class TestFromBacktest:
         mock_backtest.trades = []
 
         # Mock SignalValidator
-        with patch('src.backtesting.reliability.SignalValidator') as MockValidator:
+        with patch('src.backtesting.validation.reliability.SignalValidator') as MockValidator:
             mock_validation = MagicMock()
             MockValidator.return_value.validate.return_value = mock_validation
 

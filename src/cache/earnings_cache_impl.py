@@ -670,7 +670,18 @@ _default_fetcher: Optional[EarningsFetcher] = None
 
 
 def get_earnings_cache() -> EarningsCache:
-    """Gibt globale Cache-Instanz zurück"""
+    """
+    Gibt globale Cache-Instanz zurück.
+
+    .. deprecated:: 3.5.0
+        Use ``ServiceContainer.earnings_cache`` instead. Will be removed in v4.0.
+    """
+    try:
+        from ..utils.deprecation import warn_singleton_usage
+        warn_singleton_usage("get_earnings_cache", "container.earnings_cache")
+    except ImportError:
+        pass
+
     global _default_cache
     if _default_cache is None:
         _default_cache = EarningsCache()
@@ -678,7 +689,18 @@ def get_earnings_cache() -> EarningsCache:
 
 
 def get_earnings_fetcher() -> EarningsFetcher:
-    """Gibt globale Fetcher-Instanz zurück"""
+    """
+    Gibt globale Fetcher-Instanz zurück.
+
+    .. deprecated:: 3.5.0
+        Use ``ServiceContainer.earnings_fetcher`` instead. Will be removed in v4.0.
+    """
+    try:
+        from ..utils.deprecation import warn_singleton_usage
+        warn_singleton_usage("get_earnings_fetcher", "container.earnings_fetcher")
+    except ImportError:
+        pass
+
     global _default_fetcher
     if _default_fetcher is None:
         _default_fetcher = EarningsFetcher(get_earnings_cache())

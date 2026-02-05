@@ -159,7 +159,7 @@ class TestBounceAnalyzerInitialization:
 
     def test_scoring_config_initialization(self):
         """Scoring config should be initialized"""
-        from config.config_loader import BounceScoringConfig
+        from config import BounceScoringConfig
 
         scoring_config = BounceScoringConfig()
         analyzer = BounceAnalyzer(scoring_config=scoring_config)

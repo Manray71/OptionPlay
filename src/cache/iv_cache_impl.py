@@ -684,7 +684,18 @@ _default_fetcher: Optional[IVFetcher] = None
 
 
 def get_iv_cache() -> IVCache:
-    """Gibt globale Cache-Instanz zurück"""
+    """
+    Gibt globale Cache-Instanz zurück.
+
+    .. deprecated:: 3.5.0
+        Use ``ServiceContainer.iv_cache`` instead. Will be removed in v4.0.
+    """
+    try:
+        from ..utils.deprecation import warn_singleton_usage
+        warn_singleton_usage("get_iv_cache", "container.iv_cache")
+    except ImportError:
+        pass  # Called from tests with different import setup
+
     global _default_cache
     if _default_cache is None:
         _default_cache = IVCache()
@@ -692,7 +703,18 @@ def get_iv_cache() -> IVCache:
 
 
 def get_iv_fetcher() -> IVFetcher:
-    """Gibt globale Fetcher-Instanz zurück"""
+    """
+    Gibt globale Fetcher-Instanz zurück.
+
+    .. deprecated:: 3.5.0
+        Use ``ServiceContainer.iv_fetcher`` instead. Will be removed in v4.0.
+    """
+    try:
+        from ..utils.deprecation import warn_singleton_usage
+        warn_singleton_usage("get_iv_fetcher", "container.iv_fetcher")
+    except ImportError:
+        pass  # Called from tests with different import setup
+
     global _default_fetcher
     if _default_fetcher is None:
         _default_fetcher = IVFetcher(get_iv_cache())
@@ -1046,7 +1068,18 @@ _historical_iv_fetcher: Optional[HistoricalIVFetcher] = None
 
 
 def get_historical_iv_fetcher() -> HistoricalIVFetcher:
-    """Gibt globale HistoricalIVFetcher-Instanz zurück"""
+    """
+    Gibt globale HistoricalIVFetcher-Instanz zurück.
+
+    .. deprecated:: 3.5.0
+        Use ``ServiceContainer`` instead. Will be removed in v4.0.
+    """
+    try:
+        from ..utils.deprecation import warn_singleton_usage
+        warn_singleton_usage("get_historical_iv_fetcher", "ServiceContainer.historical_iv_fetcher")
+    except ImportError:
+        pass
+
     global _historical_iv_fetcher
     if _historical_iv_fetcher is None:
         _historical_iv_fetcher = HistoricalIVFetcher()

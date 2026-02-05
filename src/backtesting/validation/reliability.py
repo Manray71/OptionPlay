@@ -44,7 +44,7 @@ from .signal_validation import (
     SignalReliability,
     StatisticalCalculator,
 )
-from .walk_forward import (
+from ..training import (
     WalkForwardTrainer,
     TrainingConfig,
     TrainingResult,

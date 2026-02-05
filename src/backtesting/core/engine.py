@@ -32,8 +32,8 @@ import statistics
 
 import numpy as np
 
-from .options_simulator import OptionsSimulator, SpreadEntry, SpreadSnapshot, SimulatorConfig
-from ..pricing import batch_historical_volatility, batch_estimate_iv
+from ..simulation import OptionsSimulator, SpreadEntry, SpreadSnapshot, OptionsSimulatorConfig as SimulatorConfig
+from ...pricing import batch_historical_volatility, batch_estimate_iv
 
 logger = logging.getLogger(__name__)
 
@@ -867,7 +867,7 @@ class BacktestEngine:
 
         if self.config.use_delta_based_strikes:
             # Delta-basierte Strike-Auswahl (Basisstrategie gemäß strategies.yaml)
-            from ..pricing import find_strike_for_delta
+            from ...pricing import find_strike_for_delta
 
             T = self.config.dte_max / 365.0  # Zeit bis Verfall in Jahren
 

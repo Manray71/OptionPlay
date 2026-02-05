@@ -1115,16 +1115,25 @@ def get_tradier_provider(
 ) -> TradierProvider:
     """
     Gibt globale Tradier Provider Instanz zurück.
-    
+
+    .. deprecated:: 3.5.0
+        Use ``ServiceContainer.tradier_provider`` instead. Will be removed in v4.0.
+
     Bei erstem Aufruf muss api_key angegeben werden.
     """
+    try:
+        from ..utils.deprecation import warn_singleton_usage
+        warn_singleton_usage("get_tradier_provider", "container.tradier_provider")
+    except ImportError:
+        pass
+
     global _default_provider
-    
+
     if _default_provider is None:
         if not api_key:
             raise ValueError("API Key erforderlich beim ersten Aufruf")
         _default_provider = TradierProvider(api_key, environment)
-    
+
     return _default_provider
 
 

@@ -365,17 +365,26 @@ def get_secure_config(
 ) -> SecureConfig:
     """
     Gibt globale SecureConfig-Instanz zurück.
-    
+
+    .. deprecated:: 3.5.0
+        Use ``ServiceContainer`` instead. Will be removed in v4.0.
+
     Erstellt bei Bedarf eine neue Instanz.
     """
+    try:
+        from .deprecation import warn_singleton_usage
+        warn_singleton_usage("get_secure_config", "ServiceContainer.secure_config")
+    except ImportError:
+        pass
+
     global _default_config
-    
+
     if _default_config is None:
         _default_config = SecureConfig(
             env_file=env_file,
             use_keyring=use_keyring
         )
-    
+
     return _default_config
 
 

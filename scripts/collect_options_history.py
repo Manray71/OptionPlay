@@ -34,7 +34,7 @@ from src.data_providers.tradier import (
     build_occ_symbol,
     parse_occ_symbol,
 )
-from src.backtesting.trade_tracker import TradeTracker, OptionBar
+from src.backtesting.tracking import TradeTracker, OptionBar
 from src.config.watchlist_loader import get_watchlist_loader
 
 # Logging setup

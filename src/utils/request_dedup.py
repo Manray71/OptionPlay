@@ -141,7 +141,18 @@ _deduplicator: Optional[RequestDeduplicator] = None
 
 
 def get_request_deduplicator() -> RequestDeduplicator:
-    """Get the global request deduplicator instance."""
+    """
+    Get the global request deduplicator instance.
+
+    .. deprecated:: 3.5.0
+        Use ``ServiceContainer`` instead. Will be removed in v4.0.
+    """
+    try:
+        from .deprecation import warn_singleton_usage
+        warn_singleton_usage("get_request_deduplicator", "ServiceContainer.request_deduplicator")
+    except ImportError:
+        pass
+
     global _deduplicator
     if _deduplicator is None:
         _deduplicator = RequestDeduplicator()

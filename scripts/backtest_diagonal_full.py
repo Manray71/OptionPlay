@@ -52,7 +52,7 @@ import numpy as np
 from tqdm import tqdm
 
 # Import from project
-from src.backtesting.trade_tracker import TradeTracker, PriceBar, SymbolPriceData, VixDataPoint
+from src.backtesting.tracking import TradeTracker, PriceBar, SymbolPriceData, VixDataPoint
 
 # Configure logging
 logging.basicConfig(

@@ -502,7 +502,18 @@ _registry_instance: Optional[CircuitBreakerRegistry] = None
 
 
 def get_circuit_breaker_registry() -> CircuitBreakerRegistry:
-    """Gibt die globale Registry-Instanz zurück."""
+    """
+    Gibt die globale Registry-Instanz zurück.
+
+    .. deprecated:: 3.5.0
+        Use ``ServiceContainer.circuit_breaker_registry`` instead. Will be removed in v4.0.
+    """
+    try:
+        from .deprecation import warn_singleton_usage
+        warn_singleton_usage("get_circuit_breaker_registry", "container.circuit_breaker_registry")
+    except ImportError:
+        pass
+
     global _registry_instance
     if _registry_instance is None:
         _registry_instance = CircuitBreakerRegistry()

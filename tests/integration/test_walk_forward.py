@@ -19,14 +19,14 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.backtesting.walk_forward import (
+from src.backtesting import (
     TrainingConfig,
     EpochResult,
     TrainingResult,
     WalkForwardTrainer,
     format_training_summary,
 )
-from src.backtesting.engine import (
+from src.backtesting import (
     BacktestConfig,
     BacktestResult,
     TradeResult,
@@ -1511,7 +1511,7 @@ class TestResultsAggregationExtended:
 
     def test_aggregate_regime_adjustments(self, sample_config):
         """Test regime adjustment aggregation"""
-        from src.backtesting.signal_validation import SignalValidationResult, ComponentCorrelation
+        from src.backtesting import SignalValidationResult, ComponentCorrelation
 
         trainer = WalkForwardTrainer(sample_config)
 
@@ -1570,7 +1570,7 @@ class TestResultsAggregationExtended:
 
     def test_aggregate_predictors_counts_occurrences(self, sample_config):
         """Test that predictor aggregation counts occurrences correctly"""
-        from src.backtesting.signal_validation import SignalValidationResult
+        from src.backtesting import SignalValidationResult
 
         trainer = WalkForwardTrainer(sample_config)
 

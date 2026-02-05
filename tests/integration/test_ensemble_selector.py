@@ -21,7 +21,7 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-from src.backtesting.ensemble_selector import (
+from src.backtesting import (
     CLUSTER_STRATEGY_MAP,
     DEFAULT_COMPONENT_WEIGHTS,
     DEFAULT_REGIME_PREFERENCES,

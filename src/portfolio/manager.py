@@ -786,7 +786,18 @@ _default_portfolio: Optional[PortfolioManager] = None
 
 
 def get_portfolio_manager() -> PortfolioManager:
-    """Get global portfolio manager instance."""
+    """
+    Get global portfolio manager instance.
+
+    .. deprecated:: 3.5.0
+        Use ``ServiceContainer`` instead. Will be removed in v4.0.
+    """
+    try:
+        from ..utils.deprecation import warn_singleton_usage
+        warn_singleton_usage("get_portfolio_manager", "ServiceContainer.portfolio_manager")
+    except ImportError:
+        pass
+
     global _default_portfolio
     if _default_portfolio is None:
         _default_portfolio = PortfolioManager()

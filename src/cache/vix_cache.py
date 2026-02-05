@@ -345,7 +345,18 @@ _vix_manager_lock = threading.Lock()
 
 
 def get_vix_manager() -> VixCacheManager:
-    """Get singleton VIX Cache Manager instance. Thread-safe."""
+    """
+    Get singleton VIX Cache Manager instance. Thread-safe.
+
+    .. deprecated:: 3.5.0
+        Use ``ServiceContainer`` instead. Will be removed in v4.0.
+    """
+    try:
+        from ..utils.deprecation import warn_singleton_usage
+        warn_singleton_usage("get_vix_manager", "ServiceContainer.vix_manager")
+    except ImportError:
+        pass
+
     global _vix_manager
     with _vix_manager_lock:
         if _vix_manager is None:

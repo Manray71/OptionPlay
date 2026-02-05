@@ -20,8 +20,8 @@ from src.config import (
     ApiConnectionConfig,
     CircuitBreakerConfig,
     ScannerConfig,
+    find_config_dir,
 )
-from src.config.config_loader import find_config_dir
 
 
 class TestFindConfigDir:
@@ -621,7 +621,7 @@ class TestKeltnerChannelConfig:
 
     def test_default_lower_band_weights(self):
         """Lower band weights should have correct defaults"""
-        from src.config.config_loader import KeltnerChannelConfig
+        from src.config import KeltnerChannelConfig
 
         config = KeltnerChannelConfig()
 
@@ -631,7 +631,7 @@ class TestKeltnerChannelConfig:
 
     def test_default_upper_band_weights(self):
         """Upper band weights should have correct defaults for breakout"""
-        from src.config.config_loader import KeltnerChannelConfig
+        from src.config import KeltnerChannelConfig
 
         config = KeltnerChannelConfig()
 
@@ -640,7 +640,7 @@ class TestKeltnerChannelConfig:
 
     def test_custom_upper_band_weights(self):
         """Custom upper band weights should be settable"""
-        from src.config.config_loader import KeltnerChannelConfig
+        from src.config import KeltnerChannelConfig
 
         config = KeltnerChannelConfig(
             weight_above_upper=3.0,
@@ -656,7 +656,7 @@ class TestSupportConfigTouchTolerance:
 
     def test_default_touch_tolerance(self):
         """Touch tolerance should default to 2%"""
-        from src.config.config_loader import SupportConfig
+        from src.config import SupportConfig
 
         config = SupportConfig()
 
@@ -664,7 +664,7 @@ class TestSupportConfigTouchTolerance:
 
     def test_custom_touch_tolerance(self):
         """Custom touch tolerance should be settable"""
-        from src.config.config_loader import SupportConfig
+        from src.config import SupportConfig
 
         config = SupportConfig(touch_tolerance_pct=3.0)
 

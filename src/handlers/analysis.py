@@ -270,7 +270,7 @@ class AnalysisHandlerMixin(BaseHandlerMixin):
         Returns:
             Formatted Markdown ensemble recommendation
         """
-        from ..backtesting.ensemble_selector import (
+        from ..backtesting import (
             EnsembleSelector,
             create_strategy_score,
         )
@@ -383,7 +383,7 @@ class AnalysisHandlerMixin(BaseHandlerMixin):
         Returns:
             Formatted Markdown status
         """
-        from ..backtesting.ensemble_selector import EnsembleSelector
+        from ..backtesting import EnsembleSelector
 
         vix = await self.get_vix()
 

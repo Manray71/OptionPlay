@@ -33,7 +33,7 @@ if TYPE_CHECKING:
     from .utils.rate_limiter import AdaptiveRateLimiter
     from .utils.circuit_breaker import CircuitBreaker, CircuitBreakerRegistry
     from .utils.earnings_aggregator import EarningsAggregator
-    from .config.config_loader import ConfigLoader
+    from .config import ConfigLoader
 
 logger = logging.getLogger(__name__)
 
@@ -115,7 +115,7 @@ class ServiceContainer:
             >>> assert container.rate_limiter is not None
         """
         # Import here to avoid circular imports
-        from .config.config_loader import get_config
+        from .config import get_config
         from .utils.rate_limiter import get_marketdata_limiter
         from .utils.circuit_breaker import CircuitBreaker, get_circuit_breaker_registry
         from .cache.historical_cache import get_historical_cache
@@ -200,7 +200,7 @@ class ServiceContainer:
             >>> mock_provider.get_quote = AsyncMock(return_value=Quote(last=150.0))
             >>> container = ServiceContainer.create_for_testing(provider=mock_provider)
         """
-        from .config.config_loader import ConfigLoader
+        from .config import ConfigLoader
 
         # Create minimal config if not provided
         if config is None:
@@ -234,7 +234,7 @@ class ServiceContainer:
         Returns:
             Minimal ServiceContainer with just config
         """
-        from .config.config_loader import get_config
+        from .config import get_config
 
         return cls(config=get_config())
 

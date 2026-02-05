@@ -316,8 +316,11 @@ class AnalysisContext:
         # Store opens for gap calculation
         self._opens = opens
 
-        # RSI
-        self.rsi_14 = self._calc_rsi(prices, 14)
+        # RSI (use canonical implementation)
+        if calculate_rsi is not None and len(prices) >= 15:
+            self.rsi_14 = calculate_rsi(prices, 14)
+        else:
+            self.rsi_14 = None
 
         # Moving Averages
         self.sma_20 = self._calc_sma(prices, 20)

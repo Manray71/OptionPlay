@@ -19,12 +19,12 @@ try:
     from ..models.base import TradeSignal, SignalType, SignalStrength
     from ..models.indicators import MACDResult, KeltnerChannelResult
     from ..models.strategy_breakdowns import ATHBreakoutScoreBreakdown
-    from ..config.config_loader import ATHBreakoutScoringConfig
+    from ..config import ATHBreakoutScoringConfig
 except ImportError:
     from models.base import TradeSignal, SignalType, SignalStrength
     from models.indicators import MACDResult, KeltnerChannelResult
     from models.strategy_breakdowns import ATHBreakoutScoreBreakdown
-    from config.config_loader import ATHBreakoutScoringConfig
+    from config import ATHBreakoutScoringConfig
 
 logger = logging.getLogger(__name__)
 

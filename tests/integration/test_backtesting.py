@@ -527,7 +527,7 @@ class TestKellyCriterion:
 
     def test_kelly_calculation(self):
         """Test: Kelly wird berechnet"""
-        from src.backtesting.metrics import calculate_kelly_criterion
+        from src.backtesting import calculate_kelly_criterion
 
         # Win Rate 60%, Payoff 2:1 -> Kelly = 0.6 - 0.4/2 = 0.4
         kelly = calculate_kelly_criterion(0.6, 2.0)
@@ -535,7 +535,7 @@ class TestKellyCriterion:
 
     def test_kelly_negative(self):
         """Test: Negative Kelly wird auf 0 begrenzt"""
-        from src.backtesting.metrics import calculate_kelly_criterion
+        from src.backtesting import calculate_kelly_criterion
 
         # Win Rate 30%, Payoff 1:1 -> Kelly = 0.3 - 0.7 = -0.4 -> 0
         kelly = calculate_kelly_criterion(0.3, 1.0)
@@ -551,7 +551,7 @@ class TestStreaks:
 
     def test_max_wins(self):
         """Test: Max consecutive wins"""
-        from src.backtesting.metrics import calculate_streaks
+        from src.backtesting import calculate_streaks
 
         pnls = [100, 100, 100, -50, 100]
         result = calculate_streaks(pnls)
@@ -560,7 +560,7 @@ class TestStreaks:
 
     def test_max_losses(self):
         """Test: Max consecutive losses"""
-        from src.backtesting.metrics import calculate_streaks
+        from src.backtesting import calculate_streaks
 
         pnls = [100, -50, -50, -50, -50, 100]
         result = calculate_streaks(pnls)

@@ -30,8 +30,7 @@ nest_asyncio.apply()
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from src.backtesting import TradeTracker
-from src.backtesting.trade_tracker import VixDataPoint
+from src.backtesting.tracking import TradeTracker, VixDataPoint
 
 
 def collect_vix(port: int = 7497, days: int = 260) -> int:

@@ -27,10 +27,10 @@ try:
     from ..analyzers.earnings_dip import EarningsDipAnalyzer, EarningsDipConfig
     from ..analyzers.pool import AnalyzerPool, PoolConfig, get_analyzer_pool
     from ..models.base import TradeSignal, SignalType, SignalStrength
-    from ..config.config_loader import PullbackScoringConfig
+    from ..config import PullbackScoringConfig
     from ..config.liquidity_blacklist import is_illiquid, filter_liquid_symbols
-    from ..backtesting.reliability import ReliabilityScorer, ScorerConfig
-    from ..backtesting.real_options_backtester import (
+    from ..backtesting import ReliabilityScorer, ScorerConfig
+    from ..backtesting import (
         calculate_symbol_stability,
         get_symbol_stability_score,
         OUTCOME_DB_PATH,
@@ -50,7 +50,7 @@ except ImportError:
     from analyzers.earnings_dip import EarningsDipAnalyzer, EarningsDipConfig
     from analyzers.pool import AnalyzerPool, PoolConfig, get_analyzer_pool
     from models.base import TradeSignal, SignalType, SignalStrength
-    from config.config_loader import PullbackScoringConfig
+    from config import PullbackScoringConfig
     try:
         from config.liquidity_blacklist import is_illiquid, filter_liquid_symbols
     except ImportError:

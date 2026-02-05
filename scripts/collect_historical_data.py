@@ -424,7 +424,7 @@ class HistoricalDataCollector:
         days: int,
     ) -> int:
         """Sammelt Daten für ein einzelnes Symbol"""
-        from src.backtesting.trade_tracker import PriceBar
+        from src.backtesting.tracking import PriceBar
 
         bars = await self._provider.get_historical(symbol, days=days)
 
@@ -452,7 +452,7 @@ class HistoricalDataCollector:
         days: int,
     ) -> int:
         """Sammelt VIX-Daten"""
-        from src.backtesting.trade_tracker import VixDataPoint
+        from src.backtesting.tracking import VixDataPoint
 
         self.logger.info("Collecting VIX data...")
 

@@ -35,7 +35,7 @@ from dataclasses import dataclass
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from src.backtesting.trade_tracker import TradeTracker, PriceBar
+from src.backtesting.tracking import TradeTracker, PriceBar
 from src.data_providers.marketdata import MarketDataProvider
 from src.config.watchlist_loader import get_watchlist_loader
 

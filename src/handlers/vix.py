@@ -145,8 +145,8 @@ class VixHandlerMixin(BaseHandlerMixin):
         Returns:
             Formatted Markdown regime status
         """
-        from ..backtesting.regime_model import RegimeModel
-        from ..backtesting.regime_config import get_trained_model_loader
+        from ..backtesting import RegimeModel
+        from ..backtesting import get_trained_model_loader
 
         vix = await self.get_vix()
 
@@ -225,7 +225,7 @@ class VixHandlerMixin(BaseHandlerMixin):
 
         except FileNotFoundError:
             # No trained model available - use defaults
-            from ..backtesting.regime_config import get_regime_for_vix, FIXED_REGIMES
+            from ..backtesting import get_regime_for_vix, FIXED_REGIMES
 
             regime_name, config = get_regime_for_vix(vix, FIXED_REGIMES)
 

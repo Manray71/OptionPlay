@@ -20,12 +20,12 @@ try:
     from ..models.base import TradeSignal, SignalType, SignalStrength
     from ..models.indicators import MACDResult, StochasticResult, KeltnerChannelResult
     from ..models.strategy_breakdowns import EarningsDipScoreBreakdown
-    from ..config.config_loader import EarningsDipScoringConfig
+    from ..config import EarningsDipScoringConfig
 except ImportError:
     from models.base import TradeSignal, SignalType, SignalStrength
     from models.indicators import MACDResult, StochasticResult, KeltnerChannelResult
     from models.strategy_breakdowns import EarningsDipScoreBreakdown
-    from config.config_loader import EarningsDipScoringConfig
+    from config import EarningsDipScoringConfig
 
 logger = logging.getLogger(__name__)
 

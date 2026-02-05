@@ -19,8 +19,7 @@ from datetime import datetime, date, timedelta
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from src.backtesting import TradeTracker
-from src.backtesting.trade_tracker import VixDataPoint
+from src.backtesting.tracking import TradeTracker, VixDataPoint
 
 
 def collect_vix(days: int = 260) -> int:

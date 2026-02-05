@@ -37,7 +37,7 @@ sys.path.insert(0, str(project_root))
 from dotenv import load_dotenv
 load_dotenv()
 
-from src.backtesting.trade_tracker import TradeTracker, PriceBar
+from src.backtesting.tracking import TradeTracker, PriceBar
 from src.data_providers.tradier import TradierProvider
 from src.config.watchlist_loader import get_watchlist_loader
 

@@ -567,12 +567,21 @@ def get_local_db_provider(db_path: Optional[Path] = None) -> LocalDBProvider:
     """
     Get the default LocalDBProvider instance.
 
+    .. deprecated:: 3.5.0
+        Use ``ServiceContainer`` instead. Will be removed in v4.0.
+
     Args:
         db_path: Optional custom database path
 
     Returns:
         LocalDBProvider instance
     """
+    try:
+        from ..utils.deprecation import warn_singleton_usage
+        warn_singleton_usage("get_local_db_provider", "ServiceContainer.local_db_provider")
+    except ImportError:
+        pass
+
     global _default_provider
 
     if _default_provider is None or (db_path and _default_provider.db_path != db_path):

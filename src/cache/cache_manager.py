@@ -681,9 +681,18 @@ def get_cache_manager() -> CacheManager:
     """
     Gibt die globale CacheManager-Instanz zurück.
 
+    .. deprecated:: 3.5.0
+        Use ``ServiceContainer`` instead. Will be removed in v4.0.
+
     Returns:
         CacheManager Instanz
     """
+    try:
+        from ..utils.deprecation import warn_singleton_usage
+        warn_singleton_usage("get_cache_manager", "ServiceContainer.cache_manager")
+    except ImportError:
+        pass  # Called from tests with different import setup
+
     global _cache_manager_instance
     with _cache_manager_lock:
         if _cache_manager_instance is None:

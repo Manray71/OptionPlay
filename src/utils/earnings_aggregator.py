@@ -371,7 +371,18 @@ _aggregator: Optional[EarningsAggregator] = None
 
 
 def get_earnings_aggregator() -> EarningsAggregator:
-    """Get global aggregator instance."""
+    """
+    Get global aggregator instance.
+
+    .. deprecated:: 3.5.0
+        Use ``ServiceContainer.earnings_aggregator`` instead. Will be removed in v4.0.
+    """
+    try:
+        from .deprecation import warn_singleton_usage
+        warn_singleton_usage("get_earnings_aggregator", "container.earnings_aggregator")
+    except ImportError:
+        pass
+
     global _aggregator
     if _aggregator is None:
         _aggregator = EarningsAggregator()

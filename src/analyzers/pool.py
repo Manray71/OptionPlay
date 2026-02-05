@@ -466,6 +466,9 @@ def get_analyzer_pool(config: Optional[PoolConfig] = None) -> AnalyzerPool:
     """
     Gibt die globale AnalyzerPool-Instanz zurück.
 
+    .. deprecated:: 3.5.0
+        Use ``ServiceContainer`` instead. Will be removed in v4.0.
+
     Erstellt bei Bedarf eine neue Instanz.
 
     Args:
@@ -474,6 +477,12 @@ def get_analyzer_pool(config: Optional[PoolConfig] = None) -> AnalyzerPool:
     Returns:
         AnalyzerPool Instanz
     """
+    try:
+        from ..utils.deprecation import warn_singleton_usage
+        warn_singleton_usage("get_analyzer_pool", "ServiceContainer.analyzer_pool")
+    except ImportError:
+        pass
+
     global _pool_instance
 
     with _pool_lock:
@@ -511,9 +520,9 @@ def configure_default_pool() -> AnalyzerPool:
     from .earnings_dip import EarningsDipAnalyzer, EarningsDipConfig
 
     try:
-        from ..config.config_loader import PullbackScoringConfig
+        from ..config import PullbackScoringConfig
     except ImportError:
-        from config.config_loader import PullbackScoringConfig
+        from config import PullbackScoringConfig
 
     pool = get_analyzer_pool()
 

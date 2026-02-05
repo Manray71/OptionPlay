@@ -449,8 +449,11 @@ def get_historical_cache(
     Returns:
         HistoricalCache Instanz
     """
-    from ..utils.deprecation import warn_singleton_usage
-    warn_singleton_usage("get_historical_cache", "container.historical_cache")
+    try:
+        from ..utils.deprecation import warn_singleton_usage
+        warn_singleton_usage("get_historical_cache", "container.historical_cache")
+    except ImportError:
+        pass
 
     global _cache_instance
 

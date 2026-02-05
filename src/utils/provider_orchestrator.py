@@ -351,7 +351,18 @@ _default_orchestrator: Optional[ProviderOrchestrator] = None
 
 
 def get_orchestrator() -> ProviderOrchestrator:
-    """Gibt globale Orchestrator-Instanz zurück."""
+    """
+    Gibt globale Orchestrator-Instanz zurück.
+
+    .. deprecated:: 3.5.0
+        Use ``ServiceContainer`` instead. Will be removed in v4.0.
+    """
+    try:
+        from .deprecation import warn_singleton_usage
+        warn_singleton_usage("get_orchestrator", "ServiceContainer.provider_orchestrator")
+    except ImportError:
+        pass
+
     global _default_orchestrator
     if _default_orchestrator is None:
         _default_orchestrator = ProviderOrchestrator()

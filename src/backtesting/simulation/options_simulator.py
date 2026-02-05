@@ -45,7 +45,7 @@ import math
 import numpy as np
 from numpy.typing import NDArray
 
-from ..pricing import (
+from ...pricing import (
     OptionPricer,
     PricingResult,
     black_scholes_put_np,

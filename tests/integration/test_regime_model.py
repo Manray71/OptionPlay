@@ -16,8 +16,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.backtesting.regime_config import RegimeConfig, RegimeType, FIXED_REGIMES
-from src.backtesting.regime_model import (
+from src.backtesting import RegimeConfig, RegimeType, FIXED_REGIMES
+from src.backtesting import (
     RegimeModel,
     TradingParameters,
     TradeDecision,

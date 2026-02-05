@@ -32,8 +32,8 @@ from dateutil.relativedelta import relativedelta
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple, Any
 
-from .engine import BacktestEngine, BacktestConfig, BacktestResult, TradeResult
-from .signal_validation import (
+from ..core import BacktestEngine, BacktestConfig, BacktestResult, TradeResult
+from ..validation import (
     SignalValidator,
     SignalValidationResult,
     SignalReliability,

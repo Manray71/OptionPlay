@@ -21,7 +21,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 from analyzers.earnings_dip import EarningsDipAnalyzer, EarningsDipConfig, GapInfo
 from models.base import SignalType, SignalStrength
 from models.indicators import MACDResult, StochasticResult, KeltnerChannelResult
-from config.config_loader import EarningsDipScoringConfig
+from config import EarningsDipScoringConfig
 
 
 # =============================================================================

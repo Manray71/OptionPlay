@@ -22,7 +22,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 from analyzers.ath_breakout import ATHBreakoutAnalyzer, ATHBreakoutConfig
 from models.base import SignalType, SignalStrength, TradeSignal
 from models.indicators import MACDResult, KeltnerChannelResult
-from config.config_loader import ATHBreakoutScoringConfig
+from config import ATHBreakoutScoringConfig
 
 
 # =============================================================================

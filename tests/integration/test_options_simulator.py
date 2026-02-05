@@ -14,7 +14,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 import numpy as np
 
-from src.backtesting.options_simulator import (
+from src.backtesting import (
     SpreadEntry,
     SpreadSnapshot,
     SimulatorConfig,

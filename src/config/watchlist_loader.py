@@ -384,9 +384,18 @@ def get_watchlist_loader(force_reload: bool = False) -> WatchlistLoader:
     """
     Gibt den WatchlistLoader Singleton zurück. Thread-safe.
 
+    .. deprecated:: 3.5.0
+        Use ``ServiceContainer`` instead. Will be removed in v4.0.
+
     Args:
         force_reload: Wenn True, wird der Singleton neu erstellt (z.B. nach Config-Änderungen)
     """
+    try:
+        from ..utils.deprecation import warn_singleton_usage
+        warn_singleton_usage("get_watchlist_loader", "ServiceContainer.watchlist_loader")
+    except ImportError:
+        pass
+
     global _loader_instance
     with _loader_lock:
         if _loader_instance is None or force_reload:

@@ -1,0 +1,91 @@
+# OptionPlay - Backtesting Simulation Package
+# ============================================
+# Options Simulator and Real Options Backtester
+
+from .options_simulator import (
+    OptionsSimulator,
+    SpreadEntry,
+    SpreadSnapshot,
+    SimulatorConfig as OptionsSimulatorConfig,
+    quick_spread_pnl,
+    # NumPy batch functions
+    batch_calculate_spread_values,
+    batch_calculate_pnl,
+    batch_check_exit_signals,
+    EXIT_CODE_NAMES,
+)
+from .real_options_backtester import (
+    RealOptionsBacktester,
+    OptionsDatabase,
+    SpreadFinder,
+    OutcomeCalculator,
+    OptionQuote,
+    SpreadEntry as RealSpreadEntry,
+    SpreadOutcome,
+    SpreadOutcomeResult,
+    SetupFeatures,
+    BacktestTradeRecord,
+    quick_backtest,
+    run_symbol_backtest,
+    create_outcome_database,
+    save_outcomes_to_db,
+    load_outcomes_for_training,
+    load_outcomes_dataframe,
+    get_outcome_statistics,
+    train_outcome_predictor,
+    analyze_winning_patterns,
+    calculate_symbol_stability,
+    get_recommended_symbols,
+    get_blacklisted_symbols,
+    get_symbol_stability_score,
+    OUTCOME_DB_PATH,
+    # Phase 6: Component Score Training
+    get_trades_without_scores,
+    update_trade_scores,
+    load_outcomes_with_scores,
+    train_component_weights_from_outcomes,
+)
+
+__all__ = [
+    # Options Simulator (Black-Scholes)
+    "OptionsSimulator",
+    "SpreadEntry",
+    "SpreadSnapshot",
+    "OptionsSimulatorConfig",
+    "quick_spread_pnl",
+    # NumPy batch functions
+    "batch_calculate_spread_values",
+    "batch_calculate_pnl",
+    "batch_check_exit_signals",
+    "EXIT_CODE_NAMES",
+    # Real Options Backtester (Historical Data)
+    "RealOptionsBacktester",
+    "OptionsDatabase",
+    "SpreadFinder",
+    "OutcomeCalculator",
+    "OptionQuote",
+    "RealSpreadEntry",
+    "SpreadOutcome",
+    "SpreadOutcomeResult",
+    "SetupFeatures",
+    "BacktestTradeRecord",
+    "quick_backtest",
+    "run_symbol_backtest",
+    "create_outcome_database",
+    "save_outcomes_to_db",
+    "load_outcomes_for_training",
+    "load_outcomes_dataframe",
+    "get_outcome_statistics",
+    "train_outcome_predictor",
+    "analyze_winning_patterns",
+    "calculate_symbol_stability",
+    "get_recommended_symbols",
+    "get_blacklisted_symbols",
+    "get_symbol_stability_score",
+    "OUTCOME_DB_PATH",
+    # Phase 6: Component Score Training
+    "get_trades_without_scores",
+    "update_trade_scores",
+    "load_outcomes_with_scores",
+    "train_component_weights_from_outcomes",
+]

@@ -15,12 +15,12 @@ try:
     from ..models.base import TradeSignal, SignalType, SignalStrength
     from ..models.indicators import MACDResult, StochasticResult, TechnicalIndicators, KeltnerChannelResult, RSIDivergenceResult
     from ..models.candidates import PullbackCandidate, ScoreBreakdown
-    from ..config.config_loader import PullbackScoringConfig
+    from ..config import PullbackScoringConfig
 except ImportError:
     from models.base import TradeSignal, SignalType, SignalStrength
     from models.indicators import MACDResult, StochasticResult, TechnicalIndicators, KeltnerChannelResult, RSIDivergenceResult
     from models.candidates import PullbackCandidate, ScoreBreakdown
-    from config.config_loader import PullbackScoringConfig
+    from config import PullbackScoringConfig
 
 # Import shared indicators
 try:

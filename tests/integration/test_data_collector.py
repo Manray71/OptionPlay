@@ -16,7 +16,7 @@ from src.backtesting.data_collector import (
     run_daily_collection,
     create_collector,
 )
-from src.backtesting.trade_tracker import PriceBar, VixDataPoint
+from src.backtesting.tracking import PriceBar, VixDataPoint
 
 
 # =============================================================================

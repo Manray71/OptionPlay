@@ -449,15 +449,48 @@ def get_limiter(
 
 
 def get_marketdata_limiter() -> AdaptiveRateLimiter:
-    """Rate Limiter für Marketdata.app (100 req/min)"""
+    """
+    Rate Limiter für Marketdata.app (100 req/min).
+
+    .. deprecated:: 3.5.0
+        Use ``ServiceContainer.rate_limiter`` instead. Will be removed in v4.0.
+    """
+    try:
+        from .deprecation import warn_singleton_usage
+        warn_singleton_usage("get_marketdata_limiter", "container.rate_limiter")
+    except ImportError:
+        pass
+
     return get_limiter("marketdata", calls_per_minute=100, adaptive=True)
 
 
 def get_tradier_limiter() -> AdaptiveRateLimiter:
-    """Rate Limiter für Tradier (120 req/min)"""
+    """
+    Rate Limiter für Tradier (120 req/min).
+
+    .. deprecated:: 3.5.0
+        Use ``ServiceContainer`` instead. Will be removed in v4.0.
+    """
+    try:
+        from .deprecation import warn_singleton_usage
+        warn_singleton_usage("get_tradier_limiter", "container.tradier_rate_limiter")
+    except ImportError:
+        pass
+
     return get_limiter("tradier", calls_per_minute=120, adaptive=True)
 
 
 def get_yahoo_limiter() -> RateLimiter:
-    """Rate Limiter für Yahoo Finance (2 req/sec, nicht adaptiv)"""
+    """
+    Rate Limiter für Yahoo Finance (2 req/sec, nicht adaptiv).
+
+    .. deprecated:: 3.5.0
+        Use ``ServiceContainer`` instead. Will be removed in v4.0.
+    """
+    try:
+        from .deprecation import warn_singleton_usage
+        warn_singleton_usage("get_yahoo_limiter", "container.yahoo_rate_limiter")
+    except ImportError:
+        pass
+
     return get_limiter("yahoo", calls_per_minute=120, adaptive=False)

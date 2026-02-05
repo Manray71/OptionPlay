@@ -19,12 +19,12 @@ try:
     from ..models.base import TradeSignal, SignalType, SignalStrength
     from ..models.indicators import MACDResult, StochasticResult, KeltnerChannelResult, RSIDivergenceResult
     from ..models.strategy_breakdowns import BounceScoreBreakdown
-    from ..config.config_loader import BounceScoringConfig
+    from ..config import BounceScoringConfig
 except ImportError:
     from models.base import TradeSignal, SignalType, SignalStrength
     from models.indicators import MACDResult, StochasticResult, KeltnerChannelResult, RSIDivergenceResult
     from models.strategy_breakdowns import BounceScoreBreakdown
-    from config.config_loader import BounceScoringConfig
+    from config import BounceScoringConfig
 
 # Import shared indicators
 try:

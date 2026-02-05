@@ -862,16 +862,25 @@ _default_provider: Optional[MarketDataProvider] = None
 def get_marketdata_provider(api_key: Optional[str] = None) -> MarketDataProvider:
     """
     Gibt globale MarketData Provider Instanz zurück.
-    
+
+    .. deprecated:: 3.5.0
+        Use ``ServiceContainer.provider`` instead. Will be removed in v4.0.
+
     Bei erstem Aufruf muss api_key angegeben werden.
     """
+    try:
+        from ..utils.deprecation import warn_singleton_usage
+        warn_singleton_usage("get_marketdata_provider", "container.provider")
+    except ImportError:
+        pass
+
     global _default_provider
-    
+
     if _default_provider is None:
         if not api_key:
             raise ValueError("API Key erforderlich beim ersten Aufruf")
         _default_provider = MarketDataProvider(api_key)
-    
+
     return _default_provider
 
 

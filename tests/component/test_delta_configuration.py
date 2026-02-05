@@ -202,43 +202,43 @@ class TestDeltaOptionsConfigDefaults:
 
     def test_delta_target_default(self):
         """OptionsConfig.delta_target Default ist -0.20"""
-        from config.config_loader import OptionsConfig
+        from config import OptionsConfig
         config = OptionsConfig()
         assert config.delta_target == -0.20
 
     def test_long_delta_target_default(self):
         """OptionsConfig.long_delta_target Default ist -0.05"""
-        from config.config_loader import OptionsConfig
+        from config import OptionsConfig
         config = OptionsConfig()
         assert config.long_delta_target == -0.05
 
     def test_delta_min_property(self):
         """OptionsConfig.delta_min Property funktioniert"""
-        from config.config_loader import OptionsConfig
+        from config import OptionsConfig
         config = OptionsConfig()
         assert config.delta_min == config.delta_minimum
 
     def test_delta_max_property(self):
         """OptionsConfig.delta_max Property funktioniert"""
-        from config.config_loader import OptionsConfig
+        from config import OptionsConfig
         config = OptionsConfig()
         assert config.delta_max == config.delta_maximum
 
     def test_short_delta_target_property(self):
         """OptionsConfig.short_delta_target Property gibt delta_target zurück"""
-        from config.config_loader import OptionsConfig
+        from config import OptionsConfig
         config = OptionsConfig()
         assert config.short_delta_target == -0.20
 
     def test_custom_delta_overrides_default(self):
         """Benutzerdefiniertes Delta überschreibt Default"""
-        from config.config_loader import OptionsConfig
+        from config import OptionsConfig
         config = OptionsConfig(delta_target=-0.25)
         assert config.delta_target == -0.25
 
     def test_custom_long_delta_overrides_default(self):
         """Benutzerdefiniertes Long Delta überschreibt Default"""
-        from config.config_loader import OptionsConfig
+        from config import OptionsConfig
         config = OptionsConfig(long_delta_target=-0.08)
         assert config.long_delta_target == -0.08
 
@@ -282,7 +282,7 @@ class TestDeltaBacktestingConfig:
     def test_short_delta_target(self):
         """BacktestConfig.short_delta_target ist -0.20"""
         try:
-            from src.backtesting.engine import BacktestConfig
+            from src.backtesting import BacktestConfig
         except ImportError:
             pytest.skip("BacktestConfig nicht importierbar (relative import)")
         config = BacktestConfig(start_date="2024-01-01", end_date="2024-12-31")
@@ -291,7 +291,7 @@ class TestDeltaBacktestingConfig:
     def test_long_delta_target(self):
         """BacktestConfig.long_delta_target ist -0.05"""
         try:
-            from src.backtesting.engine import BacktestConfig
+            from src.backtesting import BacktestConfig
         except ImportError:
             pytest.skip("BacktestConfig nicht importierbar (relative import)")
         config = BacktestConfig(start_date="2024-01-01", end_date="2024-12-31")
@@ -365,14 +365,14 @@ class TestDeltaRegressionNoOldValues:
 
     def test_options_config_no_030(self):
         """OptionsConfig: Kein Default darf 0.30 sein"""
-        from config.config_loader import OptionsConfig
+        from config import OptionsConfig
 
         config = OptionsConfig()
         assert abs(config.delta_target) != 0.30, "REGRESSION: OptionsConfig.delta_target ist 0.30"
 
     def test_options_config_no_010(self):
         """OptionsConfig: Kein Long-Delta-Default darf 0.10 sein"""
-        from config.config_loader import OptionsConfig
+        from config import OptionsConfig
 
         config = OptionsConfig()
         assert abs(config.long_delta_target) != 0.10, "REGRESSION: OptionsConfig.long_delta_target ist 0.10"
@@ -380,7 +380,7 @@ class TestDeltaRegressionNoOldValues:
     def test_backtest_config_no_030(self):
         """BacktestConfig: Kein Default darf 0.30 sein"""
         try:
-            from src.backtesting.engine import BacktestConfig
+            from src.backtesting import BacktestConfig
         except ImportError:
             pytest.skip("BacktestConfig nicht importierbar (relative import)")
 
@@ -390,7 +390,7 @@ class TestDeltaRegressionNoOldValues:
     def test_backtest_config_no_010(self):
         """BacktestConfig: Kein Long-Delta-Default darf 0.10 sein"""
         try:
-            from src.backtesting.engine import BacktestConfig
+            from src.backtesting import BacktestConfig
         except ImportError:
             pytest.skip("BacktestConfig nicht importierbar (relative import)")
 

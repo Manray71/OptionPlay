@@ -18,7 +18,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.backtesting.regime_config import (
+from src.backtesting import (
     RegimeBoundaryMethod,
     RegimeConfig,
     RegimeType,

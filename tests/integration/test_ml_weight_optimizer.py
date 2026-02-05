@@ -20,7 +20,7 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-from src.backtesting.ml_weight_optimizer import (
+from src.backtesting import (
     ALL_COMPONENTS,
     DEFAULT_WEIGHTS,
     STRATEGY_COMPONENTS,

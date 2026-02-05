@@ -7,7 +7,7 @@ import os
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from src.backtesting.trade_tracker import (
+from src.backtesting.tracking import (
     TradeTracker,
     TrackedTrade,
     TradeStats,
@@ -16,6 +16,7 @@ from src.backtesting.trade_tracker import (
     PriceBar,
     SymbolPriceData,
     VixDataPoint,
+    OptionBar,
     format_trade_stats,
     create_tracker,
 )
@@ -1044,7 +1045,7 @@ class TestOptionBar:
 
     def test_create_option_bar(self):
         """Test OptionBar creation"""
-        from src.backtesting.trade_tracker import OptionBar
+        from src.backtesting.tracking import OptionBar
 
         bar = OptionBar(
             occ_symbol="AAPL240119P00150000",
@@ -1068,7 +1069,7 @@ class TestOptionBar:
 
     def test_option_bar_to_dict(self):
         """Test OptionBar conversion to dictionary"""
-        from src.backtesting.trade_tracker import OptionBar
+        from src.backtesting.tracking import OptionBar
 
         bar = OptionBar(
             occ_symbol="AAPL240119P00150000",
@@ -1096,7 +1097,7 @@ class TestOptionBar:
 
     def test_option_bar_from_dict(self):
         """Test OptionBar creation from dictionary"""
-        from src.backtesting.trade_tracker import OptionBar
+        from src.backtesting.tracking import OptionBar
 
         data = {
             'occ_symbol': "MSFT240215C00400000",
@@ -1122,7 +1123,7 @@ class TestOptionBar:
 
     def test_option_bar_roundtrip(self):
         """Test OptionBar to_dict and from_dict roundtrip"""
-        from src.backtesting.trade_tracker import OptionBar
+        from src.backtesting.tracking import OptionBar
 
         original = OptionBar(
             occ_symbol="NVDA240301P00700000",
@@ -1245,7 +1246,7 @@ class TestSymbolPriceData:
 @pytest.fixture
 def sample_option_bars():
     """Sample option bars for testing"""
-    from src.backtesting.trade_tracker import OptionBar
+    from src.backtesting.tracking import OptionBar
 
     bars = []
     base_date = date(2024, 1, 1)
@@ -1315,7 +1316,7 @@ class TestOptionsDataStorage:
 
     def test_get_options_for_underlying_with_filters(self, tracker):
         """Test retrieving options with multiple filters"""
-        from src.backtesting.trade_tracker import OptionBar
+        from src.backtesting.tracking import OptionBar
 
         # Create bars for different options
         bars = [
@@ -1357,7 +1358,7 @@ class TestOptionsDataStorage:
 
     def test_get_spread_history(self, tracker):
         """Test retrieving spread history for bull put spread"""
-        from src.backtesting.trade_tracker import OptionBar
+        from src.backtesting.tracking import OptionBar
 
         # Create short and long put bars
         short_bars = [
@@ -1382,7 +1383,7 @@ class TestOptionsDataStorage:
 
     def test_list_options_underlyings(self, tracker):
         """Test listing all underlyings with options data"""
-        from src.backtesting.trade_tracker import OptionBar
+        from src.backtesting.tracking import OptionBar
 
         bars = [
             OptionBar("AAPL240119P00150000", "AAPL", 150.0, date(2024, 1, 19), "P", date(2024, 1, 1), 2.5, 3.0, 2.25, 2.75, 5000),
@@ -1450,7 +1451,7 @@ class TestOptionsDataStorage:
 
     def test_option_bar_upsert(self, tracker):
         """Test that storing option bar with same occ_symbol and trade_date updates existing"""
-        from src.backtesting.trade_tracker import OptionBar
+        from src.backtesting.tracking import OptionBar
 
         bar1 = OptionBar("AAPL240119P00150000", "AAPL", 150.0, date(2024, 1, 19), "P", date(2024, 1, 5), 2.5, 3.0, 2.25, 2.75, 5000)
         tracker.store_option_bars([bar1])

@@ -27,8 +27,7 @@ except ImportError:
     print("Run: pip3 install --break-system-packages yfinance")
     sys.exit(1)
 
-from src.backtesting import TradeTracker
-from src.backtesting.trade_tracker import PriceBar
+from src.backtesting.tracking import TradeTracker, PriceBar
 from src.config.watchlist_loader import get_watchlist_loader
 
 
