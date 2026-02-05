@@ -325,3 +325,314 @@ class TestServerCoreIntegration:
         core = ServerCore.create_for_testing()
 
         assert core.provider is None
+
+
+# =============================================================================
+# ADDITIONAL TESTS: Coverage Expansion
+# =============================================================================
+
+from src.utils.circuit_breaker import CircuitBreakerOpen
+
+
+class TestServerCorePostInit:
+    """Tests for __post_init__ behavior."""
+
+    def test_post_init_no_api_key(self):
+        """__post_init__ should handle missing API key."""
+        with patch('src.services.server_core.get_api_key', side_effect=ValueError("No key")):
+            core = ServerCore()
+            # Should not raise, just log warning
+            assert core._api_key == ""
+
+    def test_post_init_with_api_key(self):
+        """__post_init__ should use provided API key."""
+        with patch('src.services.server_core.get_api_key', return_value="env_key"):
+            core = ServerCore(_api_key="explicit_key")
+            # Explicit key should be used
+            assert core._api_key == "explicit_key"
+
+
+class TestServerCoreCreateDefault:
+    """Tests for create_default factory method."""
+
+    def test_create_default_with_api_key(self):
+        """create_default should use provided API key."""
+        with patch('src.services.server_core.ServiceContainer') as mock_container:
+            mock_container.create_default.return_value = Mock()
+            with patch('src.services.server_core.get_api_key', return_value=""):
+                core = ServerCore.create_default(api_key="my_key")
+
+        assert core._api_key == "my_key"
+        mock_container.create_default.assert_called_once_with(api_key="my_key")
+
+    def test_create_default_uses_env_key(self):
+        """create_default should use env key when not provided."""
+        with patch('src.services.server_core.ServiceContainer') as mock_container:
+            mock_container.create_default.return_value = Mock()
+            with patch('src.services.server_core.get_api_key', return_value="env_key"):
+                core = ServerCore.create_default()
+
+        assert core._api_key == "env_key"
+
+
+class TestServerCoreServiceContext:
+    """Tests for service context lazy creation."""
+
+    def test_service_context_created_lazily(self):
+        """ServiceContext should be created on first access."""
+        core = ServerCore.create_for_testing()
+
+        assert core._service_context is None
+
+        # Accessing any service triggers context creation
+        _ = core.quotes
+
+        assert core._service_context is not None
+
+    def test_service_context_reused(self):
+        """ServiceContext should be reused across services."""
+        core = ServerCore.create_for_testing()
+
+        # Access multiple services
+        quotes = core.quotes
+        options = core.options
+
+        # Both should share the same context
+        assert quotes._context is options._context
+
+
+class TestServerCoreConnectionErrors:
+    """Tests for connection error handling."""
+
+    @pytest.mark.asyncio
+    async def test_connect_connection_in_progress(self):
+        """connect should return False if already connecting."""
+        core = ServerCore.create_for_testing()
+        core.state.connection.mark_connecting()
+
+        result = await core.connect()
+
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_connect_circuit_breaker_open(self):
+        """connect should raise when circuit breaker is open."""
+        core = ServerCore.create_for_testing()
+
+        mock_cb = Mock()
+        mock_cb.can_execute.return_value = False
+        mock_cb.get_retry_after.return_value = 30.0
+
+        mock_container = Mock()
+        mock_container.circuit_breaker = mock_cb
+        mock_container.rate_limiter = None
+        core.container = mock_container
+
+        with pytest.raises(CircuitBreakerOpen):
+            await core.connect()
+
+        assert core.state.connection.status != ConnectionStatus.CONNECTED
+
+    @pytest.mark.asyncio
+    async def test_connect_provider_returns_false(self):
+        """connect should handle provider returning False."""
+        core = ServerCore.create_for_testing()
+
+        mock_provider = AsyncMock()
+        mock_provider.connect.return_value = False
+
+        with patch('src.data_providers.marketdata.MarketDataProvider', return_value=mock_provider):
+            result = await core.connect()
+
+        assert result is False
+        assert core.state.connection.status == ConnectionStatus.FAILED
+
+    @pytest.mark.asyncio
+    async def test_connect_provider_exception(self):
+        """connect should handle provider exceptions."""
+        core = ServerCore.create_for_testing()
+
+        mock_container = Mock()
+        mock_container.circuit_breaker = Mock()
+        mock_container.circuit_breaker.can_execute.return_value = True
+        mock_container.circuit_breaker.record_failure = Mock()
+        mock_container.rate_limiter = None
+        core.container = mock_container
+
+        mock_provider = AsyncMock()
+        mock_provider.connect.side_effect = Exception("Network error")
+
+        with patch('src.data_providers.marketdata.MarketDataProvider', return_value=mock_provider):
+            with pytest.raises(ConnectionError, match="Failed to connect"):
+                await core.connect()
+
+        mock_container.circuit_breaker.record_failure.assert_called_once()
+        assert core.state.connection.status == ConnectionStatus.FAILED
+
+    @pytest.mark.asyncio
+    async def test_connect_with_rate_limiter(self):
+        """connect should use rate limiter when available."""
+        core = ServerCore.create_for_testing()
+
+        mock_rl = AsyncMock()
+        mock_rl.acquire = AsyncMock()
+        mock_rl.record_success = Mock()
+
+        mock_cb = Mock()
+        mock_cb.can_execute.return_value = True
+        mock_cb.record_success = Mock()
+
+        mock_container = Mock()
+        mock_container.rate_limiter = mock_rl
+        mock_container.circuit_breaker = mock_cb
+        core.container = mock_container
+
+        mock_provider = AsyncMock()
+        mock_provider.connect.return_value = True
+
+        with patch('src.data_providers.marketdata.MarketDataProvider', return_value=mock_provider):
+            await core.connect()
+
+        mock_rl.acquire.assert_called_once()
+        mock_rl.record_success.assert_called_once()
+        mock_cb.record_success.assert_called_once()
+
+
+class TestServerCoreDisconnect:
+    """Tests for disconnect behavior."""
+
+    @pytest.mark.asyncio
+    async def test_disconnect_with_no_provider(self):
+        """disconnect should handle None provider."""
+        core = ServerCore.create_for_testing()
+        core._provider = None
+
+        # Should not raise
+        await core.disconnect()
+
+        assert core.state.connection.status == ConnectionStatus.DISCONNECTED
+
+    @pytest.mark.asyncio
+    async def test_disconnect_handles_exception(self):
+        """disconnect should handle provider exceptions gracefully."""
+        core = ServerCore.create_for_testing()
+
+        mock_provider = AsyncMock()
+        mock_provider.disconnect.side_effect = Exception("Disconnect error")
+        core._provider = mock_provider
+
+        # Should not raise, just log warning
+        await core.disconnect()
+
+        assert core.state.connection.status == ConnectionStatus.DISCONNECTED
+
+
+class TestServerCoreEnsureConnected:
+    """Tests for ensure_connected method."""
+
+    @pytest.mark.asyncio
+    async def test_ensure_connected_connects_if_needed(self):
+        """ensure_connected should connect if not connected."""
+        core = ServerCore.create_for_testing()
+
+        mock_provider = AsyncMock()
+        mock_provider.connect.return_value = True
+
+        with patch('src.data_providers.marketdata.MarketDataProvider', return_value=mock_provider):
+            provider = await core.ensure_connected()
+
+        assert provider is mock_provider
+        mock_provider.connect.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_ensure_connected_returns_existing_if_connected(self):
+        """ensure_connected should return existing provider if connected."""
+        core = ServerCore.create_for_testing()
+
+        mock_provider = AsyncMock()
+        core._provider = mock_provider
+        core.state.connection.mark_connected()
+
+        provider = await core.ensure_connected()
+
+        assert provider is mock_provider
+
+    @pytest.mark.asyncio
+    async def test_ensure_connected_raises_if_provider_none(self):
+        """ensure_connected should raise if provider is None after connect."""
+        core = ServerCore.create_for_testing()
+        core.state.connection.mark_connected()  # Pretend connected
+        core._provider = None  # But no provider
+
+        with pytest.raises(ConnectionError, match="Provider not initialized"):
+            await core.ensure_connected()
+
+
+class TestServerCoreGetStats:
+    """Tests for get_stats with container."""
+
+    def test_get_stats_with_container(self):
+        """get_stats should include container stats when available."""
+        core = ServerCore.create_for_testing()
+
+        mock_container = Mock()
+        mock_container.get_stats.return_value = {"rate_limiter": {"window": 60}}
+        core.container = mock_container
+
+        stats = core.get_stats()
+
+        assert "container" in stats
+        assert stats["container"]["rate_limiter"]["window"] == 60
+
+    def test_get_stats_without_container(self):
+        """get_stats should work without container."""
+        core = ServerCore.create_for_testing()
+        core.container = None
+
+        stats = core.get_stats()
+
+        assert "container" not in stats
+        assert "connection" in stats
+
+
+class TestServerCoreGetVix:
+    """Additional tests for get_vix method."""
+
+    @pytest.mark.asyncio
+    async def test_get_vix_service_failure(self):
+        """get_vix should return cached value on service failure."""
+        core = ServerCore.create_for_testing()
+        core.state.vix.update(18.5)
+
+        # Make state stale
+        core.state.vix._stale_after_seconds = -1  # Force stale
+
+        # Mock failed VIX service
+        mock_result = Mock()
+        mock_result.success = False
+        mock_result.data = None
+        core._vix_service = Mock()
+        core._vix_service.get_vix = AsyncMock(return_value=mock_result)
+
+        vix = await core.get_vix()
+
+        # Should return cached value even after failure
+        assert vix == 18.5
+
+    @pytest.mark.asyncio
+    async def test_get_vix_no_vix_in_data(self):
+        """get_vix should return cached value if response has no vix key."""
+        core = ServerCore.create_for_testing()
+        core.state.vix.update(18.5)
+        core.state.vix._stale_after_seconds = -1  # Force stale
+
+        mock_result = Mock()
+        mock_result.success = True
+        mock_result.data = {}  # No 'vix' key
+        core._vix_service = Mock()
+        core._vix_service.get_vix = AsyncMock(return_value=mock_result)
+
+        vix = await core.get_vix()
+
+        # Returns cached value when response has no vix key
+        assert vix == 18.5

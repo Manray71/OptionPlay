@@ -1,11 +1,13 @@
 ---
 name: optionplay
-description: "MCP-Server für Options-Trading mit Bull-Put-Spread Strategien. 3 Jobs: Daily Picks, Trade Validator, Position Manager. Verwendet Tradier + Marketdata.app API + optionale IBKR-Bridge. Trigger: 'Options-Analyse', 'Pullback-Scan', 'Bull-Put-Spread', 'VIX-Strategie', 'Earnings-Check', 'Options-Chain', 'Max Pain', 'IV-Rank', 'Spread-Kandidaten', 'was sagt der Markt', 'Trading-Setup', 'Daily Picks', 'Zeig mir die heutigen Picks', 'Wie stehen meine Positionen', 'Kann ich X traden'."
+description: "MCP-Server für Options-Trading mit Bull-Put-Spread Strategien. 3 Jobs: Daily Picks, Trade Validator, Position Manager. Verwendet Tradier + Marketdata.app API + optionale IBKR-Bridge. 80%+ Test-Coverage, 53 Tools + 55 Aliases. Trigger: 'Options-Analyse', 'Pullback-Scan', 'Bull-Put-Spread', 'VIX-Strategie', 'Earnings-Check', 'Options-Chain', 'Max Pain', 'IV-Rank', 'Spread-Kandidaten', 'was sagt der Markt', 'Trading-Setup', 'Daily Picks', 'Zeig mir die heutigen Picks', 'Wie stehen meine Positionen', 'Kann ich X traden'."
 ---
 
-# OptionPlay - Trading Assistant MCP Server
+# OptionPlay - Trading Assistant MCP Server v3.7.0
 
 Bull-Put-Spread Trading-Assistent mit 3 klar definierten Jobs.
+
+**Version:** 3.7.0 | **Test-Coverage:** 80.19% | **Tests:** 6,740
 
 **Alle Trading-Regeln → `docs/PLAYBOOK.md`**
 **DB-Schema & Code → `CLAUDE.md`**
@@ -178,7 +180,8 @@ Output pro Position:
 | Quelle | Daten | Status |
 |--------|-------|--------|
 | Tradier | Historical, Options, Quotes | Primär |
-| Marketdata.app | Quotes, Options, VIX | Sekundär (Abo läuft, Kündigung prüfen ~März 2026) |
+| Marketdata.app | Quotes, Options, VIX | Sekundär |
+| Local SQLite DB | Historical Options, Greeks, VIX | Offline-Cache (~8.6 GB) |
 | Yahoo Finance | VIX, Earnings | Fallback |
 | IBKR (optional) | Live Data, Portfolio, News | Premium |
 
@@ -196,9 +199,23 @@ Output pro Position:
 │   └── watchlists.yaml        # Watchlist (275 Symbole)
 ├── docs/
 │   ├── PLAYBOOK.md            # DAS Regelwerk (Entry, Exit, VIX, Disziplin)
-│   └── ARCHITECTURE.md        # System-Architektur
+│   ├── ARCHITECTURE.md        # System-Architektur
+│   └── ROADMAP.md             # Stabilisierungs-Roadmap
+├── tests/                     # 132 Testdateien, 6,740 Tests
 └── src/                       # Siehe ARCHITECTURE.md für Modul-Details
 ```
+
+---
+
+## Qualitätssicherung
+
+| Metrik | Wert |
+|--------|------|
+| Test-Coverage | 80.19% |
+| Tests | 6,740 (132 Testdateien) |
+| Tools | 53 + 55 Aliases = 108 Endpoints |
+| Thread-Safety | ✅ (10+ Module mit Locks) |
+| Async-SQLite | ✅ (asyncio.to_thread) |
 
 ---
 

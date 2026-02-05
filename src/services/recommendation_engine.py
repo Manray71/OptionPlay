@@ -69,6 +69,15 @@ try:
         get_vix_regime,
         get_regime_rules,
     )
+    from .signal_filter import (
+        apply_blacklist_filter,
+        apply_stability_filter,
+        apply_sector_diversification,
+    )
+    from .pick_formatter import (
+        format_picks_markdown as _format_picks_markdown,
+        format_single_pick as _format_single_pick,
+    )
 except ImportError:
     from scanner.multi_strategy_scanner import (
         MultiStrategyScanner,
@@ -95,6 +104,15 @@ except ImportError:
         VIX_LOW, VIX_NORMAL, VIX_ELEVATED, VIX_HIGH,
         STABILITY_PREMIUM, STABILITY_GOOD, STABILITY_OK,
         MIN_SCORE_DEFAULT,
+    )
+    from services.signal_filter import (
+        apply_blacklist_filter,
+        apply_stability_filter,
+        apply_sector_diversification,
+    )
+    from services.pick_formatter import (
+        format_picks_markdown as _format_picks_markdown,
+        format_single_pick as _format_single_pick,
     )
 
 logger = logging.getLogger(__name__)
@@ -554,22 +572,8 @@ class DailyRecommendationEngine:
         self,
         signals: List[TradeSignal],
     ) -> List[TradeSignal]:
-        """
-        Remove blacklisted symbols (PLAYBOOK §1, Check 1).
-
-        Args:
-            signals: List of signals
-
-        Returns:
-            Filtered signal list without blacklisted symbols
-        """
-        filtered = []
-        for signal in signals:
-            if is_blacklisted(signal.symbol):
-                logger.debug(f"Blacklist-filtered: {signal.symbol}")
-            else:
-                filtered.append(signal)
-        return filtered
+        """Delegates to signal_filter.apply_blacklist_filter (Phase 3.2)."""
+        return apply_blacklist_filter(signals)
 
     def _apply_stability_filter(
         self,
@@ -577,103 +581,20 @@ class DailyRecommendationEngine:
         min_stability: float,
         vix: Optional[float] = None,
     ) -> List[TradeSignal]:
-        """
-        Filter signals by minimum stability score (PLAYBOOK §1, Check 2).
-
-        VIX-Regime-aware: at VIX > 20, stability minimum increases to 80.
-
-        Args:
-            signals: List of signals
-            min_stability: Base minimum stability score (0-100)
-            vix: Current VIX level for regime adjustment
-
-        Returns:
-            Filtered signal list
-        """
-        # VIX-adjusted stability minimum (PLAYBOOK §3)
-        effective_min = max(min_stability, get_adjusted_stability_min(vix))
-
-        # Collect symbols that need fundamentals lookup (batch query instead of N+1)
-        symbols_needing_lookup = []
-        stability_from_signal: Dict[str, float] = {}
-
-        for signal in signals:
-            stability = 0.0
-            if signal.details and 'stability' in signal.details:
-                stability = signal.details['stability'].get('score', 0.0)
-
-            if stability > 0.0:
-                stability_from_signal[signal.symbol] = stability
-            else:
-                symbols_needing_lookup.append(signal.symbol)
-
-        # Batch lookup for symbols without stability in signal details
-        fundamentals_map: Dict[str, float] = {}
-        if symbols_needing_lookup and self._fundamentals_manager:
-            batch_result = self._fundamentals_manager.get_fundamentals_batch(symbols_needing_lookup)
-            for symbol, fund in batch_result.items():
-                if fund and fund.stability_score:
-                    fundamentals_map[symbol] = fund.stability_score
-
-        # Apply filter
-        filtered = []
-        for signal in signals:
-            stability = stability_from_signal.get(signal.symbol, 0.0)
-            if stability == 0.0:
-                stability = fundamentals_map.get(signal.symbol, 0.0)
-
-            if stability >= effective_min:
-                filtered.append(signal)
-            else:
-                logger.debug(
-                    f"Filtered {signal.symbol}: stability {stability:.0f} < {effective_min:.0f}"
-                )
-
-        return filtered
+        """Delegates to signal_filter.apply_stability_filter (Phase 3.2)."""
+        return apply_stability_filter(
+            signals, min_stability, vix, self._fundamentals_manager
+        )
 
     def _apply_sector_diversification(
         self,
         signals: List[TradeSignal],
         max_per_sector: int,
     ) -> List[TradeSignal]:
-        """
-        Stellt Sektor-Diversifikation sicher.
-
-        Args:
-            signals: Liste von Signalen (bereits nach Score sortiert)
-            max_per_sector: Maximale Anzahl Signale pro Sektor
-
-        Returns:
-            Diversifizierte Signal-Liste
-        """
-        if not self._fundamentals_manager:
-            return signals
-
-        # Batch lookup for all sectors (single DB query instead of N+1)
-        symbols = [s.symbol for s in signals]
-        fundamentals_map = self._fundamentals_manager.get_fundamentals_batch(symbols)
-
-        sector_counts: Dict[str, int] = {}
-        diversified = []
-
-        for signal in signals:
-            # Sektor ermitteln from batch result
-            sector = "Unknown"
-            fundamentals = fundamentals_map.get(signal.symbol)
-            if fundamentals and fundamentals.sector:
-                sector = fundamentals.sector
-
-            # Limit pro Sektor prüfen
-            current_count = sector_counts.get(sector, 0)
-            if current_count < max_per_sector:
-                diversified.append(signal)
-                sector_counts[sector] = current_count + 1
-            else:
-                logger.debug(
-                    f"Sector limit reached for {sector}: skipping {signal.symbol}"
-                )
-
-        return diversified
+        """Delegates to signal_filter.apply_sector_diversification (Phase 3.2)."""
+        return apply_sector_diversification(
+            signals, max_per_sector, self._fundamentals_manager
+        )
 
     # Sektor-Speed-Map aus Phase 4 Analyse (avg days_to_playbook_exit)
     SECTOR_SPEED = {
@@ -1102,139 +1023,13 @@ class DailyRecommendationEngine:
         self,
         result: Optional[DailyRecommendationResult] = None,
     ) -> str:
-        """
-        Formatiert die Picks als Markdown.
-
-        Args:
-            result: Optional DailyRecommendationResult (oder letztes Ergebnis)
-
-        Returns:
-            Markdown-formatierter String
-        """
+        """Delegates to pick_formatter.format_picks_markdown (Phase 3.2)."""
         result = result or self._last_result
-        if not result:
-            return "Keine Empfehlungen verfügbar."
-
-        lines = [
-            f"# 📊 Daily Picks - {result.timestamp.strftime('%Y-%m-%d')}",
-            "",
-        ]
-
-        # Markt-Übersicht
-        if result.vix_level:
-            regime_emoji = {
-                MarketRegime.LOW_VOL: "🟢",
-                MarketRegime.NORMAL: "🟢",
-                MarketRegime.DANGER_ZONE: "🟡",
-                MarketRegime.ELEVATED: "🟠",
-                MarketRegime.HIGH_VOL: "🔴",
-            }.get(result.market_regime, "⚪")
-
-            lines.extend([
-                f"**Markt-Regime:** {regime_emoji} {result.market_regime.value.replace('_', ' ').title()}",
-                f"**VIX:** {result.vix_level:.2f}",
-                "",
-            ])
-
-        # Warnungen
-        if result.warnings:
-            lines.append("### ⚠️ Warnungen")
-            for warning in result.warnings:
-                lines.append(f"- {warning}")
-            lines.append("")
-
-        # Picks
-        lines.append("## Empfehlungen")
-        lines.append("")
-
-        if not result.picks:
-            lines.append("*Keine geeigneten Kandidaten gefunden.*")
-        else:
-            for pick in result.picks:
-                lines.extend(self._format_single_pick(pick))
-                lines.append("")
-
-        # Statistiken
-        lines.extend([
-            "---",
-            f"*Gescannt: {result.symbols_scanned} Symbole | "
-            f"Signale: {result.signals_found} | "
-            f"Nach Stabilität: {result.after_stability_filter} | "
-            f"Zeit: {result.generation_time_seconds:.1f}s*",
-        ])
-
-        return "\n".join(lines)
+        return _format_picks_markdown(result)
 
     def _format_single_pick(self, pick: DailyPick) -> List[str]:
-        """Formatiert einen einzelnen Pick als Markdown."""
-        # Grade Badge
-        grade_badge = ""
-        if pick.reliability_grade:
-            grade_colors = {'A': '🟢', 'B': '🟢', 'C': '🟡', 'D': '🟠', 'F': '🔴'}
-            grade_badge = f" {grade_colors.get(pick.reliability_grade, '')}[{pick.reliability_grade}]"
-
-        lines = [
-            f"### {pick.rank}. **{pick.symbol}** - {pick.strategy.replace('_', ' ').title()}{grade_badge}",
-            "",
-            f"| Metrik | Wert |",
-            f"|--------|------|",
-            f"| **Preis** | ${pick.current_price:.2f} |",
-            f"| **Score** | {pick.score:.1f}/10 |",
-            f"| **Stability** | {pick.stability_score:.0f}/100 |",
-        ]
-
-        if pick.historical_win_rate:
-            lines.append(f"| **Hist. Win Rate** | {pick.historical_win_rate:.0f}% |")
-
-        if pick.sector:
-            lines.append(f"| **Sektor** | {pick.sector} |")
-
-        lines.append("")
-
-        # Strike-Empfehlung
-        if pick.suggested_strikes:
-            s = pick.suggested_strikes
-            lines.extend([
-                f"**Strike-Empfehlung:**",
-            ])
-            if s.expiry:
-                dte_str = f" ({s.dte} DTE)" if s.dte is not None else ""
-                lines.append(f"- Expiry: {s.expiry}{dte_str}")
-            if s.dte_warning:
-                lines.append(f"  ⚠️ {s.dte_warning}")
-            lines.extend([
-                f"- Short Put: ${s.short_strike:.2f}"
-                + (f" (OI: {s.short_oi:,})" if s.short_oi else ""),
-                f"- Long Put: ${s.long_strike:.2f}"
-                + (f" (OI: {s.long_oi:,})" if s.long_oi else ""),
-                f"- Spread Width: ${s.spread_width:.2f}",
-            ])
-            if s.estimated_credit:
-                lines.append(f"- Est. Credit: ${s.estimated_credit:.2f}")
-            if s.prob_profit:
-                lines.append(f"- P(Profit): {s.prob_profit:.0f}%")
-            # Tradeable status
-            status_badges = {
-                "READY": "READY",
-                "WARNING": "WARNING",
-                "NOT_TRADEABLE": "NOT TRADEABLE",
-            }
-            status_str = status_badges.get(s.tradeable_status, s.tradeable_status)
-            if s.tradeable_status != "unknown":
-                lines.append(f"- Status: {status_str}")
-            lines.append("")
-
-        # Begründung
-        if pick.reason:
-            lines.append(f"**Begründung:** {pick.reason}")
-            lines.append("")
-
-        # Warnungen
-        if pick.warnings:
-            for warning in pick.warnings:
-                lines.append(f"⚠️ {warning}")
-
-        return lines
+        """Delegates to pick_formatter.format_single_pick (Phase 3.2)."""
+        return _format_single_pick(pick)
 
 
 # =============================================================================

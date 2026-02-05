@@ -24,6 +24,20 @@ except ImportError:
     )
     from indicators.gap_analysis import analyze_gap
 
+# Import central constants
+try:
+    from ..constants import (
+        VWAP_PERIOD, VWAP_STRONG_ABOVE, VWAP_ABOVE, VWAP_BELOW, VWAP_STRONG_BELOW,
+        SMA_SHORT, SMA_MEDIUM,
+        GAP_SIZE_LARGE, GAP_SIZE_MEDIUM,
+    )
+except ImportError:
+    from constants import (
+        VWAP_PERIOD, VWAP_STRONG_ABOVE, VWAP_ABOVE, VWAP_BELOW, VWAP_STRONG_BELOW,
+        SMA_SHORT, SMA_MEDIUM,
+        GAP_SIZE_LARGE, GAP_SIZE_MEDIUM,
+    )
+
 logger = logging.getLogger(__name__)
 
 # Global cache for trained weights (loaded once)
@@ -91,7 +105,7 @@ class FeatureScoringMixin:
         Returns:
             (score, vwap_value, distance_pct, position, reason)
         """
-        vwap_result = calculate_vwap(prices, volumes, period=20)
+        vwap_result = calculate_vwap(prices, volumes, period=VWAP_PERIOD)
 
         if not vwap_result:
             return 0, 0, 0, "unknown", "Insufficient data for VWAP"
@@ -101,16 +115,16 @@ class FeatureScoringMixin:
         position = vwap_result.position
 
         # Scoring based on training results
-        if distance > 3.0:
+        if distance > VWAP_STRONG_ABOVE:
             score = 3.0
             reason = f"Strong momentum: {distance:.1f}% above VWAP (91.9% win rate)"
-        elif distance > 1.0:
+        elif distance > VWAP_ABOVE:
             score = 2.0
             reason = f"Above VWAP: {distance:.1f}% (87.6% win rate)"
-        elif distance > -1.0:
+        elif distance > VWAP_BELOW:
             score = 1.0
             reason = f"Near VWAP: {distance:.1f}% (78.3% win rate)"
-        elif distance > -3.0:
+        elif distance > VWAP_STRONG_BELOW:
             score = 0.0
             reason = f"Below VWAP: {distance:.1f}% (66.1% win rate)"
         else:
@@ -136,13 +150,13 @@ class FeatureScoringMixin:
         Returns:
             (score, spy_trend, reason)
         """
-        if not spy_prices or len(spy_prices) < 50:
+        if not spy_prices or len(spy_prices) < SMA_MEDIUM:
             return 0, "unknown", "No SPY data for market context"
 
         # Determine SPY trend
         current = spy_prices[-1]
-        sma20 = float(np.mean(spy_prices[-20:]))
-        sma50 = float(np.mean(spy_prices[-50:]))
+        sma20 = float(np.mean(spy_prices[-SMA_SHORT:]))
+        sma50 = float(np.mean(spy_prices[-SMA_MEDIUM:]))
 
         if current > sma20 > sma50:
             trend = "strong_uptrend"
@@ -242,7 +256,7 @@ class FeatureScoringMixin:
             # Down-gaps get positive points, up-gaps get negative/zero
             if gap_type in ('down', 'partial_down'):
                 score = max(0, quality_score)  # 0 to 1
-                if abs(gap_size) >= 3.0:
+                if abs(gap_size) >= GAP_SIZE_LARGE:
                     reason = f"Large down-gap: {gap_size:.1f}% - strong entry signal (+1.21% outperformance)"
                 elif abs(gap_size) >= 1.0:
                     reason = f"Down-gap: {gap_size:.1f}% - favorable entry (+0.43% 30d return)"
@@ -250,9 +264,9 @@ class FeatureScoringMixin:
                     reason = f"Small down-gap: {gap_size:.1f}% - mild positive signal"
             elif gap_type in ('up', 'partial_up'):
                 score = min(0, quality_score)  # -0.5 to 0
-                if abs(gap_size) >= 3.0:
+                if abs(gap_size) >= GAP_SIZE_LARGE:
                     reason = f"Large up-gap: {gap_size:+.1f}% - caution, potential overbought"
-                elif abs(gap_size) >= 1.0:
+                elif abs(gap_size) >= GAP_SIZE_MEDIUM:
                     reason = f"Up-gap: {gap_size:+.1f}% - short-term momentum"
                 else:
                     reason = f"Small up-gap: {gap_size:+.1f}% - neutral"
@@ -275,8 +289,8 @@ class FeatureScoringMixin:
                 highs=highs,
                 lows=lows,
                 closes=prices,
-                lookback_days=20,
-                min_gap_pct=0.5,
+                lookback_days=SMA_SHORT,
+                min_gap_pct=GAP_SIZE_MEDIUM / 2,  # 0.5% — looser threshold for feature scoring
             )
 
             if gap_result and gap_result.gap_type != 'none':

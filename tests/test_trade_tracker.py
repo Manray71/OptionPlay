@@ -1033,3 +1033,901 @@ class TestPriceDataPersistence:
         data = tracker2.get_vix_data()
 
         assert len(data) == 100
+
+
+# =============================================================================
+# OptionBar Dataclass Tests
+# =============================================================================
+
+class TestOptionBar:
+    """Tests for OptionBar Dataclass"""
+
+    def test_create_option_bar(self):
+        """Test OptionBar creation"""
+        from src.backtesting.trade_tracker import OptionBar
+
+        bar = OptionBar(
+            occ_symbol="AAPL240119P00150000",
+            underlying="AAPL",
+            strike=150.0,
+            expiry=date(2024, 1, 19),
+            option_type="P",
+            trade_date=date(2024, 1, 10),
+            open=2.50,
+            high=3.00,
+            low=2.25,
+            close=2.75,
+            volume=5000,
+        )
+
+        assert bar.occ_symbol == "AAPL240119P00150000"
+        assert bar.underlying == "AAPL"
+        assert bar.strike == 150.0
+        assert bar.option_type == "P"
+        assert bar.close == 2.75
+
+    def test_option_bar_to_dict(self):
+        """Test OptionBar conversion to dictionary"""
+        from src.backtesting.trade_tracker import OptionBar
+
+        bar = OptionBar(
+            occ_symbol="AAPL240119P00150000",
+            underlying="AAPL",
+            strike=150.0,
+            expiry=date(2024, 1, 19),
+            option_type="P",
+            trade_date=date(2024, 1, 10),
+            open=2.50,
+            high=3.00,
+            low=2.25,
+            close=2.75,
+            volume=5000,
+        )
+
+        d = bar.to_dict()
+
+        assert d['occ_symbol'] == "AAPL240119P00150000"
+        assert d['underlying'] == "AAPL"
+        assert d['strike'] == 150.0
+        assert d['expiry'] == "2024-01-19"
+        assert d['option_type'] == "P"
+        assert d['trade_date'] == "2024-01-10"
+        assert d['close'] == 2.75
+
+    def test_option_bar_from_dict(self):
+        """Test OptionBar creation from dictionary"""
+        from src.backtesting.trade_tracker import OptionBar
+
+        data = {
+            'occ_symbol': "MSFT240215C00400000",
+            'underlying': "MSFT",
+            'strike': 400.0,
+            'expiry': "2024-02-15",
+            'option_type': "C",
+            'trade_date': "2024-02-01",
+            'open': 5.00,
+            'high': 6.50,
+            'low': 4.75,
+            'close': 6.00,
+            'volume': 10000,
+        }
+
+        bar = OptionBar.from_dict(data)
+
+        assert bar.occ_symbol == "MSFT240215C00400000"
+        assert bar.underlying == "MSFT"
+        assert bar.expiry == date(2024, 2, 15)
+        assert bar.trade_date == date(2024, 2, 1)
+        assert bar.volume == 10000
+
+    def test_option_bar_roundtrip(self):
+        """Test OptionBar to_dict and from_dict roundtrip"""
+        from src.backtesting.trade_tracker import OptionBar
+
+        original = OptionBar(
+            occ_symbol="NVDA240301P00700000",
+            underlying="NVDA",
+            strike=700.0,
+            expiry=date(2024, 3, 1),
+            option_type="P",
+            trade_date=date(2024, 2, 20),
+            open=10.00,
+            high=12.00,
+            low=9.50,
+            close=11.50,
+            volume=25000,
+        )
+
+        restored = OptionBar.from_dict(original.to_dict())
+
+        assert restored.occ_symbol == original.occ_symbol
+        assert restored.underlying == original.underlying
+        assert restored.strike == original.strike
+        assert restored.expiry == original.expiry
+        assert restored.option_type == original.option_type
+        assert restored.trade_date == original.trade_date
+        assert restored.open == original.open
+        assert restored.high == original.high
+        assert restored.low == original.low
+        assert restored.close == original.close
+        assert restored.volume == original.volume
+
+
+# =============================================================================
+# VixDataPoint Tests
+# =============================================================================
+
+class TestVixDataPoint:
+    """Tests for VixDataPoint Dataclass"""
+
+    def test_create_vix_data_point(self):
+        """Test VixDataPoint creation"""
+        point = VixDataPoint(date=date(2024, 1, 15), value=18.5)
+
+        assert point.date == date(2024, 1, 15)
+        assert point.value == 18.5
+
+    def test_vix_data_point_to_dict(self):
+        """Test VixDataPoint conversion to dictionary"""
+        point = VixDataPoint(date=date(2024, 1, 15), value=18.5)
+        d = point.to_dict()
+
+        assert d['date'] == "2024-01-15"
+        assert d['value'] == 18.5
+
+    def test_vix_data_point_from_dict(self):
+        """Test VixDataPoint creation from dictionary"""
+        data = {'date': "2024-02-20", 'value': 22.3}
+        point = VixDataPoint.from_dict(data)
+
+        assert point.date == date(2024, 2, 20)
+        assert point.value == 22.3
+
+    def test_vix_data_point_roundtrip(self):
+        """Test VixDataPoint to_dict and from_dict roundtrip"""
+        original = VixDataPoint(date=date(2024, 3, 10), value=15.75)
+        restored = VixDataPoint.from_dict(original.to_dict())
+
+        assert restored.date == original.date
+        assert restored.value == original.value
+
+
+# =============================================================================
+# SymbolPriceData Tests
+# =============================================================================
+
+class TestSymbolPriceData:
+    """Tests for SymbolPriceData Dataclass"""
+
+    def test_create_symbol_price_data(self):
+        """Test SymbolPriceData creation with bars"""
+        bars = [
+            PriceBar(date=date(2024, 1, i), open=100, high=102, low=98, close=101, volume=1000)
+            for i in range(1, 11)
+        ]
+
+        data = SymbolPriceData(symbol="AAPL", bars=bars)
+
+        assert data.symbol == "AAPL"
+        assert data.bar_count == 10
+        assert data.first_date == date(2024, 1, 1)
+        assert data.last_date == date(2024, 1, 10)
+
+    def test_symbol_price_data_empty_bars(self):
+        """Test SymbolPriceData with empty bars list"""
+        data = SymbolPriceData(symbol="AAPL", bars=[])
+
+        assert data.symbol == "AAPL"
+        assert data.bar_count == 0
+        assert data.first_date is None
+        assert data.last_date is None
+
+    def test_symbol_price_data_post_init_calculates_dates(self):
+        """Test that post_init correctly calculates date range"""
+        bars = [
+            PriceBar(date=date(2024, 2, 15), open=100, high=102, low=98, close=101, volume=1000),
+            PriceBar(date=date(2024, 1, 1), open=100, high=102, low=98, close=101, volume=1000),
+            PriceBar(date=date(2024, 3, 20), open=100, high=102, low=98, close=101, volume=1000),
+        ]
+
+        data = SymbolPriceData(symbol="TEST", bars=bars)
+
+        # Should find min and max dates regardless of order
+        assert data.first_date == date(2024, 1, 1)
+        assert data.last_date == date(2024, 3, 20)
+        assert data.bar_count == 3
+
+
+# =============================================================================
+# Options Data Storage Tests
+# =============================================================================
+
+@pytest.fixture
+def sample_option_bars():
+    """Sample option bars for testing"""
+    from src.backtesting.trade_tracker import OptionBar
+
+    bars = []
+    base_date = date(2024, 1, 1)
+
+    for i in range(10):
+        bar = OptionBar(
+            occ_symbol="AAPL240119P00150000",
+            underlying="AAPL",
+            strike=150.0,
+            expiry=date(2024, 1, 19),
+            option_type="P",
+            trade_date=base_date + timedelta(days=i),
+            open=2.50 + i * 0.1,
+            high=3.00 + i * 0.1,
+            low=2.25 + i * 0.1,
+            close=2.75 + i * 0.1,
+            volume=5000 + i * 100,
+        )
+        bars.append(bar)
+
+    return bars
+
+
+class TestOptionsDataStorage:
+    """Tests for options data storage and retrieval"""
+
+    def test_store_option_bars(self, tracker, sample_option_bars):
+        """Test storing option bars"""
+        count = tracker.store_option_bars(sample_option_bars)
+        assert count == 10
+
+    def test_get_option_history(self, tracker, sample_option_bars):
+        """Test retrieving option history by OCC symbol"""
+        tracker.store_option_bars(sample_option_bars)
+
+        bars = tracker.get_option_history("AAPL240119P00150000")
+
+        assert len(bars) == 10
+        assert all(b.occ_symbol == "AAPL240119P00150000" for b in bars)
+
+    def test_get_option_history_filtered_by_date(self, tracker, sample_option_bars):
+        """Test retrieving option history with date filter"""
+        tracker.store_option_bars(sample_option_bars)
+
+        bars = tracker.get_option_history(
+            "AAPL240119P00150000",
+            start_date=date(2024, 1, 3),
+            end_date=date(2024, 1, 7),
+        )
+
+        assert len(bars) == 5
+        assert all(date(2024, 1, 3) <= b.trade_date <= date(2024, 1, 7) for b in bars)
+
+    def test_get_option_history_nonexistent(self, tracker):
+        """Test retrieving non-existent option history"""
+        bars = tracker.get_option_history("UNKNOWN123")
+        assert len(bars) == 0
+
+    def test_get_options_for_underlying(self, tracker, sample_option_bars):
+        """Test retrieving options by underlying symbol"""
+        tracker.store_option_bars(sample_option_bars)
+
+        bars = tracker.get_options_for_underlying("AAPL")
+
+        assert len(bars) == 10
+        assert all(b.underlying == "AAPL" for b in bars)
+
+    def test_get_options_for_underlying_with_filters(self, tracker):
+        """Test retrieving options with multiple filters"""
+        from src.backtesting.trade_tracker import OptionBar
+
+        # Create bars for different options
+        bars = [
+            OptionBar("AAPL240119P00150000", "AAPL", 150.0, date(2024, 1, 19), "P", date(2024, 1, 5), 2.5, 3.0, 2.25, 2.75, 5000),
+            OptionBar("AAPL240119C00160000", "AAPL", 160.0, date(2024, 1, 19), "C", date(2024, 1, 5), 1.5, 2.0, 1.25, 1.75, 3000),
+            OptionBar("AAPL240215P00155000", "AAPL", 155.0, date(2024, 2, 15), "P", date(2024, 1, 5), 3.5, 4.0, 3.25, 3.75, 4000),
+        ]
+        tracker.store_option_bars(bars)
+
+        # Filter by expiry
+        expiry_filtered = tracker.get_options_for_underlying("AAPL", expiry=date(2024, 1, 19))
+        assert len(expiry_filtered) == 2
+
+        # Filter by option type
+        puts_only = tracker.get_options_for_underlying("AAPL", option_type="P")
+        assert len(puts_only) == 2
+        assert all(b.option_type == "P" for b in puts_only)
+
+        # Filter by trade date
+        date_filtered = tracker.get_options_for_underlying("AAPL", trade_date=date(2024, 1, 5))
+        assert len(date_filtered) == 3
+
+    def test_get_option_at_date(self, tracker, sample_option_bars):
+        """Test retrieving single option bar at specific date"""
+        tracker.store_option_bars(sample_option_bars)
+
+        bar = tracker.get_option_at_date("AAPL240119P00150000", date(2024, 1, 5))
+
+        assert bar is not None
+        assert bar.occ_symbol == "AAPL240119P00150000"
+        assert bar.trade_date == date(2024, 1, 5)
+
+    def test_get_option_at_date_nonexistent(self, tracker, sample_option_bars):
+        """Test retrieving option bar for non-existent date"""
+        tracker.store_option_bars(sample_option_bars)
+
+        bar = tracker.get_option_at_date("AAPL240119P00150000", date(2024, 12, 31))
+        assert bar is None
+
+    def test_get_spread_history(self, tracker):
+        """Test retrieving spread history for bull put spread"""
+        from src.backtesting.trade_tracker import OptionBar
+
+        # Create short and long put bars
+        short_bars = [
+            OptionBar("AAPL240119P00150000", "AAPL", 150.0, date(2024, 1, 19), "P", date(2024, 1, i), 2.5, 3.0, 2.25, 2.75 + i * 0.1, 5000)
+            for i in range(1, 6)
+        ]
+        long_bars = [
+            OptionBar("AAPL240119P00145000", "AAPL", 145.0, date(2024, 1, 19), "P", date(2024, 1, i), 1.5, 2.0, 1.25, 1.50 + i * 0.05, 3000)
+            for i in range(1, 6)
+        ]
+        tracker.store_option_bars(short_bars + long_bars)
+
+        spread_history = tracker.get_spread_history("AAPL240119P00150000", "AAPL240119P00145000")
+
+        assert len(spread_history) == 5
+        for item in spread_history:
+            assert 'trade_date' in item
+            assert 'short_close' in item
+            assert 'long_close' in item
+            assert 'spread_value' in item
+            assert item['spread_value'] == item['short_close'] - item['long_close']
+
+    def test_list_options_underlyings(self, tracker):
+        """Test listing all underlyings with options data"""
+        from src.backtesting.trade_tracker import OptionBar
+
+        bars = [
+            OptionBar("AAPL240119P00150000", "AAPL", 150.0, date(2024, 1, 19), "P", date(2024, 1, 1), 2.5, 3.0, 2.25, 2.75, 5000),
+            OptionBar("AAPL240119P00155000", "AAPL", 155.0, date(2024, 1, 19), "P", date(2024, 1, 1), 3.5, 4.0, 3.25, 3.75, 4000),
+            OptionBar("MSFT240119P00400000", "MSFT", 400.0, date(2024, 1, 19), "P", date(2024, 1, 1), 5.5, 6.0, 5.25, 5.75, 6000),
+        ]
+        tracker.store_option_bars(bars)
+
+        underlyings = tracker.list_options_underlyings()
+
+        assert len(underlyings) == 2
+        aapl_info = next(u for u in underlyings if u['underlying'] == 'AAPL')
+        msft_info = next(u for u in underlyings if u['underlying'] == 'MSFT')
+
+        assert aapl_info['bar_count'] == 2
+        assert aapl_info['option_count'] == 2
+        assert msft_info['bar_count'] == 1
+        assert msft_info['option_count'] == 1
+
+    def test_count_option_bars(self, tracker, sample_option_bars):
+        """Test counting option bars"""
+        tracker.store_option_bars(sample_option_bars)
+
+        total_count = tracker.count_option_bars()
+        assert total_count == 10
+
+        aapl_count = tracker.count_option_bars(underlying="AAPL")
+        assert aapl_count == 10
+
+        unknown_count = tracker.count_option_bars(underlying="UNKNOWN")
+        assert unknown_count == 0
+
+    def test_delete_option_data_by_underlying(self, tracker, sample_option_bars):
+        """Test deleting option data by underlying"""
+        tracker.store_option_bars(sample_option_bars)
+        assert tracker.count_option_bars() == 10
+
+        deleted = tracker.delete_option_data(underlying="AAPL")
+
+        assert deleted == 10
+        assert tracker.count_option_bars() == 0
+
+    def test_delete_option_data_by_occ_symbol(self, tracker, sample_option_bars):
+        """Test deleting option data by OCC symbol"""
+        tracker.store_option_bars(sample_option_bars)
+
+        deleted = tracker.delete_option_data(occ_symbol="AAPL240119P00150000")
+
+        assert deleted == 10
+        assert tracker.count_option_bars() == 0
+
+    def test_delete_all_option_data(self, tracker, sample_option_bars):
+        """Test deleting all option data"""
+        tracker.store_option_bars(sample_option_bars)
+
+        deleted = tracker.delete_option_data()
+
+        assert deleted == 10
+        assert tracker.count_option_bars() == 0
+
+    def test_store_option_bars_empty_list(self, tracker):
+        """Test storing empty list of option bars"""
+        count = tracker.store_option_bars([])
+        assert count == 0
+
+    def test_option_bar_upsert(self, tracker):
+        """Test that storing option bar with same occ_symbol and trade_date updates existing"""
+        from src.backtesting.trade_tracker import OptionBar
+
+        bar1 = OptionBar("AAPL240119P00150000", "AAPL", 150.0, date(2024, 1, 19), "P", date(2024, 1, 5), 2.5, 3.0, 2.25, 2.75, 5000)
+        tracker.store_option_bars([bar1])
+
+        # Store again with different close price
+        bar2 = OptionBar("AAPL240119P00150000", "AAPL", 150.0, date(2024, 1, 19), "P", date(2024, 1, 5), 2.5, 3.0, 2.25, 3.50, 6000)
+        tracker.store_option_bars([bar2])
+
+        # Should still have only one bar
+        assert tracker.count_option_bars() == 1
+
+        # Bar should have updated values
+        retrieved = tracker.get_option_at_date("AAPL240119P00150000", date(2024, 1, 5))
+        assert retrieved.close == 3.50
+        assert retrieved.volume == 6000
+
+
+# =============================================================================
+# Additional P&L Tracking Tests
+# =============================================================================
+
+class TestPnLTracking:
+    """Tests for P&L tracking edge cases"""
+
+    def test_pnl_with_no_entry_price(self, tracker):
+        """Test P&L calculation when entry price is None"""
+        trade = TrackedTrade(
+            symbol="TEST",
+            strategy="test",
+            signal_date=date(2024, 1, 1),
+            signal_score=8.0,
+            entry_price=None,  # No entry price
+        )
+        trade_id = tracker.add_trade(trade)
+
+        result = tracker.close_trade(trade_id, exit_price=110.0, outcome=TradeOutcome.WIN)
+
+        assert result is True
+        closed = tracker.get_trade(trade_id)
+        assert closed.pnl_amount is None
+        assert closed.pnl_percent is None
+        assert closed.status == TradeStatus.CLOSED
+
+    def test_holding_days_with_no_signal_date(self, tracker):
+        """Test holding days calculation when signal_date is None"""
+        trade = TrackedTrade(
+            symbol="TEST",
+            strategy="test",
+            signal_date=None,  # No signal date
+            signal_score=8.0,
+            entry_price=100.0,
+        )
+        trade_id = tracker.add_trade(trade)
+
+        tracker.close_trade(trade_id, exit_price=110.0, outcome=TradeOutcome.WIN, exit_date=date(2024, 1, 15))
+
+        closed = tracker.get_trade(trade_id)
+        assert closed.holding_days is None
+
+    def test_pnl_negative_return(self, tracker):
+        """Test P&L calculation for loss"""
+        trade = TrackedTrade(
+            symbol="TEST",
+            strategy="test",
+            signal_date=date(2024, 1, 1),
+            signal_score=8.0,
+            entry_price=100.0,
+        )
+        trade_id = tracker.add_trade(trade)
+
+        tracker.close_trade(trade_id, exit_price=90.0, outcome=TradeOutcome.LOSS)
+
+        closed = tracker.get_trade(trade_id)
+        assert closed.pnl_amount == -10.0
+        assert closed.pnl_percent == -10.0
+
+    def test_pnl_breakeven(self, tracker):
+        """Test P&L calculation for breakeven"""
+        trade = TrackedTrade(
+            symbol="TEST",
+            strategy="test",
+            signal_date=date(2024, 1, 1),
+            signal_score=8.0,
+            entry_price=100.0,
+        )
+        trade_id = tracker.add_trade(trade)
+
+        tracker.close_trade(trade_id, exit_price=100.0, outcome=TradeOutcome.BREAKEVEN)
+
+        closed = tracker.get_trade(trade_id)
+        assert closed.pnl_amount == 0.0
+        assert closed.pnl_percent == 0.0
+
+    def test_total_pnl_calculation(self, tracker):
+        """Test total P&L aggregation across multiple trades"""
+        trades_data = [
+            (100.0, 110.0, TradeOutcome.WIN),   # +$10
+            (100.0, 95.0, TradeOutcome.LOSS),    # -$5
+            (100.0, 115.0, TradeOutcome.WIN),    # +$15
+            (100.0, 90.0, TradeOutcome.LOSS),    # -$10
+        ]
+
+        for entry, exit_price, outcome in trades_data:
+            trade = TrackedTrade(
+                symbol="TEST",
+                strategy="test",
+                signal_date=date(2024, 1, 1),
+                signal_score=8.0,
+                entry_price=entry,
+            )
+            trade_id = tracker.add_trade(trade)
+            tracker.close_trade(trade_id, exit_price=exit_price, outcome=outcome)
+
+        stats = tracker.get_stats()
+
+        # Total P&L: 10 - 5 + 15 - 10 = $10
+        assert stats.total_pnl == 10.0
+
+
+# =============================================================================
+# Additional Statistics Tests
+# =============================================================================
+
+class TestStatisticsEdgeCases:
+    """Tests for statistics calculation edge cases"""
+
+    def test_stats_with_only_open_trades(self, tracker):
+        """Test statistics with only open trades"""
+        for i in range(5):
+            trade = TrackedTrade(
+                symbol="TEST",
+                strategy="test",
+                signal_date=date(2024, 1, i + 1),
+                signal_score=7.0 + i * 0.5,
+            )
+            tracker.add_trade(trade)
+
+        stats = tracker.get_stats()
+
+        assert stats.total_trades == 5
+        assert stats.open_trades == 5
+        assert stats.closed_trades == 0
+        assert stats.win_rate == 0.0
+        assert stats.avg_score == 8.0  # Average of 7.0, 7.5, 8.0, 8.5, 9.0
+
+    def test_stats_all_wins(self, tracker):
+        """Test statistics with all winning trades"""
+        for i in range(5):
+            trade = TrackedTrade(
+                symbol="TEST",
+                strategy="test",
+                signal_date=date(2024, 1, i + 1),
+                signal_score=8.0,
+                entry_price=100.0,
+            )
+            trade_id = tracker.add_trade(trade)
+            tracker.close_trade(trade_id, exit_price=110.0, outcome=TradeOutcome.WIN)
+
+        stats = tracker.get_stats()
+
+        assert stats.win_rate == 100.0
+        assert stats.wins == 5
+        assert stats.losses == 0
+
+    def test_stats_all_losses(self, tracker):
+        """Test statistics with all losing trades"""
+        for i in range(5):
+            trade = TrackedTrade(
+                symbol="TEST",
+                strategy="test",
+                signal_date=date(2024, 1, i + 1),
+                signal_score=8.0,
+                entry_price=100.0,
+            )
+            trade_id = tracker.add_trade(trade)
+            tracker.close_trade(trade_id, exit_price=90.0, outcome=TradeOutcome.LOSS)
+
+        stats = tracker.get_stats()
+
+        assert stats.win_rate == 0.0
+        assert stats.wins == 0
+        assert stats.losses == 5
+
+    def test_stats_with_breakeven_trades(self, tracker):
+        """Test statistics with breakeven trades"""
+        trade = TrackedTrade(
+            symbol="TEST",
+            strategy="test",
+            signal_date=date(2024, 1, 1),
+            signal_score=8.0,
+            entry_price=100.0,
+        )
+        trade_id = tracker.add_trade(trade)
+        tracker.close_trade(trade_id, exit_price=100.0, outcome=TradeOutcome.BREAKEVEN)
+
+        stats = tracker.get_stats()
+
+        assert stats.breakeven == 1
+        assert stats.wins == 0
+        assert stats.losses == 0
+        # Win rate should be 0 when only breakeven trades
+        assert stats.win_rate == 0.0
+
+    def test_stats_avg_holding_days(self, tracker):
+        """Test average holding days calculation"""
+        holding_days_list = [5, 10, 15, 20, 25]
+
+        for i, days in enumerate(holding_days_list):
+            trade = TrackedTrade(
+                symbol="TEST",
+                strategy="test",
+                signal_date=date(2024, 1, 1),
+                signal_score=8.0,
+                entry_price=100.0,
+            )
+            trade_id = tracker.add_trade(trade)
+            tracker.close_trade(
+                trade_id,
+                exit_price=110.0,
+                outcome=TradeOutcome.WIN,
+                exit_date=date(2024, 1, 1) + timedelta(days=days),
+            )
+
+        stats = tracker.get_stats()
+
+        # Average of 5, 10, 15, 20, 25 = 15
+        assert stats.avg_holding_days == 15.0
+
+    def test_stats_filtered_by_date_range(self, tracker):
+        """Test statistics filtered by date range"""
+        # Create trades spanning multiple months
+        for month in range(1, 4):
+            for day in range(1, 6):
+                trade = TrackedTrade(
+                    symbol="TEST",
+                    strategy="test",
+                    signal_date=date(2024, month, day),
+                    signal_score=8.0,
+                    entry_price=100.0,
+                )
+                trade_id = tracker.add_trade(trade)
+                tracker.close_trade(trade_id, exit_price=110.0, outcome=TradeOutcome.WIN)
+
+        # Filter only January trades
+        jan_stats = tracker.get_stats(min_date=date(2024, 1, 1), max_date=date(2024, 1, 31))
+
+        assert jan_stats.total_trades == 5
+
+
+# =============================================================================
+# Count Trades Tests
+# =============================================================================
+
+class TestCountTrades:
+    """Tests for count_trades method"""
+
+    def test_count_trades_total(self, tracker, multiple_trades):
+        """Test counting total trades"""
+        for trade in multiple_trades:
+            tracker.add_trade(trade)
+
+        count = tracker.count_trades()
+        assert count == 10
+
+    def test_count_trades_by_strategy(self, tracker, multiple_trades):
+        """Test counting trades by strategy"""
+        for trade in multiple_trades:
+            tracker.add_trade(trade)
+
+        pullback_count = tracker.count_trades(strategy="pullback")
+        breakout_count = tracker.count_trades(strategy="breakout")
+
+        assert pullback_count + breakout_count == 10
+
+    def test_count_trades_by_status(self, tracker, multiple_trades):
+        """Test counting trades by status"""
+        trade_ids = [tracker.add_trade(t) for t in multiple_trades]
+
+        # Close half
+        for tid in trade_ids[:5]:
+            tracker.close_trade(tid, exit_price=100.0, outcome=TradeOutcome.WIN)
+
+        open_count = tracker.count_trades(status=TradeStatus.OPEN)
+        closed_count = tracker.count_trades(status=TradeStatus.CLOSED)
+
+        assert open_count == 5
+        assert closed_count == 5
+
+
+# =============================================================================
+# Update Trade Tests
+# =============================================================================
+
+class TestUpdateTrade:
+    """Tests for update_trade method"""
+
+    def test_update_allowed_fields(self, tracker, sample_trade):
+        """Test updating allowed fields"""
+        trade_id = tracker.add_trade(sample_trade)
+
+        result = tracker.update_trade(
+            trade_id,
+            notes="Updated notes",
+            stop_loss=172.0,
+            target_price=188.0,
+            vix_at_signal=16.0,
+            iv_rank_at_signal=50.0,
+        )
+
+        assert result is True
+
+        updated = tracker.get_trade(trade_id)
+        assert updated.notes == "Updated notes"
+        assert updated.stop_loss == 172.0
+        assert updated.target_price == 188.0
+        assert updated.vix_at_signal == 16.0
+        assert updated.iv_rank_at_signal == 50.0
+
+    def test_update_disallowed_fields_ignored(self, tracker, sample_trade):
+        """Test that disallowed fields are ignored"""
+        trade_id = tracker.add_trade(sample_trade)
+
+        result = tracker.update_trade(
+            trade_id,
+            symbol="MSFT",  # Should be ignored
+            entry_price=200.0,  # Should be ignored
+        )
+
+        # No allowed fields, so returns False
+        assert result is False
+
+        # Original values should be unchanged
+        trade = tracker.get_trade(trade_id)
+        assert trade.symbol == "AAPL"
+        assert trade.entry_price == 175.0
+
+    def test_update_empty_updates(self, tracker, sample_trade):
+        """Test update with no fields"""
+        trade_id = tracker.add_trade(sample_trade)
+
+        result = tracker.update_trade(trade_id)
+        assert result is False
+
+
+# =============================================================================
+# Default Path Tests
+# =============================================================================
+
+class TestDefaultPath:
+    """Tests for default database path"""
+
+    def test_default_db_path(self, tmp_path, monkeypatch):
+        """Test that default path uses ~/.optionplay/trades.db"""
+        # Mock home directory to use temp path
+        fake_home = tmp_path / "fake_home"
+        fake_home.mkdir()
+        monkeypatch.setenv("HOME", str(fake_home))
+
+        # Need to reimport Path.home() workaround
+        from pathlib import Path as PathLib
+        original_home = PathLib.home
+        monkeypatch.setattr(PathLib, "home", lambda: fake_home)
+
+        # Create tracker without specifying path
+        tracker = TradeTracker(db_path=None)
+
+        expected_path = fake_home / ".optionplay" / "trades.db"
+        assert tracker.db_path == str(expected_path)
+        assert expected_path.exists()
+
+        # Restore
+        monkeypatch.setattr(PathLib, "home", original_home)
+
+
+# =============================================================================
+# TrackedTrade Edge Cases
+# =============================================================================
+
+class TestTrackedTradeEdgeCases:
+    """Edge case tests for TrackedTrade"""
+
+    def test_from_dict_with_missing_optional_fields(self):
+        """Test TrackedTrade.from_dict with minimal data"""
+        data = {
+            'symbol': 'TEST',
+            'strategy': 'test',
+        }
+
+        trade = TrackedTrade.from_dict(data)
+
+        assert trade.symbol == "TEST"
+        assert trade.strategy == "test"
+        assert trade.signal_date is None
+        assert trade.signal_score == 0.0
+        assert trade.score_breakdown == {}
+        assert trade.tags == []
+
+    def test_to_dict_preserves_all_fields(self, sample_trade):
+        """Test that to_dict preserves all fields"""
+        sample_trade.exit_date = date(2024, 1, 25)
+        sample_trade.exit_price = 182.50
+        sample_trade.exit_reason = "target_reached"
+        sample_trade.pnl_amount = 7.50
+        sample_trade.pnl_percent = 4.29
+        sample_trade.holding_days = 10
+        sample_trade.tags = ["test", "example"]
+
+        d = sample_trade.to_dict()
+
+        assert d['exit_date'] == "2024-01-25"
+        assert d['exit_price'] == 182.50
+        assert d['exit_reason'] == "target_reached"
+        assert d['pnl_amount'] == 7.50
+        assert d['pnl_percent'] == 4.29
+        assert d['holding_days'] == 10
+        assert d['tags'] == ["test", "example"]
+
+
+# =============================================================================
+# VIX Data Edge Cases
+# =============================================================================
+
+class TestVixDataEdgeCases:
+    """Edge case tests for VIX data"""
+
+    def test_get_vix_at_date_no_data(self, tracker):
+        """Test get_vix_at_date with no data"""
+        vix = tracker.get_vix_at_date(date(2024, 1, 15))
+        assert vix is None
+
+    def test_get_vix_at_date_only_future_data(self, tracker):
+        """Test get_vix_at_date when only future data exists"""
+        vix_data = [VixDataPoint(date=date(2024, 2, 1), value=18.0)]
+        tracker.store_vix_data(vix_data)
+
+        vix = tracker.get_vix_at_date(date(2024, 1, 15))
+        assert vix is None
+
+    def test_get_vix_range_empty(self, tracker):
+        """Test get_vix_range with no data"""
+        date_range = tracker.get_vix_range()
+        assert date_range is None
+
+
+# =============================================================================
+# Export Edge Cases
+# =============================================================================
+
+class TestExportEdgeCases:
+    """Edge case tests for export functionality"""
+
+    def test_export_for_training_no_closed_trades(self, tracker, multiple_trades):
+        """Test export with no closed trades"""
+        for trade in multiple_trades:
+            tracker.add_trade(trade)
+
+        export = tracker.export_for_training(min_trades=0)
+
+        assert export['total_trades'] == 0
+        assert len(export['trades']) == 0
+
+    def test_export_for_training_below_minimum(self, tracker, sample_trade):
+        """Test export when trades below minimum"""
+        trade_id = tracker.add_trade(sample_trade)
+        tracker.close_trade(trade_id, exit_price=180.0, outcome=TradeOutcome.WIN)
+
+        # Should work but log warning
+        export = tracker.export_for_training(min_trades=100)
+
+        assert export['total_trades'] == 1
+
+    def test_export_for_backtesting_empty(self, tracker):
+        """Test export_for_backtesting with no data"""
+        export = tracker.export_for_backtesting()
+
+        assert export['version'] == '2.0.0'
+        assert len(export['price_data']) == 0
+        assert len(export['vix_data']) == 0
+        assert len(export['trades']) == 0
+        assert export['summary']['symbols_count'] == 0

@@ -231,8 +231,9 @@ class CircuitBreaker:
                     self._half_open_calls += 1
                     return True
                 return False
-            
-            return False
+
+            # Should never reach here, but satisfy type checker
+            return False  # pragma: no cover
     
     def record_success(self) -> None:
         """Registriert einen erfolgreichen Request."""

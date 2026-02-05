@@ -708,7 +708,8 @@ class TradeTracker:
                 trade_id,
             ))
 
-            logger.info(f"Closed trade {trade_id}: {outcome.value}, P&L: {pnl_percent:.2f}%")
+            pnl_str = f"{pnl_percent:.2f}%" if pnl_percent is not None else "N/A"
+            logger.info(f"Closed trade {trade_id}: {outcome.value}, P&L: {pnl_str}")
             return True
 
     def update_trade(self, trade_id: int, **updates) -> bool:

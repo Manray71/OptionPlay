@@ -98,9 +98,13 @@ class RiskHandlerMixin(BaseHandlerMixin):
         b.blank()
 
         # Market conditions
+        # Determine VIX regime from the sizer (result doesn't store it)
+        from ..risk.position_sizing import VIXRegime
+        vix_regime = sizer.get_vix_regime(vix)
+
         b.h2("Market Conditions")
         b.kv_line("VIX", f"{vix:.1f}")
-        b.kv_line("VIX Regime", result.vix_regime.value.upper())
+        b.kv_line("VIX Regime", vix_regime.value.upper())
         b.kv_line("VIX Adjustment", f"{result.vix_adjustment:.0%}")
         b.blank()
 
@@ -175,6 +179,9 @@ class RiskHandlerMixin(BaseHandlerMixin):
             vix_level=vix,
         )
 
+        # Calculate max possible loss (spread width - credit)
+        max_possible_loss = spread_width - net_credit
+
         b = MarkdownBuilder()
         b.h1("Stop Loss Recommendation").blank()
 
@@ -182,7 +189,7 @@ class RiskHandlerMixin(BaseHandlerMixin):
         b.h2("Trade Details")
         b.kv_line("Net Credit", f"${net_credit:.2f}")
         b.kv_line("Spread Width", f"${spread_width:.2f}")
-        b.kv_line("Max Loss", f"${result['max_possible_loss']:.2f}")
+        b.kv_line("Max Loss", f"${max_possible_loss:.2f}")
         b.blank()
 
         # VIX context
@@ -194,13 +201,13 @@ class RiskHandlerMixin(BaseHandlerMixin):
         # Recommendation
         b.h2("Stop Loss Settings")
         b.kv_line("Stop Loss %", f"{result['stop_loss_pct']:.0f}%")
-        b.kv_line("Exit When Spread =", f"${result['stop_price']:.2f}")
+        b.kv_line("Exit When Spread =", f"${result['stop_loss_price']:.2f}")
         b.kv_line("Max Loss at Stop", f"${result['max_loss']:.2f}")
         b.blank()
 
         # Explanation
         b.h3("How to Use")
-        b.text(f"Close the position if the spread price rises to ${result['stop_price']:.2f}")
+        b.text(f"Close the position if the spread price rises to ${result['stop_loss_price']:.2f}")
         b.text(f"This limits your loss to ${result['max_loss']:.2f} per spread.")
 
         return b.build()
@@ -274,14 +281,22 @@ class RiskHandlerMixin(BaseHandlerMixin):
         b.h2("Risk/Reward")
         b.kv_line("Max Profit", f"${analysis.max_profit:.2f}")
         b.kv_line("Max Loss", f"${analysis.max_loss:.2f}")
-        b.kv_line("Breakeven", f"${analysis.breakeven:.2f}")
+        b.kv_line("Breakeven", f"${analysis.break_even:.2f}")
         b.kv_line("Risk/Reward", f"{analysis.risk_reward_ratio:.2f}:1")
         b.blank()
 
         # Profitability
+        # Calculate ROI: max_profit / max_loss (capital at risk)
+        roi_percent = (analysis.max_profit / analysis.max_loss * 100) if analysis.max_loss > 0 else 0
+        # Annualize: (1 + ROI)^(365/DTE) - 1
+        if dte > 0:
+            annualized_roi = ((1 + roi_percent / 100) ** (365 / dte) - 1) * 100
+        else:
+            annualized_roi = 0
+
         b.h2("Profitability")
-        b.kv_line("ROI", f"{analysis.roi_percent:.1f}%")
-        b.kv_line("Annualized ROI", f"{analysis.annualized_roi:.1f}%")
+        b.kv_line("ROI", f"{roi_percent:.1f}%")
+        b.kv_line("Annualized ROI", f"{annualized_roi:.1f}%")
         b.blank()
 
         # Price Scenarios
@@ -289,7 +304,7 @@ class RiskHandlerMixin(BaseHandlerMixin):
         scenarios = [
             ("At Current", current_price),
             ("At Short Strike", short_strike),
-            ("At Breakeven", analysis.breakeven),
+            ("At Breakeven", analysis.break_even),
             ("At Long Strike", long_strike),
         ]
 
@@ -353,18 +368,20 @@ class RiskHandlerMixin(BaseHandlerMixin):
             else:
                 volatility = 0.25  # Default 25% annualized
 
-        # Run simulation
+        # Run simulation using PriceSimulator's static method
         from ..backtesting import PriceSimulator
 
-        simulator = PriceSimulator(
-            current_price=current_price,
-            volatility=volatility,
-            days=dte,
-            num_paths=num_simulations,
-        )
-
-        # Simulate paths
-        final_prices = simulator.simulate()
+        # Generate multiple price paths and collect final prices
+        final_prices = []
+        for i in range(num_simulations):
+            price_path = PriceSimulator.generate_price_path(
+                start_price=current_price,
+                days=dte,
+                volatility=volatility,
+                drift=0.0,
+                seed=i,  # Reproducible
+            )
+            final_prices.append(price_path[-1])
 
         # Calculate outcomes
         max_profit = 0

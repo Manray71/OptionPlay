@@ -48,7 +48,7 @@ try:
         FIB_LEVELS, FIB_LOOKBACK_DAYS,
         SUPPORT_LOOKBACK_DAYS, SUPPORT_WINDOW, SUPPORT_MAX_LEVELS, SUPPORT_TOLERANCE_PCT,
         VOLUME_AVG_PERIOD, VOLUME_SPIKE_MULTIPLIER,
-        KELTNER_ATR_MULTIPLIER, KELTNER_LOWER_THRESHOLD,
+        KELTNER_ATR_MULTIPLIER, KELTNER_LOWER_THRESHOLD, KELTNER_NEUTRAL_LOW,
         DIVERGENCE_SWING_WINDOW, DIVERGENCE_MIN_BARS, DIVERGENCE_MAX_BARS,
         VWAP_PERIOD, VWAP_STRONG_ABOVE, VWAP_ABOVE, VWAP_BELOW, VWAP_STRONG_BELOW,
         GAP_LOOKBACK_DAYS, GAP_SIZE_LARGE, GAP_SIZE_MEDIUM, GAP_SIZE_SMALL_NEG, GAP_SIZE_LARGE_NEG,
@@ -70,7 +70,7 @@ except ImportError:
         FIB_LEVELS, FIB_LOOKBACK_DAYS,
         SUPPORT_LOOKBACK_DAYS, SUPPORT_WINDOW, SUPPORT_MAX_LEVELS, SUPPORT_TOLERANCE_PCT,
         VOLUME_AVG_PERIOD, VOLUME_SPIKE_MULTIPLIER,
-        KELTNER_ATR_MULTIPLIER, KELTNER_LOWER_THRESHOLD,
+        KELTNER_ATR_MULTIPLIER, KELTNER_LOWER_THRESHOLD, KELTNER_NEUTRAL_LOW,
         DIVERGENCE_SWING_WINDOW, DIVERGENCE_MIN_BARS, DIVERGENCE_MAX_BARS,
         VWAP_PERIOD, VWAP_STRONG_ABOVE, VWAP_ABOVE, VWAP_BELOW, VWAP_STRONG_BELOW,
         GAP_LOOKBACK_DAYS, GAP_SIZE_LARGE, GAP_SIZE_MEDIUM, GAP_SIZE_SMALL_NEG, GAP_SIZE_LARGE_NEG,
@@ -1093,7 +1093,7 @@ class PullbackAnalyzer(BaseAnalyzer):
             # Near lower band = potential buy opportunity
             return cfg.weight_near_lower, f"Price near Keltner Lower Band ({pct:.2f})"
 
-        if position == 'in_channel' and pct < -0.3:
+        if position == 'in_channel' and pct < KELTNER_NEUTRAL_LOW:
             # In channel, but in lower third
             return cfg.weight_mean_reversion * 0.5, f"Pullback in lower channel area ({pct:.2f})"
 
@@ -1124,7 +1124,7 @@ class PullbackAnalyzer(BaseAnalyzer):
         Returns:
             (score, vwap_value, distance_pct, position, reason)
         """
-        vwap_result = calculate_vwap(prices, volumes, period=20)
+        vwap_result = calculate_vwap(prices, volumes, period=VWAP_PERIOD)
 
         if not vwap_result:
             return 0, 0, 0, "unknown", "Insufficient data for VWAP"
@@ -1134,16 +1134,16 @@ class PullbackAnalyzer(BaseAnalyzer):
         position = vwap_result.position
 
         # Scoring based on training results
-        if distance > 3.0:
+        if distance > VWAP_STRONG_ABOVE:
             score = 3.0
             reason = f"Strong momentum: {distance:.1f}% above VWAP (91.9% win rate)"
-        elif distance > 1.0:
+        elif distance > VWAP_ABOVE:
             score = 2.0
             reason = f"Above VWAP: {distance:.1f}% (87.6% win rate)"
-        elif distance > -1.0:
+        elif distance > VWAP_BELOW:
             score = 1.0
             reason = f"Near VWAP: {distance:.1f}% (78.3% win rate)"
-        elif distance > -3.0:
+        elif distance > VWAP_STRONG_BELOW:
             score = 0.0
             reason = f"Below VWAP: {distance:.1f}% (66.1% win rate)"
         else:
@@ -1169,13 +1169,13 @@ class PullbackAnalyzer(BaseAnalyzer):
         Returns:
             (score, spy_trend, reason)
         """
-        if not spy_prices or len(spy_prices) < 50:
+        if not spy_prices or len(spy_prices) < SMA_MEDIUM:
             return 0, "unknown", "No SPY data for market context"
 
         # Determine SPY trend
         current = spy_prices[-1]
-        sma20 = float(np.mean(spy_prices[-20:]))
-        sma50 = float(np.mean(spy_prices[-50:]))
+        sma20 = float(np.mean(spy_prices[-SMA_SHORT:]))
+        sma50 = float(np.mean(spy_prices[-SMA_MEDIUM:]))
 
         if current > sma20 > sma50:
             trend = "strong_uptrend"
@@ -1259,17 +1259,17 @@ class PullbackAnalyzer(BaseAnalyzer):
             # Convert quality_score (-1 to +1) to display score
             if gap_type in ('down', 'partial_down'):
                 score = max(0, quality_score)  # 0 to 1
-                if abs(gap_size) >= 3.0:
+                if abs(gap_size) >= GAP_SIZE_LARGE:
                     reason = f"Large down-gap: {gap_size:.1f}% - strong entry (+1.21% outperformance)"
-                elif abs(gap_size) >= 1.0:
+                elif abs(gap_size) >= GAP_SIZE_MEDIUM:
                     reason = f"Down-gap: {gap_size:.1f}% - favorable entry (+0.43% 30d)"
                 else:
                     reason = f"Small down-gap: {gap_size:.1f}% - mild positive"
             elif gap_type in ('up', 'partial_up'):
                 score = min(0, quality_score)  # -0.5 to 0
-                if abs(gap_size) >= 3.0:
+                if abs(gap_size) >= GAP_SIZE_LARGE:
                     reason = f"Large up-gap: {gap_size:+.1f}% - caution, overbought risk"
-                elif abs(gap_size) >= 1.0:
+                elif abs(gap_size) >= GAP_SIZE_MEDIUM:
                     reason = f"Up-gap: {gap_size:+.1f}% - short-term momentum"
                 else:
                     reason = f"Small up-gap: {gap_size:+.1f}% - neutral"
@@ -1295,8 +1295,8 @@ class PullbackAnalyzer(BaseAnalyzer):
                 highs=highs,
                 lows=lows,
                 closes=prices,
-                lookback_days=20,
-                min_gap_pct=0.5,
+                lookback_days=GAP_LOOKBACK_DAYS,
+                min_gap_pct=abs(GAP_SIZE_SMALL_NEG),
             )
 
             if gap_result and gap_result.gap_type != 'none':

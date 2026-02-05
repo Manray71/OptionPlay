@@ -95,6 +95,15 @@ class TestReportHandlerMixin:
 
         assert "$" in result
 
+    def test_format_market_cap_zero(self):
+        """Test _format_market_cap with zero value."""
+        from src.handlers.report import ReportHandlerMixin
+
+        handler = MagicMock(spec=ReportHandlerMixin)
+        result = ReportHandlerMixin._format_market_cap(handler, 0)
+
+        assert result == "N/A"
+
 
 # =============================================================================
 # GENERATE REPORT METHOD TESTS
@@ -109,6 +118,61 @@ class TestGenerateReport:
 
         assert hasattr(ReportHandlerMixin, 'generate_report')
         assert callable(getattr(ReportHandlerMixin, 'generate_report'))
+
+    @pytest.mark.asyncio
+    async def test_generate_report_returns_string(self):
+        """Test generate_report returns a string."""
+        from src.handlers.report import ReportHandlerMixin
+
+        class MockHandler(ReportHandlerMixin):
+            def __init__(self):
+                self._ibkr_bridge = None
+
+        handler = MockHandler()
+        result = await handler.generate_report("AAPL")
+        assert isinstance(result, str)
+        assert "AAPL" in result
+
+    @pytest.mark.asyncio
+    async def test_generate_report_with_options(self):
+        """Test generate_report with options flag."""
+        from src.handlers.report import ReportHandlerMixin
+
+        class MockHandler(ReportHandlerMixin):
+            def __init__(self):
+                self._ibkr_bridge = None
+
+        handler = MockHandler()
+        result = await handler.generate_report("AAPL", include_options=True)
+        assert "Yes" in result or "Options" in result
+
+    @pytest.mark.asyncio
+    async def test_generate_report_with_news(self):
+        """Test generate_report with news flag."""
+        from src.handlers.report import ReportHandlerMixin
+
+        class MockHandler(ReportHandlerMixin):
+            def __init__(self):
+                self._ibkr_bridge = None
+
+        handler = MockHandler()
+        result = await handler.generate_report("AAPL", include_news=True)
+        assert "Yes" in result or "News" in result
+
+    @pytest.mark.asyncio
+    async def test_generate_report_different_strategies(self):
+        """Test generate_report with different strategies."""
+        from src.handlers.report import ReportHandlerMixin
+
+        class MockHandler(ReportHandlerMixin):
+            def __init__(self):
+                self._ibkr_bridge = None
+
+        handler = MockHandler()
+
+        for strategy in ["pullback", "bounce", "breakout", "earnings_dip"]:
+            result = await handler.generate_report("AAPL", strategy=strategy)
+            assert strategy.lower() in result.lower() or "Strategy" in result
 
 
 # =============================================================================
@@ -138,6 +202,70 @@ class TestCheckEarningsAsync:
         from src.handlers.report import ReportHandlerMixin
 
         assert hasattr(ReportHandlerMixin, '_check_earnings_async')
+
+    @pytest.mark.asyncio
+    async def test_check_earnings_cached_data(self):
+        """Test _check_earnings_async with cached data."""
+        from src.handlers.report import ReportHandlerMixin
+
+        class MockHandler(ReportHandlerMixin):
+            def __init__(self):
+                self._earnings_fetcher = MagicMock()
+                cached = MagicMock()
+                cached.earnings_date = "2026-03-15"
+                self._earnings_fetcher.cache.get.return_value = cached
+
+        handler = MockHandler()
+        result = await handler._check_earnings_async("AAPL")
+        assert "days_to_earnings" in result
+        assert result.get("next_date") == "2026-03-15"
+
+    @pytest.mark.asyncio
+    async def test_check_earnings_no_cached_data(self):
+        """Test _check_earnings_async without cached data."""
+        from src.handlers.report import ReportHandlerMixin
+
+        class MockHandler(ReportHandlerMixin):
+            def __init__(self):
+                self._earnings_fetcher = MagicMock()
+                self._earnings_fetcher.cache.get.return_value = None
+                self._earnings_fetcher.fetch.return_value = None
+
+        handler = MockHandler()
+        with patch('src.handlers.report.get_earnings_fetcher', return_value=handler._earnings_fetcher):
+            result = await handler._check_earnings_async("AAPL")
+            assert result.get("days_to_earnings") is None
+
+    @pytest.mark.asyncio
+    async def test_check_earnings_handles_exception(self):
+        """Test _check_earnings_async handles exceptions."""
+        from src.handlers.report import ReportHandlerMixin
+
+        class MockHandler(ReportHandlerMixin):
+            def __init__(self):
+                self._earnings_fetcher = MagicMock()
+                self._earnings_fetcher.cache.get.side_effect = Exception("Test error")
+
+        handler = MockHandler()
+        result = await handler._check_earnings_async("AAPL")
+        assert result.get("days_to_earnings") is None
+
+    @pytest.mark.asyncio
+    async def test_check_earnings_invalid_date_format(self):
+        """Test _check_earnings_async with invalid date format."""
+        from src.handlers.report import ReportHandlerMixin
+
+        class MockHandler(ReportHandlerMixin):
+            def __init__(self):
+                self._earnings_fetcher = MagicMock()
+                cached = MagicMock()
+                cached.earnings_date = "invalid-date"
+                self._earnings_fetcher.cache.get.return_value = cached
+
+        handler = MockHandler()
+        result = await handler._check_earnings_async("AAPL")
+        # Should handle invalid date gracefully
+        assert "days_to_earnings" in result
 
 
 if __name__ == "__main__":

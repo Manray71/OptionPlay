@@ -69,16 +69,15 @@ class VixCacheManager:
             db_path: Path to trades.db (default: ~/.optionplay/trades.db)
         """
         self.db_path = db_path or DB_PATH
-        self._cache: Dict[date, float] = {}
-        self._cache_loaded = False
         self._lock = threading.RLock()
 
     def _ensure_db_exists(self) -> bool:
-        """Check if database exists."""
-        if not self.db_path.exists():
-            logger.warning(f"VIX database not found: {self.db_path}")
-            return False
-        return True
+        """Check if database exists. Thread-safe."""
+        with self._lock:
+            if not self.db_path.exists():
+                logger.warning(f"VIX database not found: {self.db_path}")
+                return False
+            return True
 
     def _get_connection(self) -> sqlite3.Connection:
         """Get database connection."""
