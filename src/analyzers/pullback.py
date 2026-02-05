@@ -24,11 +24,11 @@ except ImportError:
 
 # Import shared indicators
 try:
-    from ..indicators.momentum import calculate_rsi_divergence, calculate_macd, calculate_stochastic
+    from ..indicators.momentum import calculate_rsi, calculate_rsi_divergence, calculate_macd, calculate_stochastic
     from ..indicators.trend import calculate_ema
     from ..indicators.volatility import calculate_atr_simple, calculate_keltner_channel
 except ImportError:
-    from indicators.momentum import calculate_rsi_divergence, calculate_macd, calculate_stochastic
+    from indicators.momentum import calculate_rsi, calculate_rsi_divergence, calculate_macd, calculate_stochastic
     from indicators.trend import calculate_ema
     from indicators.volatility import calculate_atr_simple, calculate_keltner_channel
 
@@ -666,26 +666,8 @@ class PullbackAnalyzer(BaseAnalyzer):
     # =========================================================================
     
     def _calculate_rsi(self, prices: List[float], period: int) -> float:
-        """RSI mit Wilder's Smoothing"""
-        if len(prices) < period + 1:
-            return 50.0
-        
-        deltas = np.diff(prices)
-        gains = np.where(deltas > 0, deltas, 0)
-        losses = np.where(deltas < 0, -deltas, 0)
-        
-        avg_gain = np.mean(gains[:period])
-        avg_loss = np.mean(losses[:period])
-        
-        for i in range(period, len(gains)):
-            avg_gain = (avg_gain * (period - 1) + gains[i]) / period
-            avg_loss = (avg_loss * (period - 1) + losses[i]) / period
-        
-        if avg_loss == 0:
-            return 100.0
-        
-        rs = avg_gain / avg_loss
-        return 100 - (100 / (1 + rs))
+        """RSI mit Wilder's Smoothing. Delegates to indicators.momentum."""
+        return calculate_rsi(prices, period)
     
     def _calculate_sma(self, prices: List[float], period: int) -> float:
         """Simple Moving Average"""

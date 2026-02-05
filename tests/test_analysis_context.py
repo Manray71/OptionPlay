@@ -584,27 +584,28 @@ class TestToDict:
 class TestPythonFallback:
     """Tests for pure Python calculation fallback."""
 
-    def test_calc_rsi_pure_python(self):
-        """Test pure Python RSI calculation."""
-        ctx = AnalysisContext(symbol="TEST", current_price=100.0)
+    def test_calc_rsi_canonical(self):
+        """Test canonical RSI calculation (was: pure Python on context)."""
+        from src.indicators.momentum import calculate_rsi
 
         # Generate prices with uptrend
         prices = [100.0 + i * 0.5 for i in range(30)]
 
-        rsi = ctx._calc_rsi(prices, 14)
+        rsi = calculate_rsi(prices, 14)
 
         assert rsi is not None
         assert 0 <= rsi <= 100
 
     def test_calc_rsi_insufficient_data(self):
         """Test RSI with insufficient data."""
-        ctx = AnalysisContext(symbol="TEST")
+        from src.indicators.momentum import calculate_rsi
 
         prices = [100.0, 101.0, 102.0]  # Too few
 
-        rsi = ctx._calc_rsi(prices, 14)
+        rsi = calculate_rsi(prices, 14)
 
-        assert rsi is None
+        # calculate_rsi returns 50.0 as fallback for insufficient data
+        assert rsi == 50.0
 
     def test_calc_sma_pure_python(self):
         """Test pure Python SMA calculation."""
@@ -651,15 +652,15 @@ class TestPythonFallback:
         assert '0.5' in fib
         assert fib['0.5'] == 105.0
 
-    def test_calc_atr_pure_python(self):
-        """Test pure Python ATR calculation."""
-        ctx = AnalysisContext(symbol="TEST")
+    def test_calc_atr_canonical(self):
+        """Test canonical ATR calculation (was: pure Python on context)."""
+        from src.indicators.volatility import calculate_atr_simple
 
         prices = [100.0 + i * 0.1 for i in range(30)]
         highs = [p + 1 for p in prices]
         lows = [p - 1 for p in prices]
 
-        atr = ctx._calc_atr(highs, lows, prices, 14)
+        atr = calculate_atr_simple(highs, lows, prices, 14)
 
         assert atr is not None
         assert atr > 0

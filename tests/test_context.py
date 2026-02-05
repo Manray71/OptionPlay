@@ -374,26 +374,27 @@ class TestRSIEdgeCases:
 class TestPureePythonCalculations:
     """Tests for pure Python calculation methods (fallback path)."""
 
-    def test_calc_rsi_python_avg_loss_zero(self):
-        """Test _calc_rsi when average loss is zero (returns 100)."""
-        ctx = AnalysisContext(symbol="TEST")
+    def test_calc_rsi_canonical_avg_loss_zero(self):
+        """Test canonical RSI when average loss is zero (returns 100)."""
+        from src.indicators.momentum import calculate_rsi
 
         # All gains, no losses
         prices = [100.0 + i * 0.5 for i in range(30)]
-        rsi = ctx._calc_rsi(prices, 14)
+        rsi = calculate_rsi(prices, 14)
 
         assert rsi is not None
         # When all changes are gains, avg_loss = 0, RSI = 100
         assert rsi == 100.0
 
-    def test_calc_rsi_python_insufficient_data(self):
-        """Test _calc_rsi with insufficient data."""
-        ctx = AnalysisContext(symbol="TEST")
+    def test_calc_rsi_canonical_insufficient_data(self):
+        """Test canonical RSI with insufficient data."""
+        from src.indicators.momentum import calculate_rsi
 
         prices = [100.0, 101.0, 102.0]  # Only 3 points, need 15+
-        rsi = ctx._calc_rsi(prices, 14)
+        rsi = calculate_rsi(prices, 14)
 
-        assert rsi is None
+        # calculate_rsi returns 50.0 as fallback for insufficient data
+        assert rsi == 50.0
 
     def test_calc_ema_python_insufficient_data(self):
         """Test _calc_ema with insufficient data."""
@@ -404,28 +405,28 @@ class TestPureePythonCalculations:
 
         assert ema is None
 
-    def test_calc_atr_python_insufficient_data(self):
-        """Test _calc_atr with insufficient data."""
-        ctx = AnalysisContext(symbol="TEST")
+    def test_calc_atr_canonical_insufficient_data(self):
+        """Test canonical ATR with insufficient data."""
+        from src.indicators.volatility import calculate_atr_simple
 
         prices = [100.0, 101.0, 102.0]
         highs = [101.0, 102.0, 103.0]
         lows = [99.0, 100.0, 101.0]
 
-        atr = ctx._calc_atr(highs, lows, prices, 14)
+        atr = calculate_atr_simple(highs, lows, prices, 14)
 
         assert atr is None
 
-    def test_calc_atr_python_short_true_ranges(self):
-        """Test _calc_atr when true_ranges is shorter than period."""
-        ctx = AnalysisContext(symbol="TEST")
+    def test_calc_atr_canonical_short_true_ranges(self):
+        """Test canonical ATR when data is shorter than period."""
+        from src.indicators.volatility import calculate_atr_simple
 
         # 10 data points, but need period + 1 = 15
         prices = [100.0 + i for i in range(10)]
         highs = [p + 1 for p in prices]
         lows = [p - 1 for p in prices]
 
-        atr = ctx._calc_atr(highs, lows, prices, 14)
+        atr = calculate_atr_simple(highs, lows, prices, 14)
 
         assert atr is None
 
@@ -1003,16 +1004,16 @@ class TestATREdgeCases:
         assert ctx.atr_14 is not None
         assert ctx.atr_14 > 3  # Should be larger due to gap
 
-    def test_atr_python_exactly_period_plus_one(self):
-        """Test _calc_atr with exactly period + 1 data points."""
-        ctx = AnalysisContext(symbol="TEST")
+    def test_atr_canonical_exactly_period_plus_one(self):
+        """Test canonical ATR with exactly period + 1 data points."""
+        from src.indicators.volatility import calculate_atr_simple
 
         # 15 data points for period=14
         prices = [100.0 + i for i in range(15)]
         highs = [p + 1 for p in prices]
         lows = [p - 1 for p in prices]
 
-        atr = ctx._calc_atr(highs, lows, prices, 14)
+        atr = calculate_atr_simple(highs, lows, prices, 14)
 
         assert atr is not None
 

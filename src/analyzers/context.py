@@ -109,6 +109,23 @@ except ImportError:
         analyze_gap = None
         GapResult = None
 
+# Import canonical indicator functions (used in Python fallback path)
+try:
+    from ..indicators.momentum import calculate_rsi, calculate_macd, calculate_stochastic
+    from ..indicators.trend import calculate_ema
+    from ..indicators.volatility import calculate_atr_simple
+except ImportError:
+    try:
+        from indicators.momentum import calculate_rsi, calculate_macd, calculate_stochastic
+        from indicators.trend import calculate_ema
+        from indicators.volatility import calculate_atr_simple
+    except ImportError:
+        calculate_rsi = None
+        calculate_macd = None
+        calculate_stochastic = None
+        calculate_ema = None
+        calculate_atr_simple = None
+
 logger = logging.getLogger(__name__)
 
 
@@ -338,33 +355,56 @@ class AnalysisContext:
         opens: Optional[List[float]] = None
     ) -> None:
         """
-        Calculate indicators using pure Python (fallback).
+        Calculate indicators using canonical functions (fallback).
 
         Used when NumPy optimized module is not available.
+        Delegates to shared indicator libraries (indicators.momentum,
+        indicators.volatility, indicators.trend) instead of inline
+        implementations.
         """
         # Store opens for gap calculation
         self._opens = opens
 
-        # RSI
-        self.rsi_14 = self._calc_rsi(prices, 14)
+        # RSI — canonical source: indicators.momentum.calculate_rsi
+        if calculate_rsi is not None:
+            self.rsi_14 = calculate_rsi(prices, 14)
+        else:
+            self.rsi_14 = None
 
-        # Moving Averages
+        # Moving Averages (SMA is trivial, no dedicated function needed)
         self.sma_20 = self._calc_sma(prices, 20)
         if len(prices) >= 50:
             self.sma_50 = self._calc_sma(prices, 50)
         if len(prices) >= 200:
             self.sma_200 = self._calc_sma(prices, 200)
 
-        # EMA for MACD
-        self.ema_12 = self._calc_ema(prices, 12)
-        self.ema_26 = self._calc_ema(prices, 26)
+        # EMA — canonical source: indicators.trend.calculate_ema
+        if calculate_ema is not None:
+            ema_12 = calculate_ema(prices, 12)
+            ema_26 = calculate_ema(prices, 26)
+            self.ema_12 = ema_12 if len(ema_12) > len(prices[:12]) else None
+            self.ema_26 = ema_26 if len(ema_26) > len(prices[:26]) else None
+        else:
+            self.ema_12 = None
+            self.ema_26 = None
 
-        # MACD
-        if self.ema_12 and self.ema_26:
+        # MACD — canonical source: indicators.momentum.calculate_macd
+        if calculate_macd is not None:
+            macd_result = calculate_macd(prices)
+            if macd_result:
+                self.macd_line = macd_result.macd_line
+                self.macd_signal = macd_result.signal_line
+                self.macd_histogram = macd_result.histogram
+        elif self.ema_12 and self.ema_26:
             self._calc_macd()
 
-        # Stochastic
-        if len(highs) >= 14 and len(lows) >= 14:
+        # Stochastic — canonical source: indicators.momentum.calculate_stochastic
+        if calculate_stochastic is not None and len(highs) >= 14 and len(lows) >= 14:
+            stoch_result = calculate_stochastic(highs, lows, prices)
+            if stoch_result:
+                self.stoch_k = stoch_result.k
+                self.stoch_d = stoch_result.d
+        elif len(highs) >= 14 and len(lows) >= 14:
             self._calc_stochastic(highs, lows, prices)
 
         # Support/Resistance (using optimized O(n) algorithm)
@@ -392,8 +432,11 @@ class AnalysisContext:
             low = min(lows[-lookback:])
             self.fib_levels = self._calc_fibonacci(high, low)
 
-        # ATR
-        self.atr_14 = self._calc_atr(highs, lows, prices, 14)
+        # ATR — canonical source: indicators.volatility.calculate_atr_simple
+        if calculate_atr_simple is not None:
+            self.atr_14 = calculate_atr_simple(highs, lows, prices, 14)
+        else:
+            self.atr_14 = None
 
         # Volume
         if len(volumes) >= 20:
@@ -411,35 +454,6 @@ class AnalysisContext:
 
         # Trend
         self._determine_trend()
-
-    def _calc_rsi(self, prices: List[float], period: int = 14) -> Optional[float]:
-        """
-        Calculate RSI using Wilder's smoothing method.
-
-        This uses the same algorithm as momentum.py for consistency.
-        """
-        if len(prices) < period + 1:
-            return None
-
-        changes = [prices[i] - prices[i-1] for i in range(1, len(prices))]
-
-        gains = [c if c > 0 else 0 for c in changes]
-        losses = [-c if c < 0 else 0 for c in changes]
-
-        # Initial averages (simple average for first period)
-        avg_gain = sum(gains[:period]) / period
-        avg_loss = sum(losses[:period]) / period
-
-        # Apply Wilder's smoothing for remaining periods
-        for i in range(period, len(gains)):
-            avg_gain = (avg_gain * (period - 1) + gains[i]) / period
-            avg_loss = (avg_loss * (period - 1) + losses[i]) / period
-
-        if avg_loss == 0:
-            return 100.0
-
-        rs = avg_gain / avg_loss
-        return 100 - (100 / (1 + rs))
 
     def _calc_sma(self, prices: List[float], period: int) -> Optional[float]:
         """Calculate Simple Moving Average."""
@@ -533,31 +547,6 @@ class AnalysisContext:
             '0.786': high - diff * 0.786,
             '1.0': low
         }
-
-    def _calc_atr(
-        self,
-        highs: List[float],
-        lows: List[float],
-        prices: List[float],
-        period: int = 14
-    ) -> Optional[float]:
-        """Calculate Average True Range."""
-        if len(prices) < period + 1:
-            return None
-
-        true_ranges = []
-        for i in range(1, len(prices)):
-            tr = max(
-                highs[i] - lows[i],
-                abs(highs[i] - prices[i-1]),
-                abs(lows[i] - prices[i-1])
-            )
-            true_ranges.append(tr)
-
-        if len(true_ranges) < period:
-            return None
-
-        return sum(true_ranges[-period:]) / period
 
     def _calculate_gap(
         self,
