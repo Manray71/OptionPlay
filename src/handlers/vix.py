@@ -15,7 +15,7 @@ import urllib.error
 from datetime import date, datetime
 from typing import Optional
 
-from ..utils.error_handler import mcp_endpoint
+from ..utils.error_handler import endpoint
 from ..utils.markdown_builder import MarkdownBuilder
 from ..utils.validation import validate_symbol
 from ..vix_strategy import (
@@ -71,7 +71,7 @@ class VixHandlerMixin(BaseHandlerMixin):
             logger.debug(f"Yahoo VIX fetch error: {e}")
             return None
 
-    @mcp_endpoint(operation="VIX lookup")
+    @endpoint(operation="VIX lookup")
     async def get_vix(self, force_refresh: bool = False) -> Optional[float]:
         """
         Get current VIX (with 5-minute cache).
@@ -123,7 +123,7 @@ class VixHandlerMixin(BaseHandlerMixin):
 
         return vix if vix else self._current_vix
 
-    @mcp_endpoint(operation="strategy recommendation")
+    @endpoint(operation="strategy recommendation")
     async def get_strategy_recommendation(self) -> str:
         """
         Get current strategy recommendation based on VIX.
@@ -135,7 +135,7 @@ class VixHandlerMixin(BaseHandlerMixin):
         recommendation = get_strategy_for_vix(vix)
         return formatters.strategy.format(recommendation, vix)
 
-    @mcp_endpoint(operation="regime status")
+    @endpoint(operation="regime status")
     async def get_regime_status(self) -> str:
         """
         Get current VIX regime status with trained model recommendations.
@@ -263,7 +263,7 @@ class VixHandlerMixin(BaseHandlerMixin):
             logger.error(f"Regime status error: {e}")
             return f"Error getting regime status: {e}"
 
-    @mcp_endpoint(operation="strategy for stock", symbol_param="symbol")
+    @endpoint(operation="strategy for stock", symbol_param="symbol")
     async def get_strategy_for_stock(self, symbol: str) -> str:
         """
         Get strategy recommendation based on stock price and VIX regime.
@@ -323,7 +323,7 @@ class VixHandlerMixin(BaseHandlerMixin):
 
         return b.build()
 
-    @mcp_endpoint(operation="event calendar")
+    @endpoint(operation="event calendar")
     async def get_event_calendar(self, days: int = 30) -> str:
         """
         Get upcoming market events (FOMC, OPEX, etc.).

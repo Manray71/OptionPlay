@@ -39,7 +39,7 @@ Usage::
         pass
 
 Note:
-    All handler methods are decorated with @mcp_endpoint for
+    All handler methods are decorated with @endpoint for
     unified error handling (see error_handler.py).
 """
 

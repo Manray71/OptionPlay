@@ -12,7 +12,7 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from ..constants.trading_rules import ExitAction
-from ..utils.error_handler import mcp_endpoint
+from ..utils.error_handler import endpoint
 from ..utils.markdown_builder import MarkdownBuilder
 from ..services.position_monitor import (
     PositionMonitor,
@@ -34,7 +34,7 @@ class MonitorHandlerMixin(BaseHandlerMixin):
     Mixin for position monitoring handler methods.
     """
 
-    @mcp_endpoint(operation="position monitoring")
+    @endpoint(operation="position monitoring")
     async def monitor_positions(self) -> str:
         """
         Monitor all open positions and generate exit signals.

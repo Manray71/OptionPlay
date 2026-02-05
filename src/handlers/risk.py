@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
-from ..utils.error_handler import mcp_endpoint
+from ..utils.error_handler import endpoint
 from ..utils.markdown_builder import MarkdownBuilder
 from ..utils.validation import validate_symbol
 from ..spread_analyzer import SpreadAnalyzer, BullPutSpreadParams
@@ -24,7 +24,7 @@ class RiskHandlerMixin(BaseHandlerMixin):
     Mixin for risk management handler methods.
     """
 
-    @mcp_endpoint(operation="position sizing")
+    @endpoint(operation="position sizing")
     async def calculate_position_size(
         self,
         account_size: float,
@@ -148,7 +148,7 @@ class RiskHandlerMixin(BaseHandlerMixin):
 
         return b.build()
 
-    @mcp_endpoint(operation="stop loss recommendation")
+    @endpoint(operation="stop loss recommendation")
     async def recommend_stop_loss(
         self,
         net_credit: float,
@@ -212,7 +212,7 @@ class RiskHandlerMixin(BaseHandlerMixin):
 
         return b.build()
 
-    @mcp_endpoint(operation="spread analysis", symbol_param="symbol")
+    @endpoint(operation="spread analysis", symbol_param="symbol")
     async def analyze_spread(
         self,
         symbol: str,
@@ -319,7 +319,7 @@ class RiskHandlerMixin(BaseHandlerMixin):
 
         return b.build()
 
-    @mcp_endpoint(operation="monte carlo simulation", symbol_param="symbol")
+    @endpoint(operation="monte carlo simulation", symbol_param="symbol")
     async def run_monte_carlo(
         self,
         symbol: str,

@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, List, Optional
 
-from ..utils.error_handler import mcp_endpoint
+from ..utils.error_handler import endpoint
 from ..utils.markdown_builder import MarkdownBuilder
 from ..utils.validation import validate_symbol
 from ..constants.trading_rules import TradeDecision, get_vix_regime
@@ -31,7 +31,7 @@ class ValidateHandlerMixin(BaseHandlerMixin):
     Mixin for trade validation handler methods.
     """
 
-    @mcp_endpoint(operation="trade validation", symbol_param="symbol")
+    @endpoint(operation="trade validation", symbol_param="symbol")
     async def validate_trade(
         self,
         symbol: str,

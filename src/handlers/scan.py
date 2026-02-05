@@ -19,7 +19,7 @@ from ..services.recommendation_engine import (
     DailyPick,
     DailyRecommendationResult,
 )
-from ..utils.error_handler import mcp_endpoint
+from ..utils.error_handler import endpoint
 from ..utils.markdown_builder import MarkdownBuilder, truncate
 from ..utils.validation import validate_symbols, is_etf
 from ..config import get_watchlist_loader
@@ -261,7 +261,7 @@ class ScanHandlerMixin(BaseHandlerMixin):
         symbols_hash = hash(tuple(sorted(symbols)))
         return f"scan:{mode.value}:{symbols_hash}:{min_score}:{max_results}"
 
-    @mcp_endpoint(operation="pullback scan")
+    @endpoint(operation="pullback scan")
     async def scan_with_strategy(
         self,
         symbols: Optional[List[str]] = None,
@@ -299,7 +299,7 @@ class ScanHandlerMixin(BaseHandlerMixin):
             no_results_msg="No pullback candidates found with current criteria.",
         )
 
-    @mcp_endpoint(operation="legacy pullback scan")
+    @endpoint(operation="legacy pullback scan")
     async def scan_pullback_candidates(
         self,
         symbols: Optional[List[str]] = None,
@@ -319,7 +319,7 @@ class ScanHandlerMixin(BaseHandlerMixin):
         """
         return await self.scan_with_strategy(symbols, max_results, min_score)
 
-    @mcp_endpoint(operation="support bounce scan")
+    @endpoint(operation="support bounce scan")
     async def scan_bounce(
         self,
         symbols: Optional[List[str]] = None,
@@ -360,7 +360,7 @@ class ScanHandlerMixin(BaseHandlerMixin):
             no_results_msg="No bounce candidates found.",
         )
 
-    @mcp_endpoint(operation="ATH breakout scan")
+    @endpoint(operation="ATH breakout scan")
     async def scan_ath_breakout(
         self,
         symbols: Optional[List[str]] = None,
@@ -402,7 +402,7 @@ class ScanHandlerMixin(BaseHandlerMixin):
             no_results_msg="No ATH breakout candidates found.",
         )
 
-    @mcp_endpoint(operation="earnings dip scan")
+    @endpoint(operation="earnings dip scan")
     async def scan_earnings_dip(
         self,
         symbols: Optional[List[str]] = None,
@@ -443,7 +443,7 @@ class ScanHandlerMixin(BaseHandlerMixin):
             no_results_msg="No earnings dip candidates found (requires recent earnings within 10 days).",
         )
 
-    @mcp_endpoint(operation="multi-strategy scan")
+    @endpoint(operation="multi-strategy scan")
     async def scan_multi_strategy(
         self,
         symbols: Optional[List[str]] = None,
@@ -507,7 +507,7 @@ class ScanHandlerMixin(BaseHandlerMixin):
             list_type=list_type,
         )
 
-    @mcp_endpoint(operation="daily picks")
+    @endpoint(operation="daily picks")
     async def daily_picks(
         self,
         symbols: Optional[List[str]] = None,

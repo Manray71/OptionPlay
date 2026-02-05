@@ -11,7 +11,7 @@ import logging
 from datetime import date, timedelta
 from typing import Any, Dict, List, Optional
 
-from ..utils.error_handler import mcp_endpoint
+from ..utils.error_handler import endpoint
 from ..utils.markdown_builder import MarkdownBuilder, truncate
 from ..utils.validation import validate_symbol
 from ..vix_strategy import get_strategy_for_vix
@@ -30,7 +30,7 @@ class AnalysisHandlerMixin(BaseHandlerMixin):
     Mixin for analysis-related handler methods.
     """
 
-    @mcp_endpoint(operation="symbol analysis", symbol_param="symbol")
+    @endpoint(operation="symbol analysis", symbol_param="symbol")
     async def analyze_symbol(self, symbol: str) -> str:
         """
         Perform complete analysis for a symbol (Bull-Put-Spread focus).
@@ -143,7 +143,7 @@ class AnalysisHandlerMixin(BaseHandlerMixin):
 
         return b.build()
 
-    @mcp_endpoint(operation="multi-strategy symbol analysis", symbol_param="symbol")
+    @endpoint(operation="multi-strategy symbol analysis", symbol_param="symbol")
     async def analyze_multi_strategy(self, symbol: str) -> str:
         """
         Analyze a single symbol with all available strategies.
@@ -255,7 +255,7 @@ class AnalysisHandlerMixin(BaseHandlerMixin):
 
         return b.build()
 
-    @mcp_endpoint(operation="ensemble recommendation", symbol_param="symbol")
+    @endpoint(operation="ensemble recommendation", symbol_param="symbol")
     async def get_ensemble_recommendation(self, symbol: str) -> str:
         """
         Get ensemble strategy recommendation for a symbol.
@@ -433,7 +433,7 @@ class AnalysisHandlerMixin(BaseHandlerMixin):
 
         return b.build()
 
-    @mcp_endpoint(operation="strike recommendation", symbol_param="symbol")
+    @endpoint(operation="strike recommendation", symbol_param="symbol")
     async def recommend_strikes(
         self,
         symbol: str,

@@ -12,7 +12,7 @@ import logging
 from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
-from ..utils.error_handler import mcp_endpoint
+from ..utils.error_handler import endpoint
 from ..utils.markdown_builder import MarkdownBuilder
 from ..utils.validation import validate_symbol
 from ..config import get_watchlist_loader
@@ -41,7 +41,7 @@ class ReportHandlerMixin(BaseHandlerMixin):
 
     _ibkr_bridge: Optional["IBKRBridge"]
 
-    @mcp_endpoint(operation="detailed report generation", symbol_param="symbol")
+    @endpoint(operation="detailed report generation", symbol_param="symbol")
     async def generate_report(
         self,
         symbol: str,
@@ -77,7 +77,7 @@ class ReportHandlerMixin(BaseHandlerMixin):
 
         return b.build()
 
-    @mcp_endpoint(operation="scan report generation")
+    @endpoint(operation="scan report generation")
     async def generate_scan_report(
         self,
         strategy: str = "multi",

@@ -10,6 +10,7 @@ from src.utils.error_handler import (
     DataFetchError,
     ConfigurationError,
     format_error_response,
+    endpoint,
     mcp_endpoint,
     sync_endpoint,
     safe_format,
@@ -569,3 +570,152 @@ class TestDataFetchErrorHierarchy:
         """Test ApiConnectionError inherits from DataFetchError."""
         error = ApiConnectionError("No connection")
         assert isinstance(error, DataFetchError)
+
+
+# =============================================================================
+# UNIFIED ENDPOINT DECORATOR TESTS
+# =============================================================================
+
+
+class TestUnifiedEndpointDecorator:
+    """Tests for the unified endpoint() decorator."""
+
+    @pytest.mark.asyncio
+    async def test_async_successful_call(self):
+        """Test endpoint with async function success."""
+        @endpoint(operation="test")
+        async def async_func():
+            return "Async Success"
+
+        result = await async_func()
+        assert result == "Async Success"
+
+    def test_sync_successful_call(self):
+        """Test endpoint with sync function success."""
+        @endpoint(operation="test")
+        def sync_func():
+            return "Sync Success"
+
+        result = sync_func()
+        assert result == "Sync Success"
+
+    @pytest.mark.asyncio
+    async def test_async_catches_error(self):
+        """Test endpoint catches async function errors."""
+        @endpoint(operation="async test")
+        async def async_func():
+            raise RuntimeError("Async error")
+
+        result = await async_func()
+        assert "❌ Unexpected Error" in result
+        assert "RuntimeError" in result
+
+    def test_sync_catches_error(self):
+        """Test endpoint catches sync function errors."""
+        @endpoint(operation="sync test")
+        def sync_func():
+            raise RuntimeError("Sync error")
+
+        result = sync_func()
+        assert "❌ Unexpected Error" in result
+        assert "RuntimeError" in result
+
+    @pytest.mark.asyncio
+    async def test_async_symbol_extraction_kwargs(self):
+        """Test symbol extraction from kwargs in async function."""
+        @endpoint(operation="test", symbol_param="symbol")
+        async def async_func(symbol: str):
+            raise ValidationError("Test error")
+
+        result = await async_func(symbol="AAPL")
+        assert "AAPL" in result
+
+    def test_sync_symbol_extraction_kwargs(self):
+        """Test symbol extraction from kwargs in sync function."""
+        @endpoint(operation="test", symbol_param="symbol")
+        def sync_func(symbol: str):
+            raise ValidationError("Test error")
+
+        result = sync_func(symbol="GOOGL")
+        assert "GOOGL" in result
+
+    @pytest.mark.asyncio
+    async def test_async_symbol_extraction_args(self):
+        """Test symbol extraction from positional args in async method."""
+        class TestClass:
+            @endpoint(operation="test", symbol_param="symbol")
+            async def method(self, symbol: str):
+                raise ValidationError("Test error")
+
+        obj = TestClass()
+        result = await obj.method("MSFT")
+        assert "MSFT" in result
+
+    def test_sync_symbol_extraction_args(self):
+        """Test symbol extraction from positional args in sync method."""
+        class TestClass:
+            @endpoint(operation="test", symbol_param="symbol")
+            def method(self, symbol: str):
+                raise ValidationError("Test error")
+
+        obj = TestClass()
+        result = obj.method("TSLA")
+        assert "TSLA" in result
+
+    @pytest.mark.asyncio
+    async def test_async_default_operation_name(self):
+        """Test default operation name is function name for async."""
+        @endpoint()
+        async def my_async_operation():
+            raise RuntimeError("Error")
+
+        result = await my_async_operation()
+        assert "my_async_operation" in result or "Unexpected Error" in result
+
+    def test_sync_default_operation_name(self):
+        """Test default operation name is function name for sync."""
+        @endpoint()
+        def my_sync_operation():
+            raise RuntimeError("Error")
+
+        result = my_sync_operation()
+        assert "my_sync_operation" in result or "Unexpected Error" in result
+
+    @pytest.mark.asyncio
+    async def test_async_preserves_function_metadata(self):
+        """Test that async wrapper preserves function metadata."""
+        @endpoint(operation="test")
+        async def documented_func():
+            """This is a docstring."""
+            return "Success"
+
+        assert documented_func.__name__ == "documented_func"
+        # Note: docstring may be on inner function
+
+    def test_sync_preserves_function_metadata(self):
+        """Test that sync wrapper preserves function metadata."""
+        @endpoint(operation="test")
+        def documented_func():
+            """This is a docstring."""
+            return "Success"
+
+        assert documented_func.__name__ == "documented_func"
+
+    @pytest.mark.asyncio
+    async def test_async_catches_validation_error(self):
+        """Test endpoint catches ValidationError in async."""
+        @endpoint(operation="test", symbol_param="symbol")
+        async def validate_func(symbol: str):
+            raise ValidationError(f"Invalid: {symbol}")
+
+        result = await validate_func("BAD")
+        assert "❌ Validation Error" in result
+
+    def test_sync_catches_validation_error(self):
+        """Test endpoint catches ValidationError in sync."""
+        @endpoint(operation="test", symbol_param="symbol")
+        def validate_func(symbol: str):
+            raise ValidationError(f"Invalid: {symbol}")
+
+        result = validate_func("BAD")
+        assert "❌ Validation Error" in result

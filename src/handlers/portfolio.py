@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
-from ..utils.error_handler import sync_endpoint
+from ..utils.error_handler import endpoint
 from ..utils.markdown_builder import MarkdownBuilder
 from ..utils.validation import validate_symbol
 from ..portfolio import get_portfolio_manager
@@ -26,14 +26,14 @@ class PortfolioHandlerMixin(BaseHandlerMixin):
     Mixin for portfolio management handler methods.
     """
 
-    @sync_endpoint(operation="portfolio summary")
+    @endpoint(operation="portfolio summary")
     def portfolio_summary(self) -> str:
         """Get portfolio summary with P&L statistics."""
         portfolio = get_portfolio_manager()
         summary = portfolio.get_summary()
         return portfolio_formatter.format_summary(summary)
 
-    @sync_endpoint(operation="portfolio positions")
+    @endpoint(operation="portfolio positions")
     def portfolio_positions(self, status: str = "all") -> str:
         """
         List portfolio positions.
@@ -58,7 +58,7 @@ class PortfolioHandlerMixin(BaseHandlerMixin):
 
         return portfolio_formatter.format_positions_table(positions, title)
 
-    @sync_endpoint(operation="portfolio position detail")
+    @endpoint(operation="portfolio position detail")
     def portfolio_position(self, position_id: str) -> str:
         """
         Get detailed view of a single position.
@@ -77,7 +77,7 @@ class PortfolioHandlerMixin(BaseHandlerMixin):
 
         return portfolio_formatter.format_position_detail(position)
 
-    @sync_endpoint(operation="add position")
+    @endpoint(operation="add position")
     def portfolio_add(
         self,
         symbol: str,
@@ -174,7 +174,7 @@ class PortfolioHandlerMixin(BaseHandlerMixin):
         except ValueError as e:
             return f"Error: {e}"
 
-    @sync_endpoint(operation="close position")
+    @endpoint(operation="close position")
     def portfolio_close(self, position_id: str, close_premium: float, notes: str = "") -> str:
         """
         Close a position by buying back the spread.
@@ -203,7 +203,7 @@ class PortfolioHandlerMixin(BaseHandlerMixin):
         except ValueError as e:
             return f"Error: {e}"
 
-    @sync_endpoint(operation="expire position")
+    @endpoint(operation="expire position")
     def portfolio_expire(self, position_id: str) -> str:
         """
         Mark position as expired worthless (full profit).
@@ -228,7 +228,7 @@ class PortfolioHandlerMixin(BaseHandlerMixin):
         except ValueError as e:
             return f"Error: {e}"
 
-    @sync_endpoint(operation="expiring positions")
+    @endpoint(operation="expiring positions")
     def portfolio_expiring(self, days: int = 7) -> str:
         """
         List positions expiring soon.
@@ -243,7 +243,7 @@ class PortfolioHandlerMixin(BaseHandlerMixin):
         positions = portfolio.get_expiring_soon(days)
         return portfolio_formatter.format_expiring_soon(positions)
 
-    @sync_endpoint(operation="trade history")
+    @endpoint(operation="trade history")
     def portfolio_trades(self, limit: int = 20) -> str:
         """
         Show trade history.
@@ -258,7 +258,7 @@ class PortfolioHandlerMixin(BaseHandlerMixin):
         trades = portfolio.get_trades()
         return portfolio_formatter.format_trades(trades, limit)
 
-    @sync_endpoint(operation="P&L by symbol")
+    @endpoint(operation="P&L by symbol")
     def portfolio_pnl_symbols(self) -> str:
         """
         Show realized P&L grouped by symbol.
@@ -270,7 +270,7 @@ class PortfolioHandlerMixin(BaseHandlerMixin):
         pnl = portfolio.get_pnl_by_symbol()
         return portfolio_formatter.format_pnl_by_symbol(pnl)
 
-    @sync_endpoint(operation="monthly P&L")
+    @endpoint(operation="monthly P&L")
     def portfolio_pnl_monthly(self) -> str:
         """
         Show monthly P&L report.
@@ -282,7 +282,7 @@ class PortfolioHandlerMixin(BaseHandlerMixin):
         pnl = portfolio.get_monthly_pnl()
         return portfolio_formatter.format_monthly_pnl(pnl)
 
-    @sync_endpoint(operation="constraint check")
+    @endpoint(operation="constraint check")
     def portfolio_check(
         self,
         symbol: str,
@@ -345,7 +345,7 @@ class PortfolioHandlerMixin(BaseHandlerMixin):
 
         return b.build()
 
-    @sync_endpoint(operation="constraint status")
+    @endpoint(operation="constraint status")
     def portfolio_constraints(self) -> str:
         """
         Show current constraint configuration and status.

@@ -14,7 +14,7 @@ import urllib.request
 from datetime import date, datetime
 from typing import Any, Dict, List, Optional
 
-from ..utils.error_handler import mcp_endpoint
+from ..utils.error_handler import endpoint
 from ..utils.markdown_builder import MarkdownBuilder
 from ..utils.validation import validate_symbol, validate_symbols, validate_dte_range, is_etf
 from ..utils.provider_orchestrator import ProviderType
@@ -38,14 +38,14 @@ class QuoteHandlerMixin(BaseHandlerMixin):
     # Type hints for additional attributes
     _orchestrator: Any  # ProviderOrchestrator
 
-    @mcp_endpoint(operation="quote lookup", symbol_param="symbol")
+    @endpoint(operation="quote lookup", symbol_param="symbol")
     async def get_quote(self, symbol: str) -> str:
         """Get current stock quote."""
         symbol = validate_symbol(symbol)
         quote = await self._get_quote_cached(symbol)
         return formatters.quote.format(symbol, quote)
 
-    @mcp_endpoint(operation="options chain lookup", symbol_param="symbol")
+    @endpoint(operation="options chain lookup", symbol_param="symbol")
     async def get_options_chain(
         self,
         symbol: str,
@@ -124,7 +124,7 @@ class QuoteHandlerMixin(BaseHandlerMixin):
             logger.debug(f"Yahoo earnings API error for {symbol}: {e}")
             return {'earnings_date': None, 'days_to_earnings': None, 'source': 'error'}
 
-    @mcp_endpoint(operation="earnings check", symbol_param="symbol")
+    @endpoint(operation="earnings check", symbol_param="symbol")
     async def get_earnings(self, symbol: str, min_days: int = 60) -> str:
         """
         Check earnings date for a symbol with multi-source fallback.
@@ -206,7 +206,7 @@ class QuoteHandlerMixin(BaseHandlerMixin):
             source=source_used
         )
 
-    @mcp_endpoint(operation="aggregated earnings check", symbol_param="symbol")
+    @endpoint(operation="aggregated earnings check", symbol_param="symbol")
     async def get_earnings_aggregated(self, symbol: str, min_days: int = 60) -> str:
         """
         Check earnings date with multi-source aggregation and majority voting.
@@ -287,7 +287,7 @@ class QuoteHandlerMixin(BaseHandlerMixin):
 
         return b.build()
 
-    @mcp_endpoint(operation="earnings prefilter")
+    @endpoint(operation="earnings prefilter")
     async def earnings_prefilter(
         self,
         min_days: int = ENTRY_EARNINGS_MIN_DAYS,
@@ -420,7 +420,7 @@ class QuoteHandlerMixin(BaseHandlerMixin):
 
         return b.build()
 
-    @mcp_endpoint(operation="historical data", symbol_param="symbol")
+    @endpoint(operation="historical data", symbol_param="symbol")
     async def get_historical_data(self, symbol: str, days: int = 30) -> str:
         """
         Get historical price data.
@@ -441,7 +441,7 @@ class QuoteHandlerMixin(BaseHandlerMixin):
 
         return formatters.historical.format(symbol=symbol, bars=bars or [], days_shown=10)
 
-    @mcp_endpoint(operation="expirations lookup", symbol_param="symbol")
+    @endpoint(operation="expirations lookup", symbol_param="symbol")
     async def get_expirations(self, symbol: str) -> str:
         """
         Get available options expiration dates for a symbol.
@@ -494,7 +494,7 @@ class QuoteHandlerMixin(BaseHandlerMixin):
 
         return b.build()
 
-    @mcp_endpoint(operation="earnings validation", symbol_param="symbol")
+    @endpoint(operation="earnings validation", symbol_param="symbol")
     async def validate_for_trading(self, symbol: str) -> str:
         """
         Validate if a symbol is safe for trading based on earnings and events.

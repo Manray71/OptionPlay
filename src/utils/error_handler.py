@@ -47,10 +47,12 @@ Note:
     All exceptions are converted to Markdown for MCP client display.
 """
 
+import asyncio
 import functools
+import inspect
 import logging
 from enum import Enum
-from typing import Callable, Any, TypeVar, Coroutine, Optional
+from typing import Callable, Any, TypeVar, Coroutine, Optional, Union
 
 from .validation import ValidationError
 from .circuit_breaker import CircuitBreakerOpen
@@ -362,26 +364,133 @@ def format_error_response(
     return b.build()
 
 
+# =============================================================================
+# UNIFIED ENDPOINT DECORATOR
+# =============================================================================
+
+
+def _extract_symbol(
+    func: Callable,
+    symbol_param: Optional[str],
+    args: tuple,
+    kwargs: dict
+) -> Optional[str]:
+    """
+    Extract symbol parameter from function arguments.
+
+    Args:
+        func: The decorated function
+        symbol_param: Name of the symbol parameter
+        args: Positional arguments
+        kwargs: Keyword arguments
+
+    Returns:
+        Symbol value or None
+    """
+    if not symbol_param:
+        return None
+
+    # Try kwargs first
+    symbol = kwargs.get(symbol_param)
+    if symbol is not None:
+        return symbol
+
+    # Try positional args (skip self for methods)
+    if len(args) > 1:
+        sig = inspect.signature(func)
+        params = list(sig.parameters.keys())
+        if symbol_param in params:
+            idx = params.index(symbol_param)
+            if idx < len(args):
+                return args[idx]
+
+    return None
+
+
+def endpoint(
+    operation: Optional[str] = None,
+    symbol_param: Optional[str] = None
+) -> Callable:
+    """
+    Unified decorator for MCP endpoints with automatic sync/async detection.
+
+    Automatically detects whether the decorated function is synchronous or
+    asynchronous and applies the appropriate wrapper. Catches all exceptions
+    and converts them to user-friendly Markdown responses.
+
+    Args:
+        operation: Name of the operation (for error messages). Defaults to function name.
+        symbol_param: Name of the symbol parameter (for error messages)
+
+    Returns:
+        Decorated function with error handling
+
+    Usage::
+
+        @endpoint(operation="quote lookup", symbol_param="symbol")
+        async def get_quote(self, symbol: str) -> str:
+            ...
+
+        @endpoint(operation="health check")
+        def get_health(self) -> str:
+            ...
+
+    Note:
+        This replaces both mcp_endpoint (async) and sync_endpoint (sync).
+        The function type is detected at decoration time using asyncio.iscoroutinefunction().
+    """
+    def decorator(func: Callable) -> Callable:
+        op_name = operation or func.__name__
+
+        if asyncio.iscoroutinefunction(func):
+            # Async wrapper
+            @functools.wraps(func)
+            async def async_wrapper(*args, **kwargs) -> str:
+                symbol = _extract_symbol(func, symbol_param, args, kwargs)
+                try:
+                    return await func(*args, **kwargs)
+                except Exception as e:
+                    logger.exception(f"Error in {op_name}: {e}")
+                    return format_error_response(e, symbol=symbol, operation=op_name)
+            return async_wrapper
+        else:
+            # Sync wrapper
+            @functools.wraps(func)
+            def sync_wrapper(*args, **kwargs) -> str:
+                symbol = _extract_symbol(func, symbol_param, args, kwargs)
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    logger.exception(f"Error in {op_name}: {e}")
+                    return format_error_response(e, symbol=symbol, operation=op_name)
+            return sync_wrapper
+
+    return decorator
+
+
+# =============================================================================
+# LEGACY DECORATORS (deprecated, use endpoint() instead)
+# =============================================================================
+
+
 def mcp_endpoint(
     operation: str = None,
     symbol_param: str = None
 ) -> Callable:
     """
-    Decorator for MCP server endpoints with unified error handling.
-    
+    Decorator for async MCP server endpoints with error handling.
+
+    .. deprecated:: 3.7.0
+        Use :func:`endpoint` instead, which auto-detects sync/async.
+
     Catches all exceptions and converts them to user-friendly Markdown responses.
-    
+
     Args:
         operation: Name of the operation (for error messages)
         symbol_param: Name of the symbol parameter (for error messages)
-        
+
     Returns:
         Decorated function
-        
-    Usage:
-        @mcp_endpoint(operation="quote lookup", symbol_param="symbol")
-        async def get_quote(self, symbol: str) -> str:
-            ...
     """
     def decorator(func: Callable[..., Coroutine[Any, Any, str]]) -> Callable[..., Coroutine[Any, Any, str]]:
         @functools.wraps(func)
@@ -418,8 +527,11 @@ def sync_endpoint(
     symbol_param: str = None
 ) -> Callable:
     """
-    Decorator for synchronous endpoints with unified error handling.
-    
+    Decorator for sync endpoints with error handling.
+
+    .. deprecated:: 3.7.0
+        Use :func:`endpoint` instead, which auto-detects sync/async.
+
     Same as mcp_endpoint but for non-async functions.
     """
     def decorator(func: Callable[..., str]) -> Callable[..., str]:

@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, List, Optional
 
-from ..utils.error_handler import mcp_endpoint
+from ..utils.error_handler import endpoint
 from ..utils.markdown_builder import MarkdownBuilder
 from ..utils.validation import validate_symbols
 from ..config import get_watchlist_loader
@@ -39,7 +39,7 @@ class IbkrHandlerMixin(BaseHandlerMixin):
     # Type hints for attributes
     _ibkr_bridge: Optional["IBKRBridge"]
 
-    @mcp_endpoint(operation="IBKR status check")
+    @endpoint(operation="IBKR status check")
     async def get_ibkr_status(self) -> str:
         """Check IBKR Bridge status."""
         b = MarkdownBuilder()
@@ -55,7 +55,7 @@ class IbkrHandlerMixin(BaseHandlerMixin):
 
         return b.build()
 
-    @mcp_endpoint(operation="news fetch")
+    @endpoint(operation="news fetch")
     async def get_news(self, symbols: List[str], days: int = 5) -> str:
         """
         Get news headlines from IBKR for symbols.
@@ -77,7 +77,7 @@ class IbkrHandlerMixin(BaseHandlerMixin):
 
         return await self._ibkr_bridge.get_news_formatted(symbols, days)
 
-    @mcp_endpoint(operation="max pain calculation")
+    @endpoint(operation="max pain calculation")
     async def get_max_pain(self, symbols: List[str]) -> str:
         """
         Calculate Max Pain for symbols via IBKR.
@@ -98,7 +98,7 @@ class IbkrHandlerMixin(BaseHandlerMixin):
 
         return await self._ibkr_bridge.get_max_pain_formatted(symbols)
 
-    @mcp_endpoint(operation="IBKR portfolio fetch")
+    @endpoint(operation="IBKR portfolio fetch")
     async def get_ibkr_portfolio(self) -> str:
         """Get portfolio positions from IBKR/TWS."""
         if not IBKR_AVAILABLE or not self._ibkr_bridge:
@@ -109,7 +109,7 @@ class IbkrHandlerMixin(BaseHandlerMixin):
 
         return await self._ibkr_bridge.get_portfolio_formatted()
 
-    @mcp_endpoint(operation="IBKR spreads fetch")
+    @endpoint(operation="IBKR spreads fetch")
     async def get_ibkr_spreads(self) -> str:
         """Get identified spread positions from IBKR/TWS."""
         if not IBKR_AVAILABLE or not self._ibkr_bridge:
@@ -120,7 +120,7 @@ class IbkrHandlerMixin(BaseHandlerMixin):
 
         return await self._ibkr_bridge.get_spreads_formatted()
 
-    @mcp_endpoint(operation="IBKR VIX fetch")
+    @endpoint(operation="IBKR VIX fetch")
     async def get_ibkr_vix(self) -> str:
         """Get live VIX from IBKR."""
         b = MarkdownBuilder()
@@ -153,7 +153,7 @@ class IbkrHandlerMixin(BaseHandlerMixin):
 
         return b.build()
 
-    @mcp_endpoint(operation="IBKR watchlist quotes")
+    @endpoint(operation="IBKR watchlist quotes")
     async def get_ibkr_quotes(
         self,
         symbols: Optional[List[str]] = None,
