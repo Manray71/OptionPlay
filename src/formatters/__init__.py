@@ -13,11 +13,10 @@ from .output_formatters import (
     # Main registry
     formatters,
     FormatterRegistry,
-    
+
     # Individual formatters
     BaseFormatter,
     ScanResultFormatter,
-    LegacyScanResultFormatter,
     QuoteFormatter,
     OptionsChainFormatter,
     EarningsFormatter,
@@ -38,7 +37,6 @@ __all__ = [
     "FormatterRegistry",
     "BaseFormatter",
     "ScanResultFormatter",
-    "LegacyScanResultFormatter",
     "QuoteFormatter",
     "OptionsChainFormatter",
     "EarningsFormatter",

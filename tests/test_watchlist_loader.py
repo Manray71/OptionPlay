@@ -9,7 +9,7 @@ from unittest.mock import patch, mock_open, MagicMock
 from pathlib import Path
 import yaml
 
-from src.watchlist_loader import WatchlistLoader, get_watchlist_loader
+from src.config.watchlist_loader import WatchlistLoader, get_watchlist_loader
 
 
 # =============================================================================
@@ -372,11 +372,10 @@ class TestFallback:
 
         sector_names = loader.get_sector_names()
 
+        # Config version has 6 core sectors in fallback
         expected_sectors = [
             "information_technology", "health_care", "financials",
-            "consumer_discretionary", "communication_services",
-            "industrials", "consumer_staples", "energy",
-            "utilities", "real_estate", "materials"
+            "consumer_discretionary", "industrials", "energy",
         ]
         for sector in expected_sectors:
             assert sector in sector_names

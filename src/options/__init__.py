@@ -2,7 +2,8 @@
 # =============================
 # Options-spezifische Analyse-Tools
 
-from .max_pain import (
+# Import from canonical location in src/
+from ..max_pain import (
     MaxPainCalculator,
     calculate_max_pain,
     format_max_pain_report

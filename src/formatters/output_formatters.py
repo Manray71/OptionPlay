@@ -207,42 +207,6 @@ class ScanResultFormatter(BaseFormatter):
         return b.build()
 
 
-class LegacyScanResultFormatter(BaseFormatter):
-    """Formatter für Legacy-Scan (ohne VIX)."""
-    
-    def format(
-        self,
-        result: ScanResultProtocol,
-        min_score: float = 5.0,
-        max_results: int = 10
-    ) -> str:
-        b = self._builder()
-        
-        b.h1("Pullback Candidates Scan").blank()
-        b.kv("Scanned", f"{result.symbols_scanned} symbols")
-        b.kv("With Signals", result.symbols_with_signals)
-        b.kv("Duration", f"{result.scan_duration_seconds:.1f}s")
-        b.blank()
-        
-        if result.signals:
-            b.h2("Top Candidates").blank()
-            
-            rows = []
-            for signal in result.signals[:max_results]:
-                rows.append([
-                    signal.symbol,
-                    f"{signal.score:.1f}",
-                    signal.strategy,
-                    truncate(signal.reason, 40)
-                ])
-            
-            b.table(["Symbol", "Score", "Strategy", "Reason"], rows)
-        else:
-            b.hint(f"No pullback candidates with score >= {min_score} found.")
-        
-        return b.build()
-
-
 # =============================================================================
 # QUOTE FORMATTER
 # =============================================================================
@@ -815,7 +779,7 @@ class FormatterRegistry:
     
     def __init__(self):
         self.scan_result = ScanResultFormatter()
-        self.legacy_scan = LegacyScanResultFormatter()
+        # Note: LegacyScanResultFormatter removed - was never accessed
         self.quote = QuoteFormatter()
         self.options_chain = OptionsChainFormatter()
         self.earnings = EarningsFormatter()
