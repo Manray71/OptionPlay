@@ -1,8 +1,46 @@
 """
-Base Handler Mixin
-==================
+OptionPlay - Base Handler Mixin
+===============================
 
 Shared utilities and type hints for all handler modules.
+
+ATOM Pattern: Request → Validate → Dispatch → Format
+----------------------------------------------------
+Every MCP handler follows this flow:
+1. REQUEST: Receive MCP tool call with parameters
+2. VALIDATE: Check inputs via validation utilities
+3. DISPATCH: Route to appropriate provider/service
+4. FORMAT: Convert result to Markdown response
+
+This module provides:
+- BaseHandlerMixin: Type hints and interface for OptionPlayServer
+- Shared method signatures (caching, scanning, provider access)
+- Options chain fallback logic (Tradier → IBKR)
+
+Handler Mixins::
+
+    OptionPlayServer
+    ├── BaseHandlerMixin (this module)
+    ├── VixHandlerMixin
+    ├── ScanHandlerMixin
+    ├── QuoteHandlerMixin
+    ├── OptionsHandlerMixin
+    ├── PortfolioHandlerMixin
+    └── ...
+
+Usage::
+
+    class OptionPlayServer(
+        VixHandlerMixin,
+        ScanHandlerMixin,
+        QuoteHandlerMixin,
+        BaseHandlerMixin,  # Must be last for MRO
+    ):
+        pass
+
+Note:
+    All handler methods are decorated with @mcp_endpoint for
+    unified error handling (see error_handler.py).
 """
 
 from __future__ import annotations

@@ -1,6 +1,49 @@
-# OptionPlay - Base Analyzer
-# ===========================
-# Abstract interface for all strategy analyzers
+"""
+OptionPlay - Base Analyzer
+==========================
+
+Abstract interface for all strategy analyzers.
+
+ATOM Pattern: Symbol → Features → Scores → Signal
+-------------------------------------------------
+Every analyzer follows this flow:
+1. SYMBOL: Receive symbol with price/volume data
+2. FEATURES: Extract relevant technical indicators
+3. SCORES: Calculate strategy-specific scoring
+4. SIGNAL: Return unified TradeSignal with entry/exit levels
+
+This module provides:
+- BaseAnalyzer: Abstract base class all analyzers inherit from
+- Input validation helpers
+- Neutral signal factory
+
+Concrete Analyzers::
+
+    BaseAnalyzer (abstract)
+    ├── PullbackAnalyzer - Uptrend pullback entries
+    ├── BounceAnalyzer - Support bounce entries
+    ├── BreakoutAnalyzer - ATH breakout entries
+    └── EarningsDipAnalyzer - Post-earnings dip entries
+
+Usage::
+
+    from src.analyzers.base import BaseAnalyzer
+    from src.models.base import TradeSignal
+
+    class MyAnalyzer(BaseAnalyzer):
+        @property
+        def strategy_name(self) -> str:
+            return "my_strategy"
+
+        def analyze(self, symbol, prices, volumes, highs, lows, **kwargs) -> TradeSignal:
+            self.validate_inputs(prices, volumes, highs, lows)
+            # ... strategy logic ...
+            return TradeSignal(...)
+
+Note:
+    All analyzers receive an optional AnalysisContext with pre-calculated
+    indicators to avoid redundant computation across strategies.
+"""
 
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional

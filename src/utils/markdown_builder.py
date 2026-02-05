@@ -1,14 +1,43 @@
-# OptionPlay - Markdown Builder
-# ===============================
 """
+OptionPlay - Markdown Builder
+=============================
+
 Fluent Builder für konsistente Markdown-Formatierung.
 
-Eliminiert Code-Duplizierung bei der Output-Generierung
-und sorgt für einheitliches Styling.
+ATOM Pattern: Data → Template → Markdown
+----------------------------------------
+Every output follows this flow:
+1. DATA: Receive values to display (prices, scores, lists, etc.)
+2. TEMPLATE: Apply formatting rules (headings, tables, KV pairs)
+3. MARKDOWN: Return formatted string for MCP client display
 
-Verwendung:
+This module provides:
+- MarkdownBuilder: Fluent API for building Markdown output
+- MarkdownShortcuts (md): Static helper functions
+- Format utilities (format_price, format_percent, format_volume)
+
+Builder Methods::
+
+    Headings
+    ├── .h1() / .h2() / .h3() / .h4()
+
+    Content
+    ├── .text() / .blank() / .hr()
+    ├── .kv() / .kv_line() / .kv_inline()
+    ├── .bullet() / .bullets() / .numbered()
+    └── .table() / .table_row()
+
+    Status
+    ├── .status_ok() / .status_warning() / .status_error()
+    └── .warning_box() / .hint() / .note()
+
+    Build
+    └── .build() → str
+
+Usage::
+
     from src.utils.markdown_builder import MarkdownBuilder, md
-    
+
     # Fluent Interface
     output = (
         MarkdownBuilder()
@@ -20,9 +49,13 @@ Verwendung:
         .table(["Symbol", "Score", "Price"], rows)
         .build()
     )
-    
+
     # Oder mit Shortcut-Funktionen
     output = md.h1("Title") + md.kv("Key", "Value")
+
+Note:
+    All MCP tool responses use MarkdownBuilder for consistent
+    formatting across the entire application.
 """
 
 from __future__ import annotations

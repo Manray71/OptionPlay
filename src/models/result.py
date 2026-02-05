@@ -1,26 +1,61 @@
-# OptionPlay - Result Types
-# ==========================
 """
+OptionPlay - Result Types
+=========================
+
 Einheitliche Result-Types für konsistente Returns.
 
-Ermöglicht typsichere Fehlerbehandlung ohne Exceptions.
+ATOM Pattern: Operation → Success/Failure + Data
+------------------------------------------------
+Every result follows this flow:
+1. OPERATION: Attempt an action (API call, calculation, etc.)
+2. SUCCESS/FAILURE: Determine outcome without throwing exceptions
+3. DATA: Carry payload (data on success, error message on failure)
 
-Verwendung:
+This module provides:
+- Result[T]: Basic generic result type
+- ServiceResult[T]: Extended result with metadata (source, timing, cache)
+- BatchResult[T]: Result for bulk operations with partial success
+
+Result Types::
+
+    Result[T]
+    ├── .ok(data) - Create success result
+    ├── .fail(error) - Create failure result
+    ├── .map(func) - Transform data if successful
+    └── .or_else(default) - Get data or fallback
+
+    ServiceResult[T]
+    ├── All of Result[T]
+    ├── .source - Data origin (marketdata, yahoo, cache)
+    ├── .cached - Whether from cache
+    ├── .duration_ms - Operation timing
+    └── .partial() - Create partial success
+
+    BatchResult[T]
+    ├── .successful - List of success items
+    ├── .failed - Dict of item → error
+    └── .success_rate - Percentage succeeded
+
+Usage::
+
     from src.models.result import Result, ServiceResult
-    
+
     async def get_quote(symbol: str) -> ServiceResult[Quote]:
         try:
             quote = await provider.fetch(symbol)
-            return ServiceResult.ok(quote)
+            return ServiceResult.ok(quote, source="tradier")
         except APIError as e:
             return ServiceResult.fail(f"API error: {e}")
-    
-    # Aufruf
+
     result = await get_quote("AAPL")
     if result.success:
         print(f"Price: {result.data.last}")
     else:
         print(f"Error: {result.error}")
+
+Note:
+    Using Result types enables explicit error handling without
+    exceptions, making control flow more predictable.
 """
 
 from dataclasses import dataclass, field

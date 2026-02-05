@@ -1,13 +1,51 @@
-# OptionPlay - Input Validation
-# ==============================
-# Zentrale Validierungsfunktionen für alle Inputs
-#
-# Verwendung:
-#     from utils.validation import validate_symbol, validate_symbols
-#
-#     symbol = validate_symbol("AAPL")  # Returns "AAPL"
-#     symbol = validate_symbol("aapl")  # Returns "AAPL"
-#     symbol = validate_symbol("invalid!!!")  # Raises ValueError
+"""
+OptionPlay - Input Validation
+=============================
+
+Zentrale Validierungsfunktionen für alle Inputs.
+
+ATOM Pattern: Input → Rules → Valid/Invalid
+-------------------------------------------
+Every validation follows this flow:
+1. INPUT: Receive raw user input (symbol, DTE, delta, etc.)
+2. RULES: Apply format patterns and range checks
+3. VALID/INVALID: Return normalized value or raise ValidationError
+
+This module provides:
+- Symbol validation (validate_symbol, validate_symbols)
+- Parameter validation (DTE, delta, right, batch_size, etc.)
+- ETF detection (is_etf)
+- Convenience functions (is_valid_symbol, safe_validate_symbol)
+
+Validation Categories::
+
+    Symbol Validation
+    ├── validate_symbol() - Single ticker
+    ├── validate_symbols() - List with deduplication
+    └── is_etf() - ETF detection for earnings filter
+
+    Parameter Validation
+    ├── validate_dte() / validate_dte_range()
+    ├── validate_delta()
+    ├── validate_right() - P/C normalization
+    ├── validate_batch_size()
+    ├── validate_max_results()
+    └── validate_min_score()
+
+Usage::
+
+    from src.utils.validation import validate_symbol, ValidationError
+
+    try:
+        symbol = validate_symbol("aapl")  # Returns "AAPL"
+        symbol = validate_symbol("invalid!!!")  # Raises ValidationError
+    except ValidationError as e:
+        print(f"Invalid input: {e}")
+
+Note:
+    ValidationError inherits from ValueError for compatibility.
+    All validators normalize input (uppercase, trim) before checking.
+"""
 
 import re
 import logging

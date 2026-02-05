@@ -1,16 +1,51 @@
-# OptionPlay - Error Handler
-# ===========================
-# Unified error handling for MCP server endpoints
-#
-# Error Hierarchy:
-# - MCPError (base)
-#   - DataFetchError (API/network errors)
-#     - RateLimitError (rate limit exceeded)
-#     - ApiTimeoutError (request timeout)
-#     - ApiConnectionError (connection failed)
-#   - ConfigurationError (config issues)
-#   - ProviderError (data provider issues)
-#   - SymbolNotFoundError (invalid symbol)
+"""
+OptionPlay - Error Handler
+==========================
+
+Unified error handling for MCP server endpoints.
+
+ATOM Pattern: Try → Execute → Catch → Log → Return
+-------------------------------------------------
+Every endpoint follows this flow:
+1. TRY: Wrap operation in error boundary
+2. EXECUTE: Run the actual business logic
+3. CATCH: Intercept any exception type
+4. LOG: Record error with context for debugging
+5. RETURN: Convert to user-friendly Markdown response
+
+This module provides:
+- Exception hierarchy (MCPError and subclasses)
+- Endpoint decorators (@mcp_endpoint, @sync_endpoint)
+- Error formatting (format_error_response)
+
+Error Hierarchy::
+
+    MCPError (base)
+    ├── DataFetchError (API/network errors)
+    │   ├── RateLimitError (rate limit exceeded)
+    │   ├── ApiTimeoutError (request timeout)
+    │   └── ApiConnectionError (connection failed)
+    ├── ConfigurationError (config issues)
+    ├── ProviderError (data provider issues)
+    ├── SymbolNotFoundError (invalid symbol)
+    ├── NoDataError (no data available)
+    ├── DataParseError (parse failures)
+    └── InsufficientDataError (not enough data)
+
+Usage::
+
+    from src.utils.error_handler import mcp_endpoint, MCPError
+
+    @mcp_endpoint(operation="quote lookup", symbol_param="symbol")
+    async def get_quote(self, symbol: str) -> str:
+        # Any exception here is caught, logged, and formatted
+        quote = await self._provider.get_quote(symbol)
+        return format_quote(quote)
+
+Note:
+    The decorators automatically detect sync vs async functions.
+    All exceptions are converted to Markdown for MCP client display.
+"""
 
 import functools
 import logging

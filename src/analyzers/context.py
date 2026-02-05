@@ -1,16 +1,65 @@
-# OptionPlay - Analysis Context
-# ==============================
-# Shared pre-calculated values for analyzers to avoid redundant computations.
-#
-# Performance Optimizations:
-# - Uses NumPy-based indicator calculations (5-10x faster)
-# - Calculates all indicators in single pass
-# - Only stores final values, not full arrays (memory efficient)
-# - Shared across all analyzers for same symbol
-#
-# Usage:
-#     context = AnalysisContext.from_data(prices, volumes, highs, lows)
-#     signal = analyzer.analyze(symbol, prices, volumes, highs, lows, context=context)
+"""
+OptionPlay - Analysis Context
+=============================
+
+Shared pre-calculated values for analyzers to avoid redundant computations.
+
+ATOM Pattern: Symbol + Market State → Analysis Context
+------------------------------------------------------
+Every context creation follows this flow:
+1. SYMBOL: Receive symbol with OHLCV data
+2. MARKET STATE: Calculate all technical indicators in one pass
+3. ANALYSIS CONTEXT: Return populated dataclass for analyzer consumption
+
+This module provides:
+- AnalysisContext: Pre-calculated indicators shared across analyzers
+- NumPy-optimized calculations (5-10x faster than pure Python)
+- Automatic fallback to pure Python if NumPy unavailable
+
+Calculated Indicators::
+
+    Momentum
+    ├── RSI (14-period)
+    ├── MACD (12/26/9)
+    └── Stochastic %K/%D
+
+    Trend
+    ├── SMA (20/50/200)
+    ├── EMA (12/26)
+    └── Trend classification (uptrend/downtrend/sideways)
+
+    Levels
+    ├── Support levels (volume-weighted)
+    ├── Resistance levels
+    └── Fibonacci retracements
+
+    Volatility
+    ├── ATR (14-period)
+    ├── Volume ratio (current/avg)
+    └── Gap analysis
+
+Usage::
+
+    from src.analyzers.context import AnalysisContext
+
+    # Create context with all indicators pre-calculated
+    context = AnalysisContext.from_data(
+        symbol="AAPL",
+        prices=closes,
+        volumes=volumes,
+        highs=highs,
+        lows=lows,
+    )
+
+    # Use in multiple analyzers without recalculation
+    signal1 = pullback_analyzer.analyze(..., context=context)
+    signal2 = bounce_analyzer.analyze(..., context=context)
+
+Performance:
+    - NumPy mode: ~2ms per symbol (all indicators)
+    - Python mode: ~15ms per symbol (fallback)
+    - Memory: Only stores final values, not full arrays
+"""
 
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Any
