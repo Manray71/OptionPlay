@@ -50,8 +50,17 @@ OUTPUT_DIR = Path(__file__).parent.parent / "data_inventory"
 YAML_PATH = Path(__file__).parent.parent / "config" / "scoring_weights.yaml"
 HISTORY_DIR = OUTPUT_DIR / "retrain_history"
 
-STRATEGIES = ["pullback", "bounce", "ath_breakout"]
+STRATEGIES = ["pullback", "bounce", "ath_breakout", "earnings_dip"]
 REGIMES = ["low", "medium", "high", "extreme"]
+
+# Map DB regime names → YAML regime names
+DB_TO_YAML_REGIME = {
+    "low": "low",
+    "medium": "normal",
+    "elevated": "elevated",  # Only if DB contains elevated (currently doesn't)
+    "high": "danger",
+    "extreme": "high",
+}
 
 
 @dataclass
@@ -84,7 +93,7 @@ class StrategyRetrainer:
         self.safety = safety or SafetyRails()
 
     def load_trades_df(self):
-        """Load all trades from outcomes.db."""
+        """Load all trades from outcomes.db, enriched with sector from symbol_fundamentals."""
         conn = sqlite3.connect(OUTCOMES_DB)
         cols = [
             "symbol", "entry_date", "was_profitable", "pnl_pct",
@@ -101,6 +110,23 @@ class StrategyRetrainer:
         conn.close()
         score_cols = [c for c in df.columns if c.endswith("_score")]
         df[score_cols] = df[score_cols].fillna(0)
+
+        # Enrich with sector from symbol_fundamentals
+        if os.path.exists(TRADES_DB):
+            try:
+                fconn = sqlite3.connect(TRADES_DB)
+                sectors = pd.read_sql_query(
+                    "SELECT symbol, sector FROM symbol_fundamentals WHERE sector IS NOT NULL",
+                    fconn,
+                )
+                fconn.close()
+                df = df.merge(sectors, on="symbol", how="left")
+            except Exception as e:
+                logger.warning(f"Could not load sectors: {e}")
+                df["sector"] = None
+        else:
+            df["sector"] = None
+
         return df
 
     def get_last_retrain_date(self, strategy: str) -> Optional[str]:
@@ -133,6 +159,18 @@ class StrategyRetrainer:
             weights[comp] = resolved.weights.get(config_key, 1.0)
         return weights
 
+    def _load_baseline_metrics(self, strategy: str) -> Dict[str, float]:
+        """Load metrics from last successful retrain, or return zeros (first run)."""
+        history_file = HISTORY_DIR / f"retrain_{strategy}_latest.json"
+        if history_file.exists():
+            with open(history_file) as f:
+                data = json.load(f)
+            metrics = data.get("metrics", {})
+            if "val_win_rate" in metrics:
+                return metrics
+        # Fallback: no history → use 0 (first run, safety check won't block)
+        return {"val_win_rate": 0}
+
     def check_safety(
         self,
         old_weights: Dict[str, float],
@@ -163,6 +201,137 @@ class StrategyRetrainer:
 
         return len(issues) == 0, issues
 
+    def _get_training_config(self, strategy: str) -> dict:
+        """Load strategy-specific training parameters from scoring_weights.yaml."""
+        RecursiveConfigResolver.reset()
+        resolver = RecursiveConfigResolver()
+        return resolver.get_training_config(strategy)
+
+    def train_sector_factors(self, df: pd.DataFrame, strategy: str) -> Dict[str, float]:
+        """Train sector factors using rolling win-rate relative to overall."""
+        strategy_score_col = f"{strategy}_score"
+        if strategy_score_col not in df.columns or "sector" not in df.columns:
+            return {}
+
+        strat_df = df[df[strategy_score_col] > 0].copy()
+        if len(strat_df) < 50:
+            return {}
+
+        # Load strategy-specific factor range from config
+        RecursiveConfigResolver.reset()
+        resolver = RecursiveConfigResolver()
+        factor_range, _ = resolver.get_sector_factor_config(strategy)
+        factor_min = factor_range.get("min", 0.6)
+        factor_max = factor_range.get("max", 1.2)
+
+        WINDOW = 60  # Last 60 trades per sector
+
+        sector_factors = {}
+        # Overall recent win-rate as baseline
+        overall_recent = strat_df.sort_values("entry_date").tail(200)
+        overall_wr = overall_recent["was_profitable"].mean()
+        if overall_wr <= 0:
+            return {}
+
+        for sector, group in strat_df.groupby("sector"):
+            if pd.isna(sector) or len(group) < 20:
+                continue
+
+            recent = group.sort_values("entry_date").tail(WINDOW)
+            recent_wr = recent["was_profitable"].mean()
+
+            raw_factor = recent_wr / overall_wr
+            clamped = max(factor_min, min(factor_max, raw_factor))
+            sector_factors[sector] = round(clamped, 3)
+
+        if sector_factors:
+            print(f"  Sector factors ({strategy}):")
+            for sector, factor in sorted(sector_factors.items(), key=lambda x: -x[1]):
+                print(f"    {sector:>25s}: {factor:.3f}")
+
+        return sector_factors
+
+    def train_stability_thresholds(
+        self, df: pd.DataFrame, strategy: str, target_win_rate: float = 0.65
+    ) -> Dict[str, int]:
+        """Train per-regime stability thresholds via binary search with floor/cap."""
+        strategy_score_col = f"{strategy}_score"
+        if strategy_score_col not in df.columns:
+            return {}
+
+        strat_df = df[df[strategy_score_col] > 0].copy()
+
+        # Need stability_score from symbol_fundamentals
+        if "stability_score" not in strat_df.columns:
+            if os.path.exists(TRADES_DB):
+                try:
+                    fconn = sqlite3.connect(TRADES_DB)
+                    stab = pd.read_sql_query(
+                        "SELECT symbol, stability_score FROM symbol_fundamentals "
+                        "WHERE stability_score IS NOT NULL",
+                        fconn,
+                    )
+                    fconn.close()
+                    strat_df = strat_df.merge(stab, on="symbol", how="left")
+                except Exception:
+                    return {}
+            else:
+                return {}
+
+        strat_df = strat_df.dropna(subset=["stability_score"])
+        if len(strat_df) < 50:
+            return {}
+
+        ABSOLUTE_MIN = 50
+        ABSOLUTE_MAX = 90
+
+        thresholds = {}
+        for db_regime in REGIMES:
+            yaml_regime = DB_TO_YAML_REGIME.get(db_regime, db_regime)
+            regime_df = strat_df[strat_df["vix_regime"] == db_regime]
+            if len(regime_df) < 20:
+                continue
+
+            # Binary search for threshold achieving target win rate
+            lo, hi = ABSOLUTE_MIN, ABSOLUTE_MAX
+            best_threshold = lo
+            while lo <= hi:
+                mid = (lo + hi) // 2
+                above = regime_df[regime_df["stability_score"] >= mid]
+                if len(above) < 10:
+                    hi = mid - 1
+                    continue
+                wr = above["was_profitable"].mean()
+                if wr >= target_win_rate:
+                    best_threshold = mid
+                    hi = mid - 1  # Try lower threshold
+                else:
+                    lo = mid + 1  # Need higher threshold
+
+            # Floor/cap enforcement
+            if best_threshold >= ABSOLUTE_MAX:
+                print(
+                    f"    WARNING: {strategy}/{yaml_regime} threshold capped at {ABSOLUTE_MAX} "
+                    f"(target WR {target_win_rate*100:.0f}% not achievable)"
+                )
+                best_threshold = ABSOLUTE_MAX
+
+            best_threshold = max(ABSOLUTE_MIN, min(ABSOLUTE_MAX, best_threshold))
+            thresholds[yaml_regime] = int(round(best_threshold))
+
+        # Interpolate elevated if not trained directly
+        if "elevated" not in thresholds:
+            normal_t = thresholds.get("normal", thresholds.get("low", 70))
+            danger_t = thresholds.get("danger", 80)
+            thresholds["elevated"] = int(round((normal_t + danger_t) / 2))
+
+        if thresholds:
+            print(f"  Stability thresholds ({strategy}):")
+            for regime, t in sorted(thresholds.items()):
+                print(f"    {regime:>12s}: {t}")
+
+        return thresholds
+
     def retrain_strategy(
         self,
         strategy: str,
@@ -175,14 +344,25 @@ class StrategyRetrainer:
         print(f"  Retraining: {strategy.upper()}")
         print(f"{'─'*50}")
 
+        # FIX 7: Load strategy-specific safety rails from config
+        training_cfg = self._get_training_config(strategy)
+        reg = training_cfg.get("regularization", {})
+        wf = training_cfg.get("walk_forward", {})
+        strategy_safety = SafetyRails(
+            max_weight_change=reg.get("max_weight_change", self.safety.max_weight_change),
+            min_new_trades=wf.get("min_trades", self.safety.min_new_trades),
+            min_win_rate_improvement=self.safety.min_win_rate_improvement,
+            max_objective_degradation=self.safety.max_objective_degradation,
+        )
+
         # Check new trade count
         last_date = self.get_last_retrain_date(strategy)
         n_new = self.count_new_trades(df, strategy, last_date)
         print(f"  Last retrain: {last_date or 'never'}")
         print(f"  New trades: {n_new}")
 
-        if n_new < self.safety.min_new_trades and not force:
-            print(f"  SKIP: {n_new} new trades < {self.safety.min_new_trades} minimum")
+        if n_new < strategy_safety.min_new_trades and not force:
+            print(f"  SKIP: {n_new} new trades < {strategy_safety.min_new_trades} minimum")
             return RetrainResult(
                 strategy=strategy, regime=None,
                 status="skipped", reason=f"Only {n_new} new trades",
@@ -215,9 +395,12 @@ class StrategyRetrainer:
             if comp in new_weights:
                 weight_changes[comp] = round(new_weights[comp] - old_weights[comp], 4)
 
-        # Safety check
-        old_metrics = {"val_win_rate": 0}  # We don't have the old run's metrics
+        # Safety check — load real baseline from history, use strategy-specific rails
+        old_metrics = self._load_baseline_metrics(strategy)
+        saved_safety = self.safety
+        self.safety = strategy_safety
         passed, issues = self.check_safety(old_weights, new_weights, old_metrics, result.metrics)
+        self.safety = saved_safety
 
         print(f"  Training: converged, val_wr={result.metrics.get('val_win_rate',0)*100:.1f}%")
         print(f"  Safety: {'PASSED' if passed else 'ISSUES FOUND'}")
@@ -246,6 +429,12 @@ class StrategyRetrainer:
                     "n_trades": regime_result.n_trades,
                 }
 
+        # Train sector factors (rolling win-rate)
+        sector_factors = self.train_sector_factors(df, strategy)
+
+        # Train stability thresholds (binary search with floor/cap)
+        stability_thresholds = self.train_stability_thresholds(df, strategy)
+
         status = "dry_run"
         reason = "Dry run mode"
         if apply and passed:
@@ -267,6 +456,8 @@ class StrategyRetrainer:
                 "n_new_trades": n_new,
                 "safety_passed": passed,
                 "regime_results": regime_results,
+                "sector_factors": sector_factors,
+                "stability_thresholds": stability_thresholds,
             },
         )
 
