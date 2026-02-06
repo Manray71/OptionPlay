@@ -22,12 +22,16 @@ import argparse
 import json
 import logging
 import os
+import shutil
 import sqlite3
 import sys
+import tempfile
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional
+
+import yaml
 
 import numpy as np
 import pandas as pd
@@ -60,6 +64,18 @@ DB_TO_YAML_REGIME = {
     "elevated": "elevated",  # Only if DB contains elevated (currently doesn't)
     "high": "danger",
     "extreme": "high",
+}
+
+# Map _score DB keys → YAML config keys (verified against _scale() calls in analyzers)
+_SCORE_TO_YAML_KEY = {
+    "ath_breakout_score": "ath",
+    "relative_strength_score": "rs",
+}
+_SCORE_TO_YAML_KEY_BY_STRATEGY = {
+    "bounce": {"ma_score": "trend"},
+    "ath_breakout": {"ma_score": "trend"},
+    "earnings_dip": {"ma_score": "trend"},
+    # pullback: ma_score → "ma" (default stripping works)
 }
 
 
@@ -469,6 +485,7 @@ class StrategyRetrainer:
             status = "applied"
             reason = "Applied to config"
             self._save_retrain_history(strategy, old_weights, new_weights, result.metrics, regime_results)
+            self._apply_to_yaml(strategy, new_weights, regime_results, sector_factors, stability_thresholds)
         elif apply and not passed:
             status = "rejected"
             reason = f"Safety check failed: {'; '.join(issues)}"
@@ -511,6 +528,136 @@ class StrategyRetrainer:
         log_path = HISTORY_DIR / f"retrain_{strategy}_log.jsonl"
         with open(log_path, "a") as f:
             f.write(json.dumps(record) + "\n")
+
+    @staticmethod
+    def _score_key_to_yaml_key(score_key: str, strategy: str) -> str:
+        """Map a _score-suffixed DB key to its YAML config key.
+
+        Most keys: strip '_score' suffix (e.g. 'rsi_score' -> 'rsi').
+        Special cases verified against _scale() calls in analyzers.
+        """
+        by_strategy = _SCORE_TO_YAML_KEY_BY_STRATEGY.get(strategy, {})
+        if score_key in by_strategy:
+            return by_strategy[score_key]
+        if score_key in _SCORE_TO_YAML_KEY:
+            return _SCORE_TO_YAML_KEY[score_key]
+        return score_key.replace("_score", "")
+
+    @staticmethod
+    def _sanitize_for_yaml(obj):
+        """Recursively convert numpy types to native Python types for YAML serialization."""
+        if isinstance(obj, dict):
+            return {k: StrategyRetrainer._sanitize_for_yaml(v) for k, v in obj.items()}
+        if isinstance(obj, (list, tuple)):
+            return [StrategyRetrainer._sanitize_for_yaml(v) for v in obj]
+        if isinstance(obj, (np.integer,)):
+            return int(obj)
+        if isinstance(obj, (np.floating,)):
+            return float(obj)
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return obj
+
+    def _apply_to_yaml(
+        self,
+        strategy: str,
+        new_weights: Dict[str, float],
+        regime_results: Dict[str, Dict],
+        sector_factors: Dict[str, float],
+        stability_thresholds: Dict[str, int],
+    ) -> None:
+        """Merge trained results into scoring_weights.yaml."""
+        with open(YAML_PATH, "r") as f:
+            config = yaml.safe_load(f) or {}
+
+        if strategy not in config.get("strategies", {}):
+            print(f"  YAML: WARNING — strategy '{strategy}' not found, skipping")
+            return
+
+        # Backup
+        backup_path = YAML_PATH.with_suffix(".yaml.bak")
+        shutil.copy2(YAML_PATH, backup_path)
+
+        # Metadata
+        config["trained"] = datetime.now().strftime("%Y-%m-%d")
+        config["date"] = datetime.now().strftime("%Y-%m-%d")
+
+        strat_cfg = config["strategies"][strategy]
+
+        # --- Base weights ---
+        n_updated = 0
+        for score_key, value in new_weights.items():
+            yaml_key = self._score_key_to_yaml_key(score_key, strategy)
+            if yaml_key in strat_cfg.get("weights", {}):
+                strat_cfg["weights"][yaml_key] = round(value, 2)
+                n_updated += 1
+
+        # --- Regime weights ---
+        for db_regime, regime_data in regime_results.items():
+            yaml_regime = DB_TO_YAML_REGIME.get(db_regime, db_regime)
+            regimes_cfg = strat_cfg.get("regimes", {})
+            if yaml_regime not in regimes_cfg:
+                continue
+            regime_cfg = regimes_cfg[yaml_regime]
+            trained_w = regime_data.get("weights", {})
+            if trained_w:
+                yaml_weights = {}
+                for sk, v in trained_w.items():
+                    yk = self._score_key_to_yaml_key(sk, strategy)
+                    yaml_weights[yk] = round(v, 2)
+                if yaml_weights:
+                    regime_cfg["weights"] = yaml_weights
+
+        # --- Sector factors ---
+        if sector_factors:
+            sectors_cfg = strat_cfg.setdefault("sectors", {})
+            for sector_name, factor in sector_factors.items():
+                if sector_name in sectors_cfg and isinstance(sectors_cfg[sector_name], dict):
+                    sectors_cfg[sector_name]["sector_factor"] = round(factor, 3)
+                else:
+                    sectors_cfg[sector_name] = {"sector_factor": round(factor, 3)}
+
+        # --- Stability thresholds ---
+        if stability_thresholds:
+            stab = config.setdefault("stability_thresholds", {})
+            by_strategy = stab.setdefault("by_strategy", {})
+            strat_stab = by_strategy.setdefault(strategy, {})
+            by_regime = strat_stab.setdefault("by_regime", {})
+            for regime_name, threshold in stability_thresholds.items():
+                by_regime[regime_name] = int(threshold)
+
+        # --- Sanitize numpy types before YAML serialization ---
+        config = self._sanitize_for_yaml(config)
+
+        # --- Atomic write ---
+        fd, tmp_path = tempfile.mkstemp(
+            dir=str(YAML_PATH.parent),
+            prefix=".scoring_weights_",
+            suffix=".yaml.tmp",
+        )
+        try:
+            with os.fdopen(fd, "w") as f:
+                f.write("---\n")
+                yaml.dump(
+                    config, f,
+                    default_flow_style=False,
+                    sort_keys=False,
+                    allow_unicode=True,
+                )
+            os.replace(tmp_path, str(YAML_PATH))
+        except Exception:
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+            raise
+
+        RecursiveConfigResolver.reset()
+
+        print(f"  YAML: Updated {YAML_PATH.name}")
+        print(f"    Base weights: {n_updated} keys")
+        print(f"    Regimes: {len(regime_results)}")
+        print(f"    Sector factors: {len(sector_factors)}")
+        print(f"    Stability: {len(stability_thresholds)} regimes")
+        print(f"    Backup: {backup_path.name}")
 
 
 def main():
