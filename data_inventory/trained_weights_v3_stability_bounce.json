@@ -1,0 +1,269 @@
+{
+  "strategy": "bounce",
+  "n_trades": 7591,
+  "global_threshold": 90,
+  "global_win_rate": 98.2,
+  "regime_thresholds": {
+    "low": {
+      "threshold": 90,
+      "win_rate": 100.0,
+      "n_trades": 18
+    },
+    "medium": {
+      "threshold": 90,
+      "win_rate": 100.0,
+      "n_trades": 28
+    },
+    "high": {
+      "threshold": 90,
+      "win_rate": 95.8,
+      "n_trades": 48
+    },
+    "extreme": {
+      "threshold": 65,
+      "win_rate": 95.4,
+      "n_trades": 637
+    }
+  },
+  "sector_regime_thresholds": {
+    "Basic Materials": {
+      "low": {
+        "threshold": 40,
+        "win_rate": 90.2,
+        "n_trades": 61
+      },
+      "medium": {
+        "threshold": 40,
+        "win_rate": 89.2,
+        "n_trades": 102
+      },
+      "high": {
+        "threshold": 40,
+        "win_rate": 75.9,
+        "n_trades": 83
+      }
+    },
+    "Communication Services": {
+      "low": {
+        "threshold": 80,
+        "win_rate": 100.0,
+        "n_trades": 17
+      },
+      "medium": {
+        "threshold": 85,
+        "win_rate": 100.0,
+        "n_trades": 17
+      },
+      "high": {
+        "threshold": 85,
+        "win_rate": 87.0,
+        "n_trades": 23
+      }
+    },
+    "Consumer Cyclical": {
+      "low": {
+        "threshold": 85,
+        "win_rate": 100.0,
+        "n_trades": 29
+      },
+      "medium": {
+        "threshold": 80,
+        "win_rate": 94.8,
+        "n_trades": 116
+      },
+      "high": {
+        "threshold": 85,
+        "win_rate": 94.6,
+        "n_trades": 37
+      },
+      "extreme": {
+        "threshold": 60,
+        "win_rate": 95.2,
+        "n_trades": 104
+      }
+    },
+    "Consumer Defensive": {
+      "low": {
+        "threshold": 75,
+        "win_rate": 94.5,
+        "n_trades": 145
+      },
+      "medium": {
+        "threshold": 85,
+        "win_rate": 95.5,
+        "n_trades": 88
+      },
+      "high": {
+        "threshold": 40,
+        "win_rate": 91.8,
+        "n_trades": 219
+      },
+      "extreme": {
+        "threshold": 40,
+        "win_rate": 97.7,
+        "n_trades": 43
+      }
+    },
+    "Energy": {
+      "low": {
+        "threshold": 65,
+        "win_rate": 95.4,
+        "n_trades": 131
+      },
+      "medium": {
+        "threshold": 80,
+        "win_rate": 98.5,
+        "n_trades": 67
+      },
+      "high": {
+        "threshold": 40,
+        "win_rate": 91.5,
+        "n_trades": 129
+      }
+    },
+    "Financial Services": {
+      "low": {
+        "threshold": 55,
+        "win_rate": 99.3,
+        "n_trades": 148
+      },
+      "medium": {
+        "threshold": 75,
+        "win_rate": 96.7,
+        "n_trades": 272
+      },
+      "high": {
+        "threshold": 85,
+        "win_rate": 93.1,
+        "n_trades": 58
+      },
+      "extreme": {
+        "threshold": 75,
+        "win_rate": 99.0,
+        "n_trades": 104
+      }
+    },
+    "Healthcare": {
+      "low": {
+        "threshold": 80,
+        "win_rate": 97.8,
+        "n_trades": 92
+      },
+      "medium": {
+        "threshold": 85,
+        "win_rate": 100.0,
+        "n_trades": 71
+      },
+      "high": {
+        "threshold": 85,
+        "win_rate": 96.2,
+        "n_trades": 53
+      },
+      "extreme": {
+        "threshold": 40,
+        "win_rate": 100.0,
+        "n_trades": 55
+      }
+    },
+    "Industrials": {
+      "low": {
+        "threshold": 70,
+        "win_rate": 99.2,
+        "n_trades": 118
+      },
+      "medium": {
+        "threshold": 75,
+        "win_rate": 95.0,
+        "n_trades": 201
+      },
+      "high": {
+        "threshold": 70,
+        "win_rate": 91.5,
+        "n_trades": 213
+      },
+      "extreme": {
+        "threshold": 70,
+        "win_rate": 97.0,
+        "n_trades": 66
+      }
+    },
+    "Real Estate": {
+      "low": {
+        "threshold": 80,
+        "win_rate": 96.0,
+        "n_trades": 25
+      },
+      "medium": {
+        "threshold": 80,
+        "win_rate": 100.0,
+        "n_trades": 37
+      },
+      "high": {
+        "threshold": 40,
+        "win_rate": 87.8,
+        "n_trades": 74
+      }
+    },
+    "Technology": {
+      "low": {
+        "threshold": 85,
+        "win_rate": 100.0,
+        "n_trades": 36
+      },
+      "medium": {
+        "threshold": 85,
+        "win_rate": 96.2,
+        "n_trades": 53
+      },
+      "high": {
+        "threshold": 70,
+        "win_rate": 83.5,
+        "n_trades": 400
+      },
+      "extreme": {
+        "threshold": 80,
+        "win_rate": 98.4,
+        "n_trades": 64
+      }
+    },
+    "Unknown": {
+      "low": {
+        "threshold": 40,
+        "win_rate": 96.0,
+        "n_trades": 50
+      },
+      "medium": {
+        "threshold": 70,
+        "win_rate": 100.0,
+        "n_trades": 82
+      },
+      "high": {
+        "threshold": 70,
+        "win_rate": 92.6,
+        "n_trades": 136
+      },
+      "extreme": {
+        "threshold": 40,
+        "win_rate": 100.0,
+        "n_trades": 44
+      }
+    },
+    "Utilities": {
+      "low": {
+        "threshold": 85,
+        "win_rate": 100.0,
+        "n_trades": 13
+      },
+      "medium": {
+        "threshold": 40,
+        "win_rate": 98.5,
+        "n_trades": 65
+      },
+      "high": {
+        "threshold": 40,
+        "win_rate": 98.4,
+        "n_trades": 61
+      }
+    }
+  }
+}

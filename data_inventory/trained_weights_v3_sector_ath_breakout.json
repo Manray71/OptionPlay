@@ -1,0 +1,243 @@
+{
+  "strategy": "ath_breakout",
+  "n_trades": 7715,
+  "sector_performance": {
+    "Technology": {
+      "n": 1539,
+      "win_rate": 82.7,
+      "avg_pnl": -22.44,
+      "pnl_std": 544.54,
+      "sharpe_like": -0.041,
+      "avg_drawdown": 10.42,
+      "tail_loss_10pct": -896.92,
+      "regime_distribution": {
+        "medium": 746,
+        "high": 267,
+        "extreme": 10,
+        "low": 516
+      }
+    },
+    "Financial Services": {
+      "n": 1216,
+      "win_rate": 87.9,
+      "avg_pnl": 23.16,
+      "pnl_std": 285.05,
+      "sharpe_like": 0.081,
+      "avg_drawdown": 8.36,
+      "tail_loss_10pct": -627.18,
+      "regime_distribution": {
+        "medium": 573,
+        "high": 218,
+        "low": 419,
+        "extreme": 6
+      }
+    },
+    "Consumer Cyclical": {
+      "n": 1107,
+      "win_rate": 81.6,
+      "avg_pnl": -10.39,
+      "pnl_std": 462.25,
+      "sharpe_like": -0.022,
+      "avg_drawdown": 10.31,
+      "tail_loss_10pct": -764.12,
+      "regime_distribution": {
+        "medium": 486,
+        "high": 220,
+        "low": 389,
+        "extreme": 12
+      }
+    },
+    "Industrials": {
+      "n": 681,
+      "win_rate": 83.4,
+      "avg_pnl": -60.5,
+      "pnl_std": 536.76,
+      "sharpe_like": -0.113,
+      "avg_drawdown": 8.36,
+      "tail_loss_10pct": -1251.99,
+      "regime_distribution": {
+        "medium": 313,
+        "high": 129,
+        "extreme": 7,
+        "low": 232
+      }
+    },
+    "Consumer Defensive": {
+      "n": 601,
+      "win_rate": 86.0,
+      "avg_pnl": -80.9,
+      "pnl_std": 1574.53,
+      "sharpe_like": -0.051,
+      "avg_drawdown": 7.55,
+      "tail_loss_10pct": -1592.79,
+      "regime_distribution": {
+        "medium": 280,
+        "high": 132,
+        "extreme": 19,
+        "low": 170
+      }
+    },
+    "Communication Services": {
+      "n": 577,
+      "win_rate": 83.7,
+      "avg_pnl": 9.01,
+      "pnl_std": 263.79,
+      "sharpe_like": 0.034,
+      "avg_drawdown": 9.88,
+      "tail_loss_10pct": -618.33,
+      "regime_distribution": {
+        "medium": 262,
+        "high": 103,
+        "extreme": 6,
+        "low": 206
+      }
+    },
+    "Healthcare": {
+      "n": 550,
+      "win_rate": 86.5,
+      "avg_pnl": -19.38,
+      "pnl_std": 404.43,
+      "sharpe_like": -0.048,
+      "avg_drawdown": 7.51,
+      "tail_loss_10pct": -990.77,
+      "regime_distribution": {
+        "medium": 252,
+        "high": 102,
+        "extreme": 16,
+        "low": 180
+      }
+    },
+    "Unknown": {
+      "n": 408,
+      "win_rate": 89.0,
+      "avg_pnl": 23.49,
+      "pnl_std": 354.43,
+      "sharpe_like": 0.066,
+      "avg_drawdown": 7.04,
+      "tail_loss_10pct": -653.84,
+      "regime_distribution": {
+        "medium": 214,
+        "high": 62,
+        "extreme": 4,
+        "low": 128
+      }
+    },
+    "Energy": {
+      "n": 394,
+      "win_rate": 83.2,
+      "avg_pnl": 20.47,
+      "pnl_std": 215.99,
+      "sharpe_like": 0.095,
+      "avg_drawdown": 9.15,
+      "tail_loss_10pct": -544.28,
+      "regime_distribution": {
+        "medium": 163,
+        "high": 103,
+        "extreme": 11,
+        "low": 117
+      }
+    },
+    "Basic Materials": {
+      "n": 244,
+      "win_rate": 84.0,
+      "avg_pnl": 4.07,
+      "pnl_std": 250.55,
+      "sharpe_like": 0.016,
+      "avg_drawdown": 9.86,
+      "tail_loss_10pct": -667.65,
+      "regime_distribution": {
+        "medium": 103,
+        "high": 52,
+        "extreme": 10,
+        "low": 79
+      }
+    },
+    "Utilities": {
+      "n": 219,
+      "win_rate": 87.2,
+      "avg_pnl": -86.01,
+      "pnl_std": 872.71,
+      "sharpe_like": -0.099,
+      "avg_drawdown": 8.15,
+      "tail_loss_10pct": -1747.19,
+      "regime_distribution": {
+        "medium": 93,
+        "high": 37,
+        "extreme": 7,
+        "low": 82
+      }
+    },
+    "Real Estate": {
+      "n": 179,
+      "win_rate": 83.2,
+      "avg_pnl": -115.79,
+      "pnl_std": 859.41,
+      "sharpe_like": -0.135,
+      "avg_drawdown": 7.66,
+      "tail_loss_10pct": -1864.98,
+      "regime_distribution": {
+        "medium": 104,
+        "high": 27,
+        "low": 48
+      }
+    }
+  },
+  "sector_factors": {
+    "Technology": 0.78,
+    "Financial Services": 1.014,
+    "Consumer Cyclical": 0.758,
+    "Industrials": 0.76,
+    "Consumer Defensive": 0.928,
+    "Communication Services": 0.853,
+    "Healthcare": 0.89,
+    "Unknown": 1.031,
+    "Energy": 0.896,
+    "Basic Materials": 0.848,
+    "Utilities": 0.939,
+    "Real Estate": 0.796
+  },
+  "regime_sector_factors": {
+    "low": {
+      "Technology": 0.749,
+      "Financial Services": 0.973,
+      "Consumer Cyclical": 0.754,
+      "Industrials": 0.861,
+      "Communication Services": 0.85,
+      "Healthcare": 0.874,
+      "Consumer Defensive": 0.778,
+      "Unknown": 1.081,
+      "Energy": 0.831,
+      "Utilities": 0.946,
+      "Basic Materials": 0.838,
+      "Real Estate": 0.95
+    },
+    "medium": {
+      "Technology": 0.823,
+      "Financial Services": 0.935,
+      "Consumer Cyclical": 0.756,
+      "Industrials": 0.77,
+      "Consumer Defensive": 0.936,
+      "Communication Services": 0.71,
+      "Healthcare": 0.939,
+      "Unknown": 0.996,
+      "Energy": 0.911,
+      "Real Estate": 0.859,
+      "Basic Materials": 0.988,
+      "Utilities": 0.886
+    },
+    "high": {
+      "Technology": 0.85,
+      "Consumer Cyclical": 0.948,
+      "Financial Services": 0.853,
+      "Consumer Defensive": 0.979,
+      "Industrials": 0.791,
+      "Communication Services": 1.041,
+      "Energy": 0.951,
+      "Healthcare": 0.931,
+      "Unknown": 0.693,
+      "Basic Materials": 0.723,
+      "Utilities": 0.873
+    },
+    "extreme": {}
+  }
+}

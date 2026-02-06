@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, Optional
 
 try:
     from ..models.base import TradeSignal, SignalType, SignalStrength
@@ -130,6 +130,18 @@ class BaseAnalyzer(ABC):
             reason=reason or "No actionable signal"
         )
     
+    @property
+    def config_resolver(self):
+        """Lazy-init RecursiveConfigResolver for scoring weights."""
+        if not hasattr(self, '_config_resolver') or self._config_resolver is None:
+            from ..config.scoring_config import get_scoring_resolver
+            self._config_resolver = get_scoring_resolver()
+        return self._config_resolver
+
+    def get_weights(self, regime: str = "normal", sector: Optional[str] = None):
+        """Get resolved weights for this strategy + regime + sector."""
+        return self.config_resolver.resolve(self.strategy_name, regime, sector)
+
     def get_config(self) -> dict[str, Any]:
         """Returns the current configuration"""
         config: dict[str, Any] = getattr(self, 'config', {})

@@ -323,25 +323,55 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         # NEW: Apply Feature Engineering scores (VWAP, Market Context, Sector)
         self._apply_feature_scores(breakdown, symbol, prices, volumes, context)
 
-        # Calculate total score
+        # Resolve weights from config (4-layer: Base → Regime → Sector → Regime×Sector)
+        regime = getattr(context, 'regime', 'normal') if context else 'normal'
+        sector_ctx = getattr(context, 'sector', None) if context else None
+        try:
+            resolved = self.get_weights(regime=regime, sector=sector_ctx)
+            w = resolved.weights
+        except Exception:
+            w = {}
+
+        # Default max weights per component (original hardcoded values)
+        _DEFAULTS = {
+            'dip': 3.0, 'gap': 2.0, 'rsi': 2.0, 'stabilization': 2.0,
+            'volume': 2.0, 'trend': 2.0, 'macd': 2.0, 'stoch': 2.0,
+            'keltner': 2.0, 'vwap': 3.0, 'market_context': 2.0, 'sector': 1.0,
+        }
+
+        def _scale(component: str, raw: float) -> float:
+            yaml_max = w.get(component)
+            if yaml_max is None:
+                return raw
+            default_max = _DEFAULTS.get(component, 1.0)
+            if default_max <= 0:
+                return raw
+            return raw * (yaml_max / default_max)
+
+        # Calculate total score with config-based weight scaling
         breakdown.total_score = (
-            breakdown.dip_score +
-            breakdown.gap_score +
-            breakdown.rsi_score +
-            breakdown.stabilization_score +
-            breakdown.volume_score +
-            breakdown.trend_score +
-            breakdown.macd_score +
-            breakdown.stoch_score +
-            breakdown.keltner_score +
-            breakdown.vwap_score +          # NEW from Feature Engineering
-            breakdown.market_context_score + # NEW from Feature Engineering
-            breakdown.sector_score          # NEW from Feature Engineering
+            _scale('dip', breakdown.dip_score) +
+            _scale('gap', breakdown.gap_score) +
+            _scale('rsi', breakdown.rsi_score) +
+            _scale('stabilization', breakdown.stabilization_score) +
+            _scale('volume', breakdown.volume_score) +
+            _scale('trend', breakdown.trend_score) +
+            _scale('macd', breakdown.macd_score) +
+            _scale('stoch', breakdown.stoch_score) +
+            _scale('keltner', breakdown.keltner_score) +
+            _scale('vwap', breakdown.vwap_score) +
+            _scale('market_context', breakdown.market_context_score) +
+            _scale('sector', breakdown.sector_score)
         )
-        breakdown.max_possible = 24  # Updated for new features
+
+        # Apply sector_factor as multiplicative adjustment (Iter 4 trained)
+        if w and resolved.sector_factor != 1.0:
+            breakdown.total_score *= resolved.sector_factor
+
+        breakdown.max_possible = resolved.max_possible if w else 24
 
         # Normalize score to 0-10 scale for fair cross-strategy comparison
-        normalized_score = (breakdown.total_score / breakdown.max_possible) * 10
+        normalized_score = (breakdown.total_score / breakdown.max_possible) * 10 if breakdown.max_possible > 0 else 0
 
         # Determine signal strength (based on normalized 0-10 scale)
         if normalized_score >= 7:

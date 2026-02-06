@@ -3,9 +3,10 @@
 Session-Kontext für Claude Code. Enthält DB-Schema, API-Beispiele und Code-Konventionen.
 Für alle Trading-Regeln → siehe `docs/PLAYBOOK.md`
 
-**Version:** 3.7.0
-**Zuletzt aktualisiert:** 2026-02-05
-**Test-Coverage:** 80.19% (6,740 Tests)
+**Version:** 3.7.0 (pyproject.toml) / 4.0.0 (src)
+**Zuletzt aktualisiert:** 2026-02-06
+**Test-Coverage:** 80.19% (6,748 Tests)
+**Codebase:** 183 Module | 80,184 LOC (src/) | 133 Testdateien
 
 ---
 
@@ -215,8 +216,41 @@ python scripts/daily_data_fetcher.py         # VIX täglich (Cronjob)
 |-------|--------|
 | `docs/PLAYBOOK.md` | **DAS Regelwerk** — Entry, Exit, Sizing, VIX, Disziplin |
 | `docs/ARCHITECTURE.md` | System-Architektur |
-| `docs/ROADMAP.md` | Stabilisierungs-Roadmap (Phase 1 ✅, Phase 4.1 ✅) |
+| `docs/ROADMAP.md` | Stabilisierungs-Roadmap (Phase 1 ✅, Phase 4 ✅, Phase 6 ✅) |
+| `docs/PROJECT_REVIEW.md` | Vollständige Projektdokumentation mit Code-Review |
 | `CLAUDE.md` | Diese Datei — DB, API, Code |
 | `SKILL.md` | MCP-Tool-Referenz (53 Tools + 55 Aliases) |
+
+---
+
+## Architektur-Hinweise für Weiterentwicklung
+
+### Scoring-System (3 Stufen)
+
+1. **Komponenten-Scoring**: Jeder Analyzer vergibt Punkte pro Indikator (hardcoded in Analyzer-Klassen)
+2. **ML-Weights**: `FeatureScoringMixin` wendet trainierte Gewichte an (`~/.optionplay/models/weights_*.json`)
+3. **Ranking**: `recommendation_engine.py` kombiniert Signal (70%) + Stability (30%) × Speed-Multiplier
+
+### Bekannte kritische Issues
+
+| Issue | Beschreibung | Priorität |
+|-------|-------------|-----------|
+| **CIRC-01** | Zirkulärer Import: `validation/reliability.py` ↔ `training/walk_forward.py` | KRITISCH |
+| **VER-01** | Versionskonflikt: pyproject.toml (3.7.0) vs src/__init__.py (4.0.0) | Mittel |
+| **WEIGHT-01** | Scoring-Gewichte hardcoded in Analyzern statt Config | Mittel |
+
+### Backtesting Sub-Packages (nach Phase 6)
+
+```
+src/backtesting/                    44 Module | 17,611 LOC
+├── core/                           Engine, Metrics, Simulator, DB
+├── simulation/                     Options-Simulator, Real-Backtester
+├── training/                       Walk-Forward, Regime, ML-Optimizer
+├── validation/                     Signal-Validation, Reliability
+├── ensemble/                       Meta-Learner, Rotation, Selector
+├── tracking/                       Trade-CRUD, Storage (Price/VIX/Options)
+├── models/                         25 Dataclasses (reine Datenmodelle)
+└── data_collector.py               Daten-Pipeline
+```
 
 *Alle Trading-Regeln, VIX-Regime, Stability-Schwellen, Watchlist und Blacklist stehen ausschließlich in PLAYBOOK.md.*

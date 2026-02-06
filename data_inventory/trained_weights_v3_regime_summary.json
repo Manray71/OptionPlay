@@ -1,0 +1,128 @@
+{
+  "pullback": {
+    "regimes_trained": 4,
+    "regimes_fallback": 0,
+    "improvement": {
+      "low": {
+        "n_trades": 226,
+        "global_top50_wr": 87.6,
+        "regime_top50_wr": 87.6,
+        "wr_delta": 0.0,
+        "global_top50_pnl": 20.61,
+        "regime_top50_pnl": 20.61,
+        "pnl_delta": 0.0
+      },
+      "medium": {
+        "n_trades": 461,
+        "global_top50_wr": 90.1,
+        "regime_top50_wr": 90.0,
+        "wr_delta": -0.0,
+        "global_top50_pnl": 44.67,
+        "regime_top50_pnl": 44.43,
+        "pnl_delta": -0.24
+      },
+      "high": {
+        "n_trades": 654,
+        "global_top50_wr": 82.4,
+        "regime_top50_wr": 82.0,
+        "wr_delta": -0.5,
+        "global_top50_pnl": -18.39,
+        "regime_top50_pnl": -20.54,
+        "pnl_delta": -2.15
+      },
+      "extreme": {
+        "n_trades": 117,
+        "global_top50_wr": 93.2,
+        "regime_top50_wr": 93.2,
+        "wr_delta": 0.0,
+        "global_top50_pnl": 79.93,
+        "regime_top50_pnl": 79.93,
+        "pnl_delta": 0.0
+      }
+    }
+  },
+  "bounce": {
+    "regimes_trained": 4,
+    "regimes_fallback": 0,
+    "improvement": {
+      "low": {
+        "n_trades": 1698,
+        "global_top50_wr": 90.1,
+        "regime_top50_wr": 90.1,
+        "wr_delta": -0.0,
+        "global_top50_pnl": 35.89,
+        "regime_top50_pnl": 35.5,
+        "pnl_delta": -0.39
+      },
+      "medium": {
+        "n_trades": 2723,
+        "global_top50_wr": 86.6,
+        "regime_top50_wr": 87.0,
+        "wr_delta": 0.3,
+        "global_top50_pnl": -1.22,
+        "regime_top50_pnl": 0.83,
+        "pnl_delta": 2.05
+      },
+      "high": {
+        "n_trades": 2876,
+        "global_top50_wr": 81.8,
+        "regime_top50_wr": 81.5,
+        "wr_delta": -0.4,
+        "global_top50_pnl": -15.94,
+        "regime_top50_pnl": -19.1,
+        "pnl_delta": -3.16
+      },
+      "extreme": {
+        "n_trades": 776,
+        "global_top50_wr": 93.6,
+        "regime_top50_wr": 94.1,
+        "wr_delta": 0.6,
+        "global_top50_pnl": 69.96,
+        "regime_top50_pnl": 74.08,
+        "pnl_delta": 4.12
+      }
+    }
+  },
+  "ath_breakout": {
+    "regimes_trained": 4,
+    "regimes_fallback": 0,
+    "improvement": {
+      "low": {
+        "n_trades": 2566,
+        "global_top50_wr": 87.9,
+        "regime_top50_wr": 87.9,
+        "wr_delta": 0.0,
+        "global_top50_pnl": 7.01,
+        "regime_top50_pnl": 7.01,
+        "pnl_delta": 0.0
+      },
+      "medium": {
+        "n_trades": 3589,
+        "global_top50_wr": 85.2,
+        "regime_top50_wr": 85.2,
+        "wr_delta": 0.0,
+        "global_top50_pnl": -10.16,
+        "regime_top50_pnl": -10.16,
+        "pnl_delta": 0.0
+      },
+      "high": {
+        "n_trades": 1452,
+        "global_top50_wr": 71.7,
+        "regime_top50_wr": 71.5,
+        "wr_delta": -0.2,
+        "global_top50_pnl": -207.57,
+        "regime_top50_pnl": -209.77,
+        "pnl_delta": -2.2
+      },
+      "extreme": {
+        "n_trades": 108,
+        "global_top50_wr": 93.3,
+        "regime_top50_wr": 93.3,
+        "wr_delta": 0.0,
+        "global_top50_pnl": 63.77,
+        "regime_top50_pnl": 63.77,
+        "pnl_delta": 0.0
+      }
+    }
+  }
+}

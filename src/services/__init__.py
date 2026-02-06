@@ -57,6 +57,11 @@ from .position_monitor import (
     snapshot_from_ibkr,
     estimate_pnl_from_theta,
 )
+from .sector_cycle_service import (
+    SectorCycleService,
+    SectorRegime,
+    SectorStatus,
+)
 from .recommendation_engine import (
     DailyRecommendationEngine,
     DailyPick,
@@ -98,6 +103,10 @@ __all__ = [
     'snapshot_from_internal',
     'snapshot_from_ibkr',
     'estimate_pnl_from_theta',
+    # Sector Cycle Service
+    'SectorCycleService',
+    'SectorRegime',
+    'SectorStatus',
     # Recommendation Engine
     'DailyRecommendationEngine',
     'DailyPick',

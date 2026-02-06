@@ -1,0 +1,109 @@
+{
+  "strategy": "pullback",
+  "n_trades": 1459,
+  "global_threshold": 80,
+  "global_win_rate": 93.9,
+  "regime_thresholds": {
+    "low": {
+      "threshold": 80,
+      "win_rate": 97.3,
+      "n_trades": 112
+    },
+    "medium": {
+      "threshold": 90,
+      "win_rate": 100.0,
+      "n_trades": 13
+    },
+    "high": {
+      "threshold": 80,
+      "win_rate": 90.8,
+      "n_trades": 357
+    },
+    "extreme": {
+      "threshold": 80,
+      "win_rate": 98.1,
+      "n_trades": 54
+    }
+  },
+  "sector_regime_thresholds": {
+    "Consumer Cyclical": {
+      "medium": {
+        "threshold": 65,
+        "win_rate": 90.0,
+        "n_trades": 50
+      }
+    },
+    "Consumer Defensive": {
+      "medium": {
+        "threshold": 40,
+        "win_rate": 97.8,
+        "n_trades": 45
+      },
+      "high": {
+        "threshold": 40,
+        "win_rate": 98.2,
+        "n_trades": 57
+      }
+    },
+    "Energy": {
+      "medium": {
+        "threshold": 70,
+        "win_rate": 94.9,
+        "n_trades": 39
+      }
+    },
+    "Financial Services": {
+      "low": {
+        "threshold": 75,
+        "win_rate": 100.0,
+        "n_trades": 29
+      },
+      "medium": {
+        "threshold": 40,
+        "win_rate": 93.3,
+        "n_trades": 75
+      },
+      "high": {
+        "threshold": 40,
+        "win_rate": 81.7,
+        "n_trades": 93
+      }
+    },
+    "Industrials": {
+      "medium": {
+        "threshold": 75,
+        "win_rate": 100.0,
+        "n_trades": 25
+      },
+      "high": {
+        "threshold": 70,
+        "win_rate": 84.5,
+        "n_trades": 58
+      }
+    },
+    "Technology": {
+      "low": {
+        "threshold": 55,
+        "win_rate": 85.0,
+        "n_trades": 40
+      },
+      "medium": {
+        "threshold": 80,
+        "win_rate": 100.0,
+        "n_trades": 22
+      },
+      "high": {
+        "threshold": 60,
+        "win_rate": 87.9,
+        "n_trades": 91
+      }
+    },
+    "Unknown": {
+      "medium": {
+        "threshold": 40,
+        "win_rate": 100.0,
+        "n_trades": 37
+      }
+    }
+  }
+}

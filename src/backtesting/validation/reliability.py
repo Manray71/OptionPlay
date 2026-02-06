@@ -45,7 +45,6 @@ from .signal_validation import (
     StatisticalCalculator,
 )
 from ..training import (
-    WalkForwardTrainer,
     TrainingConfig,
     TrainingResult,
 )
@@ -281,6 +280,8 @@ class ReliabilityScorer:
         if not Path(model_path).exists():
             logger.warning(f"Model not found: {model_path}. Using defaults.")
             return cls(config=config)
+
+        from ..training import WalkForwardTrainer  # Lazy import (CIRC-01)
 
         trainer = WalkForwardTrainer.load(model_path)
 

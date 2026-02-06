@@ -485,27 +485,66 @@ class PullbackAnalyzer(BaseAnalyzer):
         breakdown.gap_filled = gap_result[3]
         breakdown.gap_reason = gap_result[4]
 
-        # Total Score (max ~26 points)
+        # Resolve weights from config (4-layer: Base → Regime → Sector → Regime×Sector)
+        regime = getattr(context, 'regime', 'normal') if context else 'normal'
+        sector = getattr(context, 'sector', None) if context else None
+        try:
+            resolved = self.get_weights(regime=regime, sector=sector)
+            w = resolved.weights
+        except Exception:
+            w = {}
+
+        # Default max weights per component (used when YAML weight matches original)
+        _DEFAULTS = {
+            'rsi': 3.0, 'rsi_divergence': 3.0, 'support': 2.5, 'fibonacci': 2.0,
+            'ma': 2.0, 'trend_strength': 2.0, 'volume': 1.0, 'macd': 2.0,
+            'stoch': 2.0, 'keltner': 2.0, 'vwap': 3.0, 'market_context': 2.0,
+            'sector': 1.0, 'gap': 1.0,
+        }
+
+        def _scale(component: str, raw: float) -> float:
+            """Scale a component score by the ratio of YAML weight to hardcoded default."""
+            yaml_max = w.get(component)
+            if yaml_max is None:
+                return raw
+            default_max = _DEFAULTS.get(component, 1.0)
+            if default_max <= 0:
+                return raw
+            return raw * (yaml_max / default_max)
+
+        # Total Score with config-based weight scaling
         breakdown.total_score = (
-            breakdown.rsi_score +           # 0-3
-            breakdown.rsi_divergence_score + # 0-3
-            breakdown.support_score +       # 0-2.5
-            breakdown.fibonacci_score +     # 0-2
-            breakdown.ma_score +            # 0-2
-            breakdown.trend_strength_score + # 0-2
-            breakdown.volume_score +        # 0-1
-            breakdown.macd_score +          # 0-2
-            breakdown.stoch_score +         # 0-2
-            breakdown.keltner_score +       # 0-2
-            breakdown.vwap_score +          # 0-3
-            breakdown.market_context_score + # -1 to +2
-            breakdown.sector_score +        # -1 to +1
-            breakdown.gap_score             # 0 to +1 (NEW - validated)
+            _scale('rsi', breakdown.rsi_score) +
+            _scale('rsi_divergence', breakdown.rsi_divergence_score) +
+            _scale('support', breakdown.support_score) +
+            _scale('fibonacci', breakdown.fibonacci_score) +
+            _scale('ma', breakdown.ma_score) +
+            _scale('trend_strength', breakdown.trend_strength_score) +
+            _scale('volume', breakdown.volume_score) +
+            _scale('macd', breakdown.macd_score) +
+            _scale('stoch', breakdown.stoch_score) +
+            _scale('keltner', breakdown.keltner_score) +
+            _scale('vwap', breakdown.vwap_score) +
+            _scale('market_context', breakdown.market_context_score) +
+            _scale('sector', breakdown.sector_score) +
+            _scale('gap', breakdown.gap_score)
         )
-        breakdown.max_possible = STRATEGY_SCORE_CONFIGS['pullback'].max_possible
+
+        # Apply sector_factor as multiplicative adjustment (Iter 4 trained)
+        if w and resolved.sector_factor != 1.0:
+            breakdown.total_score *= resolved.sector_factor
+
+        # Use resolved max_possible from config, fallback to hardcoded
+        if w:
+            breakdown.max_possible = resolved.max_possible
+        else:
+            breakdown.max_possible = STRATEGY_SCORE_CONFIGS['pullback'].max_possible
 
         # Normalize score to 0-10 scale for fair cross-strategy comparison
-        normalized_score = normalize_score(breakdown.total_score, 'pullback')
+        normalized_score = normalize_score(
+            breakdown.total_score, 'pullback',
+            max_possible=breakdown.max_possible,
+        )
 
         return PullbackCandidate(
             symbol=symbol,

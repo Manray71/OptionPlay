@@ -1,0 +1,41 @@
+{
+  "pullback": {
+    "converged": true,
+    "n_trades": 1459,
+    "val_wr": 0.906392694063927,
+    "improvement": {
+      "old_top50_wr": 86.9,
+      "new_top50_wr": 86.9,
+      "wr_delta": -0.0,
+      "old_top50_pnl": 19.76,
+      "new_top50_pnl": 20.07,
+      "pnl_delta": 0.31
+    }
+  },
+  "bounce": {
+    "converged": true,
+    "n_trades": 8073,
+    "val_wr": 0.8955408753096614,
+    "improvement": {
+      "old_top50_wr": 85.8,
+      "new_top50_wr": 86.0,
+      "wr_delta": 0.2,
+      "old_top50_pnl": 4.6,
+      "new_top50_pnl": 7.57,
+      "pnl_delta": 2.97
+    }
+  },
+  "ath_breakout": {
+    "converged": true,
+    "n_trades": 7715,
+    "val_wr": 0.8980561555075594,
+    "improvement": {
+      "old_top50_wr": 84.3,
+      "new_top50_wr": 84.3,
+      "wr_delta": -0.0,
+      "old_top50_pnl": -32.53,
+      "new_top50_pnl": -32.56,
+      "pnl_delta": -0.03
+    }
+  }
+}

@@ -145,6 +145,13 @@ class AnalysisContext:
     gap_result: Optional[Any] = None  # GapResult, uses Any for forward ref
     gap_score: float = 0.0  # -1 to +1, positive = bullish for entry
 
+    # Regime & Sector (Step 7: threading through call stack)
+    regime: str = "normal"           # VIX regime (low_vol, normal, elevated, high_vol, danger)
+    sector: Optional[str] = None     # Sector name from fundamentals
+
+    # Strategy context (v3: for strategy-differentiated scoring)
+    strategy: str = ""               # Current strategy being evaluated (pullback, bounce, etc.)
+
     @classmethod
     def from_data(
         cls,
@@ -154,7 +161,10 @@ class AnalysisContext:
         highs: list[float],
         lows: list[float],
         opens: Optional[list[float]] = None,
-        calculate_all: bool = True
+        calculate_all: bool = True,
+        regime: str = "normal",
+        sector: Optional[str] = None,
+        strategy: str = "",
     ) -> 'AnalysisContext':
         """
         Create context with pre-calculated values from price data.
@@ -167,17 +177,23 @@ class AnalysisContext:
             lows: Daily lows
             opens: Open prices (optional, for gap detection)
             calculate_all: If True, calculate all indicators upfront
+            regime: VIX regime for config-based scoring
+            sector: Sector name for sector-specific weight overrides
+            strategy: Strategy name for strategy-differentiated scoring (v3)
 
         Returns:
             AnalysisContext with populated values
         """
         if len(prices) < 20:
-            return cls(symbol=symbol)
+            return cls(symbol=symbol, regime=regime, sector=sector, strategy=strategy)
 
         ctx = cls(
             symbol=symbol,
             current_price=prices[-1],
-            current_volume=volumes[-1] if volumes else 0
+            current_volume=volumes[-1] if volumes else 0,
+            regime=regime,
+            sector=sector,
+            strategy=strategy,
         )
 
         if calculate_all:
@@ -582,4 +598,7 @@ class AnalysisContext:
             'pct_from_ath': self.pct_from_ath,
             'gap_score': self.gap_score,
             'gap_type': self.gap_result.gap_type if self.gap_result else None,
+            'regime': self.regime,
+            'sector': self.sector,
+            'strategy': self.strategy,
         }

@@ -16,6 +16,10 @@ from .pool import (
     reset_analyzer_pool,
     configure_default_pool,
 )
+try:
+    from .batch_scorer import BatchScorer
+except ImportError:
+    BatchScorer = None  # type: ignore[assignment,misc]
 from .score_normalization import (
     normalize_score,
     denormalize_score,
@@ -60,4 +64,7 @@ __all__ = [
     'ScoreNormalizer',
     'StrategyScoreConfig',
     'STRATEGY_SCORE_CONFIGS',
+
+    # BatchScorer
+    'BatchScorer',
 ]

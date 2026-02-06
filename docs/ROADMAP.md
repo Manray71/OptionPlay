@@ -1,7 +1,8 @@
 # OptionPlay — Stabilisierungs-Roadmap
 
 **Erstellt:** 2026-02-04
-**Quelle:** Code Audit v4.0.0
+**Aktualisiert:** 2026-02-06 (nach Phase 6 + Code Review)
+**Quelle:** Code Audit v4.0.0 + Code Review 2026-02-06
 **Ziel:** Projekt von "funktional, aber fragil" zu "robust und wartbar" bringen — als Voraussetzung fuer spaeteren Service-Betrieb.
 **Scope:** Keine neuen Features, kein Service-Umbau. Nur: aufraumen, absichern, konsolidieren.
 
@@ -9,13 +10,16 @@
 
 ## Uebersicht der Phasen
 
-| Phase | Name | Fokus | Dauer (geschaetzt) | Abhaengigkeiten |
-|-------|------|-------|---------------------|-----------------|
-| **0** | Hygiene | Git-Bereinigung, Dead Code, Versionierung | 1 Tag | Keine |
-| **1** | Absicherung | Exception-Handling, Thread-Safety, Sync-SQLite | 3-5 Tage | Keine |
-| **2** | Duplikation eliminieren | Indikatoren, Black-Scholes, Earnings, Services | 5-8 Tage | Phase 1 |
-| **3** | Architektur vereinfachen | Config-Konsolidierung, Handler-Refactoring, Monolithen | 5-8 Tage | Phase 2 |
-| **4** | Qualitaetssicherung | Test-Coverage, Typing, CI-Pipeline | Laufend | Phase 2+ |
+| Phase | Name | Fokus | Status |
+|-------|------|-------|--------|
+| **0** | Hygiene | Git-Bereinigung, Dead Code, Versionierung | ✅ |
+| **1** | Absicherung | Exception-Handling, Thread-Safety, Sync-SQLite | ✅ |
+| **2** | Duplikation eliminieren | Indikatoren, Black-Scholes, Earnings, Services | ⚠️ (2.1, 2.4 offen) |
+| **3** | Architektur vereinfachen | RSI/ATR Dedup, Scanner-Cache, FeatureScoringMixin, Pick-Formatter | ✅ (3.1-3.5) |
+| **4** | Qualitaetssicherung | 80.19% Coverage, mypy --strict, CI, DB-Benchmarks | ✅ |
+| **5** | Backtesting-Architektur | Duplikation, Models extrahieren, Sub-Packages | ✅ |
+| **6** | Backtesting-Monolithen | 4 Monolithen → 18 Module (Facade-Pattern) | ✅ |
+| **7** | Verbleibende Monolithen + Weighting | 5x >1000 LOC aufbrechen, CIRC-01, WEIGHT-01 | ⬜ NEU |
 
 ---
 
@@ -401,6 +405,93 @@ CI (auf jedem Push):
 
 ---
 
+## Phase 5 — Backtesting-Architektur ✅ ABGESCHLOSSEN
+
+**Status:** Abgeschlossen (2026-02-05)
+
+- ✅ Duplikation in backtesting/ eliminiert
+- ✅ Reine Datenmodelle in `backtesting/models/` extrahiert (25 Klassen)
+- ✅ Sub-Package-Struktur: core/, simulation/, training/, validation/, ensemble/, tracking/, models/
+- ✅ Commit: `6820e79` (Phase 5+6a)
+
+---
+
+## Phase 6 — Backtesting-Monolithen aufbrechen ✅ ABGESCHLOSSEN
+
+**Status:** Abgeschlossen (2026-02-06)
+
+4 Monolithen in 18 Module via Facade-Pattern aufgebrochen:
+
+| Phase | Monolith | Vorher LOC | Nachher | Commit |
+|-------|----------|-----------|---------|--------|
+| 6b | `trade_tracker.py` | 1,530 → 485 (Facade) + 5 Module | TradeCRUD, TradeAnalysis, PriceStorage, VixStorage, OptionsStorage | `f72b92f` |
+| 6c | `real_options_backtester.py` | 1,666 → 76 (Re-export Stub) | core/ + simulation/ | `017cebe` |
+| 6d | `ensemble_selector.py` | 1,205 → 18 (Re-export Stub) | ensemble/ (Selector, MetaLearner, RotationEngine) | `a88e4f1` |
+| 6e | `regime_trainer.py` | 1,076 → 28 (Re-export Stub) | training/ (DataPrep, EpochRunner, PerformanceAnalyzer, Optimizer) | `d53989e` |
+
+**Ergebnis:** 10,062 Zeilen hinzugefuegt, 7,179 entfernt, 116 Dateien geaendert. Backward-Kompatibilitaet via Re-export Stubs.
+
+---
+
+## Phase 7 — Weiterentwicklung (GEPLANT)
+
+**Quelle:** Code Review 2026-02-06
+**Ziel:** Verbleibende Monolithen aufbrechen, kritische Architektur-Issues loesen, Weighting-Flexibilitaet verbessern.
+
+### 7.0 Kritische Fixes (sofort)
+
+| Aufgabe | Aufwand | Impact |
+|---------|---------|--------|
+| **CIRC-01 loesen**: Lazy Import in `validation/reliability.py` | 30 Min | Eliminiert fragile Import-Reihenfolge |
+| **VER-01 loesen**: Version auf 4.0.0 vereinheitlichen | 10 Min | Konsistenz |
+
+### 7.1 Scoring-Gewichte externalisieren (WEIGHT-01)
+
+**Problem:** Komponenten-Gewichte (RSI: 3, Support: 2.5, etc.) sind hardcoded in Analyzer-Klassen und `score_normalization.py`.
+
+**Loesung:**
+1. `config/scoring_weights.yaml` erstellen mit allen Punkt-Allokationen pro Strategie
+2. `score_normalization.py:max_possible` automatisch aus Config berechnen
+3. Analyzer laden Gewichte aus Config statt hardcoded
+
+**Aufwand:** 2-3 Tage
+**Impact:** Groesster Hebel fuer Tuning ohne Code-Aenderung
+
+### 7.2 Verbleibende >1000 LOC Dateien aufbrechen
+
+Reihenfolge nach Impact:
+
+| Datei | LOC | Aufteilung |
+|-------|-----|-----------|
+| `core/engine.py` | 1,240 | BacktestEngine → Simulation + Reporting + Core |
+| `training/walk_forward.py` | 1,131 | Config + TrainingLoop + ResultsProcessor |
+| `training/ml_weight_optimizer.py` | 1,093 | FeatureExtractor + Optimizer + WeightedScorer |
+| `validation/signal_validation.py` | 1,076 | SignalValidator + StatisticalCalculator |
+| `simulation/options_backtest.py` | 1,196 | Backtester + ConvenienceFunctions |
+
+**Aufwand:** 3-5 Tage
+
+### 7.3 Mixin → Composition abschliessen (DEBT-004)
+
+**Problem:** 11 Mixins mit 22 Interface-Methoden in BaseHandlerMixin. MRO-Komplexitaet.
+
+**Loesung:**
+1. `handler_container.py` (existiert) als primaeres Pattern aktivieren
+2. Jedes Mixin zu eigenstaendiger Handler-Klasse mit expliziten Dependencies
+3. `OptionPlayServer` nutzt Composition statt Vererbung
+
+**Aufwand:** 3-5 Tage
+
+### 7.4 ServerState integrieren (STATE-01)
+
+**Problem:** `ServerState` Dataclass definiert aber `mcp_server.py` nutzt gestreute Variablen (`_connected`, `_quote_cache_hits`, etc.)
+
+**Loesung:** Gestreute Variablen in ServerState migrieren.
+
+**Aufwand:** 1 Tag
+
+---
+
 ## Abhaengigkeitsgraph
 
 ```
@@ -419,20 +510,38 @@ Phase 2 (Duplikation)                                │
     ├── 2.3 Earnings-Service ✅ (DB-first + API-Fallback)
     └── 2.4 Service-Utilities ⬜
             │
-Phase 3 (Architektur)
-    ├── 3.1 Config-Konsolidierung (nach 2.4)
-    ├── 3.2 Monolithen aufbrechen (nach 2.1, profitiert davon)
-    └── 3.3 Handler Composition (nach 3.2)
+Phase 3 (Architektur) ✅
+    ├── 3.1 RSI/ATR Duplikation eliminiert ✅
+    ├── 3.2 SQL-Konstanten extrahiert ✅ (26 Konstanten)
+    ├── 3.3 Scanner-Caches → @cached_property ✅
+    ├── 3.4 FeatureScoringMixin ✅
+    └── 3.5 Pick-Formatter extrahiert ✅
             │
-Phase 4 (Qualitaet) ✅ ─── laeuft parallel ab Phase 2
-    ├── 4.1 Test-Coverage ✅ (80.19% erreicht, 6.740 Tests)
+Phase 4 (Qualitaet) ✅
+    ├── 4.1 Test-Coverage ✅ (80.19% erreicht, 6.748 Tests)
     ├── 4.2 Typing ✅ (warn_unreachable + mypy --strict fuer 27 Dateien)
     ├── 4.3 CI-Pipeline ✅ (GitHub Actions erstellt)
     ├── 4.4 Cache-Kohaerenz ✅ (toter Code entfernt)
     ├── 4.5 Handler-API-Fixes ✅ (risk.py Handler korrigiert)
-    ├── Recursive: Test-Reorg ✅ (132 Dateien → unit/component/integration/system)
-    ├── Recursive: Type Hints ✅ (27 src + 4 test Dateien, from __future__ import annotations)
-    └── Recursive: DB-Benchmarks ✅ (17 Benchmarks, 10 Hotspots, EXPLAIN QUERY PLAN)
+    ├── Test-Reorg ✅ (133 Dateien → unit/component/integration/system)
+    ├── Type Hints ✅ (27 src + 4 test Dateien)
+    └── DB-Benchmarks ✅ (17 Benchmarks, 10 Hotspots)
+            │
+Phase 5 (Backtesting-Architektur) ✅
+    └── Models extrahiert, Sub-Packages erstellt
+            │
+Phase 6 (Backtesting-Monolithen) ✅
+    ├── 6b TradeTracker → Facade + 5 Module ✅
+    ├── 6c RealOptionsBacktester → core/ + simulation/ ✅
+    ├── 6d EnsembleSelector → ensemble/ ✅
+    └── 6e RegimeTrainer → training/ Sub-Module ✅
+            │
+Phase 7 (Weiterentwicklung) ⬜
+    ├── 7.0 CIRC-01 + VER-01 loesen ⬜
+    ├── 7.1 Scoring-Gewichte externalisieren (WEIGHT-01) ⬜
+    ├── 7.2 Verbleibende >1000 LOC aufbrechen ⬜
+    ├── 7.3 Mixin → Composition (DEBT-004) ⬜
+    └── 7.4 ServerState integrieren (STATE-01) ⬜
 ```
 
 ---
@@ -447,12 +556,15 @@ Bevor das Projekt als "service-ready" gilt, muessen alle folgenden Kriterien erf
 | 2 | Alle Singletons thread-safe | Jeder `_instance` hat Lock | ✅ (10+ Module) |
 | 3 | Keine silent `except: pass` | `grep "except.*pass"` in src/ = 0 | ⚠️ (~15 verbleiben) |
 | 4 | Jede Indikator-Berechnung existiert genau 1x | Keine `_calculate_macd/ema/atr/stochastic/keltner` in Analyzern | ⬜ (26 Duplikate) |
-| 5 | Eine Black-Scholes-Implementierung | `src/options/black_scholes.py` = nur Re-Exports oder geloescht | ✅ (bewusste Trennung) |
-| 6 | Ein Earnings-System | `EarningsService` als einzige oeffentliche API | ✅ (DB-first + Fallback) |
-| 7 | Test-Coverage >= 80% | `pytest --cov-fail-under=80` | ✅ (80.19%) |
-| 8 | Keine Datei im Hot Path > 1.000 LOC | Ausnahme: `support_resistance.py`, Backtesting | ⬜ |
+| 5 | Eine Black-Scholes-Implementierung | Bewusste Trennung batch vs OOP | ✅ (dokumentiert) |
+| 6 | Ein Earnings-System | DB-first + API-Fallback + Write-Through | ✅ |
+| 7 | Test-Coverage >= 80% | `pytest --cov-fail-under=80` | ✅ (80.19%, 6.748 Tests) |
+| 8 | Keine Datei im Hot Path > 1.000 LOC | Ausnahme: Backtesting (Phase 7) | ⬜ (5 Dateien verbleiben) |
 | 9 | Alle Caches mit TTL | Kein "forever cached" ausser immutable Daten | ✅ |
 | 10 | mypy ohne `ignore_missing_imports` | `mypy src/` = 0 errors | ⬜ |
 | 11 | Alle Dateien im Git | `git status` = clean | ⬜ |
-| 12 | Version konsistent | Eine Versionsnummer ueberall | ⬜ |
+| 12 | Version konsistent | Eine Versionsnummer ueberall | ⬜ (VER-01 offen) |
 | 13 | Handler-APIs synchronisiert | Keine AttributeError in Handlern | ✅ |
+| 14 | Keine zirkulaeren Imports | Kein fragile Import-Reihenfolge | ⬜ (CIRC-01 offen) |
+| 15 | Scoring-Gewichte konfigurierbar | Alle Punkt-Allokationen in Config | ⬜ (WEIGHT-01 offen) |
+| 16 | Backtesting-Monolithen aufgebrochen | Alle Dateien <1000 LOC | ⬜ (Phase 7.2) |

@@ -33,6 +33,12 @@ from .ml_weight_optimizer import (
     ALL_COMPONENTS,
     DEFAULT_WEIGHTS,
 )
+from .strategy_weight_trainer import (
+    StrategyWeightTrainer,
+    StrategyTrainingConfig,
+    StrategyTrainingResult,
+    STRATEGY_OBJECTIVES,
+)
 from .data_prep import DataPrep
 from .epoch_runner import EpochRunner
 from .performance import PerformanceAnalyzer
@@ -64,6 +70,11 @@ __all__ = [
     "STRATEGY_COMPONENTS",
     "ALL_COMPONENTS",
     "DEFAULT_WEIGHTS",
+    # v3: Strategy Weight Trainer
+    "StrategyWeightTrainer",
+    "StrategyTrainingConfig",
+    "StrategyTrainingResult",
+    "STRATEGY_OBJECTIVES",
     # Phase 6e Sub-Modules
     "DataPrep",
     "EpochRunner",

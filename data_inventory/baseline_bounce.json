@@ -1,0 +1,223 @@
+{
+  "strategy": "bounce",
+  "total_trades": 8073,
+  "overall_win_rate": 86.8,
+  "overall_avg_pnl": 14.72,
+  "score_deciles": {
+    "D1": {
+      "score_range": "0.100-0.450",
+      "count": 807,
+      "win_rate": 89.0,
+      "avg_pnl": 46.31
+    },
+    "D2": {
+      "score_range": "0.450-0.620",
+      "count": 807,
+      "win_rate": 88.4,
+      "avg_pnl": 26.92
+    },
+    "D3": {
+      "score_range": "0.620-0.750",
+      "count": 807,
+      "win_rate": 84.5,
+      "avg_pnl": 10.9
+    },
+    "D4": {
+      "score_range": "0.750-0.850",
+      "count": 807,
+      "win_rate": 86.6,
+      "avg_pnl": 9.01
+    },
+    "D5": {
+      "score_range": "0.850-0.900",
+      "count": 807,
+      "win_rate": 86.2,
+      "avg_pnl": -5.08
+    },
+    "D6": {
+      "score_range": "0.900-1.020",
+      "count": 807,
+      "win_rate": 85.7,
+      "avg_pnl": 9.26
+    },
+    "D7": {
+      "score_range": "1.020-1.100",
+      "count": 807,
+      "win_rate": 87.2,
+      "avg_pnl": 23.77
+    },
+    "D8": {
+      "score_range": "1.100-1.200",
+      "count": 807,
+      "win_rate": 88.1,
+      "avg_pnl": 29.26
+    },
+    "D9": {
+      "score_range": "1.200-1.300",
+      "count": 807,
+      "win_rate": 85.6,
+      "avg_pnl": -8.54
+    },
+    "D10": {
+      "score_range": "1.300-1.650",
+      "count": 810,
+      "win_rate": 86.8,
+      "avg_pnl": 5.41
+    }
+  },
+  "component_importance": {
+    "market_context_score": -0.0638,
+    "stoch_score": 0.0239,
+    "trend_strength_score": -0.0213,
+    "rsi_score": 0.0211,
+    "momentum_score": 0.0149,
+    "macd_score": -0.0133,
+    "ma_score": -0.0108,
+    "vwap_score": -0.0108,
+    "fibonacci_score": -0.0064,
+    "support_score": -0.0044,
+    "volume_score": 0.0,
+    "keltner_score": 0.0,
+    "rs_score": 0.0,
+    "candlestick_score": 0.0,
+    "sector_score": 0.0,
+    "gap_score": 0.0
+  },
+  "score_calibration": {
+    "D1": {
+      "avg_score": 0.32,
+      "actual_win_rate": 89.0,
+      "count": 807
+    },
+    "D2": {
+      "avg_score": 0.54,
+      "actual_win_rate": 88.4,
+      "count": 807
+    },
+    "D3": {
+      "avg_score": 0.68,
+      "actual_win_rate": 84.5,
+      "count": 807
+    },
+    "D4": {
+      "avg_score": 0.78,
+      "actual_win_rate": 86.6,
+      "count": 807
+    },
+    "D5": {
+      "avg_score": 0.87,
+      "actual_win_rate": 86.2,
+      "count": 807
+    },
+    "D6": {
+      "avg_score": 0.96,
+      "actual_win_rate": 85.7,
+      "count": 807
+    },
+    "D7": {
+      "avg_score": 1.05,
+      "actual_win_rate": 87.2,
+      "count": 807
+    },
+    "D8": {
+      "avg_score": 1.14,
+      "actual_win_rate": 88.1,
+      "count": 807
+    },
+    "D9": {
+      "avg_score": 1.25,
+      "actual_win_rate": 85.6,
+      "count": 807
+    },
+    "D10": {
+      "avg_score": 1.38,
+      "actual_win_rate": 86.8,
+      "count": 810
+    },
+    "spearman_r": -0.273
+  },
+  "sector_performance": {
+    "Technology": {
+      "count": 1494,
+      "win_rate": 83.1,
+      "avg_pnl": 7.46
+    },
+    "Consumer Cyclical": {
+      "count": 1163,
+      "win_rate": 83.2,
+      "avg_pnl": 9.71
+    },
+    "Financial Services": {
+      "count": 1053,
+      "win_rate": 89.9,
+      "avg_pnl": 24.08
+    },
+    "Consumer Defensive": {
+      "count": 778,
+      "win_rate": 88.4,
+      "avg_pnl": -13.71
+    },
+    "Industrials": {
+      "count": 766,
+      "win_rate": 91.3,
+      "avg_pnl": 51.64
+    },
+    "Healthcare": {
+      "count": 683,
+      "win_rate": 88.0,
+      "avg_pnl": -4.51
+    },
+    "Communication Services": {
+      "count": 565,
+      "win_rate": 77.2,
+      "avg_pnl": -14.22
+    },
+    "Energy": {
+      "count": 482,
+      "win_rate": 91.7,
+      "avg_pnl": 21.81
+    },
+    "Unknown": {
+      "count": 406,
+      "win_rate": 91.1,
+      "avg_pnl": 51.84
+    },
+    "Basic Materials": {
+      "count": 281,
+      "win_rate": 86.1,
+      "avg_pnl": 25.26
+    },
+    "Real Estate": {
+      "count": 210,
+      "win_rate": 90.5,
+      "avg_pnl": 4.86
+    },
+    "Utilities": {
+      "count": 192,
+      "win_rate": 96.4,
+      "avg_pnl": 70.73
+    }
+  },
+  "regime_performance": {
+    "high": {
+      "count": 2876,
+      "win_rate": 83.3,
+      "avg_pnl": -3.31
+    },
+    "medium": {
+      "count": 2723,
+      "win_rate": 86.9,
+      "avg_pnl": 3.79
+    },
+    "low": {
+      "count": 1698,
+      "win_rate": 89.9,
+      "avg_pnl": 38.23
+    },
+    "extreme": {
+      "count": 776,
+      "win_rate": 92.9,
+      "avg_pnl": 68.46
+    }
+  }
+}

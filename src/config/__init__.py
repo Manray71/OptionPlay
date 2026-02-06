@@ -73,6 +73,13 @@ from .models import (
     GapBoostConfig,
 )
 
+# Scoring Config (RecursiveConfigResolver)
+from .scoring_config import (
+    RecursiveConfigResolver,
+    ResolvedWeights,
+    get_scoring_resolver,
+)
+
 # Fundamentals constants
 from .fundamentals_constants import (
     DEFAULT_BLACKLIST,
@@ -139,6 +146,10 @@ __all__ = [
     'TrainedWeightsConfig',
     'TrainedWeights',
     'GapBoostConfig',
+    # Scoring Config
+    'RecursiveConfigResolver',
+    'ResolvedWeights',
+    'get_scoring_resolver',
     # Watchlist
     'WatchlistLoader',
     'get_watchlist_loader',

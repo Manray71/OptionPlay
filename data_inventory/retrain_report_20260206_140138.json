@@ -1,0 +1,294 @@
+{
+  "run_date": "2026-02-06T14:01:38.598467",
+  "mode": "dry_run",
+  "force": true,
+  "results": {
+    "pullback": {
+      "status": "dry_run",
+      "reason": "Dry run mode",
+      "weight_changes": {
+        "rsi_score": 0.0969,
+        "rsi_divergence_score": 0.0,
+        "support_score": -0.0433,
+        "fibonacci_score": -0.0063,
+        "ma_score": 0.0625,
+        "trend_strength_score": 0.0542,
+        "volume_score": 0.0,
+        "macd_score": -0.0206,
+        "stoch_score": 0.0025,
+        "keltner_score": 0.0,
+        "vwap_score": 0.0625,
+        "market_context_score": -0.3015,
+        "sector_score": 0.0
+      },
+      "metrics": {
+        "objective_value": 0.3623,
+        "val_objective": 0.4877,
+        "val_win_rate": 0.9064,
+        "l2_lambda": 0.03,
+        "active_components": 9,
+        "total_components": 13,
+        "n_new_trades": 16582,
+        "safety_passed": true,
+        "regime_results": {
+          "low": {
+            "weights": {
+              "rsi_score": 3.0511,
+              "rsi_divergence_score": 3.0,
+              "support_score": 2.4986,
+              "fibonacci_score": 1.9304,
+              "ma_score": 1.158,
+              "trend_strength_score": 1.9287,
+              "volume_score": 1.0,
+              "macd_score": 2.0799,
+              "stoch_score": 0.9069,
+              "keltner_score": 2.0,
+              "vwap_score": 3.158,
+              "market_context_score": 1.5956,
+              "sector_score": 1.0
+            },
+            "val_wr": 0.8676,
+            "n_trades": 226
+          },
+          "medium": {
+            "weights": {
+              "rsi_score": 3.1493,
+              "rsi_divergence_score": 3.0,
+              "support_score": 2.2513,
+              "fibonacci_score": 2.1114,
+              "ma_score": 0.9699,
+              "trend_strength_score": 2.1273,
+              "volume_score": 1.0,
+              "macd_score": 1.9723,
+              "stoch_score": 1.044,
+              "keltner_score": 2.0,
+              "vwap_score": 2.9699,
+              "market_context_score": 1.8432,
+              "sector_score": 1.0
+            },
+            "val_wr": 0.8633,
+            "n_trades": 461
+          },
+          "high": {
+            "weights": {
+              "rsi_score": 3.1475,
+              "rsi_divergence_score": 3.0,
+              "support_score": 2.4688,
+              "fibonacci_score": 1.957,
+              "ma_score": 1.1099,
+              "trend_strength_score": 2.0785,
+              "volume_score": 1.0,
+              "macd_score": 1.9569,
+              "stoch_score": 1.0679,
+              "keltner_score": 2.0,
+              "vwap_score": 3.1099,
+              "market_context_score": 1.5,
+              "sector_score": 1.0
+            },
+            "val_wr": 0.8934,
+            "n_trades": 654
+          }
+        }
+      }
+    },
+    "bounce": {
+      "status": "dry_run",
+      "reason": "Dry run mode",
+      "weight_changes": {
+        "rsi_score": 0.2375,
+        "rsi_divergence_score": 0.0,
+        "support_score": 0.0547,
+        "volume_score": 0.0,
+        "ma_score": -0.0055,
+        "candlestick_score": 0.0,
+        "macd_score": -0.0075,
+        "stoch_score": 0.1027,
+        "keltner_score": 0.0,
+        "vwap_score": -0.0055,
+        "market_context_score": -0.4215,
+        "sector_score": 0.0
+      },
+      "metrics": {
+        "objective_value": 0.3059,
+        "val_objective": 0.2938,
+        "val_win_rate": 0.8955,
+        "l2_lambda": 0.02,
+        "active_components": 7,
+        "total_components": 12,
+        "n_new_trades": 16582,
+        "safety_passed": false,
+        "regime_results": {
+          "low": {
+            "weights": {
+              "rsi_score": 2.1686,
+              "rsi_divergence_score": 3.0,
+              "support_score": 1.13,
+              "volume_score": 2.0,
+              "ma_score": 1.1128,
+              "candlestick_score": 2.0,
+              "macd_score": 1.9683,
+              "stoch_score": 1.0233,
+              "keltner_score": 2.0,
+              "vwap_score": 3.1128,
+              "market_context_score": 1.5,
+              "sector_score": 1.0
+            },
+            "val_wr": 0.8745,
+            "n_trades": 1698
+          },
+          "medium": {
+            "weights": {
+              "rsi_score": 2.039,
+              "rsi_divergence_score": 3.0,
+              "support_score": 1.0484,
+              "volume_score": 2.0,
+              "ma_score": 1.0536,
+              "candlestick_score": 2.0,
+              "macd_score": 2.0952,
+              "stoch_score": 1.0305,
+              "keltner_score": 2.0,
+              "vwap_score": 3.0536,
+              "market_context_score": 1.6468,
+              "sector_score": 1.0
+            },
+            "val_wr": 0.8678,
+            "n_trades": 2723
+          },
+          "high": {
+            "weights": {
+              "rsi_score": 2.484,
+              "rsi_divergence_score": 3.0,
+              "support_score": 0.7609,
+              "volume_score": 2.0,
+              "ma_score": 0.8719,
+              "candlestick_score": 2.0,
+              "macd_score": 1.9369,
+              "stoch_score": 1.25,
+              "keltner_score": 2.0,
+              "vwap_score": 2.8719,
+              "market_context_score": 1.5,
+              "sector_score": 1.0
+            },
+            "val_wr": 0.9212,
+            "n_trades": 2876
+          },
+          "extreme": {
+            "weights": {
+              "rsi_score": 2.5,
+              "rsi_divergence_score": 3.0,
+              "support_score": 1.0959,
+              "volume_score": 2.0,
+              "ma_score": 0.7741,
+              "candlestick_score": 2.0,
+              "macd_score": 1.916,
+              "stoch_score": 1.0818,
+              "keltner_score": 2.0,
+              "vwap_score": 2.7741,
+              "market_context_score": 1.7157,
+              "sector_score": 1.0
+            },
+            "val_wr": 0.9657,
+            "n_trades": 776
+          }
+        }
+      }
+    },
+    "ath_breakout": {
+      "status": "dry_run",
+      "reason": "Dry run mode",
+      "weight_changes": {
+        "ath_breakout_score": 0.0251,
+        "volume_score": 0.0,
+        "ma_score": 0.0628,
+        "rsi_score": -0.0786,
+        "relative_strength_score": 0.0,
+        "macd_score": 0.0182,
+        "momentum_score": -0.0302,
+        "keltner_score": 0.0,
+        "vwap_score": 0.0628,
+        "market_context_score": -0.0998,
+        "sector_score": 0.0
+      },
+      "metrics": {
+        "objective_value": -4.2108,
+        "val_objective": -3.8105,
+        "val_win_rate": 0.8981,
+        "l2_lambda": 0.03,
+        "active_components": 7,
+        "total_components": 11,
+        "n_new_trades": 16582,
+        "safety_passed": true,
+        "regime_results": {
+          "low": {
+            "weights": {
+              "ath_breakout_score": 0.9786,
+              "volume_score": 2.0,
+              "ma_score": 1.0717,
+              "rsi_score": 0.9295,
+              "relative_strength_score": 2.0,
+              "macd_score": 2.0052,
+              "momentum_score": 1.9674,
+              "keltner_score": 2.0,
+              "vwap_score": 3.0717,
+              "market_context_score": 1.9184,
+              "sector_score": 1.0
+            },
+            "val_wr": 0.8584,
+            "n_trades": 2566
+          },
+          "medium": {
+            "weights": {
+              "ath_breakout_score": 1.0232,
+              "volume_score": 2.0,
+              "ma_score": 1.0892,
+              "rsi_score": 0.9545,
+              "relative_strength_score": 2.0,
+              "macd_score": 2.0183,
+              "momentum_score": 1.9864,
+              "keltner_score": 2.0,
+              "vwap_score": 3.0892,
+              "market_context_score": 1.798,
+              "sector_score": 1.0
+            },
+            "val_wr": 0.8858,
+            "n_trades": 3589
+          },
+          "high": {
+            "weights": {
+              "ath_breakout_score": 0.8,
+              "volume_score": 2.0,
+              "ma_score": 1.2,
+              "rsi_score": 0.8,
+              "relative_strength_score": 2.0,
+              "macd_score": 2.0944,
+              "momentum_score": 1.883,
+              "keltner_score": 2.0,
+              "vwap_score": 3.3228,
+              "market_context_score": 1.6,
+              "sector_score": 1.0
+            },
+            "val_wr": 0.9289,
+            "n_trades": 1452
+          },
+          "extreme": {
+            "weights": {
+              "ath_breakout_score": 0.8195,
+              "volume_score": 2.0,
+              "ma_score": 1.2,
+              "rsi_score": 0.9867,
+              "relative_strength_score": 2.0,
+              "macd_score": 1.9422,
+              "momentum_score": 1.9644,
+              "keltner_score": 2.0,
+              "vwap_score": 3.247,
+              "market_context_score": 1.6,
+              "sector_score": 1.0
+            },
+            "val_wr": 0.9697,
+            "n_trades": 108
+          }
+        }
+      }
+    }
+  }
+}

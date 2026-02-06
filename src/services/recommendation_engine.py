@@ -357,6 +357,17 @@ class DailyRecommendationEngine:
         # Caches
         self._vix_cache: Optional[float] = None
         self._last_result: Optional[DailyRecommendationResult] = None
+        self._sector_factors: Dict[str, float] = {}  # sector → momentum factor (0.6-1.2)
+
+    # Map MarketRegime enum values to YAML config regime keys
+    _REGIME_TO_CONFIG = {
+        "low_vol": "low",
+        "normal": "normal",
+        "danger_zone": "danger",
+        "elevated": "elevated",
+        "high_vol": "high",
+        "unknown": "normal",
+    }
 
     def set_vix(self, vix: float) -> None:
         """Setzt den aktuellen VIX-Level."""
@@ -401,6 +412,9 @@ class DailyRecommendationEngine:
             self.set_vix(vix_level)
             regime = self.get_market_regime(vix_level)
             strategy_rec = self._vix_selector.get_recommendation(vix_level)
+            # Pass regime to scanner for config-based scoring weights
+            config_regime = self._REGIME_TO_CONFIG.get(regime.value, "normal")
+            self._scanner.set_regime(config_regime)
         else:
             regime = MarketRegime.UNKNOWN
             strategy_rec = None
@@ -440,6 +454,21 @@ class DailyRecommendationEngine:
                 generation_time_seconds=duration,
                 warnings=warnings,
             )
+
+        # 2b. Prefetch sector momentum factors (for speed score)
+        self._sector_factors = {}
+        try:
+            from ..config.scoring_config import get_scoring_resolver
+            sm_config = get_scoring_resolver().get_sector_momentum_config()
+            if sm_config.get('enabled', False):
+                from ..services.sector_cycle_service import SectorCycleService
+                service = SectorCycleService()
+                statuses = await service.get_all_sector_statuses()
+                self._sector_factors = {s.sector: s.momentum_factor for s in statuses}
+                if self._sector_factors:
+                    logger.info(f"Loaded sector momentum factors for {len(self._sector_factors)} sectors")
+        except Exception as e:
+            logger.debug(f"Sector momentum prefetch skipped: {e}")
 
         # 3. Multi-Strategy Scan ausführen
         logger.info(f"Starting daily scan for {len(symbols)} symbols...")
@@ -645,8 +674,10 @@ class DailyRecommendationEngine:
         stab_factor = max(0.0, (stability_score - 70) / 30)
         score += stab_factor * 2.5
 
-        # 3. Sektor-Bonus (Max 1.5)
-        score += self.SECTOR_SPEED.get(sector, 0.5) * 1.5
+        # 3. Sektor-Bonus (Max 1.5) × Cycle Factor (0.6-1.2)
+        base_sector_speed = self.SECTOR_SPEED.get(sector, 0.5) * 1.5
+        cycle_factor = self._sector_factors.get(sector, 1.0) if self._sector_factors else 1.0
+        score += base_sector_speed * cycle_factor
 
         # 4. Pullback-Score-Bonus (Max 1.5)
         if pullback_score is not None:

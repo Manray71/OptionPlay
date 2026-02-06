@@ -40,6 +40,25 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+# Global cache for feature-engineering thresholds from YAML (loaded once)
+_fe_thresholds_cache: Optional[Dict] = None
+
+
+def _get_fe_thresholds() -> Dict:
+    """Load feature-engineering thresholds from YAML config (cached)."""
+    global _fe_thresholds_cache
+    if _fe_thresholds_cache is not None:
+        return _fe_thresholds_cache
+
+    try:
+        from ..config.scoring_config import get_scoring_resolver
+        _fe_thresholds_cache = get_scoring_resolver().get_feature_engineering_config()
+    except Exception:
+        _fe_thresholds_cache = {}
+
+    return _fe_thresholds_cache
+
+
 # Global cache for trained weights (loaded once)
 _trained_weights_cache: Optional[Dict] = None
 
@@ -105,7 +124,16 @@ class FeatureScoringMixin:
         Returns:
             (score, vwap_value, distance_pct, position, reason)
         """
-        vwap_result = calculate_vwap(prices, volumes, period=VWAP_PERIOD)
+        # Read thresholds from YAML config with fallback to constants
+        fe = _get_fe_thresholds()
+        vwap_cfg = fe.get('vwap', {})
+        vwap_period = vwap_cfg.get('period', VWAP_PERIOD)
+        strong_above = vwap_cfg.get('strong_above', VWAP_STRONG_ABOVE)
+        above = vwap_cfg.get('above', VWAP_ABOVE)
+        below = vwap_cfg.get('below', VWAP_BELOW)
+        strong_below = vwap_cfg.get('strong_below', VWAP_STRONG_BELOW)
+
+        vwap_result = calculate_vwap(prices, volumes, period=vwap_period)
 
         if not vwap_result:
             return 0, 0, 0, "unknown", "Insufficient data for VWAP"
@@ -115,16 +143,16 @@ class FeatureScoringMixin:
         position = vwap_result.position
 
         # Scoring based on training results
-        if distance > VWAP_STRONG_ABOVE:
+        if distance > strong_above:
             score = 3.0
             reason = f"Strong momentum: {distance:.1f}% above VWAP (91.9% win rate)"
-        elif distance > VWAP_ABOVE:
+        elif distance > above:
             score = 2.0
             reason = f"Above VWAP: {distance:.1f}% (87.6% win rate)"
-        elif distance > VWAP_BELOW:
+        elif distance > below:
             score = 1.0
             reason = f"Near VWAP: {distance:.1f}% (78.3% win rate)"
-        elif distance > VWAP_STRONG_BELOW:
+        elif distance > strong_below:
             score = 0.0
             reason = f"Below VWAP: {distance:.1f}% (66.1% win rate)"
         else:
@@ -150,13 +178,19 @@ class FeatureScoringMixin:
         Returns:
             (score, spy_trend, reason)
         """
-        if not spy_prices or len(spy_prices) < SMA_MEDIUM:
+        # Read thresholds from YAML config with fallback to constants
+        fe = _get_fe_thresholds()
+        mc_cfg = fe.get('market_context', {})
+        sma_short = mc_cfg.get('sma_short', SMA_SHORT)
+        sma_medium = mc_cfg.get('sma_medium', SMA_MEDIUM)
+
+        if not spy_prices or len(spy_prices) < sma_medium:
             return 0, "unknown", "No SPY data for market context"
 
         # Determine SPY trend
         current = spy_prices[-1]
-        sma20 = float(np.mean(spy_prices[-SMA_SHORT:]))
-        sma50 = float(np.mean(spy_prices[-SMA_MEDIUM:]))
+        sma20 = float(np.mean(spy_prices[-sma_short:]))
+        sma50 = float(np.mean(spy_prices[-sma_medium:]))
 
         if current > sma20 > sma50:
             trend = "strong_uptrend"
@@ -244,6 +278,12 @@ class FeatureScoringMixin:
         Returns:
             (score, gap_type, gap_size_pct, is_filled, reason)
         """
+        # Read thresholds from YAML config with fallback to constants
+        fe = _get_fe_thresholds()
+        gap_cfg = fe.get('gap', {})
+        gap_large = gap_cfg.get('size_large', GAP_SIZE_LARGE)
+        gap_medium = gap_cfg.get('size_medium', GAP_SIZE_MEDIUM)
+
         # Use context if available (already calculated)
         if context and hasattr(context, 'gap_result') and context.gap_result:
             gap = context.gap_result
@@ -256,7 +296,7 @@ class FeatureScoringMixin:
             # Down-gaps get positive points, up-gaps get negative/zero
             if gap_type in ('down', 'partial_down'):
                 score = max(0, quality_score)  # 0 to 1
-                if abs(gap_size) >= GAP_SIZE_LARGE:
+                if abs(gap_size) >= gap_large:
                     reason = f"Large down-gap: {gap_size:.1f}% - strong entry signal (+1.21% outperformance)"
                 elif abs(gap_size) >= 1.0:
                     reason = f"Down-gap: {gap_size:.1f}% - favorable entry (+0.43% 30d return)"
@@ -264,9 +304,9 @@ class FeatureScoringMixin:
                     reason = f"Small down-gap: {gap_size:.1f}% - mild positive signal"
             elif gap_type in ('up', 'partial_up'):
                 score = min(0, quality_score)  # -0.5 to 0
-                if abs(gap_size) >= GAP_SIZE_LARGE:
+                if abs(gap_size) >= gap_large:
                     reason = f"Large up-gap: {gap_size:+.1f}% - caution, potential overbought"
-                elif abs(gap_size) >= GAP_SIZE_MEDIUM:
+                elif abs(gap_size) >= gap_medium:
                     reason = f"Up-gap: {gap_size:+.1f}% - short-term momentum"
                 else:
                     reason = f"Small up-gap: {gap_size:+.1f}% - neutral"
@@ -290,7 +330,7 @@ class FeatureScoringMixin:
                 lows=lows,
                 closes=prices,
                 lookback_days=SMA_SHORT,
-                min_gap_pct=GAP_SIZE_MEDIUM / 2,  # 0.5% — looser threshold for feature scoring
+                min_gap_pct=gap_medium / 2,  # looser threshold for feature scoring
             )
 
             if gap_result and gap_result.gap_type != 'none':

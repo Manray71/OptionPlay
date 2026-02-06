@@ -1,0 +1,29 @@
+{
+  "pullback": {
+    "count": 1459,
+    "win_rate": 86.9,
+    "avg_pnl": 19.13,
+    "spearman_r": -0.164,
+    "top_component": "market_context_score",
+    "best_regime": "unknown",
+    "worst_regime": "high"
+  },
+  "bounce": {
+    "count": 8073,
+    "win_rate": 86.8,
+    "avg_pnl": 14.72,
+    "spearman_r": -0.273,
+    "top_component": "market_context_score",
+    "best_regime": "extreme",
+    "worst_regime": "high"
+  },
+  "ath_breakout": {
+    "count": 7715,
+    "win_rate": 84.6,
+    "avg_pnl": -17.38,
+    "spearman_r": -0.03,
+    "top_component": "fibonacci_score",
+    "best_regime": "extreme",
+    "worst_regime": "high"
+  }
+}

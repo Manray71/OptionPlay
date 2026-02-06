@@ -73,27 +73,35 @@ STRATEGY_SCORE_CONFIGS: Dict[str, StrategyScoreConfig] = {
 }
 
 
-def normalize_score(raw_score: float, strategy: str) -> float:
+def normalize_score(
+    raw_score: float,
+    strategy: str,
+    max_possible: Optional[float] = None,
+) -> float:
     """
     Normalize a raw strategy score to a 0-10 scale.
 
     Args:
         raw_score: The raw score from the strategy analyzer
         strategy: Strategy name ('pullback', 'bounce', 'ath_breakout', 'earnings_dip')
+        max_possible: Optional override for max possible score (e.g. from
+                      RecursiveConfigResolver). If None, uses STRATEGY_SCORE_CONFIGS.
 
     Returns:
         Normalized score on 0-10 scale
     """
-    config = STRATEGY_SCORE_CONFIGS.get(strategy)
-    if not config:
-        logger.warning(f"Unknown strategy '{strategy}', using raw score")
-        return raw_score
+    if max_possible is None:
+        config = STRATEGY_SCORE_CONFIGS.get(strategy)
+        if not config:
+            logger.warning(f"Unknown strategy '{strategy}', using raw score")
+            return raw_score
+        max_possible = config.max_possible
 
-    if config.max_possible <= 0:
+    if max_possible <= 0:
         return 0.0
 
     # Normalize to 0-10 scale
-    normalized = (raw_score / config.max_possible) * 10.0
+    normalized = (raw_score / max_possible) * 10.0
 
     # Clamp to 0-10 range
     return max(0.0, min(10.0, normalized))

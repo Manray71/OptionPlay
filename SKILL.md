@@ -7,7 +7,7 @@ description: "MCP-Server für Options-Trading mit Bull-Put-Spread Strategien. 3 
 
 Bull-Put-Spread Trading-Assistent mit 3 klar definierten Jobs.
 
-**Version:** 3.7.0 | **Test-Coverage:** 80.19% | **Tests:** 6,740
+**Version:** 3.7.0 (pyproject.toml) / 4.0.0 (src) | **Test-Coverage:** 80.19% | **Tests:** 6,748
 
 **Alle Trading-Regeln → `docs/PLAYBOOK.md`**
 **DB-Schema & Code → `CLAUDE.md`**
@@ -201,8 +201,8 @@ Output pro Position:
 │   ├── PLAYBOOK.md            # DAS Regelwerk (Entry, Exit, VIX, Disziplin)
 │   ├── ARCHITECTURE.md        # System-Architektur
 │   └── ROADMAP.md             # Stabilisierungs-Roadmap
-├── tests/                     # 132 Testdateien, 6,740 Tests
-└── src/                       # Siehe ARCHITECTURE.md für Modul-Details
+├── tests/                     # 133 Testdateien, 6,748 Tests
+└── src/                       # 183 Module, 80,184 LOC — Details in ARCHITECTURE.md
 ```
 
 ---
@@ -212,10 +212,57 @@ Output pro Position:
 | Metrik | Wert |
 |--------|------|
 | Test-Coverage | 80.19% |
-| Tests | 6,740 (132 Testdateien) |
+| Tests | 6,748 (133 Testdateien) |
+| Module (src/) | 183 Python-Dateien, 80,184 LOC |
 | Tools | 53 + 55 Aliases = 108 Endpoints |
 | Thread-Safety | ✅ (10+ Module mit Locks) |
 | Async-SQLite | ✅ (asyncio.to_thread) |
+
+---
+
+## Scoring & Weighting-Architektur
+
+Trade-Auswahl erfolgt in 3 Stufen:
+
+### Stufe 1: Komponenten-Scoring (pro Strategie)
+
+Jede der 4 Strategien vergibt Punkte pro technischem Indikator:
+
+| Strategie | Max Punkte | Kern-Komponenten |
+|-----------|-----------|-----------------|
+| Pullback | 26 | RSI, RSI-Div, Support, Fib, MA, Trend, Volume, MACD, Stoch, Keltner, VWAP, Market, Sector, Gap |
+| Bounce | 27 | Support, RSI, RSI-Div, Candlestick, Volume, Trend, MACD, Stoch, Keltner, VWAP, Market, Sector, Gap |
+| ATH Breakout | 23 | ATH, Volume, Trend, RS, Momentum, Candle, VWAP, Market, Sector, Gap |
+| Earnings Dip | 21 | Dip, Quality, Stabilization, Support, Volume, RSI, VWAP, Market, Sector |
+
+Normalisierung auf 0-10 Skala via `score_normalization.py`.
+
+### Stufe 2: ML-Trained Weights
+
+`FeatureScoringMixin` wendet trainierte Gewichte an (JSON in `~/.optionplay/models/`):
+- Per Strategie und VIX-Regime unterschiedlich
+- Training via `MLWeightOptimizer` (Walk-Forward-Validierung)
+- VWAP/Market/Sector/Gap-Scores basieren auf backtesteten Win-Rates
+
+### Stufe 3: Ranking (Daily Picks)
+
+```
+base = 0.7 * signal_score + 0.3 * (stability_score / 10)
+speed_multiplier = (0.5 + speed/10) ^ 0.3
+final = base * speed_multiplier
+```
+
+`stability_weight` und `speed_exponent` sind Config-Parameter.
+
+### Tuning-Hebel
+
+| Was | Wo | Aufwand |
+|-----|----|---------|
+| ML-Weights anpassen | `~/.optionplay/models/weights_*.json` | Gering |
+| Stability/Speed-Gewichtung | Config-Dict in recommendation_engine | Gering |
+| RSI/MACD-Schwellen | `constants/strategy_parameters.py` | Gering |
+| Komponenten-Punktzahlen | Analyzer-Code + score_normalization | Mittel |
+| ML-Weights Retraining | `MLWeightOptimizer.train()` Pipeline | Hoch |
 
 ---
 

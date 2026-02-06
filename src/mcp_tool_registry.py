@@ -1065,9 +1065,23 @@ def handle_watchlist_info(server, arguments):
 
 
 # =============================================================================
+# SECTOR CYCLE TOOLS (1)
+# =============================================================================
+
+@tool_registry.register(
+    name="optionplay_sector_status",
+    description="Get current sector momentum analysis with relative strength, breadth, and momentum factors for all sectors.",
+    input_schema=EMPTY_SCHEMA,
+    aliases=["sector_status"],
+)
+async def handle_sector_status(server, arguments):
+    return await server.get_sector_status()
+
+
+# =============================================================================
 # SUMMARY
 # =============================================================================
-# Total: 53 Tools + 55 Aliases = 108 MCP endpoints
+# Total: 54 Tools + 56 Aliases = 110 MCP endpoints
 #
 # Categories:
 # - VIX & Strategy: 6 tools

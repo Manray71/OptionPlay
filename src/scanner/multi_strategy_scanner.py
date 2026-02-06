@@ -353,6 +353,20 @@ class MultiStrategyScanner:
         if self.config.enable_fundamentals_filter and get_fundamentals_manager is not None:
             self._load_fundamentals_cache()
 
+        # BatchScorer (Step 11 - vectorized re-scoring)
+        self._batch_scorer = None
+        self._batch_scoring_enabled = False
+        try:
+            from ..config.scoring_config import get_scoring_resolver
+            par_config = get_scoring_resolver().get_parallelization_config()
+            if par_config.get('enable_batch_scoring', False):
+                from ..analyzers.batch_scorer import BatchScorer
+                self._batch_scorer = BatchScorer()
+                self._batch_scoring_enabled = True
+                logger.info("BatchScorer enabled for vectorized re-scoring")
+        except Exception as e:
+            logger.debug(f"BatchScorer not available: {e}")
+
     def _load_stability_cache(self) -> None:
         """Lädt Symbol-Stabilitätsdaten aus der Outcome-Datenbank"""
         if calculate_symbol_stability is None:
@@ -584,6 +598,32 @@ class MultiStrategyScanner:
             vix: Aktueller VIX-Wert
         """
         self._vix_cache = vix
+
+    def set_regime(self, regime: str) -> None:
+        """
+        Setzt das aktuelle VIX-Regime für Config-basierte Scoring-Gewichte.
+
+        Args:
+            regime: Regime-Name (low_vol, normal, elevated, high_vol, danger)
+        """
+        self._regime_cache = regime
+
+    def _get_regime(self) -> str:
+        """Returns cached regime or 'normal' as default."""
+        return getattr(self, '_regime_cache', 'normal')
+
+    def _get_sector(self, symbol: str) -> Optional[str]:
+        """Looks up sector for a symbol from fundamentals."""
+        if get_fundamentals_manager is None:
+            return None
+        try:
+            manager = get_fundamentals_manager()
+            fundamentals = manager.get_fundamentals(symbol)
+            if fundamentals:
+                return fundamentals.sector
+        except Exception:
+            pass
+        return None
 
     def _create_pool(self) -> AnalyzerPool:
         """Erstellt und konfiguriert den Analyzer Pool"""
@@ -860,7 +900,11 @@ class MultiStrategyScanner:
 
         # Pre-calculate context once if not provided (shared across all analyzers)
         if context is None and len(strategies_to_use) > 1:
-            context = AnalysisContext.from_data(symbol, prices, volumes, highs, lows, opens=opens)
+            context = AnalysisContext.from_data(
+                symbol, prices, volumes, highs, lows, opens=opens,
+                regime=self._get_regime(),
+                sector=self._get_sector(symbol),
+            )
 
         for strategy_name in strategies_to_use:
             try:
@@ -1074,6 +1118,92 @@ class MultiStrategyScanner:
 
         return " | ".join(reasons) if reasons else "Standard"
 
+    def _batch_rescore_signals(self, signals: List[TradeSignal]) -> List[TradeSignal]:
+        """
+        Re-score signals using BatchScorer for consistent cross-strategy normalization.
+
+        Extracts component scores from signal details, groups by strategy,
+        and applies vectorized re-scoring with YAML-configured weights.
+
+        Args:
+            signals: List of TradeSignals with score_breakdown in details
+
+        Returns:
+            Signals with updated normalized scores
+        """
+        if not self._batch_scorer or not signals:
+            return signals
+
+        try:
+            import numpy as np
+
+            # Group signals by strategy
+            strategy_groups: Dict[str, List[int]] = {}
+            for i, sig in enumerate(signals):
+                strategy_groups.setdefault(sig.strategy, []).append(i)
+
+            regime = self._get_regime()
+
+            for strategy, indices in strategy_groups.items():
+                # Extract component scores from details
+                component_names: Optional[List[str]] = None
+                rows = []
+                sectors = []
+                valid_indices = []
+
+                for idx in indices:
+                    sig = signals[idx]
+                    breakdown = (sig.details or {}).get('score_breakdown', {})
+                    components = breakdown.get('components', {})
+
+                    if not components:
+                        continue
+
+                    # Use first signal's component names as reference
+                    if component_names is None:
+                        component_names = sorted(components.keys())
+
+                    # Extract scores in consistent order
+                    row = [
+                        components.get(name, {}).get('score', 0.0)
+                        for name in component_names
+                    ]
+                    rows.append(row)
+                    sectors.append(
+                        sig.details.get('sector')
+                        or (sig.details.get('score_breakdown', {}).get('sector', {}).get('name'))
+                        or self._get_sector(sig.symbol)
+                    )
+                    valid_indices.append(idx)
+
+                if not rows or component_names is None:
+                    continue
+
+                # Build matrix and score
+                matrix = np.array(rows, dtype=np.float64)
+                new_scores = self._batch_scorer.score_batch(
+                    strategy=strategy,
+                    regime=regime,
+                    sectors=sectors,
+                    component_matrix=matrix,
+                    component_names=component_names,
+                )
+
+                # Update signal scores
+                for i, idx in enumerate(valid_indices):
+                    old_score = signals[idx].score
+                    signals[idx].score = float(new_scores[i])
+                    if signals[idx].details is not None:
+                        signals[idx].details['batch_rescored'] = True
+                        signals[idx].details['pre_batch_score'] = old_score
+
+            logger.debug(f"BatchScorer re-scored {len(signals)} signals")
+
+        except Exception as e:
+            logger.warning(f"BatchScorer re-scoring failed, keeping original scores: {e}")
+
+        return signals
+
     def _filter_by_stability(
         self,
         signals: List[TradeSignal]
@@ -1284,7 +1414,11 @@ class MultiStrategyScanner:
                     # PERFORMANCE: Create context once and cache it
                     context = context_cache.get(symbol)
                     if context is None:
-                        context = AnalysisContext.from_data(symbol, prices, volumes, highs, lows, opens=opens)
+                        context = AnalysisContext.from_data(
+                            symbol, prices, volumes, highs, lows, opens=opens,
+                            regime=self._get_regime(),
+                            sector=self._get_sector(symbol),
+                        )
                         context_cache[symbol] = context
 
                     # Analysieren mit gecachtem Context
@@ -1316,6 +1450,13 @@ class MultiStrategyScanner:
             if symbol_signals:
                 symbols_with_signals += 1
                 all_signals.extend(symbol_signals)
+
+        # =====================================================================
+        # BATCH RE-SCORING (Step 11 - vectorized normalization)
+        # Re-scores signals using BatchScorer for consistent YAML-based weights
+        # =====================================================================
+        if self._batch_scoring_enabled and all_signals:
+            all_signals = self._batch_rescore_signals(all_signals)
 
         # =====================================================================
         # STABILITY-FIRST-FILTER (Phase 6)
@@ -1445,6 +1586,12 @@ class MultiStrategyScanner:
                     
             except Exception as e:
                 errors.append(f"{symbol}: {str(e)}")
+
+        # =====================================================================
+        # BATCH RE-SCORING (Step 11 - vectorized normalization)
+        # =====================================================================
+        if self._batch_scoring_enabled and all_signals:
+            all_signals = self._batch_rescore_signals(all_signals)
 
         # =====================================================================
         # STABILITY-FIRST-FILTER (Phase 6)

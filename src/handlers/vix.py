@@ -372,3 +372,55 @@ class VixHandlerMixin(BaseHandlerMixin):
         b.table(["Date", "Days", "Event", "Description"], rows)
 
         return b.build()
+
+    @mcp_endpoint(operation="sector status")
+    async def get_sector_status(self) -> str:
+        """
+        Get current sector momentum analysis for all sectors.
+
+        Uses SectorCycleService to calculate relative strength,
+        breadth, and momentum factors.
+
+        Returns:
+            Formatted Markdown sector status table
+        """
+        from ..services.sector_cycle_service import SectorCycleService
+
+        service = SectorCycleService()
+        statuses = await service.get_all_sector_statuses()
+
+        b = MarkdownBuilder()
+        b.h1("Sector Momentum Status").blank()
+
+        if not statuses:
+            b.hint("No sector data available.")
+            return b.build()
+
+        regime_icons = {
+            "strong": "[+]",
+            "neutral": "[ ]",
+            "weak": "[-]",
+            "crisis": "[!]",
+        }
+
+        rows = []
+        for s in sorted(statuses, key=lambda x: x.momentum_factor, reverse=True):
+            icon = regime_icons.get(s.regime.value, "[ ]")
+            rows.append([
+                s.sector,
+                s.etf_symbol,
+                f"{s.momentum_factor:.3f}",
+                f"{icon} {s.regime.value.upper()}",
+                f"{s.relative_strength_30d:+.1f}%",
+                f"{s.relative_strength_60d:+.1f}%",
+                f"{s.breadth_proxy:.2f}",
+            ])
+
+        b.table(
+            ["Sector", "ETF", "Factor", "Regime", "RS 30d", "RS 60d", "Breadth"],
+            rows,
+        )
+        b.blank()
+        b.hint("Factor range: 0.6 (weak) to 1.2 (strong). Applied to signal scores when sector_momentum.enabled=true.")
+
+        return b.build()
