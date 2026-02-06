@@ -1226,6 +1226,15 @@ class MultiStrategyScanner:
         if not self.config.enable_stability_first:
             return signals, {'filtered': 0, 'reason': 'disabled'}
 
+        # Get strategy-aware stability thresholds from trained config (Iter 5)
+        try:
+            from ..config.scoring_config import get_scoring_resolver
+            resolver = get_scoring_resolver()
+        except Exception:
+            resolver = None
+
+        regime = self._get_regime()
+
         filtered = []
         stats = {
             'total': len(signals),
@@ -1235,6 +1244,7 @@ class MultiStrategyScanner:
             'blacklisted': 0,
             'no_stability_data': 0,
             'score_too_low': 0,
+            'below_strategy_threshold': 0,
         }
 
         for signal in signals:
@@ -1252,6 +1262,19 @@ class MultiStrategyScanner:
                 else:
                     stats['score_too_low'] += 1
                 continue
+
+            # Strategy-aware minimum stability check (Iter 5 trained thresholds)
+            if resolver and signal.strategy:
+                sector = None
+                f = self._fundamentals_cache.get(signal.symbol.upper())
+                if f:
+                    sector = f.sector
+                min_stability = resolver.get_stability_threshold(
+                    regime, sector, strategy=signal.strategy
+                )
+                if stability_score < min_stability:
+                    stats['below_strategy_threshold'] += 1
+                    continue
 
             # Tier-basierte Filterung
             if stability_score >= self.config.stability_premium_threshold:
@@ -1288,7 +1311,8 @@ class MultiStrategyScanner:
             logger.info(
                 f"Stability-First-Filter: {stats['filtered']}/{stats['total']} Signale gefiltert "
                 f"(Premium: {stats['premium_kept']}, Good: {stats['good_kept']}, "
-                f"OK: {stats['ok_kept']}, Blacklisted: {stats['blacklisted']})"
+                f"OK: {stats['ok_kept']}, Blacklisted: {stats['blacklisted']}, "
+                f"BelowStratThresh: {stats['below_strategy_threshold']})"
             )
 
         return filtered, stats

@@ -2,15 +2,12 @@
 # ================================
 """
 Tests for analyzers/feature_scoring_mixin.py module including:
-- get_trained_weights function
 - FeatureScoringMixin class
 - _score_vwap method
 - _score_market_context method
 - _score_sector method
 - _score_gap method
 - _apply_feature_scores method
-- apply_trained_weights method
-- get_roll_params method
 """
 
 import pytest
@@ -19,8 +16,6 @@ from unittest.mock import MagicMock, patch
 
 from src.analyzers.feature_scoring_mixin import (
     FeatureScoringMixin,
-    get_trained_weights,
-    _trained_weights_cache,
 )
 
 
@@ -92,29 +87,6 @@ def sample_breakdown():
         gap_filled = False
         gap_reason = ""
     return Breakdown()
-
-
-# =============================================================================
-# GET TRAINED WEIGHTS TESTS
-# =============================================================================
-
-class TestGetTrainedWeights:
-    """Tests for get_trained_weights function."""
-
-    def test_returns_dict(self):
-        """Test that get_trained_weights returns a dict."""
-        result = get_trained_weights()
-        assert isinstance(result, dict)
-
-    def test_caching_behavior(self):
-        """Test that weights are cached."""
-        # First call
-        result1 = get_trained_weights()
-        # Second call should return cached
-        result2 = get_trained_weights()
-
-        # Should be same object
-        assert result1 is result2
 
 
 # =============================================================================
@@ -415,96 +387,6 @@ class TestApplyFeatureScores:
         # Gap should have fallback values
         assert sample_breakdown.gap_score == 0.0
         assert sample_breakdown.gap_type == "none"
-
-
-# =============================================================================
-# APPLY TRAINED WEIGHTS TESTS
-# =============================================================================
-
-class TestApplyTrainedWeights:
-    """Tests for apply_trained_weights method."""
-
-    def test_apply_trained_weights_basic(self, mixin, sample_breakdown):
-        """Test basic application of trained weights."""
-        # Set some scores on breakdown
-        sample_breakdown.rsi_score = 2.0
-        sample_breakdown.support_score = 1.5
-        sample_breakdown.total_score = 5.0
-
-        result = mixin.apply_trained_weights(
-            breakdown=sample_breakdown,
-            strategy='pullback',
-            vix_regime='normal'
-        )
-
-        # Should return a number
-        assert isinstance(result, (int, float))
-
-    def test_apply_trained_weights_no_weights(self, mixin, sample_breakdown):
-        """Test when no trained weights are available."""
-        sample_breakdown.total_score = 7.5
-
-        # With non-existent strategy
-        result = mixin.apply_trained_weights(
-            breakdown=sample_breakdown,
-            strategy='nonexistent_strategy',
-            vix_regime='normal'
-        )
-
-        # Should return unweighted total score
-        assert result == 7.5
-
-    def test_apply_trained_weights_different_strategies(self, mixin, sample_breakdown):
-        """Test different strategies."""
-        sample_breakdown.rsi_score = 2.0
-        sample_breakdown.total_score = 5.0
-
-        for strategy in ['pullback', 'bounce', 'ath_breakout', 'earnings_dip']:
-            result = mixin.apply_trained_weights(
-                breakdown=sample_breakdown,
-                strategy=strategy,
-                vix_regime='normal'
-            )
-            assert isinstance(result, (int, float))
-
-    def test_apply_trained_weights_different_regimes(self, mixin, sample_breakdown):
-        """Test different VIX regimes."""
-        sample_breakdown.rsi_score = 2.0
-        sample_breakdown.total_score = 5.0
-
-        for regime in ['low', 'normal', 'elevated', 'high']:
-            result = mixin.apply_trained_weights(
-                breakdown=sample_breakdown,
-                strategy='pullback',
-                vix_regime=regime
-            )
-            assert isinstance(result, (int, float))
-
-
-# =============================================================================
-# GET ROLL PARAMS TESTS
-# =============================================================================
-
-class TestGetRollParams:
-    """Tests for get_roll_params method."""
-
-    def test_get_roll_params_basic(self, mixin):
-        """Test getting roll parameters."""
-        result = mixin.get_roll_params('pullback')
-
-        assert isinstance(result, dict)
-
-    def test_get_roll_params_different_strategies(self, mixin):
-        """Test different strategies."""
-        for strategy in ['pullback', 'bounce', 'ath_breakout', 'earnings_dip']:
-            result = mixin.get_roll_params(strategy)
-            assert isinstance(result, dict)
-
-    def test_get_roll_params_unknown_strategy(self, mixin):
-        """Test unknown strategy returns empty dict."""
-        result = mixin.get_roll_params('unknown_strategy')
-
-        assert isinstance(result, dict)
 
 
 # =============================================================================

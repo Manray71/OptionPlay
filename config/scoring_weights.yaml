@@ -32,13 +32,11 @@ strategies:
       low:
         weights: {market_context: 1.60}  # Iter 3: -0.10
       normal: {}
-      medium:
-        weights: {support: 2.25, fibonacci: 2.11, market_context: 1.84}  # Iter 3
       elevated:
         min_stability: 85
       danger:
         min_stability: 80
-        weights: {rsi: 3.5, support: 3.0}
+        weights: {rsi: 3.5, support: 3.0, fibonacci: 2.11, market_context: 1.84}  # Iter 3 medium merged
       high:
         min_stability: 80
         weights: {rsi: 3.15, market_context: 1.50}  # Iter 3: mkt_ctx -0.20
@@ -78,13 +76,11 @@ strategies:
       low:
         weights: {vwap: 3.11, trend: 1.11}  # Iter 3
       normal: {}
-      medium:
-        weights: {rsi: 2.04, macd: 2.10}  # Iter 3
       elevated:
         min_stability: 80
       danger:
         min_stability: 75
-        weights: {support: 4.0, candlestick: 2.5}
+        weights: {support: 4.0, candlestick: 2.5, rsi: 2.04, macd: 2.10}  # Iter 3 medium merged
       high:
         min_stability: 90
         weights: {rsi: 2.48, support: 0.76, stoch: 1.25}  # Iter 3: dramatic shift
@@ -122,13 +118,11 @@ strategies:
     regimes:
       low: {}
       normal: {}
-      medium:
-        weights: {market_context: 1.80}  # Iter 3
       elevated:
         min_stability: 90
       danger:
         min_stability: 85
-        weights: {volume: 3.0, trend: 3.0}
+        weights: {volume: 3.0, trend: 3.0, market_context: 1.80}  # Iter 3 medium merged
       high:
         enabled: false    # DEAKTIVIERT bei High VIX (PLAYBOOK)
         min_stability: 95
@@ -199,8 +193,7 @@ stability_thresholds:
       by_regime:
         low: 80       # Trained (Iter 5)
         normal: 80
-        medium: 90     # Stricter in medium regime
-        danger: 80
+        danger: 90     # Iter 5: was 80, raised to 90 (merged from medium)
         elevated: 85
         high: 80
         extreme: 80
@@ -213,7 +206,6 @@ stability_thresholds:
       by_regime:
         low: 90        # Trained (Iter 5)
         normal: 90
-        medium: 90
         danger: 90
         elevated: 90
         high: 90
@@ -225,7 +217,6 @@ stability_thresholds:
       by_regime:
         low: 90        # Trained (Iter 5)
         normal: 90
-        medium: 90
         danger: 90
         elevated: 90
         high: 90
