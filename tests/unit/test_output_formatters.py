@@ -524,7 +524,7 @@ class TestHealthCheckFormatter:
         """Create mock HealthCheckData."""
         from src.formatters.output_formatters import HealthCheckData
         return HealthCheckData(
-            version="3.7.0",
+            version="4.0.0",
             api_key_masked="abc***xyz",
             connected=connected,
             current_vix=18.5,

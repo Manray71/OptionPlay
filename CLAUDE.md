@@ -3,7 +3,7 @@
 Session-Kontext für Claude Code. Enthält DB-Schema, API-Beispiele und Code-Konventionen.
 Für alle Trading-Regeln → siehe `docs/PLAYBOOK.md`
 
-**Version:** 3.7.0 (pyproject.toml) / 4.0.0 (src)
+**Version:** 4.0.0
 **Zuletzt aktualisiert:** 2026-02-06
 **Test-Coverage:** 80.19% (6,748 Tests)
 **Codebase:** 183 Module | 80,184 LOC (src/) | 133 Testdateien
@@ -235,8 +235,8 @@ python scripts/daily_data_fetcher.py         # VIX täglich (Cronjob)
 
 | Issue | Beschreibung | Priorität |
 |-------|-------------|-----------|
-| **CIRC-01** | Zirkulärer Import: `validation/reliability.py` ↔ `training/walk_forward.py` | KRITISCH |
-| **VER-01** | Versionskonflikt: pyproject.toml (3.7.0) vs src/__init__.py (4.0.0) | Mittel |
+| **CIRC-01** | ~~Zirkulärer Import~~ — Lazy Import in `reliability.py` | ✅ GELÖST |
+| **VER-01** | ~~Versionskonflikt~~ — Vereinheitlicht auf 4.0.0 | ✅ GELÖST |
 | **WEIGHT-01** | Scoring-Gewichte hardcoded in Analyzern statt Config | Mittel |
 
 ### Backtesting Sub-Packages (nach Phase 6)

@@ -1,5 +1,5 @@
 """
-OptionPlay MCP Server v3.7.0
+OptionPlay MCP Server v4.0.0
 =============================
 
 MCP Server for options trading analysis with multi-strategy support.
@@ -122,7 +122,7 @@ class OptionPlayServer(
         result = await server.scan_with_strategy()
     """
 
-    VERSION = "3.7.0"
+    VERSION = "4.0.0"
 
     def __init__(
         self,

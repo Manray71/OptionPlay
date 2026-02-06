@@ -537,7 +537,7 @@ Phase 6 (Backtesting-Monolithen) ✅
     └── 6e RegimeTrainer → training/ Sub-Module ✅
             │
 Phase 7 (Weiterentwicklung) ⬜
-    ├── 7.0 CIRC-01 + VER-01 loesen ⬜
+    ├── 7.0 CIRC-01 + VER-01 loesen ✅
     ├── 7.1 Scoring-Gewichte externalisieren (WEIGHT-01) ⬜
     ├── 7.2 Verbleibende >1000 LOC aufbrechen ⬜
     ├── 7.3 Mixin → Composition (DEBT-004) ⬜

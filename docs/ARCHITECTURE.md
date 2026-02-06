@@ -254,8 +254,8 @@ Alle Parameter extern in YAML:
 
 | ID | Problem | Priorität | Aufwand | Details |
 |----|---------|-----------|---------|---------|
-| **CIRC-01** | Zirkulärer Import validation ↔ training | **KRITISCH** | Klein | `validation/reliability.py` ↔ `training/walk_forward.py` — Lazy Import nötig |
-| **VER-01** | Versionskonflikt 3.7.0 vs 4.0.0 | Medium | Klein | pyproject.toml vs src/__init__.py |
+| **CIRC-01** | ~~Zirkulärer Import validation ↔ training~~ | ✅ GELÖST | Klein | Lazy Import in `reliability.py:from_trained_model()` |
+| **VER-01** | ~~Versionskonflikt 3.7.0 vs 4.0.0~~ | ✅ GELÖST | Klein | Vereinheitlicht auf 4.0.0 |
 | **DEBT-003** | Blocking SQLite in async handlers | Medium | Mittel | `asyncio.to_thread()` als Workaround, `aiosqlite` für langfristige Lösung |
 | **DEBT-004** | Mixin → Composition Migration | Medium | Groß | `HandlerContainer` existiert, 11 Mixins mit 22 Interface-Methoden noch aktiv |
 | **DEBT-009** | 5 Dateien >1000 LOC im Backtesting | Medium | Mittel | engine.py, walk_forward.py, ml_weight_optimizer.py, signal_validation.py, options_backtest.py |

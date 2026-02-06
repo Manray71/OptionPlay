@@ -1,5 +1,5 @@
 """
-OptionPlay MCP Tool Registry v3.7.0
+OptionPlay MCP Tool Registry v4.0.0
 ===================================
 
 Zentrales Registry für alle MCP Tools mit Handler-Definitionen.

@@ -3,11 +3,11 @@ name: optionplay
 description: "MCP-Server für Options-Trading mit Bull-Put-Spread Strategien. 3 Jobs: Daily Picks, Trade Validator, Position Manager. Verwendet Tradier + Marketdata.app API + optionale IBKR-Bridge. 80%+ Test-Coverage, 53 Tools + 55 Aliases. Trigger: 'Options-Analyse', 'Pullback-Scan', 'Bull-Put-Spread', 'VIX-Strategie', 'Earnings-Check', 'Options-Chain', 'Max Pain', 'IV-Rank', 'Spread-Kandidaten', 'was sagt der Markt', 'Trading-Setup', 'Daily Picks', 'Zeig mir die heutigen Picks', 'Wie stehen meine Positionen', 'Kann ich X traden'."
 ---
 
-# OptionPlay - Trading Assistant MCP Server v3.7.0
+# OptionPlay - Trading Assistant MCP Server v4.0.0
 
 Bull-Put-Spread Trading-Assistent mit 3 klar definierten Jobs.
 
-**Version:** 3.7.0 (pyproject.toml) / 4.0.0 (src) | **Test-Coverage:** 80.19% | **Tests:** 6,748
+**Version:** 4.0.0 | **Test-Coverage:** 80.19% | **Tests:** 6,748
 
 **Alle Trading-Regeln → `docs/PLAYBOOK.md`**
 **DB-Schema & Code → `CLAUDE.md`**

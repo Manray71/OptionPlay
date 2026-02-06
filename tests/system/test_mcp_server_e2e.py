@@ -145,7 +145,7 @@ class TestServerInitialization:
     
     def test_version(self, server):
         """Test server version."""
-        assert server.VERSION == "3.7.0"
+        assert server.VERSION == "4.0.0"
     
     def test_api_key_masked(self, server):
         """Test API key masking."""
@@ -427,7 +427,7 @@ class TestUtilityOperations:
 
         assert "OptionPlay Server Health" in result
         assert "Version" in result
-        assert "3.7.0" in result
+        assert "4.0.0" in result
 
 
 class TestErrorHandling:

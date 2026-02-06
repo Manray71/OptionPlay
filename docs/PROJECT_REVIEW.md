@@ -1,7 +1,7 @@
 # OptionPlay — Vollständige Projektdokumentation
 
 **Stand:** 6. Februar 2026
-**Version:** 4.0.0 (src), 3.7.0 (pyproject.toml)
+**Version:** 4.0.0
 **Python:** ≥3.11
 **Test-Coverage:** 80.19% (6.748 Tests)
 **Gesamtumfang:** 88.186 LOC (155 Module in src/)

@@ -1,5 +1,5 @@
 """
-OptionPlay MCP Server v3.7.0 - Claude Desktop Integration
+OptionPlay MCP Server v4.0.0 - Claude Desktop Integration
 =========================================================
 
 MCP Server für Options Trading Analysis mit Multi-Strategie Support.
