@@ -252,9 +252,16 @@ class StrategyRetrainer:
         return sector_factors
 
     def train_stability_thresholds(
-        self, df: pd.DataFrame, strategy: str, target_win_rate: float = 0.65
+        self,
+        df: pd.DataFrame,
+        strategy: str,
+        target_win_rate: float = 0.65,
+        relative_margin: float = 0.05,
     ) -> Dict[str, int]:
-        """Train per-regime stability thresholds via binary search with floor/cap."""
+        """Train per-regime stability thresholds via binary search with floor/cap.
+
+        Target WR = max(target_win_rate, strategy_avg_wr - relative_margin)
+        """
         strategy_score_col = f"{strategy}_score"
         if strategy_score_col not in df.columns:
             return {}
@@ -282,6 +289,14 @@ class StrategyRetrainer:
         if len(strat_df) < 50:
             return {}
 
+        # Compute effective target_win_rate based on strategy's actual win rate
+        overall_strategy_wr = strat_df["was_profitable"].mean()
+        effective_target = max(target_win_rate, overall_strategy_wr - relative_margin)
+
+        print(f"    Stability target: strategy_wr={overall_strategy_wr*100:.1f}%, "
+              f"effective_target={effective_target*100:.1f}% "
+              f"(absolute_floor={target_win_rate*100:.0f}%, margin={relative_margin*100:.0f}pp)")
+
         ABSOLUTE_MIN = 50
         ABSOLUTE_MAX = 90
 
@@ -292,7 +307,7 @@ class StrategyRetrainer:
             if len(regime_df) < 20:
                 continue
 
-            # Binary search for threshold achieving target win rate
+            # Binary search for threshold achieving effective target win rate
             lo, hi = ABSOLUTE_MIN, ABSOLUTE_MAX
             best_threshold = lo
             while lo <= hi:
@@ -302,7 +317,7 @@ class StrategyRetrainer:
                     hi = mid - 1
                     continue
                 wr = above["was_profitable"].mean()
-                if wr >= target_win_rate:
+                if wr >= effective_target:
                     best_threshold = mid
                     hi = mid - 1  # Try lower threshold
                 else:
@@ -312,7 +327,7 @@ class StrategyRetrainer:
             if best_threshold >= ABSOLUTE_MAX:
                 print(
                     f"    WARNING: {strategy}/{yaml_regime} threshold capped at {ABSOLUTE_MAX} "
-                    f"(target WR {target_win_rate*100:.0f}% not achievable)"
+                    f"(target WR {effective_target*100:.0f}% not achievable)"
                 )
                 best_threshold = ABSOLUTE_MAX
 
@@ -416,18 +431,31 @@ class StrategyRetrainer:
                 new_v = new_weights.get(comp, 0)
                 print(f"    {comp:>25s}: {old_v:.3f} → {new_v:.3f} ({delta:+.3f})")
 
-        # Per-regime training
+        # Per-regime training with strategy-specific min_trades
+        base_min_trades = wf.get("min_trades", 200)
+        regime_min_trades = max(30, int(base_min_trades * 0.4))
+
+        print(f"  Regime training: min_trades={regime_min_trades} "
+              f"(base={base_min_trades}, factor=0.4)")
+
         regime_results = {}
         for regime in REGIMES:
+            regime_df = df[df["vix_regime"] == regime] if "vix_regime" in df.columns else df
+            if len(regime_df) < regime_min_trades:
+                print(f"    {regime}: skipped ({len(regime_df)} trades < {regime_min_trades})")
+                continue
+
             RecursiveConfigResolver.reset()
             regime_trainer = StrategyWeightTrainer(strategy)
-            regime_result = regime_trainer.train(df, regime=regime)
+            regime_result = regime_trainer.train(regime_df)
             if regime_result.converged:
                 regime_results[regime] = {
                     "weights": {k: round(v, 4) for k, v in regime_result.weights.items()},
                     "val_wr": round(regime_result.metrics.get("val_win_rate", 0), 4),
                     "n_trades": regime_result.n_trades,
                 }
+            else:
+                print(f"    {regime}: training did not converge ({len(regime_df)} trades)")
 
         # Train sector factors (rolling win-rate)
         sector_factors = self.train_sector_factors(df, strategy)
