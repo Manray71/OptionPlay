@@ -1,6 +1,6 @@
 # OptionPlay - Backtesting Core Package
 # ======================================
-# Engine, Metrics, and Simulator
+# Engine, Metrics, Simulator, Database, and Spread Engine
 
 from .engine import (
     BacktestEngine,
@@ -27,6 +27,14 @@ from .simulator import (
     SimulatedTrade,
     PriceSimulator,
 )
+from .database import (
+    OptionsDatabase,
+    DB_PATH,
+)
+from .spread_engine import (
+    SpreadFinder,
+    OutcomeCalculator,
+)
 
 __all__ = [
     # Engine
@@ -51,4 +59,10 @@ __all__ = [
     "TradeSimulator",
     "SimulatedTrade",
     "PriceSimulator",
+    # Database (Phase 6c)
+    "OptionsDatabase",
+    "DB_PATH",
+    # Spread Engine (Phase 6c)
+    "SpreadFinder",
+    "OutcomeCalculator",
 ]
