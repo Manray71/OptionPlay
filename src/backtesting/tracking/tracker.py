@@ -1,9 +1,10 @@
-# OptionPlay - Trade Tracker
-# ==========================
+# OptionPlay - Trade Tracker (Facade)
+# ====================================
 # SQLite-basiertes Trade-Tracking für kontinuierliches Training
 # Inkl. historische Preisdaten für Re-Training
 #
 # Refactored in Phase 2.3: Models extrahiert nach models.py
+# Refactored in Phase 6b: Facade-Pattern, delegiert an Sub-Module
 
 import json
 import sqlite3
@@ -24,18 +25,25 @@ from .models import (
     VixDataPoint,
     OptionBar,
 )
+from .trade_crud import TradeCRUD
+from .trade_analysis import TradeAnalysis
+from .price_storage import PriceStorage
+from .vix_storage import VixStorage
+from .options_storage import OptionsStorage
 
 logger = logging.getLogger(__name__)
 
 
 class TradeTracker:
     """
-    SQLite-basierter Trade Tracker.
+    SQLite-basierter Trade Tracker (Facade).
 
-    Speichert alle Trades für:
-    - Kontinuierliches Training
-    - Performance-Analyse
-    - Score-Validierung
+    Delegiert an spezialisierte Sub-Module:
+    - TradeCRUD: Trade CRUD operations
+    - TradeAnalysis: Statistics, export, storage stats
+    - PriceStorage: Historical price data (compressed JSON)
+    - VixStorage: VIX historical data
+    - OptionsStorage: Historical options data
 
     Usage:
         tracker = TradeTracker()
@@ -89,6 +97,13 @@ class TradeTracker:
 
         self.db_path = db_path
         self._init_db()
+
+        # Initialize sub-modules with shared connection factory
+        self._trade_crud = TradeCRUD(self._get_connection)
+        self._price_storage = PriceStorage(self._get_connection)
+        self._vix_storage = VixStorage(self._get_connection)
+        self._options_storage = OptionsStorage(self._get_connection)
+        self._trade_analysis = TradeAnalysis(self._get_connection, self._trade_crud)
 
     @contextmanager
     def _get_connection(self):
@@ -268,118 +283,14 @@ class TradeTracker:
             """, (str(self.SCHEMA_VERSION),))
 
     # =========================================================================
-    # Trade CRUD Operations
+    # Trade CRUD Operations (delegated to TradeCRUD)
     # =========================================================================
 
     def add_trade(self, trade: TrackedTrade) -> int:
-        """
-        Fügt einen neuen Trade hinzu.
-
-        Args:
-            trade: TrackedTrade-Objekt
-
-        Returns:
-            ID des eingefügten Trades
-        """
-        with self._get_connection() as conn:
-            cursor = conn.cursor()
-
-            now = datetime.now().isoformat()
-
-            cursor.execute("""
-                INSERT INTO trades (
-                    symbol, strategy,
-                    signal_date, signal_score, signal_strength, score_breakdown,
-                    vix_at_signal, iv_rank_at_signal,
-                    entry_price, stop_loss, target_price,
-                    status, outcome,
-                    exit_date, exit_price, exit_reason,
-                    pnl_amount, pnl_percent, holding_days,
-                    signal_reliability_grade, signal_reliability_win_rate,
-                    created_at, updated_at, notes, tags
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                trade.symbol,
-                trade.strategy,
-                trade.signal_date.isoformat() if trade.signal_date else None,
-                trade.signal_score,
-                trade.signal_strength,
-                json.dumps(trade.score_breakdown),
-                trade.vix_at_signal,
-                trade.iv_rank_at_signal,
-                trade.entry_price,
-                trade.stop_loss,
-                trade.target_price,
-                trade.status.value,
-                trade.outcome.value,
-                trade.exit_date.isoformat() if trade.exit_date else None,
-                trade.exit_price,
-                trade.exit_reason,
-                trade.pnl_amount,
-                trade.pnl_percent,
-                trade.holding_days,
-                trade.signal_reliability_grade,
-                trade.signal_reliability_win_rate,
-                now,
-                now,
-                trade.notes,
-                json.dumps(trade.tags),
-            ))
-
-            trade_id = cursor.lastrowid
-            logger.info(f"Added trade {trade_id}: {trade.symbol} {trade.strategy}")
-            return trade_id
+        return self._trade_crud.add_trade(trade)
 
     def get_trade(self, trade_id: int) -> Optional[TrackedTrade]:
-        """
-        Holt einen Trade nach ID.
-
-        Args:
-            trade_id: Trade-ID
-
-        Returns:
-            TrackedTrade oder None
-        """
-        with self._get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM trades WHERE id = ?", (trade_id,))
-            row = cursor.fetchone()
-
-            if row is None:
-                return None
-
-            return self._row_to_trade(row)
-
-    def _row_to_trade(self, row: sqlite3.Row) -> TrackedTrade:
-        """Konvertiert DB-Row zu TrackedTrade"""
-        return TrackedTrade(
-            id=row['id'],
-            symbol=row['symbol'],
-            strategy=row['strategy'],
-            signal_date=date.fromisoformat(row['signal_date']) if row['signal_date'] else None,
-            signal_score=row['signal_score'] or 0.0,
-            signal_strength=row['signal_strength'] or '',
-            score_breakdown=json.loads(row['score_breakdown']) if row['score_breakdown'] else {},
-            vix_at_signal=row['vix_at_signal'],
-            iv_rank_at_signal=row['iv_rank_at_signal'],
-            entry_price=row['entry_price'],
-            stop_loss=row['stop_loss'],
-            target_price=row['target_price'],
-            status=TradeStatus(row['status']),
-            outcome=TradeOutcome(row['outcome']),
-            exit_date=date.fromisoformat(row['exit_date']) if row['exit_date'] else None,
-            exit_price=row['exit_price'],
-            exit_reason=row['exit_reason'] or '',
-            pnl_amount=row['pnl_amount'],
-            pnl_percent=row['pnl_percent'],
-            holding_days=row['holding_days'],
-            signal_reliability_grade=row['signal_reliability_grade'],
-            signal_reliability_win_rate=row['signal_reliability_win_rate'],
-            created_at=datetime.fromisoformat(row['created_at']) if row['created_at'] else datetime.now(),
-            updated_at=datetime.fromisoformat(row['updated_at']) if row['updated_at'] else datetime.now(),
-            notes=row['notes'] or '',
-            tags=json.loads(row['tags']) if row['tags'] else [],
-        )
+        return self._trade_crud.get_trade(trade_id)
 
     def close_trade(
         self,
@@ -389,115 +300,13 @@ class TradeTracker:
         exit_date: Optional[date] = None,
         exit_reason: str = "",
     ) -> bool:
-        """
-        Schließt einen Trade.
-
-        Args:
-            trade_id: Trade-ID
-            exit_price: Ausstiegspreis
-            outcome: WIN/LOSS/BREAKEVEN
-            exit_date: Ausstiegsdatum (default: heute)
-            exit_reason: Grund für Ausstieg
-
-        Returns:
-            True wenn erfolgreich
-        """
-        trade = self.get_trade(trade_id)
-        if trade is None:
-            logger.warning(f"Trade {trade_id} not found")
-            return False
-
-        if trade.status != TradeStatus.OPEN:
-            logger.warning(f"Trade {trade_id} is not open (status: {trade.status})")
-            return False
-
-        exit_date = exit_date or date.today()
-
-        # P&L berechnen
-        pnl_amount = None
-        pnl_percent = None
-        if trade.entry_price and exit_price:
-            pnl_amount = exit_price - trade.entry_price
-            pnl_percent = (pnl_amount / trade.entry_price) * 100
-
-        # Holding Days berechnen
-        holding_days = None
-        if trade.signal_date:
-            holding_days = (exit_date - trade.signal_date).days
-
-        with self._get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                UPDATE trades SET
-                    status = ?,
-                    outcome = ?,
-                    exit_date = ?,
-                    exit_price = ?,
-                    exit_reason = ?,
-                    pnl_amount = ?,
-                    pnl_percent = ?,
-                    holding_days = ?,
-                    updated_at = ?
-                WHERE id = ?
-            """, (
-                TradeStatus.CLOSED.value,
-                outcome.value,
-                exit_date.isoformat(),
-                exit_price,
-                exit_reason,
-                pnl_amount,
-                pnl_percent,
-                holding_days,
-                datetime.now().isoformat(),
-                trade_id,
-            ))
-
-            pnl_str = f"{pnl_percent:.2f}%" if pnl_percent is not None else "N/A"
-            logger.info(f"Closed trade {trade_id}: {outcome.value}, P&L: {pnl_str}")
-            return True
+        return self._trade_crud.close_trade(trade_id, exit_price, outcome, exit_date, exit_reason)
 
     def update_trade(self, trade_id: int, **updates) -> bool:
-        """
-        Aktualisiert Trade-Felder.
-
-        Args:
-            trade_id: Trade-ID
-            **updates: Felder zum Aktualisieren
-
-        Returns:
-            True wenn erfolgreich
-        """
-        allowed_fields = {
-            'notes', 'tags', 'stop_loss', 'target_price',
-            'vix_at_signal', 'iv_rank_at_signal',
-        }
-
-        # Filter nur erlaubte Felder
-        updates = {k: v for k, v in updates.items() if k in allowed_fields}
-
-        if not updates:
-            return False
-
-        with self._get_connection() as conn:
-            cursor = conn.cursor()
-
-            # JSON-Felder konvertieren
-            if 'tags' in updates:
-                updates['tags'] = json.dumps(updates['tags'])
-
-            set_clause = ", ".join(f"{k} = ?" for k in updates.keys())
-            values = list(updates.values()) + [datetime.now().isoformat(), trade_id]
-
-            cursor.execute(f"""
-                UPDATE trades SET {set_clause}, updated_at = ?
-                WHERE id = ?
-            """, values)
-
-            return cursor.rowcount > 0
+        return self._trade_crud.update_trade(trade_id, **updates)
 
     def get_open_trades(self) -> List[TrackedTrade]:
-        """Holt alle offenen Trades"""
-        return self.query_trades(status=TradeStatus.OPEN)
+        return self._trade_crud.get_open_trades()
 
     def query_trades(
         self,
@@ -511,116 +320,24 @@ class TradeTracker:
         max_date: Optional[date] = None,
         limit: int = 1000,
     ) -> List[TrackedTrade]:
-        """
-        Flexible Trade-Abfrage.
-
-        Args:
-            symbol: Filter nach Symbol
-            strategy: Filter nach Strategie
-            status: Filter nach Status
-            outcome: Filter nach Outcome
-            min_score: Minimaler Signal-Score
-            max_score: Maximaler Signal-Score
-            min_date: Minimales Signal-Datum
-            max_date: Maximales Signal-Datum
-            limit: Maximale Anzahl Ergebnisse
-
-        Returns:
-            Liste von TrackedTrades
-        """
-        conditions = []
-        params = []
-
-        if symbol:
-            conditions.append("symbol = ?")
-            params.append(symbol.upper())
-
-        if strategy:
-            conditions.append("strategy = ?")
-            params.append(strategy)
-
-        if status:
-            conditions.append("status = ?")
-            params.append(status.value)
-
-        if outcome:
-            conditions.append("outcome = ?")
-            params.append(outcome.value)
-
-        if min_score is not None:
-            conditions.append("signal_score >= ?")
-            params.append(min_score)
-
-        if max_score is not None:
-            conditions.append("signal_score <= ?")
-            params.append(max_score)
-
-        if min_date:
-            conditions.append("signal_date >= ?")
-            params.append(min_date.isoformat())
-
-        if max_date:
-            conditions.append("signal_date <= ?")
-            params.append(max_date.isoformat())
-
-        where_clause = " AND ".join(conditions) if conditions else "1=1"
-
-        with self._get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute(f"""
-                SELECT * FROM trades
-                WHERE {where_clause}
-                ORDER BY signal_date DESC
-                LIMIT ?
-            """, params + [limit])
-
-            return [self._row_to_trade(row) for row in cursor.fetchall()]
+        return self._trade_crud.query_trades(
+            symbol=symbol, strategy=strategy, status=status, outcome=outcome,
+            min_score=min_score, max_score=max_score, min_date=min_date,
+            max_date=max_date, limit=limit,
+        )
 
     def delete_trade(self, trade_id: int) -> bool:
-        """
-        Löscht einen Trade.
-
-        Args:
-            trade_id: Trade-ID
-
-        Returns:
-            True wenn erfolgreich
-        """
-        with self._get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("DELETE FROM trades WHERE id = ?", (trade_id,))
-
-            if cursor.rowcount > 0:
-                logger.info(f"Deleted trade {trade_id}")
-                return True
-            return False
+        return self._trade_crud.delete_trade(trade_id)
 
     def count_trades(
         self,
         strategy: Optional[str] = None,
         status: Optional[TradeStatus] = None,
     ) -> int:
-        """Zählt Trades mit optionalen Filtern"""
-        conditions = []
-        params = []
-
-        if strategy:
-            conditions.append("strategy = ?")
-            params.append(strategy)
-
-        if status:
-            conditions.append("status = ?")
-            params.append(status.value)
-
-        where_clause = " AND ".join(conditions) if conditions else "1=1"
-
-        with self._get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute(f"SELECT COUNT(*) FROM trades WHERE {where_clause}", params)
-            return cursor.fetchone()[0]
+        return self._trade_crud.count_trades(strategy=strategy, status=status)
 
     # =========================================================================
-    # Statistics
+    # Statistics (delegated to TradeAnalysis)
     # =========================================================================
 
     def get_stats(
@@ -629,117 +346,10 @@ class TradeTracker:
         min_date: Optional[date] = None,
         max_date: Optional[date] = None,
     ) -> TradeStats:
-        """
-        Berechnet aggregierte Statistiken.
-
-        Args:
-            strategy: Optional Strategy-Filter
-            min_date: Minimales Datum
-            max_date: Maximales Datum
-
-        Returns:
-            TradeStats mit aggregierten Metriken
-        """
-        trades = self.query_trades(
-            strategy=strategy,
-            min_date=min_date,
-            max_date=max_date,
-            limit=10000,
-        )
-
-        stats = TradeStats()
-        stats.total_trades = len(trades)
-
-        closed_trades = [t for t in trades if t.status == TradeStatus.CLOSED]
-        open_trades = [t for t in trades if t.status == TradeStatus.OPEN]
-
-        stats.open_trades = len(open_trades)
-        stats.closed_trades = len(closed_trades)
-
-        if closed_trades:
-            stats.wins = sum(1 for t in closed_trades if t.outcome == TradeOutcome.WIN)
-            stats.losses = sum(1 for t in closed_trades if t.outcome == TradeOutcome.LOSS)
-            stats.breakeven = sum(1 for t in closed_trades if t.outcome == TradeOutcome.BREAKEVEN)
-
-            stats.win_rate = (stats.wins / len(closed_trades)) * 100
-
-            pnls = [t.pnl_percent for t in closed_trades if t.pnl_percent is not None]
-            if pnls:
-                stats.avg_pnl_percent = sum(pnls) / len(pnls)
-                stats.total_pnl = sum(t.pnl_amount for t in closed_trades if t.pnl_amount is not None)
-
-            holding_days = [t.holding_days for t in closed_trades if t.holding_days is not None]
-            if holding_days:
-                stats.avg_holding_days = sum(holding_days) / len(holding_days)
-
-        if trades:
-            stats.avg_score = sum(t.signal_score for t in trades) / len(trades)
-
-        # Stats by Score Bucket
-        stats.by_score_bucket = self._stats_by_score_bucket(closed_trades)
-
-        # Stats by Strategy
-        stats.by_strategy = self._stats_by_strategy(closed_trades)
-
-        return stats
-
-    def _stats_by_score_bucket(self, trades: List[TrackedTrade]) -> Dict[str, Dict]:
-        """Statistiken pro Score-Bucket"""
-        buckets = {
-            "5.0-6.0": [],
-            "6.0-7.0": [],
-            "7.0-8.0": [],
-            "8.0-9.0": [],
-            "9.0-10.0": [],
-        }
-
-        for trade in trades:
-            score = trade.signal_score
-            if 5.0 <= score < 6.0:
-                buckets["5.0-6.0"].append(trade)
-            elif 6.0 <= score < 7.0:
-                buckets["6.0-7.0"].append(trade)
-            elif 7.0 <= score < 8.0:
-                buckets["7.0-8.0"].append(trade)
-            elif 8.0 <= score < 9.0:
-                buckets["8.0-9.0"].append(trade)
-            elif score >= 9.0:
-                buckets["9.0-10.0"].append(trade)
-
-        result = {}
-        for bucket_name, bucket_trades in buckets.items():
-            if bucket_trades:
-                wins = sum(1 for t in bucket_trades if t.outcome == TradeOutcome.WIN)
-                result[bucket_name] = {
-                    'count': len(bucket_trades),
-                    'wins': wins,
-                    'win_rate': (wins / len(bucket_trades)) * 100,
-                }
-
-        return result
-
-    def _stats_by_strategy(self, trades: List[TrackedTrade]) -> Dict[str, Dict]:
-        """Statistiken pro Strategie"""
-        by_strategy: Dict[str, List[TrackedTrade]] = {}
-
-        for trade in trades:
-            if trade.strategy not in by_strategy:
-                by_strategy[trade.strategy] = []
-            by_strategy[trade.strategy].append(trade)
-
-        result = {}
-        for strategy_name, strategy_trades in by_strategy.items():
-            wins = sum(1 for t in strategy_trades if t.outcome == TradeOutcome.WIN)
-            result[strategy_name] = {
-                'count': len(strategy_trades),
-                'wins': wins,
-                'win_rate': (wins / len(strategy_trades)) * 100,
-            }
-
-        return result
+        return self._trade_analysis.get_stats(strategy=strategy, min_date=min_date, max_date=max_date)
 
     # =========================================================================
-    # Export for Training
+    # Export for Training (delegated to TradeAnalysis)
     # =========================================================================
 
     def export_for_training(
@@ -749,71 +359,12 @@ class TradeTracker:
         strategies: Optional[List[str]] = None,
         min_trades: int = 50,
     ) -> Dict[str, Any]:
-        """
-        Exportiert Trades im Format für Walk-Forward Training.
-
-        Args:
-            min_date: Minimales Datum
-            max_date: Maximales Datum
-            strategies: Optional Liste von Strategien
-            min_trades: Minimum benötigte Trades
-
-        Returns:
-            Dictionary mit Trainings-Daten
-        """
-        # Nur geschlossene Trades
-        all_trades = []
-
-        if strategies:
-            for strategy in strategies:
-                trades = self.query_trades(
-                    strategy=strategy,
-                    status=TradeStatus.CLOSED,
-                    min_date=min_date,
-                    max_date=max_date,
-                    limit=10000,
-                )
-                all_trades.extend(trades)
-        else:
-            all_trades = self.query_trades(
-                status=TradeStatus.CLOSED,
-                min_date=min_date,
-                max_date=max_date,
-                limit=10000,
-            )
-
-        if len(all_trades) < min_trades:
-            logger.warning(f"Only {len(all_trades)} trades, minimum is {min_trades}")
-
-        # Konvertiere zu Training-Format
-        training_data = []
-        for trade in all_trades:
-            training_data.append({
-                'symbol': trade.symbol,
-                'strategy': trade.strategy,
-                'signal_date': trade.signal_date.isoformat() if trade.signal_date else None,
-                'score': trade.signal_score,
-                'score_breakdown': trade.score_breakdown,
-                'vix': trade.vix_at_signal,
-                'outcome': 1 if trade.outcome == TradeOutcome.WIN else 0,
-                'pnl_percent': trade.pnl_percent,
-                'holding_days': trade.holding_days,
-            })
-
-        return {
-            'version': '1.0.0',
-            'export_date': datetime.now().isoformat(),
-            'total_trades': len(all_trades),
-            'date_range': {
-                'min': min(t.signal_date for t in all_trades if t.signal_date).isoformat() if all_trades else None,
-                'max': max(t.signal_date for t in all_trades if t.signal_date).isoformat() if all_trades else None,
-            },
-            'strategies': list(set(t.strategy for t in all_trades)),
-            'trades': training_data,
-        }
+        return self._trade_analysis.export_for_training(
+            min_date=min_date, max_date=max_date, strategies=strategies, min_trades=min_trades,
+        )
 
     # =========================================================================
-    # Historische Preisdaten
+    # Historische Preisdaten (delegated to PriceStorage)
     # =========================================================================
 
     def store_price_data(
@@ -822,76 +373,7 @@ class TradeTracker:
         bars: List[PriceBar],
         merge: bool = True,
     ) -> int:
-        """
-        Speichert historische Preisdaten für ein Symbol.
-
-        Die Daten werden als komprimiertes JSON gespeichert um
-        Speicherplatz zu sparen (~70-80% Kompression).
-
-        Args:
-            symbol: Ticker-Symbol
-            bars: Liste von PriceBar-Objekten
-            merge: True = mit existierenden Daten zusammenführen
-
-        Returns:
-            Anzahl gespeicherter Bars
-        """
-        if not bars:
-            return 0
-
-        symbol = symbol.upper()
-
-        # Sortiere nach Datum
-        bars = sorted(bars, key=lambda b: b.date)
-
-        # Wenn merge aktiv, lade existierende Daten
-        if merge:
-            existing = self.get_price_data(symbol)
-            if existing:
-                # Merge: existierende + neue, Duplikate entfernen
-                all_bars = {b.date: b for b in existing.bars}
-                for bar in bars:
-                    all_bars[bar.date] = bar
-                bars = sorted(all_bars.values(), key=lambda b: b.date)
-
-        start_date = bars[0].date
-        end_date = bars[-1].date
-
-        # Komprimiere Daten
-        data_json = json.dumps([b.to_dict() for b in bars])
-        data_compressed = zlib.compress(data_json.encode('utf-8'), level=6)
-
-        now = datetime.now().isoformat()
-
-        with self._get_connection() as conn:
-            cursor = conn.cursor()
-
-            # Lösche alte Einträge für dieses Symbol
-            cursor.execute("DELETE FROM price_data WHERE symbol = ?", (symbol,))
-
-            # Speichere neue Daten
-            cursor.execute("""
-                INSERT INTO price_data (
-                    symbol, start_date, end_date, bar_count,
-                    data_compressed, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (
-                symbol,
-                start_date.isoformat(),
-                end_date.isoformat(),
-                len(bars),
-                data_compressed,
-                now,
-                now,
-            ))
-
-            logger.info(
-                f"Stored {len(bars)} price bars for {symbol} "
-                f"({start_date} to {end_date}, "
-                f"{len(data_compressed)/1024:.1f}KB compressed)"
-            )
-
-            return len(bars)
+        return self._price_storage.store_price_data(symbol, bars, merge)
 
     def get_price_data(
         self,
@@ -899,298 +381,46 @@ class TradeTracker:
         start_date: Optional[date] = None,
         end_date: Optional[date] = None,
     ) -> Optional[SymbolPriceData]:
-        """
-        Lädt historische Preisdaten für ein Symbol.
-
-        Args:
-            symbol: Ticker-Symbol
-            start_date: Optional Start-Datum Filter
-            end_date: Optional End-Datum Filter
-
-        Returns:
-            SymbolPriceData oder None
-        """
-        symbol = symbol.upper()
-
-        with self._get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT data_compressed FROM price_data
-                WHERE symbol = ?
-            """, (symbol,))
-            row = cursor.fetchone()
-
-            if row is None:
-                return None
-
-            # Dekomprimiere
-            data_json = zlib.decompress(row['data_compressed']).decode('utf-8')
-            bars_data = json.loads(data_json)
-            bars = [PriceBar.from_dict(b) for b in bars_data]
-
-            # Filter nach Datum wenn gewünscht
-            if start_date:
-                bars = [b for b in bars if b.date >= start_date]
-            if end_date:
-                bars = [b for b in bars if b.date <= end_date]
-
-            return SymbolPriceData(symbol=symbol, bars=bars)
+        return self._price_storage.get_price_data(symbol, start_date, end_date)
 
     def get_price_data_range(self, symbol: str) -> Optional[Tuple[date, date]]:
-        """
-        Gibt den Datumsbereich der gespeicherten Preisdaten zurück.
-
-        Args:
-            symbol: Ticker-Symbol
-
-        Returns:
-            Tuple (start_date, end_date) oder None
-        """
-        symbol = symbol.upper()
-
-        with self._get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT start_date, end_date FROM price_data
-                WHERE symbol = ?
-            """, (symbol,))
-            row = cursor.fetchone()
-
-            if row is None:
-                return None
-
-            return (
-                date.fromisoformat(row['start_date']),
-                date.fromisoformat(row['end_date']),
-            )
+        return self._price_storage.get_price_data_range(symbol)
 
     def list_symbols_with_price_data(self) -> List[Dict[str, Any]]:
-        """
-        Listet alle Symbole mit gespeicherten Preisdaten.
-
-        Returns:
-            Liste von Dicts mit symbol, start_date, end_date, bar_count
-        """
-        with self._get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT symbol, start_date, end_date, bar_count, updated_at
-                FROM price_data
-                ORDER BY symbol
-            """)
-
-            return [
-                {
-                    'symbol': row['symbol'],
-                    'start_date': row['start_date'],
-                    'end_date': row['end_date'],
-                    'bar_count': row['bar_count'],
-                    'updated_at': row['updated_at'],
-                }
-                for row in cursor.fetchall()
-            ]
+        return self._price_storage.list_symbols_with_price_data()
 
     def delete_price_data(self, symbol: str) -> bool:
-        """Löscht Preisdaten für ein Symbol"""
-        symbol = symbol.upper()
-
-        with self._get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("DELETE FROM price_data WHERE symbol = ?", (symbol,))
-            return cursor.rowcount > 0
+        return self._price_storage.delete_price_data(symbol)
 
     # =========================================================================
-    # VIX-Daten
+    # VIX-Daten (delegated to VixStorage)
     # =========================================================================
 
     def store_vix_data(self, vix_points: List[VixDataPoint]) -> int:
-        """
-        Speichert VIX-Historie.
-
-        Args:
-            vix_points: Liste von VixDataPoint-Objekten
-
-        Returns:
-            Anzahl gespeicherter Punkte
-        """
-        if not vix_points:
-            return 0
-
-        now = datetime.now().isoformat()
-        count = 0
-
-        with self._get_connection() as conn:
-            cursor = conn.cursor()
-
-            for point in vix_points:
-                cursor.execute("""
-                    INSERT OR REPLACE INTO vix_data (date, value, created_at)
-                    VALUES (?, ?, ?)
-                """, (point.date.isoformat(), point.value, now))
-                count += 1
-
-            logger.info(f"Stored {count} VIX data points")
-            return count
+        return self._vix_storage.store_vix_data(vix_points)
 
     def get_vix_data(
         self,
         start_date: Optional[date] = None,
         end_date: Optional[date] = None,
     ) -> List[VixDataPoint]:
-        """
-        Lädt VIX-Historie.
-
-        Args:
-            start_date: Optional Start-Datum
-            end_date: Optional End-Datum
-
-        Returns:
-            Liste von VixDataPoint-Objekten
-        """
-        conditions = []
-        params = []
-
-        if start_date:
-            conditions.append("date >= ?")
-            params.append(start_date.isoformat())
-        if end_date:
-            conditions.append("date <= ?")
-            params.append(end_date.isoformat())
-
-        where_clause = " AND ".join(conditions) if conditions else "1=1"
-
-        with self._get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute(f"""
-                SELECT date, value FROM vix_data
-                WHERE {where_clause}
-                ORDER BY date
-            """, params)
-
-            return [
-                VixDataPoint(
-                    date=date.fromisoformat(row['date']),
-                    value=row['value'],
-                )
-                for row in cursor.fetchall()
-            ]
+        return self._vix_storage.get_vix_data(start_date, end_date)
 
     def get_vix_at_date(self, target_date: date) -> Optional[float]:
-        """
-        Holt VIX-Wert für ein bestimmtes Datum.
-
-        Wenn kein Wert für genau dieses Datum existiert,
-        wird der nächste verfügbare Wert davor zurückgegeben.
-
-        Args:
-            target_date: Zieldatum
-
-        Returns:
-            VIX-Wert oder None
-        """
-        with self._get_connection() as conn:
-            cursor = conn.cursor()
-
-            # Exaktes Datum
-            cursor.execute("""
-                SELECT value FROM vix_data WHERE date = ?
-            """, (target_date.isoformat(),))
-            row = cursor.fetchone()
-
-            if row:
-                return row['value']
-
-            # Nächster verfügbarer Wert davor
-            cursor.execute("""
-                SELECT value FROM vix_data
-                WHERE date < ?
-                ORDER BY date DESC
-                LIMIT 1
-            """, (target_date.isoformat(),))
-            row = cursor.fetchone()
-
-            return row['value'] if row else None
+        return self._vix_storage.get_vix_at_date(target_date)
 
     def get_vix_range(self) -> Optional[Tuple[date, date]]:
-        """
-        Gibt den Datumsbereich der gespeicherten VIX-Daten zurück.
-
-        Returns:
-            Tuple (start_date, end_date) oder None
-        """
-        with self._get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT MIN(date) as min_date, MAX(date) as max_date
-                FROM vix_data
-            """)
-            row = cursor.fetchone()
-
-            if row['min_date'] is None:
-                return None
-
-            return (
-                date.fromisoformat(row['min_date']),
-                date.fromisoformat(row['max_date']),
-            )
+        return self._vix_storage.get_vix_range()
 
     def count_vix_data(self) -> int:
-        """Zählt VIX-Datenpunkte"""
-        with self._get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT COUNT(*) FROM vix_data")
-            return cursor.fetchone()[0]
+        return self._vix_storage.count_vix_data()
 
     # =========================================================================
-    # Historische Options-Daten
+    # Historische Options-Daten (delegated to OptionsStorage)
     # =========================================================================
 
     def store_option_bars(self, bars: List[OptionBar]) -> int:
-        """
-        Speichert historische Options-Daten.
-
-        Args:
-            bars: Liste von OptionBar-Objekten
-
-        Returns:
-            Anzahl gespeicherter Bars
-        """
-        if not bars:
-            return 0
-
-        now = datetime.now().isoformat()
-        count = 0
-
-        with self._get_connection() as conn:
-            cursor = conn.cursor()
-
-            for bar in bars:
-                try:
-                    cursor.execute("""
-                        INSERT OR REPLACE INTO options_data (
-                            occ_symbol, underlying, strike, expiry, option_type,
-                            trade_date, open, high, low, close, volume, created_at
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (
-                        bar.occ_symbol,
-                        bar.underlying.upper(),
-                        bar.strike,
-                        bar.expiry.isoformat(),
-                        bar.option_type,
-                        bar.trade_date.isoformat(),
-                        bar.open,
-                        bar.high,
-                        bar.low,
-                        bar.close,
-                        bar.volume,
-                        now,
-                    ))
-                    count += 1
-                except sqlite3.Error as e:
-                    logger.warning(f"Failed to store option bar {bar.occ_symbol}: {e}")
-
-        logger.info(f"Stored {count} option bars")
-        return count
+        return self._options_storage.store_option_bars(bars)
 
     def get_option_history(
         self,
@@ -1198,38 +428,7 @@ class TradeTracker:
         start_date: Optional[date] = None,
         end_date: Optional[date] = None,
     ) -> List[OptionBar]:
-        """
-        Lädt historische Daten für eine Option.
-
-        Args:
-            occ_symbol: OCC Options-Symbol
-            start_date: Optional Start-Datum
-            end_date: Optional End-Datum
-
-        Returns:
-            Liste von OptionBar-Objekten
-        """
-        conditions = ["occ_symbol = ?"]
-        params: List[Any] = [occ_symbol]
-
-        if start_date:
-            conditions.append("trade_date >= ?")
-            params.append(start_date.isoformat())
-        if end_date:
-            conditions.append("trade_date <= ?")
-            params.append(end_date.isoformat())
-
-        where_clause = " AND ".join(conditions)
-
-        with self._get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute(f"""
-                SELECT * FROM options_data
-                WHERE {where_clause}
-                ORDER BY trade_date
-            """, params)
-
-            return [self._row_to_option_bar(row) for row in cursor.fetchall()]
+        return self._options_storage.get_option_history(occ_symbol, start_date, end_date)
 
     def get_options_for_underlying(
         self,
@@ -1238,67 +437,16 @@ class TradeTracker:
         option_type: Optional[str] = None,
         trade_date: Optional[date] = None,
     ) -> List[OptionBar]:
-        """
-        Lädt Options-Daten für ein Underlying.
-
-        Args:
-            underlying: Underlying Symbol
-            expiry: Optional Verfall-Filter
-            option_type: Optional 'P' oder 'C'
-            trade_date: Optional Handelstag-Filter
-
-        Returns:
-            Liste von OptionBar-Objekten
-        """
-        conditions = ["underlying = ?"]
-        params: List[Any] = [underlying.upper()]
-
-        if expiry:
-            conditions.append("expiry = ?")
-            params.append(expiry.isoformat())
-        if option_type:
-            conditions.append("option_type = ?")
-            params.append(option_type.upper())
-        if trade_date:
-            conditions.append("trade_date = ?")
-            params.append(trade_date.isoformat())
-
-        where_clause = " AND ".join(conditions)
-
-        with self._get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute(f"""
-                SELECT * FROM options_data
-                WHERE {where_clause}
-                ORDER BY trade_date, strike
-            """, params)
-
-            return [self._row_to_option_bar(row) for row in cursor.fetchall()]
+        return self._options_storage.get_options_for_underlying(
+            underlying, expiry, option_type, trade_date,
+        )
 
     def get_option_at_date(
         self,
         occ_symbol: str,
         trade_date: date,
     ) -> Optional[OptionBar]:
-        """
-        Holt Options-Preis für ein bestimmtes Datum.
-
-        Args:
-            occ_symbol: OCC Options-Symbol
-            trade_date: Handelstag
-
-        Returns:
-            OptionBar oder None
-        """
-        with self._get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT * FROM options_data
-                WHERE occ_symbol = ? AND trade_date = ?
-            """, (occ_symbol, trade_date.isoformat()))
-
-            row = cursor.fetchone()
-            return self._row_to_option_bar(row) if row else None
+        return self._options_storage.get_option_at_date(occ_symbol, trade_date)
 
     def get_spread_history(
         self,
@@ -1307,129 +455,19 @@ class TradeTracker:
         start_date: Optional[date] = None,
         end_date: Optional[date] = None,
     ) -> List[Dict[str, Any]]:
-        """
-        Lädt historische Daten für einen Bull-Put-Spread.
-
-        Args:
-            short_occ: OCC Symbol des Short Put
-            long_occ: OCC Symbol des Long Put
-            start_date: Optional Start-Datum
-            end_date: Optional End-Datum
-
-        Returns:
-            Liste von Dicts mit trade_date, short_close, long_close, spread_value
-        """
-        short_bars = {b.trade_date: b for b in self.get_option_history(short_occ, start_date, end_date)}
-        long_bars = {b.trade_date: b for b in self.get_option_history(long_occ, start_date, end_date)}
-
-        # Nur Tage mit beiden Legs
-        common_dates = sorted(set(short_bars.keys()) & set(long_bars.keys()))
-
-        result = []
-        for td in common_dates:
-            short = short_bars[td]
-            long = long_bars[td]
-            spread_value = short.close - long.close
-
-            result.append({
-                'trade_date': td,
-                'short_close': short.close,
-                'long_close': long.close,
-                'spread_value': spread_value,
-                'short_volume': short.volume,
-                'long_volume': long.volume,
-            })
-
-        return result
-
-    def _row_to_option_bar(self, row: sqlite3.Row) -> OptionBar:
-        """Konvertiert DB-Row zu OptionBar"""
-        return OptionBar(
-            occ_symbol=row['occ_symbol'],
-            underlying=row['underlying'],
-            strike=row['strike'],
-            expiry=date.fromisoformat(row['expiry']),
-            option_type=row['option_type'],
-            trade_date=date.fromisoformat(row['trade_date']),
-            open=row['open'] or 0.0,
-            high=row['high'] or 0.0,
-            low=row['low'] or 0.0,
-            close=row['close'],
-            volume=row['volume'] or 0,
-        )
+        return self._options_storage.get_spread_history(short_occ, long_occ, start_date, end_date)
 
     def list_options_underlyings(self) -> List[Dict[str, Any]]:
-        """
-        Listet alle Underlyings mit Options-Daten.
-
-        Returns:
-            Liste von Dicts mit underlying, count, date_range
-        """
-        with self._get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT
-                    underlying,
-                    COUNT(*) as bar_count,
-                    COUNT(DISTINCT occ_symbol) as option_count,
-                    MIN(trade_date) as first_date,
-                    MAX(trade_date) as last_date
-                FROM options_data
-                GROUP BY underlying
-                ORDER BY underlying
-            """)
-
-            return [
-                {
-                    'underlying': row['underlying'],
-                    'bar_count': row['bar_count'],
-                    'option_count': row['option_count'],
-                    'first_date': row['first_date'],
-                    'last_date': row['last_date'],
-                }
-                for row in cursor.fetchall()
-            ]
+        return self._options_storage.list_options_underlyings()
 
     def count_option_bars(self, underlying: Optional[str] = None) -> int:
-        """Zählt Options-Datenpunkte"""
-        with self._get_connection() as conn:
-            cursor = conn.cursor()
-            if underlying:
-                cursor.execute(
-                    "SELECT COUNT(*) FROM options_data WHERE underlying = ?",
-                    (underlying.upper(),)
-                )
-            else:
-                cursor.execute("SELECT COUNT(*) FROM options_data")
-            return cursor.fetchone()[0]
+        return self._options_storage.count_option_bars(underlying)
 
     def delete_option_data(self, underlying: Optional[str] = None, occ_symbol: Optional[str] = None) -> int:
-        """
-        Löscht Options-Daten.
-
-        Args:
-            underlying: Löscht alle Daten für dieses Underlying
-            occ_symbol: Löscht alle Daten für diese Option
-
-        Returns:
-            Anzahl gelöschter Zeilen
-        """
-        with self._get_connection() as conn:
-            cursor = conn.cursor()
-
-            if occ_symbol:
-                cursor.execute("DELETE FROM options_data WHERE occ_symbol = ?", (occ_symbol,))
-            elif underlying:
-                cursor.execute("DELETE FROM options_data WHERE underlying = ?", (underlying.upper(),))
-            else:
-                cursor.execute("DELETE FROM options_data")
-
-            count = cursor.rowcount
-            logger.info(f"Deleted {count} option bars")
-            return count
+        return self._options_storage.delete_option_data(underlying, occ_symbol)
 
     # =========================================================================
-    # Bulk-Export für Training
+    # Bulk-Export für Training (delegated to TradeAnalysis)
     # =========================================================================
 
     def export_for_backtesting(
@@ -1438,93 +476,10 @@ class TradeTracker:
         start_date: Optional[date] = None,
         end_date: Optional[date] = None,
     ) -> Dict[str, Any]:
-        """
-        Exportiert alle Daten für Backtesting/Training.
-
-        Args:
-            symbols: Optional Liste von Symbolen (default: alle)
-            start_date: Optional Start-Datum
-            end_date: Optional End-Datum
-
-        Returns:
-            Dictionary mit price_data, vix_data und trades
-        """
-        # Sammle Preisdaten
-        price_data = {}
-        symbol_list = symbols or [
-            s['symbol'] for s in self.list_symbols_with_price_data()
-        ]
-
-        for symbol in symbol_list:
-            data = self.get_price_data(symbol, start_date, end_date)
-            if data and data.bars:
-                price_data[symbol] = [b.to_dict() for b in data.bars]
-
-        # VIX-Daten
-        vix_data = [p.to_dict() for p in self.get_vix_data(start_date, end_date)]
-
-        # Trades
-        trades = self.query_trades(
-            status=TradeStatus.CLOSED,
-            min_date=start_date,
-            max_date=end_date,
+        return self._trade_analysis.export_for_backtesting(
+            symbols=symbols, start_date=start_date, end_date=end_date,
+            price_storage=self._price_storage, vix_storage=self._vix_storage,
         )
 
-        return {
-            'version': '2.0.0',
-            'export_date': datetime.now().isoformat(),
-            'date_range': {
-                'start': start_date.isoformat() if start_date else None,
-                'end': end_date.isoformat() if end_date else None,
-            },
-            'symbols': list(price_data.keys()),
-            'price_data': price_data,
-            'vix_data': vix_data,
-            'trades': [t.to_dict() for t in trades],
-            'summary': {
-                'symbols_count': len(price_data),
-                'total_bars': sum(len(bars) for bars in price_data.values()),
-                'vix_points': len(vix_data),
-                'trades_count': len(trades),
-            },
-        }
-
     def get_storage_stats(self) -> Dict[str, Any]:
-        """
-        Gibt Statistiken über den Speicherverbrauch zurück.
-
-        Returns:
-            Dictionary mit Speicher-Statistiken
-        """
-        with self._get_connection() as conn:
-            cursor = conn.cursor()
-
-            # Trades
-            cursor.execute("SELECT COUNT(*) FROM trades")
-            trades_count = cursor.fetchone()[0]
-
-            # Price Data
-            cursor.execute("""
-                SELECT COUNT(*), SUM(bar_count), SUM(LENGTH(data_compressed))
-                FROM price_data
-            """)
-            row = cursor.fetchone()
-            symbols_count = row[0] or 0
-            total_bars = row[1] or 0
-            compressed_bytes = row[2] or 0
-
-            # VIX
-            cursor.execute("SELECT COUNT(*) FROM vix_data")
-            vix_count = cursor.fetchone()[0]
-
-            # DB File Size
-            db_size = Path(self.db_path).stat().st_size if Path(self.db_path).exists() else 0
-
-            return {
-                'trades_count': trades_count,
-                'symbols_with_price_data': symbols_count,
-                'total_price_bars': total_bars,
-                'price_data_compressed_kb': compressed_bytes / 1024,
-                'vix_data_points': vix_count,
-                'database_size_mb': db_size / (1024 * 1024),
-            }
+        return self._trade_analysis.get_storage_stats(self.db_path)
