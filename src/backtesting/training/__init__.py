@@ -1,6 +1,9 @@
 # OptionPlay - Backtesting Training Package
 # ==========================================
 # Walk-Forward Training, Regime Training, ML Weight Optimization
+#
+# Phase 6e: RegimeTrainer broken into sub-modules:
+#   data_prep.py, epoch_runner.py, performance.py, optimizer.py, trainer.py
 
 from .walk_forward import (
     WalkForwardTrainer,
@@ -30,6 +33,10 @@ from .ml_weight_optimizer import (
     ALL_COMPONENTS,
     DEFAULT_WEIGHTS,
 )
+from .data_prep import DataPrep
+from .epoch_runner import EpochRunner
+from .performance import PerformanceAnalyzer
+from .optimizer import ParameterOptimizer, ResultProcessor
 
 __all__ = [
     # Walk-Forward Training
@@ -57,4 +64,10 @@ __all__ = [
     "STRATEGY_COMPONENTS",
     "ALL_COMPONENTS",
     "DEFAULT_WEIGHTS",
+    # Phase 6e Sub-Modules
+    "DataPrep",
+    "EpochRunner",
+    "PerformanceAnalyzer",
+    "ParameterOptimizer",
+    "ResultProcessor",
 ]
