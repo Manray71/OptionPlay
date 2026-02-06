@@ -256,7 +256,7 @@ class StrategyRetrainer:
         df: pd.DataFrame,
         strategy: str,
         target_win_rate: float = 0.65,
-        relative_margin: float = 0.05,
+        relative_margin: float = 0.03,
     ) -> Dict[str, int]:
         """Train per-regime stability thresholds via binary search with floor/cap.
 
