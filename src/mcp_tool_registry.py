@@ -4,7 +4,7 @@ OptionPlay MCP Tool Registry v4.0.0
 
 Zentrales Registry für alle MCP Tools mit Handler-Definitionen.
 
-Stats (2026-02-05):
+Stats (2026-02-07):
 - 53 Tools + 55 Aliases = 108 MCP Endpoints
 - 80.19% Test Coverage
 
@@ -1081,10 +1081,10 @@ async def handle_sector_status(server, arguments):
 # =============================================================================
 # SUMMARY
 # =============================================================================
-# Total: 54 Tools + 56 Aliases = 110 MCP endpoints
+# Total: 53 Tools + 55 Aliases = 108 MCP endpoints
 #
 # Categories:
-# - VIX & Strategy: 6 tools
+# - VIX & Strategy: 6 tools (inkl. sector_status)
 # - Scan: 7 tools (inkl. daily_picks)
 # - Quote & Data: 7 tools
 # - Analysis: 5 tools

@@ -102,7 +102,10 @@ Output pro Position:
 |------|-------|-------------|
 | `optionplay_vix` | `vix` | VIX + Regime-Empfehlung |
 | `optionplay_regime_status` | `regime` | Detaillierte Regime-Analyse |
+| `optionplay_strategy_for_stock` | `strategy_stock` | Strategie-Empfehlung für ein Symbol basierend auf Kurs + VIX |
 | `optionplay_events` | `events` | Anstehende Markt-Events (FOMC, OPEX, CPI) |
+| `optionplay_health` | `health` | Server-Status und Konfiguration |
+| `optionplay_sector_status` | `sector_status` | Sektor-Momentum mit Relative Strength und Breadth |
 
 ### Scanning & Picks
 
@@ -122,12 +125,16 @@ Output pro Position:
 |------|-------|-------------|
 | `optionplay_analyze` | `analyze` | Vollständige Symbol-Analyse |
 | `optionplay_analyze_multi` | `analyze_multi` | Multi-Strategie für ein Symbol |
+| `optionplay_ensemble` | `ensemble` | Ensemble-Strategie-Empfehlung (Meta-Learner) |
+| `optionplay_ensemble_status` | `ensemble_status` | Ensemble-Selektor und Rotations-Status |
 | `optionplay_quote` | `quote` | Aktueller Kurs |
 | `optionplay_options` | `options` | Options-Chain mit Greeks |
 | `optionplay_earnings` | `earnings` | Earnings-Check |
 | `optionplay_expirations` | `expirations` | Verfügbare Verfallstermine |
 | `optionplay_historical` | `historical` | Historische Kursdaten |
 | `optionplay_validate` | `validate` | Symbol-Validierung (Earnings + Events) |
+| `optionplay_validate_trade` | `check` | Trade-Validierung gegen PLAYBOOK-Regeln (GO / NO-GO / WARNING) |
+| `optionplay_monitor_positions` | `monitor` | Offene Positionen auf Exit-Signale prüfen |
 
 ### Strikes & Risiko
 
@@ -138,7 +145,6 @@ Output pro Position:
 | `optionplay_monte_carlo` | `monte_carlo` | Monte-Carlo-Simulation |
 | `optionplay_position_size` | `position_size` | Kelly-Criterion Position Sizing |
 | `optionplay_stop_loss` | `stop_loss` | Stop-Loss-Berechnung |
-| `optionplay_spread_width` | `spread_width` | Optimale Spread-Breite |
 | `optionplay_max_pain` | `max_pain` | Max-Pain-Level |
 
 ### Portfolio (internes Tracking)
@@ -147,11 +153,14 @@ Output pro Position:
 |------|-------|-------------|
 | `optionplay_portfolio` | `portfolio` | Portfolio-Zusammenfassung |
 | `optionplay_portfolio_positions` | `pf_positions` | Positionen (open/closed/all) |
+| `optionplay_portfolio_position` | `pf_position` | Detail-Ansicht einer Position |
 | `optionplay_portfolio_add` | `pf_add` | Position hinzufügen |
 | `optionplay_portfolio_close` | `pf_close` | Position schließen |
 | `optionplay_portfolio_expire` | `pf_expire` | Position verfallen lassen |
 | `optionplay_portfolio_expiring` | `pf_expiring` | Bald auslaufende Positionen |
+| `optionplay_portfolio_trades` | `pf_trades` | Handelshistorie |
 | `optionplay_portfolio_check` | `pf_check` | Portfolio-Limit-Check |
+| `optionplay_portfolio_constraints` | `pf_constraints` | Constraint-Konfiguration und Status |
 | `optionplay_portfolio_pnl` | `pf_pnl` | P&L nach Symbol |
 | `optionplay_portfolio_monthly` | `pf_monthly` | Monats-Report |
 
@@ -172,6 +181,13 @@ Output pro Position:
 |------|-------|-------------|
 | `optionplay_report` | `report` | PDF-Report für ein Symbol |
 | `optionplay_scan_report` | `scan_report` | PDF Multi-Symbol Scan-Report |
+
+### System
+
+| Tool | Alias | Beschreibung |
+|------|-------|-------------|
+| `optionplay_cache_stats` | `cache_stats` | Cache-Statistiken (Historical, Quotes, Scans) |
+| `optionplay_watchlist_info` | `watchlist` | Watchlist-Übersicht mit Sektoren |
 
 ---
 

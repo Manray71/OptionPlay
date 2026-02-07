@@ -15,10 +15,10 @@ Verwendung in claude_desktop_config.json:
   }
 }
 
-Verfügbare Tools (52 + Aliases):
-- VIX & Strategy: vix, regime, strategy_stock, spread_width, events, health
-- Scans: scan, bounce, breakout, dip, multi, prefilter
-- Quotes & Data: quote, options, earnings, historical, expirations, validate, max_pain
+Verfügbare Tools (53 + 55 Aliases = 108 Endpoints):
+- VIX & Strategy: vix, regime, strategy_stock, events, health, sector_status
+- Scans: scan, bounce, breakout, dip, multi, daily/picks/recommendations, prefilter
+- Quotes & Data: quote, options, earnings, historical, expirations, validate, check, monitor, max_pain
 - Analysis: analyze, analyze_multi, ensemble, ensemble_status, strikes
 - Portfolio: portfolio, pf_positions, pf_position, pf_add, pf_close, pf_expire,
              pf_expiring, pf_trades, pf_pnl, pf_monthly, pf_check, pf_constraints
@@ -78,7 +78,7 @@ def get_server() -> OptionPlayServer:
 
 @app.list_tools()
 async def list_tools() -> list[Tool]:
-    """List all available OptionPlay tools (52 tools + 52 aliases)."""
+    """List all available OptionPlay tools (53 tools + 55 aliases)."""
     return tool_registry.list_tools()
 
 
