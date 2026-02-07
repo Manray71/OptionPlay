@@ -424,6 +424,47 @@ class EnsembleSelector:
             return self._rotation_engine.get_rotation_summary()
         return None
 
+    def _seed_rotation_from_granular_model(self):
+        """
+        Seed rotation engine preferences from GRANULAR_TRAINED_MODEL.json.
+
+        Uses regime-specific train win rates (which have meaningful variance)
+        rather than the global V2 win rates (which are nearly uniform ~55%).
+        Falls back to the current VIX regime, defaulting to "normal".
+        """
+        granular_path = Path.home() / ".optionplay" / "models" / "GRANULAR_TRAINED_MODEL.json"
+        if not granular_path.exists():
+            return
+
+        try:
+            with open(granular_path, "r", encoding="utf-8") as f:
+                granular_data = json.load(f)
+
+            regime_configs = granular_data.get("regime_strategy_configs", {})
+            # Use "normal" as default regime for initial seeding
+            normal_configs = regime_configs.get("normal", {})
+
+            if not normal_configs:
+                return
+
+            win_rates = {}
+            for strat, cfg in normal_configs.items():
+                if isinstance(cfg, dict) and cfg.get("enabled", True):
+                    win_rates[strat] = cfg.get("train_wr", 50.0)
+
+            if win_rates:
+                total_wr = sum(win_rates.values())
+                if total_wr > 0:
+                    initial_prefs = {s: wr / total_wr for s, wr in win_rates.items()}
+                    self._rotation_engine._state.current_preferences = initial_prefs
+                    logger.info(
+                        f"Seeded rotation from granular model (normal regime): "
+                        f"{', '.join(f'{s}={p:.1%}' for s, p in initial_prefs.items())}"
+                    )
+
+        except Exception as e:
+            logger.warning(f"Could not seed rotation from granular model: {e}")
+
     def save(self, filepath: str):
         """Save ensemble selector state"""
         filepath = Path(filepath).expanduser()
@@ -513,6 +554,10 @@ class EnsembleSelector:
                             last_updated=datetime.now(),
                         )
                         selector._meta_learner._symbol_performance[symbol] = perf
+
+                # Seed rotation engine from granular regime-specific win rates
+                if selector._rotation_engine:
+                    selector._seed_rotation_from_granular_model()
 
                 logger.info(
                     f"Loaded trained ensemble model with {len(symbol_prefs)} symbol preferences"

@@ -32,13 +32,14 @@ class StrategyRotationEngine:
         rotation_window_days: int = 30,
         performance_threshold: float = 0.40,
         min_trades_for_rotation: int = 10,
+        initial_preferences: Optional[Dict[str, float]] = None,
     ):
         self.rotation_window = rotation_window_days
         self.performance_threshold = performance_threshold
         self.min_trades = min_trades_for_rotation
 
         self._state = RotationState(
-            current_preferences={s: 0.25 for s in STRATEGIES},
+            current_preferences=initial_preferences or {s: 0.25 for s in STRATEGIES},
             last_rotation_date=date.today(),
             rotation_reason=None,
             recent_win_rates={s: [] for s in STRATEGIES},
