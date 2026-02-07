@@ -320,7 +320,7 @@ async def handle_scan_multi(server, arguments):
     return await server.scan_multi_strategy(
         symbols=arguments.get("symbols"),
         max_results=arguments.get("max_results", 20),
-        min_score=arguments.get("min_score", 5.0),
+        min_score=arguments.get("min_score", 3.5),
         list_type=arguments.get("list_type", "stable"),
     )
 

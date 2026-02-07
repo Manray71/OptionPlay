@@ -52,6 +52,9 @@ ETF_SYMBOLS = {
     'XLU',    # Utilities
     'XLRE',   # Real Estate
     'XLC',    # Communication Services
+    # Themen-ETFs
+    'ARKK',   # ARK Innovation ETF
+    'SMH',    # VanEck Semiconductor ETF
 }
 
 
