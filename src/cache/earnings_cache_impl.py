@@ -114,6 +114,10 @@ class EarningsInfo:
         """
         if self.days_to_earnings is None:
             return unknown_is_safe
+        # Negative Tage = Earnings liegen in der Vergangenheit = safe
+        # (nächste Earnings typischerweise ~90 Tage entfernt)
+        if self.days_to_earnings < 0:
+            return True
         return self.days_to_earnings >= min_days
     
     def to_dict(self) -> Dict:
@@ -257,6 +261,9 @@ class EarningsCache:
 
         Einträge OHNE Earnings-Datum (None) werden kürzer gecacht (24h),
         da dies oft bedeutet, dass der API-Abruf fehlgeschlagen ist.
+
+        Einträge mit vergangenen Earnings-Daten werden als stale behandelt,
+        damit der Provider nach neuen (zukünftigen) Daten gefragt wird.
         """
         if not entry.updated:
             return False
@@ -270,20 +277,30 @@ class EarningsCache:
                 max_age = min(24, self.max_age_hours)
                 return age_hours < max_age
 
+            # Einträge mit vergangenen Earnings-Daten nach 24h invalidieren,
+            # damit Provider ein neues (zukünftiges) Datum liefern kann
+            try:
+                earnings_date = datetime.strptime(entry.earnings_date, "%Y-%m-%d").date()
+                if earnings_date < datetime.now().date():
+                    max_age = min(24, self.max_age_hours)
+                    return age_hours < max_age
+            except (ValueError, TypeError):
+                pass
+
             return age_hours < self.max_age_hours
         except (ValueError, TypeError):
             return False
     
     def _calculate_days_to_earnings(self, earnings_date_str: Optional[str]) -> Optional[int]:
-        """Berechnet Tage bis Earnings"""
+        """Berechnet Tage bis Earnings (auch negative Werte für vergangene Earnings)"""
         if not earnings_date_str:
             return None
-        
+
         try:
             earnings_date = datetime.strptime(earnings_date_str, "%Y-%m-%d").date()
             today = datetime.now().date()
             delta = (earnings_date - today).days
-            return delta if delta >= 0 else None  # Vergangene Earnings ignorieren
+            return delta
         except ValueError:
             return None
     

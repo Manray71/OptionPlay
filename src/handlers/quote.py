@@ -274,8 +274,14 @@ class QuoteHandlerMixin(BaseHandlerMixin):
         b.h1(f"Earnings Check: {symbol}").blank()
 
         if aggregated.consensus_date:
-            is_safe = (aggregated.days_to_earnings or 0) >= min_days
-            status = "SAFE" if is_safe else "TOO CLOSE"
+            days = aggregated.days_to_earnings or 0
+            if days < 0:
+                # Past earnings = safe, next earnings ~90d away
+                is_safe = True
+                status = "SAFE (past earnings)"
+            else:
+                is_safe = days >= min_days
+                status = "SAFE" if is_safe else "TOO CLOSE"
 
             b.h2("Consensus Result")
             b.kv_line("Date", aggregated.consensus_date)
@@ -355,6 +361,9 @@ class QuoteHandlerMixin(BaseHandlerMixin):
                 # Classify symbol
                 if days_to is None:
                     unknown_symbols.append(symbol)
+                    safe_symbols.append(symbol)
+                elif days_to < 0:
+                    # Past earnings date = safe (next earnings ~90d away)
                     safe_symbols.append(symbol)
                 elif days_to >= min_days:
                     safe_symbols.append(symbol)

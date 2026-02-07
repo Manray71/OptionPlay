@@ -570,7 +570,11 @@ class OptionPlayServer(
                     else:
                         excluded_count += 1
                 else:
-                    if days_to is not None and days_to >= min_days:
+                    if days_to is not None and days_to < 0:
+                        # Past earnings date = safe (next earnings ~90d away)
+                        logger.debug(f"{symbol}: Past earnings ({days_to}d ago) — treating as safe")
+                        safe_symbols.append(symbol)
+                    elif days_to is not None and days_to >= min_days:
                         safe_symbols.append(symbol)
                     elif days_to is None:
                         logger.debug(f"{symbol}: Excluded - unknown earnings date")

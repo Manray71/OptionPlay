@@ -798,7 +798,10 @@ class ScanHandler(BaseHandler):
                 if cached:
                     cache_hits += 1
                     if cached.days_to_earnings is not None:
-                        if for_earnings_dip:
+                        if cached.days_to_earnings < 0:
+                            # Past earnings date = safe (next earnings ~90d away)
+                            safe.append(symbol)
+                        elif for_earnings_dip:
                             if cached.days_to_earnings <= 10:
                                 safe.append(symbol)
                             else:

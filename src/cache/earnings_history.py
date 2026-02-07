@@ -450,9 +450,21 @@ class EarningsHistoryManager:
             Tuple (is_safe: bool, days_to_earnings: Optional[int], reason: str)
         """
         next_earnings = self.get_next_future_earnings(symbol, target_date)
-        return self._evaluate_earnings_safety(
-            next_earnings, target_date, min_days, allow_bmo_same_day
-        )
+        if next_earnings:
+            return self._evaluate_earnings_safety(
+                next_earnings, target_date, min_days, allow_bmo_same_day
+            )
+
+        # No future earnings found — check if recently reported
+        symbol = symbol.upper()
+        all_earnings = self.get_all_earnings(symbol)
+        if all_earnings:
+            last_date = all_earnings[0].earnings_date
+            days_since = (target_date - last_date).days
+            if days_since <= 30:
+                return (True, None, "recently_reported")
+
+        return (False, None, "no_earnings_data")
 
     def _evaluate_earnings_safety(
         self,
@@ -521,16 +533,19 @@ class EarningsHistoryManager:
             return {}
 
         symbols_upper = [s.upper() for s in symbols]
-        search_days = 90
+        search_days = 365
 
         # Calculate date range for query
         to_date = target_date + timedelta(days=search_days)
 
         # Single query for all symbols' future earnings
+        # Also fetch the most recent PAST earnings for fallback
         with self._lock:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
                 placeholders = ",".join("?" * len(symbols_upper))
+
+                # Future earnings
                 cursor.execute(f"""
                     SELECT symbol, earnings_date, time_of_day
                     FROM earnings_history
@@ -540,14 +555,33 @@ class EarningsHistoryManager:
                     ORDER BY symbol, earnings_date ASC
                 """, (*symbols_upper, target_date.isoformat(), to_date.isoformat()))
 
-                rows = cursor.fetchall()
+                future_rows = cursor.fetchall()
 
-        # Group earnings by symbol, keep only the nearest future one
+                # Most recent past earnings per symbol (for fallback)
+                cursor.execute(f"""
+                    SELECT symbol, MAX(earnings_date) as last_earnings
+                    FROM earnings_history
+                    WHERE symbol IN ({placeholders})
+                      AND earnings_date < ?
+                    GROUP BY symbol
+                """, (*symbols_upper, target_date.isoformat()))
+
+                past_rows = cursor.fetchall()
+
+        # Map of most recent past earnings per symbol
+        last_earnings_by_symbol: Dict[str, date] = {}
+        for row in past_rows:
+            last_date = row["last_earnings"]
+            if isinstance(last_date, str):
+                last_date = date.fromisoformat(last_date)
+            last_earnings_by_symbol[row["symbol"]] = last_date
+
+        # Group future earnings by symbol, keep only the nearest one
         next_earnings_by_symbol: Dict[str, Optional[EarningsRecord]] = {
             s: None for s in symbols_upper
         }
 
-        for row in rows:
+        for row in future_rows:
             symbol = row["symbol"]
             # Only keep the first (nearest) future earnings per symbol
             if next_earnings_by_symbol[symbol] is None:
@@ -565,9 +599,27 @@ class EarningsHistoryManager:
         results: Dict[str, tuple] = {}
         for symbol in symbols_upper:
             next_earnings = next_earnings_by_symbol.get(symbol)
-            results[symbol] = self._evaluate_earnings_safety(
-                next_earnings, target_date, min_days, allow_bmo_same_day
-            )
+
+            if next_earnings:
+                # Have future earnings date — use standard evaluation
+                results[symbol] = self._evaluate_earnings_safety(
+                    next_earnings, target_date, min_days, allow_bmo_same_day
+                )
+            else:
+                # No future earnings in DB — check if recently reported
+                last_date = last_earnings_by_symbol.get(symbol)
+                if last_date:
+                    days_since = (target_date - last_date).days
+                    if days_since <= 30:
+                        # Recently reported (< 30 days ago) — next earnings
+                        # typically ~90 days away, safe to trade
+                        results[symbol] = (True, None, "recently_reported")
+                    else:
+                        # Has earnings history but no future date
+                        results[symbol] = (False, None, "no_earnings_data")
+                else:
+                    # No earnings data at all
+                    results[symbol] = (False, None, "no_earnings_data")
 
         return results
 

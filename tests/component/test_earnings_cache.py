@@ -57,11 +57,26 @@ class TestEarningsInfo:
             updated_at="2025-01-24T10:00:00",
             confirmed=False
         )
-        
+
         # Unbekannt mit unknown_is_safe=False (default) = False
         assert info.is_safe(min_days=60) == False
         # Unbekannt mit unknown_is_safe=True = True (permissiv)
         assert info.is_safe(min_days=60, unknown_is_safe=True) == True
+
+    def test_is_safe_past_earnings(self):
+        """is_safe sollte True sein bei vergangenen Earnings (negative days)"""
+        info = EarningsInfo(
+            symbol="QCOM",
+            earnings_date="2025-01-01",
+            days_to_earnings=-30,
+            source=EarningsSource.YFINANCE,
+            updated_at="2025-01-24T10:00:00",
+            confirmed=False
+        )
+
+        # Vergangene Earnings = safe (nächste Earnings ~90d entfernt)
+        assert info.is_safe(min_days=60) == True
+        assert info.is_safe(min_days=90) == True
 
 
 class TestEarningsSourceEnum:
@@ -75,9 +90,36 @@ class TestEarningsSourceEnum:
         assert EarningsSource.UNKNOWN.value == "unknown"
 
 
+class TestCalculateDaysToEarnings:
+    """Tests für _calculate_days_to_earnings"""
+
+    @pytest.fixture
+    def cache(self, tmp_path):
+        cache_file = tmp_path / "test_calc.json"
+        return EarningsCache(cache_file=cache_file)
+
+    def test_future_date_returns_positive(self, cache):
+        future = (datetime.now() + timedelta(days=30)).strftime("%Y-%m-%d")
+        result = cache._calculate_days_to_earnings(future)
+        assert result is not None
+        assert result >= 29  # allow for day boundary
+
+    def test_past_date_returns_negative(self, cache):
+        past = (datetime.now() - timedelta(days=10)).strftime("%Y-%m-%d")
+        result = cache._calculate_days_to_earnings(past)
+        assert result is not None
+        assert result <= -10
+
+    def test_none_returns_none(self, cache):
+        assert cache._calculate_days_to_earnings(None) is None
+
+    def test_invalid_date_returns_none(self, cache):
+        assert cache._calculate_days_to_earnings("not-a-date") is None
+
+
 class TestEarningsCacheBasics:
     """Grundlegende Cache-Tests"""
-    
+
     @pytest.fixture
     def temp_cache(self, tmp_path):
         """Temporärer Cache"""

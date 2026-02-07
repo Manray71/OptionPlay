@@ -314,7 +314,8 @@ class TestEarningsPreFilterIntegration:
         from unittest.mock import Mock, AsyncMock, patch, MagicMock
         from src.mcp_server import OptionPlayServer
 
-        with patch('src.mcp_server.get_config') as mock_config:
+        with patch('src.mcp_server.get_config') as mock_config, \
+             patch('src.cache.get_earnings_history_manager') as mock_ehm:
             # Mock config
             mock_settings = Mock()
             mock_settings.performance.cache_ttl_seconds = 300
@@ -323,7 +324,18 @@ class TestEarningsPreFilterIntegration:
             mock_settings.api_connection.retry_base_delay = 2
             mock_settings.circuit_breaker.failure_threshold = 5
             mock_settings.circuit_breaker.recovery_timeout = 60
+            mock_settings.scanner.earnings_allow_bmo_same_day = False
             mock_config.return_value.settings = mock_settings
+
+            # Mock earnings history batch query: all symbols → no_earnings_data
+            # so fallback to EarningsFetcher cache is used
+            mock_history = MagicMock()
+            mock_history.is_earnings_day_safe_batch_async = AsyncMock(return_value={
+                "AAPL": (False, None, "no_earnings_data"),
+                "MSFT": (False, None, "no_earnings_data"),
+                "GOOGL": (False, None, "no_earnings_data"),
+            })
+            mock_ehm.return_value = mock_history
 
             server = OptionPlayServer(api_key="test_key")
 
