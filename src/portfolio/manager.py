@@ -379,6 +379,54 @@ class PortfolioManager:
             notes=notes,
         )
         self._trades.append(trade)
+
+    def _notify_ensemble(
+        self,
+        position: BullPutSpread,
+        outcome: bool,
+        pnl: float,
+        strategy: Optional[str] = None,
+    ):
+        """
+        Notify ensemble meta-learner of trade outcome.
+
+        Extracts strategy from position tags (e.g. "strategy:pullback")
+        or uses the provided strategy parameter.
+        """
+        # Determine strategy from tags or parameter
+        if strategy is None:
+            for tag in position.tags:
+                if tag.startswith("strategy:"):
+                    strategy = tag.split(":", 1)[1]
+                    break
+
+        if strategy is None:
+            logger.debug(
+                f"No strategy tag for {position.symbol} ({position.id}), "
+                f"skipping ensemble notification"
+            )
+            return
+
+        try:
+            from ..backtesting.ensemble.selector import EnsembleSelector
+
+            selector = EnsembleSelector.load_trained_model()
+            credit = position.total_credit
+            pnl_percent = (pnl / credit * 100) if credit > 0 else 0.0
+
+            selector.update_with_result(
+                symbol=position.symbol,
+                strategy=strategy,
+                outcome=outcome,
+                pnl_percent=pnl_percent,
+                signal_date=date.today(),
+            )
+            logger.info(
+                f"Ensemble notified: {position.symbol} {strategy} "
+                f"{'WIN' if outcome else 'LOSS'} ({pnl_percent:+.1f}%)"
+            )
+        except Exception as e:
+            logger.warning(f"Could not notify ensemble: {e}")
     
     # =========================================================================
     # POSITION MANAGEMENT
@@ -485,32 +533,34 @@ class PortfolioManager:
         position_id: str,
         close_premium: float,
         notes: str = "",
+        strategy: Optional[str] = None,
     ) -> BullPutSpread:
         """
         Close a position by buying back the spread.
-        
+
         Args:
             position_id: Position ID
             close_premium: Premium paid to close (per contract)
             notes: Close notes
-            
+            strategy: Strategy name for ensemble feedback (optional)
+
         Returns:
             Updated position
         """
         if position_id not in self._positions:
             raise ValueError(f"Position not found: {position_id}")
-        
+
         position = self._positions[position_id]
-        
+
         if position.status != PositionStatus.OPEN:
             raise ValueError(f"Position is not open: {position.status.value}")
-        
+
         position.status = PositionStatus.CLOSED
         position.close_date = date.today().isoformat()
         position.close_premium = close_premium
-        
+
         pnl = position.realized_pnl()
-        
+
         self._record_trade(
             position,
             TradeAction.CLOSE,
@@ -520,103 +570,121 @@ class PortfolioManager:
             },
             notes,
         )
-        
+
         self._save()
-        
+
         logger.info(
             f"Closed position {position_id}: {position.symbol} "
             f"P&L: ${pnl:.2f}"
         )
-        
+
+        # Notify ensemble of trade outcome
+        if pnl is not None:
+            self._notify_ensemble(position, outcome=pnl > 0, pnl=pnl, strategy=strategy)
+
         return position
     
     def expire_position(
         self,
         position_id: str,
         notes: str = "",
+        strategy: Optional[str] = None,
     ) -> BullPutSpread:
         """
         Mark position as expired worthless (full profit).
-        
+
         Args:
             position_id: Position ID
             notes: Notes
-            
+            strategy: Strategy name for ensemble feedback (optional)
+
         Returns:
             Updated position
         """
         if position_id not in self._positions:
             raise ValueError(f"Position not found: {position_id}")
-        
+
         position = self._positions[position_id]
-        
+
         if position.status != PositionStatus.OPEN:
             raise ValueError(f"Position is not open: {position.status.value}")
-        
+
         position.status = PositionStatus.EXPIRED
         position.close_date = date.today().isoformat()
         position.close_premium = 0.0
-        
+
+        pnl = position.total_credit
+
         self._record_trade(
             position,
             TradeAction.EXPIRE,
             {
-                "realized_pnl": position.total_credit,
+                "realized_pnl": pnl,
             },
             notes or "Expired worthless",
         )
-        
+
         self._save()
-        
+
         logger.info(
             f"Position expired: {position_id} - {position.symbol} "
-            f"Full profit: ${position.total_credit:.2f}"
+            f"Full profit: ${pnl:.2f}"
         )
-        
+
+        # Notify ensemble - expired worthless is always a win
+        self._notify_ensemble(position, outcome=True, pnl=pnl, strategy=strategy)
+
         return position
     
     def assign_position(
         self,
         position_id: str,
         notes: str = "",
+        strategy: Optional[str] = None,
     ) -> BullPutSpread:
         """
         Mark position as assigned (max loss).
-        
+
         Args:
             position_id: Position ID
             notes: Notes
-            
+            strategy: Strategy name for ensemble feedback (optional)
+
         Returns:
             Updated position
         """
         if position_id not in self._positions:
             raise ValueError(f"Position not found: {position_id}")
-        
+
         position = self._positions[position_id]
-        
+
         if position.status != PositionStatus.OPEN:
             raise ValueError(f"Position is not open: {position.status.value}")
-        
+
         position.status = PositionStatus.ASSIGNED
         position.close_date = date.today().isoformat()
-        
+
+        pnl = -position.max_loss
+
         self._record_trade(
             position,
             TradeAction.ASSIGN,
             {
-                "realized_pnl": -position.max_loss,
+                "realized_pnl": pnl,
             },
             notes or "Assigned",
         )
-        
+
         self._save()
-        
+
         logger.info(
             f"Position assigned: {position_id} - {position.symbol} "
             f"Loss: ${position.max_loss:.2f}"
         )
-        
+
+        # Notify ensemble - assignment is always a loss
+        self._notify_ensemble(position, outcome=False, pnl=pnl, strategy=strategy)
+
         return position
     
     def delete_position(self, position_id: str):
