@@ -42,7 +42,6 @@ from ..constants.trading_rules import (
     ROLL_NEW_DTE_MIN,
     ROLL_NEW_DTE_MAX,
     VIX_ELEVATED_MAX,
-    ENTRY_STABILITY_MIN,
     get_vix_regime,
     get_regime_rules,
 )
@@ -610,29 +609,19 @@ class PositionMonitor:
         if current_vix is not None and current_vix >= VIX_ELEVATED_MAX:
             return False
 
-        # Condition 2: Stability re-validation (Task 4.3)
-        # Symbol must still meet stability requirements for current VIX regime
-        if self.fundamentals is not None:
-            try:
-                f = self.fundamentals.get_fundamentals(snap.symbol)
-                if f and f.stability_score is not None:
-                    # Get VIX-adjusted stability minimum
-                    if current_vix is not None:
-                        rules = get_regime_rules(current_vix)
-                        stability_min = rules.stability_min
-                    else:
-                        stability_min = ENTRY_STABILITY_MIN  # Default: 70
+        # Condition 2: Stability re-validation via shared utility (Task 2.4)
+        from .signal_filter import check_symbol_stability
 
-                    if f.stability_score < stability_min:
-                        logger.info(
-                            f"Roll blocked for {snap.symbol}: stability "
-                            f"{f.stability_score:.0f} < {stability_min:.0f} "
-                            f"(VIX-adjusted minimum)"
-                        )
-                        return False
-            except Exception as e:
-                logger.debug(f"Stability check failed for {snap.symbol}: {e}")
-                # If we can't check, allow roll (conservative approach)
+        passes, stability, required = check_symbol_stability(
+            snap.symbol, current_vix, self.fundamentals
+        )
+        if not passes and stability > 0:
+            logger.info(
+                f"Roll blocked for {snap.symbol}: stability "
+                f"{stability:.0f} < {required:.0f} "
+                f"(VIX-adjusted minimum)"
+            )
+            return False
 
         # Condition 3: Earnings must not fall into new 60-90 DTE window
         from ..utils.validation import is_etf

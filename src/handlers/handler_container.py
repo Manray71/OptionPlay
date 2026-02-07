@@ -139,6 +139,8 @@ class HandlerContainer:
         self._ibkr: Optional[Any] = None
         self._report: Optional[Any] = None
         self._risk: Optional[Any] = None
+        self._validate: Optional[Any] = None
+        self._monitor: Optional[Any] = None
 
     @property
     def vix(self) -> "VixHandler":
@@ -203,6 +205,22 @@ class HandlerContainer:
             from .risk_composed import RiskHandler
             self._risk = RiskHandler(self._context)
         return self._risk
+
+    @property
+    def validate(self) -> "ValidateHandler":
+        """Trade validation handler."""
+        if self._validate is None:
+            from .validate_composed import ValidateHandler
+            self._validate = ValidateHandler(self._context)
+        return self._validate
+
+    @property
+    def monitor(self) -> "MonitorHandler":
+        """Position monitoring handler."""
+        if self._monitor is None:
+            from .monitor_composed import MonitorHandler
+            self._monitor = MonitorHandler(self._context)
+        return self._monitor
 
 
 def create_handler_container_from_server(server) -> HandlerContainer:

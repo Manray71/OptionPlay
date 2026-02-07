@@ -8,6 +8,10 @@ Replaces static component weights with trained weights using:
 - Cross-validation across market phases
 - Per-strategy and per-regime optimization
 
+Implementation split into sub-modules:
+- training/feature_extraction.py - TradeFeatures + FeatureExtractor
+- training/weight_scorer.py - WeightedScorer (production scorer)
+
 Features:
 - Automatic feature importance ranking
 - Rolling retrain support (3-6 month windows)
@@ -39,6 +43,10 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Set
 
 import numpy as np
+
+# Re-export from sub-modules for backward compatibility
+from .feature_extraction import TradeFeatures, FeatureExtractor
+from .weight_scorer import WeightedScorer
 
 logger = logging.getLogger(__name__)
 
@@ -188,15 +196,7 @@ class WeightConfig:
     confidence: str  # "high", "medium", "low"
 
     def apply_weights(self, score_breakdown: Dict[str, float]) -> float:
-        """
-        Apply optimized weights to a score breakdown.
-
-        Args:
-            score_breakdown: Dict of {component_name: raw_score}
-
-        Returns:
-            Weighted total score
-        """
+        """Apply optimized weights to a score breakdown."""
         total = 0.0
         for component, raw_score in score_breakdown.items():
             weight = self.weights.get(component, 1.0)
@@ -270,11 +270,7 @@ class OptimizationResult:
     # Warnings
     warnings: List[str] = field(default_factory=list)
 
-    def get_weights(
-        self,
-        strategy: str,
-        regime: Optional[str] = None,
-    ) -> WeightConfig:
+    def get_weights(self, strategy: str, regime: Optional[str] = None) -> WeightConfig:
         """Get weight config for strategy and optional regime"""
         if regime and regime in self.regime_weights:
             if strategy in self.regime_weights[regime]:
@@ -390,131 +386,6 @@ class OptimizationResult:
 
 
 # =============================================================================
-# FEATURE EXTRACTION
-# =============================================================================
-
-@dataclass
-class TradeFeatures:
-    """Extracted features from a trade for ML training"""
-    trade_id: str
-    symbol: str
-    strategy: str
-    signal_date: date
-
-    # Score components (features)
-    components: Dict[str, float]
-
-    # Target variable
-    is_winner: bool
-    pnl_percent: float
-
-    # Context
-    vix_at_signal: Optional[float]
-    regime: Optional[str]
-    holding_days: int
-
-
-class FeatureExtractor:
-    """Extract ML features from historical trades"""
-
-    def __init__(self):
-        self._regime_boundaries = {
-            "low_vol": (0, 15),
-            "normal": (15, 20),
-            "elevated": (20, 30),
-            "high_vol": (30, 100),
-        }
-
-    def extract_from_trades(
-        self,
-        trades: List[Dict[str, Any]],
-    ) -> List[TradeFeatures]:
-        """
-        Extract features from list of trade dicts.
-
-        Args:
-            trades: List of trade records from TradeTracker
-
-        Returns:
-            List of TradeFeatures for ML training
-        """
-        features = []
-
-        for trade in trades:
-            # Skip incomplete trades
-            if trade.get("outcome") not in ("WIN", "LOSS"):
-                continue
-
-            # Extract score breakdown
-            breakdown = trade.get("score_breakdown", {})
-            if isinstance(breakdown, str):
-                try:
-                    breakdown = json.loads(breakdown)
-                except (json.JSONDecodeError, TypeError):
-                    breakdown = {}
-
-            if not breakdown:
-                continue
-
-            # Normalize component names
-            components = {}
-            for key, value in breakdown.items():
-                # Handle nested dicts
-                if isinstance(value, dict):
-                    value = value.get("score", value.get("value", 0))
-                if isinstance(value, (int, float)):
-                    # Normalize key name
-                    norm_key = key.lower()
-                    if not norm_key.endswith("_score"):
-                        norm_key = f"{norm_key}_score"
-                    components[norm_key] = float(value)
-
-            if not components:
-                continue
-
-            # Determine regime from VIX
-            vix = trade.get("vix_at_signal")
-            regime = self._get_regime(vix) if vix else None
-
-            # Create features
-            features.append(TradeFeatures(
-                trade_id=str(trade.get("id", len(features))),
-                symbol=trade.get("symbol", "UNKNOWN"),
-                strategy=trade.get("strategy", "pullback"),
-                signal_date=self._parse_date(trade.get("signal_date")),
-                components=components,
-                is_winner=trade.get("outcome") == "WIN",
-                pnl_percent=float(trade.get("pnl_percent", 0)),
-                vix_at_signal=vix,
-                regime=regime,
-                holding_days=int(trade.get("holding_days", 0)),
-            ))
-
-        logger.info(f"Extracted {len(features)} trade features from {len(trades)} trades")
-        return features
-
-    def _get_regime(self, vix: float) -> str:
-        """Determine regime from VIX value"""
-        for regime, (low, high) in self._regime_boundaries.items():
-            if low <= vix < high:
-                return regime
-        return "normal"
-
-    def _parse_date(self, d: Any) -> date:
-        """Parse date from various formats"""
-        if isinstance(d, date):
-            return d
-        if isinstance(d, datetime):
-            return d.date()
-        if isinstance(d, str):
-            try:
-                return date.fromisoformat(d[:10])
-            except ValueError:
-                logger.debug(f"Could not parse date string: {d!r}, using today")
-        return date.today()
-
-
-# =============================================================================
 # ML WEIGHT OPTIMIZER
 # =============================================================================
 
@@ -541,15 +412,6 @@ class MLWeightOptimizer:
         min_samples_per_strategy: int = 50,
         enable_regime_weights: bool = True,
     ):
-        """
-        Initialize optimizer.
-
-        Args:
-            method: Optimization method to use
-            cv_folds: Number of cross-validation folds
-            min_samples_per_strategy: Minimum trades per strategy
-            enable_regime_weights: Train separate weights per regime
-        """
         self.method = method
         self.cv_folds = cv_folds
         self.min_samples = min_samples_per_strategy
@@ -563,16 +425,7 @@ class MLWeightOptimizer:
         trades: List[Dict[str, Any]],
         vix_data: Optional[List[Dict]] = None,
     ) -> OptimizationResult:
-        """
-        Train optimized weights from historical trades.
-
-        Args:
-            trades: List of historical trade records
-            vix_data: Optional VIX history for regime context
-
-        Returns:
-            OptimizationResult with optimized weights
-        """
+        """Train optimized weights from historical trades."""
         import uuid
 
         optimization_id = f"weights_{datetime.now().strftime('%Y%m%d')}_{uuid.uuid4().hex[:8]}"
@@ -641,14 +494,10 @@ class MLWeightOptimizer:
         self._last_result = result
         return result
 
-    def _analyze_components(
-        self,
-        features: List[TradeFeatures],
-    ) -> Dict[str, ComponentStats]:
+    def _analyze_components(self, features: List[TradeFeatures]) -> Dict[str, ComponentStats]:
         """Analyze all components across all trades"""
         stats = {}
 
-        # Collect values per component
         component_data: Dict[str, Dict[str, List]] = defaultdict(
             lambda: {"values": [], "outcomes": [], "pnls": []}
         )
@@ -659,7 +508,6 @@ class MLWeightOptimizer:
                 component_data[comp]["outcomes"].append(1 if f.is_winner else 0)
                 component_data[comp]["pnls"].append(f.pnl_percent)
 
-        # Calculate stats for each component
         for comp, data in component_data.items():
             if len(data["values"]) < 10:
                 continue
@@ -668,21 +516,17 @@ class MLWeightOptimizer:
             outcomes = np.array(data["outcomes"])
             pnls = np.array(data["pnls"])
 
-            # Correlations
             win_corr = self._safe_correlation(values, outcomes)
             pnl_corr = self._safe_correlation(values, pnls)
 
-            # Distribution by outcome
             winner_mask = outcomes == 1
             avg_winners = np.mean(values[winner_mask]) if winner_mask.any() else 0
             avg_losers = np.mean(values[~winner_mask]) if (~winner_mask).any() else 0
 
-            # Feature importance (simplified without sklearn)
             rf_imp = abs(win_corr) * 0.5 + abs(pnl_corr) * 0.5
-            gb_imp = rf_imp  # Simplified
+            gb_imp = rf_imp
             ensemble_imp = (rf_imp + gb_imp) / 2
 
-            # Predictive power classification
             if ensemble_imp > 0.2:
                 power = "strong"
             elif ensemble_imp > 0.1:
@@ -692,8 +536,7 @@ class MLWeightOptimizer:
             else:
                 power = "none"
 
-            # Recommended weight (scaled)
-            rec_weight = 0.5 + ensemble_imp * 2.5  # Range: 0.5 to 1.5
+            rec_weight = 0.5 + ensemble_imp * 2.5
 
             stats[comp] = ComponentStats(
                 name=comp,
@@ -714,17 +557,12 @@ class MLWeightOptimizer:
         return stats
 
     def _train_strategy_weights(
-        self,
-        strategy: str,
-        features: List[TradeFeatures],
-        component_stats: Dict[str, ComponentStats],
-        regime: Optional[str] = None,
+        self, strategy: str, features: List[TradeFeatures],
+        component_stats: Dict[str, ComponentStats], regime: Optional[str] = None,
     ) -> WeightConfig:
         """Train weights for a specific strategy"""
-        # Get relevant components for this strategy
         relevant_components = STRATEGY_COMPONENTS.get(strategy, ALL_COMPONENTS)
 
-        # Calculate weights based on component stats
         weights = {}
         for comp in relevant_components:
             if comp in component_stats:
@@ -732,14 +570,11 @@ class MLWeightOptimizer:
             else:
                 weights[comp] = 1.0
 
-        # Normalize weights
         total_weight = sum(weights.values())
         normalized = {k: v / total_weight for k, v in weights.items()}
 
-        # Validate with cross-validation
         val_score = self._cross_validate(features, weights)
 
-        # Determine confidence
         if len(features) >= 200 and val_score > 0.55:
             confidence = "high"
         elif len(features) >= 100 and val_score > 0.50:
@@ -748,30 +583,18 @@ class MLWeightOptimizer:
             confidence = "low"
 
         return WeightConfig(
-            strategy=strategy,
-            regime=regime,
-            weights=weights,
-            normalized_weights=normalized,
-            method=self.method,
-            training_date=datetime.now(),
-            sample_size=len(features),
-            validation_score=val_score,
-            confidence=confidence,
+            strategy=strategy, regime=regime, weights=weights,
+            normalized_weights=normalized, method=self.method,
+            training_date=datetime.now(), sample_size=len(features),
+            validation_score=val_score, confidence=confidence,
         )
 
-    def _cross_validate(
-        self,
-        features: List[TradeFeatures],
-        weights: Dict[str, float],
-    ) -> float:
+    def _cross_validate(self, features: List[TradeFeatures], weights: Dict[str, float]) -> float:
         """Cross-validate weights using time-series splits"""
         if len(features) < 20:
             return 0.0
 
-        # Sort by date
         sorted_features = sorted(features, key=lambda x: x.signal_date)
-
-        # Time-series CV
         fold_size = len(sorted_features) // self.cv_folds
         scores = []
 
@@ -784,14 +607,12 @@ class MLWeightOptimizer:
 
             test_features = sorted_features[test_start:test_end]
 
-            # Calculate accuracy on test fold
             correct = 0
             for f in test_features:
                 weighted_score = sum(
                     f.components.get(comp, 0) * w
                     for comp, w in weights.items()
                 )
-                # Higher score should predict winners
                 predicted_win = weighted_score > np.median([
                     sum(f.components.get(c, 0) * w for c, w in weights.items())
                     for f in sorted_features[:test_start]
@@ -826,9 +647,7 @@ class MLWeightOptimizer:
         return correct / len(features)
 
     def _validate_weights(
-        self,
-        features: List[TradeFeatures],
-        strategy_weights: Dict[str, WeightConfig],
+        self, features: List[TradeFeatures], strategy_weights: Dict[str, WeightConfig],
     ) -> float:
         """Validate optimized weights across all strategies"""
         if not features:
@@ -874,22 +693,13 @@ class MLWeightOptimizer:
         normalized = {c: 1.0 / len(components) for c in components}
 
         return WeightConfig(
-            strategy=strategy,
-            regime=None,
-            weights=weights,
-            normalized_weights=normalized,
-            method=OptimizationMethod.CORRELATION,
-            training_date=datetime.now(),
-            sample_size=0,
-            validation_score=0.0,
-            confidence="low",
+            strategy=strategy, regime=None, weights=weights,
+            normalized_weights=normalized, method=OptimizationMethod.CORRELATION,
+            training_date=datetime.now(), sample_size=0,
+            validation_score=0.0, confidence="low",
         )
 
-    def _create_default_result(
-        self,
-        optimization_id: str,
-        warnings: List[str],
-    ) -> OptimizationResult:
+    def _create_default_result(self, optimization_id: str, warnings: List[str]) -> OptimizationResult:
         """Create default result when training fails"""
         strategy_weights = {
             s: self._create_default_weight_config(s)
@@ -897,14 +707,10 @@ class MLWeightOptimizer:
         }
 
         return OptimizationResult(
-            optimization_id=optimization_id,
-            optimization_date=datetime.now(),
-            strategy_weights=strategy_weights,
-            regime_weights={},
-            component_stats={},
-            total_trades_analyzed=0,
-            overall_validation_score=0.0,
-            improvement_vs_baseline=0.0,
+            optimization_id=optimization_id, optimization_date=datetime.now(),
+            strategy_weights=strategy_weights, regime_weights={},
+            component_stats={}, total_trades_analyzed=0,
+            overall_validation_score=0.0, improvement_vs_baseline=0.0,
             warnings=warnings,
         )
 
@@ -936,7 +742,6 @@ class MLWeightOptimizer:
         with open(filepath, "r", encoding="utf-8") as f:
             data = json.load(f)
 
-        # Reconstruct WeightConfigs
         strategy_weights = {
             k: WeightConfig.from_dict(v)
             for k, v in data.get("strategy_weights", {}).items()
@@ -948,7 +753,6 @@ class MLWeightOptimizer:
                 k: WeightConfig.from_dict(v) for k, v in strats.items()
             }
 
-        # Reconstruct ComponentStats (simplified)
         component_stats = {}
         for k, v in data.get("component_stats", {}).items():
             component_stats[k] = ComponentStats(
@@ -992,102 +796,6 @@ class MLWeightOptimizer:
         if not weight_files:
             return None
 
-        # Sort by modification time
         weight_files.sort(key=lambda f: f.stat().st_mtime, reverse=True)
 
         return cls.load(str(weight_files[0]))
-
-
-# =============================================================================
-# WEIGHTED SCORER (PRODUCTION)
-# =============================================================================
-
-class WeightedScorer:
-    """
-    Production scorer that applies optimized weights.
-
-    Usage:
-        scorer = WeightedScorer.load_latest()
-        weighted_score = scorer.score(score_breakdown, strategy="pullback")
-    """
-
-    def __init__(self, optimization_result: Optional[OptimizationResult] = None):
-        self._result = optimization_result
-        self._default_weights = DEFAULT_WEIGHTS.copy()
-
-    def score(
-        self,
-        score_breakdown: Dict[str, float],
-        strategy: str = "pullback",
-        regime: Optional[str] = None,
-        vix: Optional[float] = None,
-    ) -> float:
-        """
-        Calculate weighted score.
-
-        Args:
-            score_breakdown: Dict of component scores
-            strategy: Strategy name
-            regime: Optional regime override
-            vix: Optional VIX for auto-regime detection
-
-        Returns:
-            Weighted total score
-        """
-        # Determine regime from VIX if not specified
-        if regime is None and vix is not None:
-            if vix < 15:
-                regime = "low_vol"
-            elif vix < 20:
-                regime = "normal"
-            elif vix < 30:
-                regime = "elevated"
-            else:
-                regime = "high_vol"
-
-        if self._result is None:
-            # No optimization loaded - use raw scores
-            return sum(score_breakdown.values())
-
-        # Get weight config
-        config = self._result.get_weights(strategy, regime)
-        return config.apply_weights(score_breakdown)
-
-    def get_weight_info(
-        self,
-        strategy: str,
-        regime: Optional[str] = None,
-    ) -> Dict[str, Any]:
-        """Get information about weights being used"""
-        if self._result is None:
-            return {
-                "status": "default",
-                "message": "No optimization loaded - using equal weights",
-            }
-
-        config = self._result.get_weights(strategy, regime)
-        return {
-            "status": "optimized",
-            "strategy": config.strategy,
-            "regime": config.regime,
-            "method": config.method.value,
-            "confidence": config.confidence,
-            "validation_score": config.validation_score,
-            "top_weights": dict(sorted(
-                config.weights.items(),
-                key=lambda x: x[1],
-                reverse=True
-            )[:5]),
-        }
-
-    @classmethod
-    def load_latest(cls) -> "WeightedScorer":
-        """Load scorer with latest optimization"""
-        result = MLWeightOptimizer.load_latest()
-        return cls(result)
-
-    @classmethod
-    def from_file(cls, filepath: str) -> "WeightedScorer":
-        """Load scorer from specific file"""
-        result = MLWeightOptimizer.load(filepath)
-        return cls(result)

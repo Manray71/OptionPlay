@@ -74,5 +74,15 @@ vix
 # Session context files
 CONTEXT_*.md
 
+# Retrain reports (auto-generated)
+data_inventory/retrain_report_*.json
+data_inventory/retrain_history/
+
+# Pre-test config backups
+config/*.pre-test
+
+# Briefing/Audit files (session-specific)
+BRIEFING_*.md
+
 # Legacy archive (dead code, pre-v4.0.0)
 archive/

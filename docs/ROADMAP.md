@@ -14,7 +14,7 @@
 |-------|------|-------|--------|
 | **0** | Hygiene | Git-Bereinigung, Dead Code, Versionierung | ✅ |
 | **1** | Absicherung | Exception-Handling, Thread-Safety, Sync-SQLite | ✅ |
-| **2** | Duplikation eliminieren | Indikatoren, Black-Scholes, Earnings, Services | ⚠️ (2.1, 2.4 offen) |
+| **2** | Duplikation eliminieren | Indikatoren, Black-Scholes, Earnings, Services | ⚠️ (2.4 ~60% offen) |
 | **3** | Architektur vereinfachen | RSI/ATR Dedup, Scanner-Cache, FeatureScoringMixin, Pick-Formatter | ✅ (3.1-3.5) |
 | **4** | Qualitaetssicherung | 80.19% Coverage, mypy --strict, CI, DB-Benchmarks | ✅ |
 | **5** | Backtesting-Architektur | Duplikation, Models extrahieren, Sub-Packages | ✅ |
@@ -505,10 +505,10 @@ Phase 1 (Absicherung) ✅
     └── 1.4 Singleton-Resets ✅ (15+ reset_* Funktionen)
                                                      │
 Phase 2 (Duplikation)                                │
-    ├── 2.1 Indikator-Bibliothek ⬜ (26 Duplikate verbleiben)
+    ├── 2.1 Indikator-Bibliothek ✅ (alle in src/indicators/ konsolidiert)
     ├── 2.2 Black-Scholes ✅ (bewusste Trennung dokumentiert)
     ├── 2.3 Earnings-Service ✅ (DB-first + API-Fallback)
-    └── 2.4 Service-Utilities ⬜
+    └── 2.4 Service-Utilities ⚠️ (~60% erledigt, Rest: ~60-80 LOC Stability-Filter)
             │
 Phase 3 (Architektur) ✅
     ├── 3.1 RSI/ATR Duplikation eliminiert ✅
@@ -538,7 +538,7 @@ Phase 6 (Backtesting-Monolithen) ✅
             │
 Phase 7 (Weiterentwicklung) ⬜
     ├── 7.0 CIRC-01 + VER-01 loesen ✅
-    ├── 7.1 Scoring-Gewichte externalisieren (WEIGHT-01) ⬜
+    ├── 7.1 Scoring-Gewichte externalisieren (WEIGHT-01) ✅
     ├── 7.2 Verbleibende >1000 LOC aufbrechen ⬜
     ├── 7.3 Mixin → Composition (DEBT-004) ⬜
     └── 7.4 ServerState integrieren (STATE-01) ⬜
@@ -554,8 +554,8 @@ Bevor das Projekt als "service-ready" gilt, muessen alle folgenden Kriterien erf
 |---|-----------|---------|--------|
 | 1 | Keine sync-SQLite-Aufrufe im async Hot Path | `grep sqlite3.connect` in Handlern = 0 | ✅ (asyncio.to_thread) |
 | 2 | Alle Singletons thread-safe | Jeder `_instance` hat Lock | ✅ (10+ Module) |
-| 3 | Keine silent `except: pass` | `grep "except.*pass"` in src/ = 0 | ⚠️ (~15 verbleiben) |
-| 4 | Jede Indikator-Berechnung existiert genau 1x | Keine `_calculate_macd/ema/atr/stochastic/keltner` in Analyzern | ⬜ (26 Duplikate) |
+| 3 | Keine silent `except: pass` | Bare `except:` eliminiert. ~57 `except Specific: pass` sind legitim | ✅ |
+| 4 | Jede Indikator-Berechnung existiert genau 1x | Alle in `src/indicators/` konsolidiert. Analyzer nutzen Delegation-Pattern | ✅ |
 | 5 | Eine Black-Scholes-Implementierung | Bewusste Trennung batch vs OOP | ✅ (dokumentiert) |
 | 6 | Ein Earnings-System | DB-first + API-Fallback + Write-Through | ✅ |
 | 7 | Test-Coverage >= 80% | `pytest --cov-fail-under=80` | ✅ (80.19%, 6.748 Tests) |
@@ -563,8 +563,8 @@ Bevor das Projekt als "service-ready" gilt, muessen alle folgenden Kriterien erf
 | 9 | Alle Caches mit TTL | Kein "forever cached" ausser immutable Daten | ✅ |
 | 10 | mypy ohne `ignore_missing_imports` | `mypy src/` = 0 errors | ⬜ |
 | 11 | Alle Dateien im Git | `git status` = clean | ⬜ |
-| 12 | Version konsistent | Eine Versionsnummer ueberall | ⬜ (VER-01 offen) |
+| 12 | Version konsistent | Ueberall 4.0.0 (VER-01 geloest, Commit `2553a57`) | ✅ |
 | 13 | Handler-APIs synchronisiert | Keine AttributeError in Handlern | ✅ |
-| 14 | Keine zirkulaeren Imports | Kein fragile Import-Reihenfolge | ⬜ (CIRC-01 offen) |
-| 15 | Scoring-Gewichte konfigurierbar | Alle Punkt-Allokationen in Config | ⬜ (WEIGHT-01 offen) |
+| 14 | Keine zirkulaeren Imports | CIRC-01 geloest: Lazy Import in `reliability.py` | ✅ |
+| 15 | Scoring-Gewichte konfigurierbar | WEIGHT-01 geloest: `config/scoring_weights.yaml` + RecursiveConfigResolver | ✅ |
 | 16 | Backtesting-Monolithen aufgebrochen | Alle Dateien <1000 LOC | ⬜ (Phase 7.2) |

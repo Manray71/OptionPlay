@@ -260,7 +260,7 @@ Alle Parameter extern in YAML:
 | **DEBT-004** | Mixin → Composition Migration | Medium | Groß | `HandlerContainer` existiert, 11 Mixins mit 22 Interface-Methoden noch aktiv |
 | **DEBT-009** | 5 Dateien >1000 LOC im Backtesting | Medium | Mittel | engine.py, walk_forward.py, ml_weight_optimizer.py, signal_validation.py, options_backtest.py |
 | **DEBT-015** | Duale Black-Scholes-Implementierung | Medium | Mittel | `pricing/` (batch) + `options/` (OOP) — bewusste Trennung, aber Doku fehlt |
-| **WEIGHT-01** | Komponenten-Gewichte hardcoded | Medium | Mittel | Scoring-Punkte (RSI: 3, Support: 2.5 etc.) in Analyzer-Code statt Config |
+| **WEIGHT-01** | ~~Komponenten-Gewichte hardcoded~~ | ✅ GELÖST | — | `config/scoring_weights.yaml` + RecursiveConfigResolver (4-Layer). Alle Analyzer nutzen `self.get_weights()`. Training via `retrain_weights.py --apply`. |
 | **STATE-01** | ServerState nicht integriert | Low | Klein | Dataclass definiert, mcp_server.py nutzt gestreute Variablen |
 
 ### Neu identifiziert (Code-Scan 2026-02-03)
@@ -357,7 +357,7 @@ Siehe `docs/REDUKTIONSSTRATEGIE.md` für den vollständigen Plan.
 | Komponenten-Punktzahlen | Analyzer-Code + score_normalization.py | Mittel |
 | ML-Weights Retraining | MLWeightOptimizer Pipeline | Hoch |
 
-**Empfehlung (WEIGHT-01):** Komponenten-Gewichte (aktuell hardcoded im Analyzer) in zentrale YAML/JSON Config auslagern für einfacheres Tuning ohne Code-Änderung.
+**WEIGHT-01 — GELÖST:** Komponenten-Gewichte sind in `config/scoring_weights.yaml` externalisiert. RecursiveConfigResolver bietet 4-Layer Auflösung (Base → Regime → Sector → Regime×Sector). Alle 4 Analyzer nutzen `self.get_weights()`. Training-Pipeline (`retrain_weights.py --apply`) schreibt trainierte Werte direkt in YAML.
 
 ---
 

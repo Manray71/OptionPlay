@@ -840,9 +840,9 @@ tests/
 
 | ID | Schwere | Problem | Empfehlung |
 |----|---------|---------|------------|
-| **CIRC-01** | KRITISCH | Zirkulärer Import validation ↔ training | Lazy Import in reliability.py |
-| **VER-01** | Mittel | Version 3.7.0 vs 4.0.0 | Vereinheitlichen |
-| **WEIGHT-01** | Mittel | Scoring-Gewichte hardcoded in Analyzern | Externalisieren in YAML/JSON Config |
+| **CIRC-01** | ✅ GELÖST | Zirkulärer Import validation ↔ training | Lazy Import in reliability.py |
+| **VER-01** | ✅ GELÖST | Version 3.7.0 vs 4.0.0 | Vereinheitlicht auf 4.0.0 (Commit `2553a57`) |
+| **WEIGHT-01** | ✅ GELÖST | Scoring-Gewichte externalisiert | `config/scoring_weights.yaml` + RecursiveConfigResolver (4-Layer). Training via `retrain_weights.py --apply`. |
 | **STATE-01** | Niedrig | ServerState Dataclass nicht in mcp_server.py integriert | Migration der gestreuten Variablen |
 | **DEBT-004** | Mittel | 11 Mixins mit 22 Interface-Methoden, Composition-Bridge ungenutzt | Composition primär machen |
 
@@ -856,14 +856,14 @@ tests/
 **Flexibilität:**
 - ML-Weights per JSON editierbar (geringer Aufwand, hoher Impact)
 - Stability/Speed-Gewichtung als Config-Parameter (geringer Aufwand)
-- Komponenten-Punktzahlen hardcoded (mittlerer Aufwand, hoher Impact) → WEIGHT-01
+- ~~Komponenten-Punktzahlen hardcoded~~ → WEIGHT-01 ✅ GELÖST (config/scoring_weights.yaml)
 - ML-Retraining via Pipeline (hoher Aufwand, hoher Impact)
 
 ### Empfohlene Prioritäten für Phase 7
 
-1. **CIRC-01 lösen** — 30 Min Aufwand, eliminiert kritischstes Risiko
-2. **WEIGHT-01** — Komponenten-Gewichte in Config auslagern (größter Hebel für Weighting-Flexibilität)
-3. **VER-01** — Version vereinheitlichen
+1. ~~**CIRC-01 lösen**~~ — ✅ GELÖST (Lazy Import)
+2. ~~**WEIGHT-01**~~ — ✅ GELÖST (config/scoring_weights.yaml + RecursiveConfigResolver)
+3. ~~**VER-01**~~ — ✅ GELÖST (Vereinheitlicht auf 4.0.0)
 4. **engine.py aufbrechen** — 1,240 LOC → Simulation + Reporting + Core
 5. **walk_forward.py aufbrechen** — 1,131 LOC → Config + Training + Validation
 

@@ -1,6 +1,8 @@
 # OptionPlay - Pullback Analyzer
 # ================================
 # Technical analysis for pullback candidates
+#
+# Scoring methods are in pullback_scoring.py (PullbackScoringMixin).
 
 import numpy as np
 from typing import List, Dict, Optional, Tuple
@@ -9,6 +11,7 @@ import logging
 
 from .base import BaseAnalyzer
 from .context import AnalysisContext
+from .pullback_scoring import PullbackScoringMixin
 from .score_normalization import normalize_score, get_signal_strength, STRATEGY_SCORE_CONFIGS
 
 try:
@@ -26,11 +29,9 @@ except ImportError:
 try:
     from ..indicators.momentum import calculate_rsi_divergence, calculate_macd, calculate_stochastic
     from ..indicators.trend import calculate_ema
-    from ..indicators.volatility import calculate_atr_simple, calculate_keltner_channel
 except ImportError:
     from indicators.momentum import calculate_rsi_divergence, calculate_macd, calculate_stochastic
     from indicators.trend import calculate_ema
-    from indicators.volatility import calculate_atr_simple, calculate_keltner_channel
 
 # Import central constants (with alias to avoid naming conflicts)
 try:
@@ -77,20 +78,6 @@ except ImportError:
         PRICE_TOLERANCE,
     )
 
-# Import Volume Profile indicators (NEW from Feature Engineering)
-try:
-    from ..indicators.volume_profile import (
-        calculate_vwap,
-        get_sector,
-        get_sector_adjustment,
-    )
-except ImportError:
-    from indicators.volume_profile import (
-        calculate_vwap,
-        get_sector,
-        get_sector_adjustment,
-    )
-
 # Import optimized support/resistance functions
 try:
     from ..indicators.support_resistance import (
@@ -103,16 +90,10 @@ except ImportError:
         find_resistance_levels as find_resistance_optimized,
     )
 
-# Import Gap Analysis (validated with 174k+ events)
-try:
-    from ..indicators.gap_analysis import analyze_gap
-except ImportError:
-    from indicators.gap_analysis import analyze_gap
-
 logger = logging.getLogger(__name__)
 
 
-class PullbackAnalyzer(BaseAnalyzer):
+class PullbackAnalyzer(PullbackScoringMixin, BaseAnalyzer):
     """
     Analyzes stocks for pullback setups.
 
@@ -123,8 +104,10 @@ class PullbackAnalyzer(BaseAnalyzer):
     - SMAs (20, 50, 200) - Trend
     - Support/Resistance - Swing Highs/Lows
     - Fibonacci Retracements
+
+    Scoring methods are provided by PullbackScoringMixin.
     """
-    
+
     # MACD Default Parameter (from src/constants)
     # Variable names kept for backward compatibility
     MACD_FAST = _MACD_FAST       # 12 - Fast EMA
@@ -137,18 +120,18 @@ class PullbackAnalyzer(BaseAnalyzer):
     STOCH_SMOOTH = _STOCH_SMOOTH  # 3
     STOCH_OVERSOLD = _STOCH_OVERSOLD   # 20
     STOCH_OVERBOUGHT = _STOCH_OVERBOUGHT  # 80
-    
+
     def __init__(self, config: PullbackScoringConfig):
         self.config = config
-    
+
     @property
     def strategy_name(self) -> str:
         return "pullback"
-    
+
     @property
     def description(self) -> str:
         return "Identifies pullback setups in uptrending stocks near support levels"
-    
+
     def analyze(
         self,
         symbol: str,
@@ -187,28 +170,28 @@ class PullbackAnalyzer(BaseAnalyzer):
         else:
             signal_type = SignalType.NEUTRAL
             strength = SignalStrength.NONE
-        
+
         # Calculate Entry/Stop/Target
         entry_price = candidate.current_price
         stop_loss = None
         target_price = None
-        
+
         if candidate.support_levels:
             # Stop below the nearest support
-            nearest_support = min(candidate.support_levels, 
+            nearest_support = min(candidate.support_levels,
                                   key=lambda x: abs(x - entry_price))
             stop_loss = nearest_support * 0.98  # 2% unter Support
-            
+
             # Target at next resistance or 2:1 R/R
             if candidate.resistance_levels:
                 target_price = min(candidate.resistance_levels,
                                    key=lambda x: x if x > entry_price else float('inf'))
-            
+
             if not target_price or target_price <= entry_price:
                 # Fallback: 2:1 Risk/Reward
                 risk = entry_price - stop_loss
                 target_price = entry_price + (risk * 2)
-        
+
         return TradeSignal(
             symbol=symbol,
             strategy=self.strategy_name,
@@ -229,7 +212,7 @@ class PullbackAnalyzer(BaseAnalyzer):
                 'max_possible': max_possible
             }
         )
-    
+
     def analyze_detailed(
         self,
         symbol: str,
@@ -353,14 +336,14 @@ class PullbackAnalyzer(BaseAnalyzer):
             above_sma200=above_sma200,
             trend=trend
         )
-        
+
         # Fibonacci
         lookback = self.config.fibonacci.lookback_days
         fib_levels = self._calculate_fibonacci(
-            max(highs[-lookback:]), 
+            max(highs[-lookback:]),
             min(lows[-lookback:])
         )
-        
+
         # Scoring
         breakdown = ScoreBreakdown()
 
@@ -485,7 +468,7 @@ class PullbackAnalyzer(BaseAnalyzer):
         breakdown.gap_filled = gap_result[3]
         breakdown.gap_reason = gap_result[4]
 
-        # Resolve weights from config (4-layer: Base → Regime → Sector → Regime×Sector)
+        # Resolve weights from config (4-layer: Base -> Regime -> Sector -> Regime x Sector)
         regime = getattr(context, 'regime', 'normal') if context else 'normal'
         sector = getattr(context, 'sector', None) if context else None
         try:
@@ -558,7 +541,7 @@ class PullbackAnalyzer(BaseAnalyzer):
             avg_volume=avg_volume,
             current_volume=current_volume
         )
-    
+
     def _build_reason(self, candidate: PullbackCandidate) -> str:
         """Creates reasoning from score breakdown (extended for new components)"""
         reasons = []
@@ -651,7 +634,7 @@ class PullbackAnalyzer(BaseAnalyzer):
             reasons.append(f"Up-gap caution")
 
         return " | ".join(reasons) if reasons else "Weak setup"
-    
+
     def _validate_inputs(
         self,
         symbol: str,
@@ -664,23 +647,23 @@ class PullbackAnalyzer(BaseAnalyzer):
         arrays = {'prices': prices, 'volumes': volumes, 'highs': highs, 'lows': lows}
         lengths = {name: len(arr) for name, arr in arrays.items()}
         unique_lengths = set(lengths.values())
-        
+
         if len(unique_lengths) != 1:
             raise ValueError(
                 f"All input arrays must have same length. Got: "
                 f"{', '.join(f'{k}={v}' for k, v in lengths.items())}"
             )
-        
+
         if len(prices) == 0:
             raise ValueError("Input arrays cannot be empty")
-        
+
         for name, arr in [('prices', prices), ('highs', highs), ('lows', lows)]:
             if any(v is None for v in arr):
                 raise ValueError(f"{name} contains None values")
-        
+
         if any(p <= 0 for p in prices):
             raise ValueError("All prices must be positive (> 0)")
-        
+
         invalid_bars = [
             (i, h, l) for i, (h, l) in enumerate(zip(highs, lows))
             if h < l
@@ -691,7 +674,7 @@ class PullbackAnalyzer(BaseAnalyzer):
                 f"High must be >= Low. First violation at index {first_invalid[0]}: "
                 f"high={first_invalid[1]}, low={first_invalid[2]}"
             )
-        
+
         tolerance = 0.0001
         for i, (p, h, l) in enumerate(zip(prices, highs, lows)):
             if p > h * (1 + tolerance) or p < l * (1 - tolerance):
@@ -699,43 +682,43 @@ class PullbackAnalyzer(BaseAnalyzer):
                     f"{symbol}: Close price {p} outside High/Low range "
                     f"[{l}, {h}] at index {i}"
                 )
-    
+
     # =========================================================================
     # INDICATORS - CALCULATION
     # =========================================================================
-    
+
     def _calculate_rsi(self, prices: List[float], period: int) -> float:
         """RSI mit Wilder's Smoothing"""
         if len(prices) < period + 1:
             return 50.0
-        
+
         deltas = np.diff(prices)
         gains = np.where(deltas > 0, deltas, 0)
         losses = np.where(deltas < 0, -deltas, 0)
-        
+
         avg_gain = np.mean(gains[:period])
         avg_loss = np.mean(losses[:period])
-        
+
         for i in range(period, len(gains)):
             avg_gain = (avg_gain * (period - 1) + gains[i]) / period
             avg_loss = (avg_loss * (period - 1) + losses[i]) / period
-        
+
         if avg_loss == 0:
             return 100.0
-        
+
         rs = avg_gain / avg_loss
         return 100 - (100 / (1 + rs))
-    
+
     def _calculate_sma(self, prices: List[float], period: int) -> float:
         """Simple Moving Average"""
         if len(prices) < period:
             return prices[-1]
         return float(np.mean(prices[-period:]))
-    
+
     def _calculate_ema(self, prices: List[float], period: int) -> List[float]:
         """Calculates EMA. Delegates to shared indicators library."""
         return calculate_ema(prices, period)
-    
+
     def _calculate_macd(self, prices: List[float]) -> Optional[MACDResult]:
         """Calculates MACD. Delegates to shared indicators library."""
         return calculate_macd(
@@ -744,7 +727,7 @@ class PullbackAnalyzer(BaseAnalyzer):
             slow_period=self.MACD_SLOW,
             signal_period=self.MACD_SIGNAL
         )
-    
+
     def _calculate_stochastic(
         self,
         highs: List[float],
@@ -758,7 +741,7 @@ class PullbackAnalyzer(BaseAnalyzer):
             smooth=self.STOCH_SMOOTH,
             oversold=self.STOCH_OVERSOLD, overbought=self.STOCH_OVERBOUGHT
         )
-    
+
     def _calculate_fibonacci(self, high: float, low: float) -> Dict[str, float]:
         """Fibonacci Retracement Levels"""
         diff = high - low
@@ -771,583 +754,3 @@ class PullbackAnalyzer(BaseAnalyzer):
             '78.6%': high - diff * 0.786,
             '100.0%': low
         }
-    
-    # =========================================================================
-    # SCORING
-    # =========================================================================
-
-    def _score_rsi_divergence(
-        self,
-        divergence: Optional[RSIDivergenceResult]
-    ) -> Tuple[float, str]:
-        """
-        RSI Divergence Score (0-3 points).
-
-        Bullish divergence is a strong signal for pullback entry:
-        - Price makes lower low
-        - RSI makes higher low
-        - Selling pressure decreasing -> bottom formation likely
-
-        Bearish divergence is a warning signal (no point deduction, but warning).
-        """
-        if not divergence:
-            return 0, "No RSI divergence detected"
-
-        if divergence.divergence_type == 'bullish':
-            # Scoring based on divergence strength
-            strength = divergence.strength
-
-            if strength >= 0.7:
-                score = 3.0
-                reason = f"Strong bullish divergence (strength: {strength:.0%}, {divergence.formation_days} days)"
-            elif strength >= 0.4:
-                score = 2.0
-                reason = f"Moderate bullish divergence (strength: {strength:.0%}, {divergence.formation_days} days)"
-            else:
-                score = 1.0
-                reason = f"Weak bullish divergence (strength: {strength:.0%}, {divergence.formation_days} days)"
-
-            return score, reason
-
-        elif divergence.divergence_type == 'bearish':
-            # Bearish divergence in pullback = warning signal, but no deduction
-            return 0, f"Bearish divergence detected - caution! (strength: {divergence.strength:.0%})"
-
-        return 0, "No significant divergence"
-
-    def _score_rsi(self, rsi: float) -> Tuple[float, str]:
-        """RSI Score (0-3 points)"""
-        cfg = self.config.rsi
-        
-        if rsi < cfg.extreme_oversold:
-            return cfg.weight_extreme, f"RSI {rsi:.1f} < {cfg.extreme_oversold} (extreme oversold)"
-        elif rsi < cfg.oversold:
-            return cfg.weight_oversold, f"RSI {rsi:.1f} < {cfg.oversold} (oversold)"
-        elif rsi < cfg.neutral:
-            return cfg.weight_neutral, f"RSI {rsi:.1f} < {cfg.neutral} (neutral-low)"
-        else:
-            return 0, f"RSI {rsi:.1f} >= {cfg.neutral} (not oversold)"
-    
-    def _score_support(self, price: float, supports: List[float]) -> Tuple[float, str]:
-        """Support proximity Score (0-2 points)"""
-        if not supports:
-            return 0, "No support levels found"
-        
-        cfg = self.config.support
-        nearest = min(supports, key=lambda x: abs(x - price))
-        distance_pct = abs(price - nearest) / price * 100
-        
-        if distance_pct <= cfg.proximity_percent:
-            return cfg.weight_close, f"Within {cfg.proximity_percent}% of support ${nearest:.2f}"
-        elif distance_pct <= cfg.proximity_percent_wide:
-            return cfg.weight_near, f"Within {cfg.proximity_percent_wide}% of support ${nearest:.2f}"
-        else:
-            return 0, f"{distance_pct:.1f}% from nearest support"
-    
-    def _score_fibonacci(
-        self,
-        price: float,
-        fib_levels: Dict[str, float]
-    ) -> Tuple[float, Optional[str], str]:
-        """Fibonacci Score (0-2 points)"""
-        for lvl in self.config.fibonacci.levels:
-            level_name = f"{lvl.level * 100:.1f}%"
-            level_price = fib_levels.get(level_name)
-            
-            if level_price and abs(price - level_price) / price <= lvl.tolerance:
-                return lvl.points, level_name, f"At Fib {level_name}"
-        
-        return 0, None, "Not at significant Fib level"
-    
-    def _score_moving_averages(
-        self,
-        price: float,
-        sma_20: float,
-        sma_200: float
-    ) -> Tuple[float, str]:
-        """Moving Average Score (0-2 points)"""
-        if price > sma_200 and price < sma_20:
-            return 2, "Dip in uptrend (price > SMA200, < SMA20)"
-        elif price > sma_200 and price > sma_20:
-            return 0, "Strong uptrend, no pullback"
-        elif price < sma_200:
-            return 0, "Below SMA200, no primary uptrend"
-        
-        return 0, "MA config doesn't indicate pullback"
-    
-    def _score_volume(self, current: int, average: int) -> Tuple[float, str, str]:
-        """
-        Volume Score (0-1 point)
-
-        NEW: Decreasing volume during pullback = healthy (no panic selling)
-        """
-        if average == 0:
-            return 0, "No average volume data", "unknown"
-
-        ratio = current / average
-        cfg = self.config.volume
-
-        # NEW: Decreasing volume is POSITIVE during a pullback
-        if ratio < cfg.decrease_threshold:
-            return cfg.weight_decreasing, f"Low volume pullback: {ratio:.1f}x avg (healthy)", "decreasing"
-        elif ratio >= cfg.spike_multiplier:
-            # High volume during pullback = potentially problematic (panic)
-            return 0, f"Volume spike: {ratio:.1f}x avg (caution)", "increasing"
-        else:
-            return 0, f"Volume normal: {ratio:.1f}x avg", "stable"
-
-    def _score_macd(self, macd: Optional[MACDResult]) -> Tuple[float, str, str]:
-        """
-        MACD Score (0-2 points)
-
-        - Bullish Cross: 2 points (strong reversal signal)
-        - Histogram positive: 1 point
-        """
-        if not macd:
-            return 0, "No MACD data", "neutral"
-
-        cfg = self.config.macd
-
-        if macd.crossover == 'bullish':
-            return cfg.weight_bullish_cross, "MACD bullish crossover", "bullish_cross"
-        elif macd.histogram and macd.histogram > 0:
-            return cfg.weight_bullish, "MACD histogram positive", "bullish"
-        elif macd.histogram and macd.histogram < 0:
-            return 0, "MACD histogram negative", "bearish"
-
-        return cfg.weight_neutral, "MACD neutral", "neutral"
-
-    def _score_stochastic(self, stoch: Optional[StochasticResult]) -> Tuple[float, str, str]:
-        """
-        Stochastic Score (0-2 points)
-
-        - Oversold + Bullish Cross: 2 points (very strong signal)
-        - Only Oversold: 1 point
-        """
-        if not stoch:
-            return 0, "No Stochastic data", "neutral"
-
-        cfg = self.config.stochastic
-
-        if stoch.zone == 'oversold':
-            if stoch.crossover == 'bullish':
-                return cfg.weight_oversold_cross, f"Stoch oversold ({stoch.k:.0f}) + bullish cross", "oversold_bullish_cross"
-            return cfg.weight_oversold, f"Stoch oversold ({stoch.k:.0f})", "oversold"
-        elif stoch.zone == 'overbought':
-            return 0, f"Stoch overbought ({stoch.k:.0f})", "overbought"
-
-        return 0, f"Stoch neutral ({stoch.k:.0f})", "neutral"
-
-    def _score_trend_strength(
-        self,
-        prices: List[float],
-        sma_20: float,
-        sma_50: Optional[float],
-        sma_200: float
-    ) -> Tuple[float, str, float, str]:
-        """
-        Trend Strength Score (0-2 points)
-
-        - Strong alignment (SMA20 > SMA50 > SMA200): 2 points
-        - Moderate alignment (Price > SMA200): 1 point
-        - No alignment: 0 points
-
-        Returns:
-            (score, alignment, sma20_slope, reason)
-        """
-        cfg = self.config.trend_strength
-        current_price = prices[-1]
-
-        # Calculate SMA20 slope
-        slope_lookback = min(cfg.slope_lookback, len(prices) - 1)
-        if slope_lookback > 0:
-            sma20_recent = sum(prices[-20:]) / 20 if len(prices) >= 20 else current_price
-            sma20_older = sum(prices[-20-slope_lookback:-slope_lookback]) / 20 if len(prices) >= 20 + slope_lookback else sma20_recent
-            sma20_slope = (sma20_recent - sma20_older) / sma20_older if sma20_older > 0 else 0
-        else:
-            sma20_slope = 0
-
-        # Check SMA alignment
-        if sma_50 is not None:
-            # Full alignment: SMA20 > SMA50 > SMA200
-            if sma_20 > sma_50 > sma_200 and current_price > sma_200:
-                if sma20_slope >= cfg.min_positive_slope:
-                    return cfg.weight_strong_alignment, "strong", sma20_slope, "Strong uptrend (SMA20 > SMA50 > SMA200, rising)"
-                else:
-                    return cfg.weight_moderate_alignment, "moderate", sma20_slope, "Aligned SMAs but flat/declining slope"
-            elif current_price > sma_200 and sma_20 > sma_200:
-                return cfg.weight_moderate_alignment, "moderate", sma20_slope, "Above SMA200, partial alignment"
-        else:
-            # Without SMA50: Only check SMA20 vs SMA200
-            if sma_20 > sma_200 and current_price > sma_200:
-                if sma20_slope >= cfg.min_positive_slope:
-                    return cfg.weight_strong_alignment, "strong", sma20_slope, "Strong uptrend (SMA20 > SMA200, rising)"
-                else:
-                    return cfg.weight_moderate_alignment, "moderate", sma20_slope, "Above SMA200 but flat slope"
-
-        # No uptrend
-        if current_price < sma_200:
-            return 0, "none", sma20_slope, "Below SMA200 - no uptrend"
-
-        return 0, "weak", sma20_slope, "Weak trend structure"
-
-    def _score_support_with_strength(
-        self,
-        price: float,
-        supports: List[float],
-        volumes: Optional[List[int]] = None,
-        lows: Optional[List[float]] = None
-    ) -> Tuple[float, str, str, int]:
-        """
-        Extended support scoring with strength rating.
-
-        Returns:
-            (score, reason, strength, touches)
-        """
-        if not supports:
-            return 0, "No support levels found", "none", 0
-
-        cfg = self.config.support
-        nearest = min(supports, key=lambda x: abs(x - price))
-        distance_pct = abs(price - nearest) / price * 100
-
-        # Estimate support strength based on frequency
-        touches = 0
-        strength = "weak"
-
-        if lows is not None:
-            tolerance = nearest * (cfg.touch_tolerance_pct / 100)
-            touches = sum(1 for low in lows[-cfg.lookback_days:] if abs(low - nearest) <= tolerance)
-
-            if touches >= cfg.min_touches + 2:
-                strength = "strong"
-            elif touches >= cfg.min_touches:
-                strength = "moderate"
-            else:
-                strength = "weak"
-
-        # Scoring based on distance AND strength
-        base_score = 0
-        if distance_pct <= cfg.proximity_percent:
-            base_score = cfg.weight_close
-        elif distance_pct <= cfg.proximity_percent_wide:
-            base_score = cfg.weight_near
-
-        # Bonus for strong support
-        if strength == "strong" and base_score > 0:
-            base_score += 0.5  # Bonus for strong support
-
-        reason = f"Within {distance_pct:.1f}% of {strength} support ${nearest:.2f} ({touches} touches)"
-        return base_score, reason, strength, touches
-
-    # =========================================================================
-    # SIGNAL HELPER (Legacy - for backward compatibility)
-    # =========================================================================
-
-    def _get_macd_signal(self, macd: Optional[MACDResult]) -> Optional[str]:
-        """Determines MACD signal for display"""
-        if not macd:
-            return None
-        
-        if macd.crossover == 'bullish':
-            return 'bullish_cross'
-        elif macd.crossover == 'bearish':
-            return 'bearish_cross'
-        elif macd.histogram > 0:
-            return 'bullish'
-        elif macd.histogram < 0:
-            return 'bearish'
-        
-        return 'neutral'
-    
-    def _get_stoch_signal(self, stoch: Optional[StochasticResult]) -> Optional[str]:
-        """Determines Stochastic signal for display"""
-        if not stoch:
-            return None
-
-        if stoch.zone == 'oversold':
-            if stoch.crossover == 'bullish':
-                return 'oversold_bullish_cross'
-            return 'oversold'
-        elif stoch.zone == 'overbought':
-            if stoch.crossover == 'bearish':
-                return 'overbought_bearish_cross'
-            return 'overbought'
-
-        return 'neutral'
-
-    # =========================================================================
-    # KELTNER CHANNEL
-    # =========================================================================
-
-    def _calculate_keltner_channel(
-        self,
-        prices: List[float],
-        highs: List[float],
-        lows: List[float]
-    ) -> Optional[KeltnerChannelResult]:
-        """Calculates Keltner Channel. Delegates to shared indicators library."""
-        cfg = self.config.keltner
-        return calculate_keltner_channel(
-            prices=prices, highs=highs, lows=lows,
-            ema_period=cfg.ema_period, atr_period=cfg.atr_period,
-            atr_multiplier=cfg.atr_multiplier
-        )
-
-    def _calculate_atr(
-        self,
-        highs: List[float],
-        lows: List[float],
-        closes: List[float],
-        period: int = 14
-    ) -> Optional[float]:
-        """Calculates ATR (SMA-based). Delegates to shared indicators library."""
-        return calculate_atr_simple(highs, lows, closes, period)
-
-    def _score_keltner(
-        self,
-        keltner: KeltnerChannelResult,
-        current_price: float
-    ) -> Tuple[float, str]:
-        """
-        Keltner Channel Score (0-2 points).
-
-        Scoring logic for pullbacks:
-        - Price below lower band: 2 points (strongly oversold, mean reversion expected)
-        - Price near lower band: 1 point (pullback in oversold territory)
-        - Price in channel: 0 points (neutral)
-        - Price above upper band: 0 points (overbought, no pullback setup)
-
-        Returns:
-            (score, reason)
-        """
-        cfg = self.config.keltner
-        position = keltner.price_position
-        pct = keltner.percent_position
-
-        if position == 'below_lower':
-            return cfg.weight_below_lower, f"Price below Keltner Lower Band ({pct:.2f})"
-
-        if position == 'near_lower':
-            # Near lower band = potential buy opportunity
-            return cfg.weight_near_lower, f"Price near Keltner Lower Band ({pct:.2f})"
-
-        if position == 'in_channel' and pct < KELTNER_NEUTRAL_LOW:
-            # In channel, but in lower third
-            return cfg.weight_mean_reversion * 0.5, f"Pullback in lower channel area ({pct:.2f})"
-
-        if position == 'above_upper':
-            # Overbought = no pullback signal
-            return 0, f"Price above Keltner Upper Band ({pct:.2f}) - overbought"
-
-        return 0, f"Price in neutral channel position ({pct:.2f})"
-
-    # =========================================================================
-    # NEW SCORING METHODS (from Feature Engineering Training)
-    # =========================================================================
-
-    def _score_vwap(
-        self,
-        prices: List[float],
-        volumes: List[int]
-    ) -> Tuple[float, float, float, str, str]:
-        """
-        VWAP Score (0-3 points).
-
-        Based on Feature Engineering Training:
-        - Above VWAP >3%: 91.9% win rate → 3 points
-        - Above VWAP 1-3%: 87.6% win rate → 2 points
-        - Near VWAP: 78.3% win rate → 1 point
-        - Below VWAP: 51.7-66.1% win rate → 0 points
-
-        Returns:
-            (score, vwap_value, distance_pct, position, reason)
-        """
-        vwap_result = calculate_vwap(prices, volumes, period=VWAP_PERIOD)
-
-        if not vwap_result:
-            return 0, 0, 0, "unknown", "Insufficient data for VWAP"
-
-        vwap = vwap_result.vwap
-        distance = vwap_result.distance_pct
-        position = vwap_result.position
-
-        # Scoring based on training results
-        if distance > VWAP_STRONG_ABOVE:
-            score = 3.0
-            reason = f"Strong momentum: {distance:.1f}% above VWAP (91.9% win rate)"
-        elif distance > VWAP_ABOVE:
-            score = 2.0
-            reason = f"Above VWAP: {distance:.1f}% (87.6% win rate)"
-        elif distance > VWAP_BELOW:
-            score = 1.0
-            reason = f"Near VWAP: {distance:.1f}% (78.3% win rate)"
-        elif distance > VWAP_STRONG_BELOW:
-            score = 0.0
-            reason = f"Below VWAP: {distance:.1f}% (66.1% win rate)"
-        else:
-            score = 0.0
-            reason = f"Weak: {distance:.1f}% below VWAP (51.7% win rate)"
-
-        return score, vwap, distance, position, reason
-
-    def _score_market_context(
-        self,
-        spy_prices: Optional[List[float]]
-    ) -> Tuple[float, str, str]:
-        """
-        Market Context Score (0-2 points).
-
-        Based on Feature Engineering Training:
-        - Strong uptrend: 76.1% win rate, +$1.03M → 2 points
-        - Uptrend: 70.9% win rate → 1 point
-        - Sideways: neutral → 0 points
-        - Downtrend: 60.1% win rate, -$470k → -0.5 points (penalty)
-        - Strong downtrend: 59.3% win rate → -1 point (penalty)
-
-        Returns:
-            (score, spy_trend, reason)
-        """
-        if not spy_prices or len(spy_prices) < SMA_MEDIUM:
-            return 0, "unknown", "No SPY data for market context"
-
-        # Determine SPY trend
-        current = spy_prices[-1]
-        sma20 = float(np.mean(spy_prices[-SMA_SHORT:]))
-        sma50 = float(np.mean(spy_prices[-SMA_MEDIUM:]))
-
-        if current > sma20 > sma50:
-            trend = "strong_uptrend"
-            score = 2.0
-            reason = "Strong market uptrend (76.1% win rate)"
-        elif current > sma50 and current > sma20:
-            trend = "uptrend"
-            score = 1.0
-            reason = "Market uptrend (70.9% win rate)"
-        elif current > sma50:
-            trend = "sideways"
-            score = 0.0
-            reason = "Market sideways"
-        elif current < sma20 < sma50:
-            trend = "strong_downtrend"
-            score = -1.0
-            reason = "Strong market downtrend - CAUTION (59.3% win rate)"
-        else:
-            trend = "downtrend"
-            score = -0.5
-            reason = "Market downtrend - reduced expectation (60.1% win rate)"
-
-        return score, trend, reason
-
-    def _score_sector(self, symbol: str) -> Tuple[float, str, str]:
-        """
-        Sector Score (-1 to +1 point).
-
-        Based on Feature Engineering Training:
-        - Consumer Staples: +9% win rate → +0.9 points
-        - Utilities: +6.8% → +0.7 points
-        - Financials: +6.4% → +0.6 points
-        - Technology: -10% → -1.0 points
-        - Materials: -7.5% → -0.75 points
-
-        Returns:
-            (score, sector_name, reason)
-        """
-        sector = get_sector(symbol)
-        adjustment = get_sector_adjustment(symbol)
-
-        if adjustment > 0.5:
-            reason = f"{sector}: strong sector (+{adjustment*10:.0f}% win rate)"
-        elif adjustment > 0:
-            reason = f"{sector}: favorable sector (+{adjustment*10:.0f}% win rate)"
-        elif adjustment < -0.5:
-            reason = f"{sector}: challenging sector ({adjustment*10:.0f}% win rate)"
-        elif adjustment < 0:
-            reason = f"{sector}: slightly unfavorable ({adjustment*10:.0f}% win rate)"
-        else:
-            reason = f"{sector}: neutral sector"
-
-        return adjustment, sector, reason
-
-    def _score_gap(
-        self,
-        prices: List[float],
-        highs: List[float],
-        lows: List[float],
-        context: Optional[AnalysisContext] = None
-    ) -> Tuple[float, str, float, bool, str]:
-        """
-        Gap Score (0-1 für down-gaps, -0.5 bis 0 für up-gaps).
-
-        Validated with 174k+ Gap Events (907 symbols, 5 years):
-        - Down-gaps: +0.43% better 30d returns, +1.9pp higher win rate
-        - Large down-gaps (>3%): +1.21% outperformance at 5d
-        - 30-Day Win Rate: 56.7% (down) vs 54.8% (up)
-
-        Returns:
-            (score, gap_type, gap_size_pct, is_filled, reason)
-        """
-        # Use context if available (already calculated)
-        if context and hasattr(context, 'gap_result') and context.gap_result:
-            gap = context.gap_result
-            gap_type = gap.gap_type
-            gap_size = gap.gap_size_pct
-            is_filled = gap.is_filled
-            quality_score = gap.quality_score
-
-            # Convert quality_score (-1 to +1) to display score
-            if gap_type in ('down', 'partial_down'):
-                score = max(0, quality_score)  # 0 to 1
-                if abs(gap_size) >= GAP_SIZE_LARGE:
-                    reason = f"Large down-gap: {gap_size:.1f}% - strong entry (+1.21% outperformance)"
-                elif abs(gap_size) >= GAP_SIZE_MEDIUM:
-                    reason = f"Down-gap: {gap_size:.1f}% - favorable entry (+0.43% 30d)"
-                else:
-                    reason = f"Small down-gap: {gap_size:.1f}% - mild positive"
-            elif gap_type in ('up', 'partial_up'):
-                score = min(0, quality_score)  # -0.5 to 0
-                if abs(gap_size) >= GAP_SIZE_LARGE:
-                    reason = f"Large up-gap: {gap_size:+.1f}% - caution, overbought risk"
-                elif abs(gap_size) >= GAP_SIZE_MEDIUM:
-                    reason = f"Up-gap: {gap_size:+.1f}% - short-term momentum"
-                else:
-                    reason = f"Small up-gap: {gap_size:+.1f}% - neutral"
-            else:
-                score = 0.0
-                gap_type = "none"
-                gap_size = 0.0
-                is_filled = False
-                reason = "No significant gap"
-
-            return score, gap_type, gap_size, is_filled, reason
-
-        # Calculate directly if context not available
-        if len(prices) < 2:
-            return 0.0, "none", 0.0, False, "Insufficient data"
-
-        try:
-            # Approximate opens from closes (previous close)
-            opens = [prices[0]] + prices[:-1]
-
-            gap_result = analyze_gap(
-                opens=opens,
-                highs=highs,
-                lows=lows,
-                closes=prices,
-                lookback_days=GAP_LOOKBACK_DAYS,
-                min_gap_pct=abs(GAP_SIZE_SMALL_NEG),
-            )
-
-            if gap_result and gap_result.gap_type != 'none':
-                # Recursively call with context
-                class TempContext:
-                    pass
-                temp_ctx = TempContext()
-                temp_ctx.gap_result = gap_result
-                return self._score_gap(prices, highs, lows, temp_ctx)
-            else:
-                return 0.0, "none", 0.0, False, "No significant gap"
-
-        except Exception as e:
-            logger.debug(f"Gap scoring error: {e}")
-            return 0.0, "none", 0.0, False, "Gap analysis error"

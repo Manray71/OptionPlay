@@ -23,12 +23,10 @@ Usage:
 # mypy: warn_unused_ignores=False
 from __future__ import annotations
 
-import asyncio
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, date
-from typing import List, Dict, Optional, Any, Callable, Tuple
-from enum import Enum
+from datetime import datetime
+from typing import Dict, Optional, Any, Callable
 
 # Relative imports
 try:
@@ -42,34 +40,14 @@ try:
         VIXStrategySelector,
         MarketRegime,
         StrategyRecommendation,
-        VIXThresholds,
     )
-    from ..strike_recommender import (
-        StrikeRecommender,
-        StrikeRecommendation,
-    )
+    from ..strike_recommender import StrikeRecommender
     from ..models.base import TradeSignal
-    from ..cache.symbol_fundamentals import (
-        get_fundamentals_manager,
-        SymbolFundamentals,
-    )
-    from ..constants import (
-        VIX_LOW, VIX_NORMAL, VIX_ELEVATED, VIX_HIGH,
-        STABILITY_PREMIUM, STABILITY_GOOD, STABILITY_OK,
-        MIN_SCORE_DEFAULT,
-    )
+    from ..cache.symbol_fundamentals import get_fundamentals_manager
     from ..constants.trading_rules import (
         ENTRY_STABILITY_MIN,
-        ENTRY_EARNINGS_MIN_DAYS,
         ENTRY_VIX_MAX_NEW_TRADES,
-        BLACKLIST_SYMBOLS,
-        is_blacklisted,
-        get_adjusted_stability_min,
         SIZING_MAX_PER_SECTOR,
-        SPREAD_DTE_MIN,
-        SPREAD_DTE_MAX,
-        LIQUIDITY_MIN_QUALITY_DAILY_PICKS,
-        get_vix_regime,
         get_regime_rules,
     )
     from .signal_filter import (
@@ -81,6 +59,7 @@ try:
         format_picks_markdown as _format_picks_markdown,
         format_single_pick as _format_single_pick,
     )
+    from .recommendation_ranking import RecommendationRankingMixin
 except ImportError:
     from scanner.multi_strategy_scanner import (  # type: ignore[no-redef]
         MultiStrategyScanner,
@@ -92,22 +71,10 @@ except ImportError:
         VIXStrategySelector,
         MarketRegime,
         StrategyRecommendation,
-        VIXThresholds,
     )
-    from strike_recommender import (  # type: ignore[no-redef]
-        StrikeRecommender,
-        StrikeRecommendation,
-    )
+    from strike_recommender import StrikeRecommender  # type: ignore[no-redef]
     from models.base import TradeSignal  # type: ignore[no-redef]
-    from cache.symbol_fundamentals import (  # type: ignore[no-redef]
-        get_fundamentals_manager,
-        SymbolFundamentals,
-    )
-    from constants import (  # type: ignore[no-redef]
-        VIX_LOW, VIX_NORMAL, VIX_ELEVATED, VIX_HIGH,
-        STABILITY_PREMIUM, STABILITY_GOOD, STABILITY_OK,
-        MIN_SCORE_DEFAULT,
-    )
+    from cache.symbol_fundamentals import get_fundamentals_manager  # type: ignore[no-redef]
     from services.signal_filter import (  # type: ignore[no-redef]
         apply_blacklist_filter,
         apply_stability_filter,
@@ -117,6 +84,7 @@ except ImportError:
         format_picks_markdown as _format_picks_markdown,
         format_single_pick as _format_single_pick,
     )
+    from services.recommendation_ranking import RecommendationRankingMixin  # type: ignore[no-redef]
 
 logger = logging.getLogger(__name__)
 
@@ -279,7 +247,7 @@ class DailyRecommendationResult:
 # DAILY RECOMMENDATION ENGINE
 # =============================================================================
 
-class DailyRecommendationEngine:
+class DailyRecommendationEngine(RecommendationRankingMixin):
     """
     Engine für tägliche Trading-Empfehlungen.
 
@@ -288,6 +256,9 @@ class DailyRecommendationEngine:
     - VIX Strategy Selector für Markt-Regime-Anpassung
     - Strike Recommender für optimale Spread-Empfehlungen
     - Symbol Fundamentals für Stability und Sektor-Info
+
+    Ranking, speed-scoring and strike-recommendation logic lives in
+    RecommendationRankingMixin (recommendation_ranking.py).
 
     Workflow:
     1. VIX-Level abrufen und Regime bestimmen
@@ -627,427 +598,6 @@ class DailyRecommendationEngine:
         return apply_sector_diversification(
             signals, max_per_sector, self._fundamentals_manager
         )
-
-    # Sektor-Speed-Map aus Phase 4 Analyse (avg days_to_playbook_exit)
-    SECTOR_SPEED = {
-        'Utilities': 1.0,
-        'Healthcare': 0.9,
-        'Real Estate': 0.85,
-        'Consumer Defensive': 0.7,
-        'Financial Services': 0.6,
-        'Industrials': 0.5,
-        'Consumer Cyclical': 0.4,
-        'Communication Services': 0.3,
-        'Energy': 0.2,
-        'Technology': 0.1,
-        'Basic Materials': 0.0,
-    }
-
-    def compute_speed_score(
-        self,
-        dte: float,
-        stability_score: float,
-        sector: Optional[str],
-        pullback_score: Optional[float] = None,
-        market_context_score: Optional[float] = None,
-    ) -> float:
-        """
-        Schätzt wie schnell der PLAYBOOK-Exit erreicht wird.
-
-        Basiert auf Phase 4 Korrelationsanalyse:
-        - DTE näher an 60 = schneller (r=+0.259)
-        - Höhere Stability = schneller (Bucket: >80→34d vs <50→61d)
-        - Defensive Sektoren = schneller (Utilities 32.5d vs Tech 40.5d)
-        - Stärkerer Pullback = schneller (r=-0.073)
-        - Besserer Marktkontext = schneller (r=-0.081)
-
-        Returns:
-            Speed Score 0-10 (höher = schnellerer Exit erwartet)
-        """
-        score = 0.0
-
-        # 1. DTE-Bonus: Näher an 60 = schneller (Max 3.0)
-        dte_factor = max(0.0, 1.0 - (dte - 60) / 30)
-        score += dte_factor * 3.0
-
-        # 2. Stability-Bonus: Höher = schneller (Max 2.5)
-        stab_factor = max(0.0, (stability_score - 70) / 30)
-        score += stab_factor * 2.5
-
-        # 3. Sektor-Bonus (Max 1.5) × Cycle Factor (0.6-1.2)
-        base_sector_speed = self.SECTOR_SPEED.get(sector, 0.5) * 1.5
-        cycle_factor = self._sector_factors.get(sector, 1.0) if self._sector_factors else 1.0
-        score += base_sector_speed * cycle_factor
-
-        # 4. Pullback-Score-Bonus (Max 1.5)
-        if pullback_score is not None:
-            score += min(pullback_score / 10, 1.0) * 1.5
-
-        # 5. Market-Context-Bonus (Max 1.5)
-        if market_context_score is not None:
-            score += min(max(market_context_score, 0) / 10, 1.0) * 1.5
-
-        return min(score, 10.0)
-
-    def _rank_signals(
-        self,
-        signals: list[TradeSignal],
-    ) -> list[TradeSignal]:
-        """
-        Rankt Signale nach kombiniertem Score mit Speed-Multiplikator.
-
-        Formel:
-            base = (1 - weight) * signal_score + weight * (stability / 10)
-            speed_normalized = 0.5 + (speed / 10)    # 0→0.5, 5→1.0, 10→1.5
-            combined = base * (speed_normalized ** exponent)
-
-        Speed^0.3 Multiplikator-Effekte:
-            Speed 0:  0.81x | Speed 5: 1.00x | Speed 10: 1.13x
-
-        Args:
-            signals: Liste von Signalen
-
-        Returns:
-            Nach kombiniertem Score sortierte Signal-Liste
-        """
-        weight: float = self.config['stability_weight']
-        speed_exponent: float = self.config.get('speed_exponent', 0.3)
-
-        def get_combined_score(signal: TradeSignal) -> float:
-            """Returns combined score with speed multiplier."""
-            # Signal-Score (0-10)
-            signal_score = signal.score
-
-            # Stability-Score (0-100) -> normalisiert auf 0-10
-            stability = 0.0
-            sector = None
-            pullback_score = None
-            market_context_score = None
-
-            if signal.details and 'stability' in signal.details:
-                stability = signal.details['stability'].get('score', 0.0)
-
-            if self._fundamentals_manager:
-                fundamentals = self._fundamentals_manager.get_fundamentals(signal.symbol)
-                if fundamentals:
-                    if stability == 0.0 and fundamentals.stability_score:
-                        stability = fundamentals.stability_score
-                    sector = fundamentals.sector
-
-            # Fallback: Sektor aus Signal-Details
-            if sector is None and signal.details:
-                sector = signal.details.get('sector')
-
-            # Pullback/Market-Context aus Signal-Details extrahieren
-            if signal.details:
-                scores = signal.details.get('scores', {})
-                pullback_score = scores.get('pullback_score')
-                market_context_score = scores.get('market_context_score')
-
-            # Base Score: 70% Signal + 30% Stability
-            base = (1 - weight) * signal_score + weight * (stability / 10)
-
-            # Speed Score berechnen
-            dte = signal.details.get('dte', 75) if signal.details else 75
-            speed = self.compute_speed_score(
-                dte=dte,
-                stability_score=stability,
-                sector=sector,
-                pullback_score=pullback_score,
-                market_context_score=market_context_score,
-            )
-
-            # Speed^exponent Multiplikator (PLAYBOOK)
-            # Normalisierung: Speed 0-10 → 0.5-1.5, dann ^0.3
-            speed_normalized = 0.5 + (speed / 10.0)
-            combined = base * (speed_normalized ** speed_exponent)
-
-            return float(combined)
-
-        # Scores berechnen und sortieren
-        signals_with_scores = [(s, get_combined_score(s)) for s in signals]
-        signals_with_scores.sort(key=lambda x: x[1], reverse=True)
-
-        return [s for s, _ in signals_with_scores]
-
-    async def _create_daily_pick(
-        self,
-        rank: int,
-        signal: TradeSignal,
-        regime: MarketRegime,
-        options_fetcher: Optional[Callable[..., Any]] = None,
-    ) -> DailyPick:
-        """
-        Erstellt einen DailyPick aus einem Signal.
-
-        Args:
-            rank: Rang (1, 2, 3, ...)
-            signal: TradeSignal
-            regime: Aktuelles Markt-Regime
-            options_fetcher: Optional: Async-Funktion zum Abrufen der Options-Chain
-
-        Returns:
-            DailyPick mit Strike-Empfehlung
-        """
-        # Stability und Win-Rate aus Signal-Details
-        stability_score = 0.0
-        historical_wr = None
-        if signal.details and 'stability' in signal.details:
-            stability_score = signal.details['stability'].get('score', 0.0)
-            historical_wr = signal.details['stability'].get('historical_win_rate')
-
-        # Sektor und Market Cap aus Fundamentals
-        sector = None
-        market_cap = None
-        if self._fundamentals_manager:
-            fundamentals = self._fundamentals_manager.get_fundamentals(signal.symbol)
-            if fundamentals:
-                sector = fundamentals.sector
-                market_cap = fundamentals.market_cap_category
-                if stability_score == 0.0 and fundamentals.stability_score:
-                    stability_score = fundamentals.stability_score
-                if historical_wr is None and fundamentals.historical_win_rate:
-                    historical_wr = fundamentals.historical_win_rate
-
-        # Strike-Empfehlung generieren
-        suggested_strikes = None
-        if self.config['enable_strike_recommendations']:
-            suggested_strikes = await self._generate_strike_recommendation(
-                symbol=signal.symbol,
-                current_price=signal.current_price,
-                signal=signal,
-                regime=regime,
-                options_fetcher=options_fetcher,
-            )
-
-        # Speed Score berechnen
-        dte = signal.details.get('dte', 75) if signal.details else 75
-        pullback_score = None
-        market_context_score = None
-        if signal.details:
-            scores = signal.details.get('scores', {})
-            pullback_score = scores.get('pullback_score')
-            market_context_score = scores.get('market_context_score')
-
-        speed = self.compute_speed_score(
-            dte=dte,
-            stability_score=stability_score,
-            sector=sector,
-            pullback_score=pullback_score,
-            market_context_score=market_context_score,
-        )
-
-        # Warnungen sammeln
-        warnings = []
-        if signal.reliability_warnings:
-            warnings.extend(signal.reliability_warnings)
-        if stability_score < 70:
-            warnings.append(
-                f"⚠️ Stability unter 70 ({stability_score:.0f}) - erhöhtes Risiko"
-            )
-        if regime == MarketRegime.DANGER_ZONE:
-            warnings.append("⚠️ VIX in Danger Zone (20-25) - reduzierte Position empfohlen")
-
-        return DailyPick(
-            rank=rank,
-            symbol=signal.symbol,
-            strategy=signal.strategy,
-            score=signal.score,
-            stability_score=stability_score,
-            speed_score=speed,
-            reliability_grade=signal.reliability_grade,
-            historical_win_rate=historical_wr,
-            current_price=signal.current_price,
-            sector=sector,
-            market_cap_category=market_cap,
-            suggested_strikes=suggested_strikes,
-            reason=signal.reason or "",
-            warnings=warnings,
-        )
-
-    async def _generate_strike_recommendation(
-        self,
-        symbol: str,
-        current_price: float,
-        signal: TradeSignal,
-        regime: MarketRegime,
-        options_fetcher: Optional[Callable[..., Any]] = None,
-    ) -> Optional[SuggestedStrikes]:
-        """
-        Generiert Strike-Empfehlung für einen Bull-Put-Spread.
-
-        Args:
-            symbol: Ticker-Symbol
-            current_price: Aktueller Preis
-            signal: TradeSignal mit Details
-            regime: Markt-Regime für Spread-Anpassung
-            options_fetcher: Optional: Async-Funktion zum Abrufen der Options-Chain
-
-        Returns:
-            SuggestedStrikes oder None
-        """
-        try:
-            # Support-Levels aus Signal-Details extrahieren
-            support_levels = []
-            if signal.details:
-                # Aus Score-Breakdown
-                if 'score_breakdown' in signal.details:
-                    breakdown = signal.details['score_breakdown']
-                    if isinstance(breakdown, dict):
-                        components = breakdown.get('components', {})
-                        support_info = components.get('support', {})
-                        support_level = support_info.get('level')
-                        if support_level:
-                            support_levels.append(support_level)
-
-                # Aus technicals
-                if 'technicals' in signal.details:
-                    technicals = signal.details['technicals']
-                    if 'support_levels' in technicals:
-                        support_levels.extend(technicals['support_levels'])
-
-            # Fallback: Berechne Support als 10% unter aktuellem Preis
-            if not support_levels:
-                support_levels = [
-                    current_price * 0.90,
-                    current_price * 0.85,
-                    current_price * 0.80,
-                ]
-
-            # IV-Rank aus Signal-Details
-            iv_rank = None
-            if signal.details and 'iv_rank' in signal.details:
-                iv_rank = signal.details['iv_rank']
-
-            # Fibonacci-Levels
-            fib_levels = None
-            if signal.details and 'fib_levels' in signal.details:
-                fib_levels = signal.details['fib_levels']
-
-            # MarketRegime für VIX-basierte Spread-Berechnung
-            from ..vix_strategy import MarketRegime as VixRegime
-            vix_regime = VixRegime(regime.value) if regime != MarketRegime.UNKNOWN else None
-
-            # Fetch options chain if fetcher available
-            options_data = None
-            if options_fetcher:
-                try:
-                    options = await options_fetcher(symbol)
-                    if options:
-                        from datetime import date
-                        options_data = [
-                            {
-                                "strike": opt.strike,
-                                "right": "P",
-                                "bid": opt.bid,
-                                "ask": opt.ask,
-                                "delta": opt.delta,
-                                "iv": opt.implied_volatility,
-                                "dte": (opt.expiry - date.today()).days,
-                                "open_interest": opt.open_interest,
-                                "volume": opt.volume,
-                            }
-                            for opt in options
-                        ]
-                except Exception as e:
-                    logger.warning(f"Could not fetch options for {symbol}: {e}")
-
-            # Strike-Empfehlung generieren
-            rec = self._strike_recommender.get_recommendation(
-                symbol=symbol,
-                current_price=current_price,
-                support_levels=support_levels,
-                iv_rank=iv_rank,
-                options_data=options_data,
-                fib_levels=fib_levels,
-                regime=vix_regime,
-            )
-
-            suggested = SuggestedStrikes(
-                short_strike=rec.short_strike,
-                long_strike=rec.long_strike,
-                spread_width=rec.spread_width,
-                estimated_credit=rec.estimated_credit,
-                estimated_delta=rec.estimated_delta,
-                prob_profit=rec.prob_profit,
-                risk_reward_ratio=rec.risk_reward_ratio,
-                quality=rec.quality.value,
-                confidence_score=rec.confidence_score,
-            )
-
-            # Extract expiry/DTE from options data
-            if options_data:
-                dte_values = [
-                    opt.get("dte") for opt in options_data if opt.get("dte")
-                ]
-                expiry_values = [
-                    opt.get("expiration") for opt in options_data
-                    if opt.get("expiration")
-                ]
-                if dte_values:
-                    from collections import Counter
-                    most_common_dte = Counter(dte_values).most_common(1)[0][0]
-                    suggested.dte = most_common_dte
-                if expiry_values:
-                    from collections import Counter
-                    most_common_expiry = Counter(expiry_values).most_common(1)[0][0]
-                    # Handle both date objects and strings
-                    if hasattr(most_common_expiry, 'isoformat'):
-                        suggested.expiry = most_common_expiry.isoformat()
-                    else:
-                        suggested.expiry = str(most_common_expiry)
-
-                # DTE validation against PLAYBOOK rules
-                if suggested.dte is not None:
-                    if suggested.dte < SPREAD_DTE_MIN:
-                        suggested.dte_warning = (
-                            f"DTE {suggested.dte} < minimum {SPREAD_DTE_MIN}"
-                        )
-                    elif suggested.dte > SPREAD_DTE_MAX:
-                        suggested.dte_warning = (
-                            f"DTE {suggested.dte} > maximum {SPREAD_DTE_MAX}"
-                        )
-
-            # Assess liquidity if options data available
-            if options_data:
-                from ..options.liquidity import LiquidityAssessor
-                assessor = LiquidityAssessor()
-                spread_liq = assessor.assess_spread(
-                    rec.short_strike, rec.long_strike, options_data
-                )
-                if spread_liq:
-                    suggested.liquidity_quality = spread_liq.overall_quality
-                    suggested.short_oi = spread_liq.short_strike_liquidity.open_interest
-                    suggested.long_oi = spread_liq.long_strike_liquidity.open_interest
-                    suggested.short_spread_pct = spread_liq.short_strike_liquidity.spread_pct
-                    suggested.long_spread_pct = spread_liq.long_strike_liquidity.spread_pct
-
-            # Determine tradeable status
-            liq_quality = suggested.liquidity_quality
-            from ..constants.trading_rules import LIQUIDITY_MIN_QUALITY_DAILY_PICKS
-            _quality_order = {"excellent": 3, "good": 2, "fair": 1, "poor": 0}
-            min_rank = _quality_order.get(LIQUIDITY_MIN_QUALITY_DAILY_PICKS, 2)
-            liq_ok = (
-                liq_quality is not None
-                and _quality_order.get(liq_quality, 0) >= min_rank
-            )
-
-            if rec.quality.value == "poor":
-                suggested.tradeable_status = "NOT_TRADEABLE"
-            elif liq_ok and not suggested.dte_warning:
-                suggested.tradeable_status = "READY"
-            elif liq_ok and suggested.dte_warning:
-                suggested.tradeable_status = "WARNING"
-            elif not liq_ok and liq_quality is not None:
-                suggested.tradeable_status = "NOT_TRADEABLE"
-            else:
-                suggested.tradeable_status = "unknown"
-
-            return suggested
-
-        except Exception as e:
-            logger.warning(f"Could not generate strike recommendation for {symbol}: {e}")
-            return None
 
     def get_last_result(self) -> Optional[DailyRecommendationResult]:
         """Gibt das letzte Ergebnis zurück."""

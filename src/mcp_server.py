@@ -52,6 +52,7 @@ from .utils.metrics import metrics
 from .formatters import formatters, HealthCheckData
 from .config import get_config, get_scan_config, get_watchlist_loader
 from .container import ServiceContainer
+from .state.server_state import ServerState
 
 # Handler Mixins (legacy, gradually migrating to Composition — Phase 3.3)
 from .handlers import (
@@ -183,21 +184,28 @@ class OptionPlayServer(
         self._earnings_fetcher: Optional[EarningsFetcher] = None
         self._vix_selector = VIXStrategySelector()
 
-        # Connection state
+        # Centralized state (STATE-01: replaces 16+ scattered variables)
+        self.state = ServerState()
+
+        # Connection state — delegates to self.state.connection
         self._connected = False
+
+        # VIX state — delegates to self.state.vix
         self._current_vix: Optional[float] = None
         self._vix_updated: Optional[datetime] = None
 
-        # Quote cache
+        # Quote cache — metrics tracked via self.state.quote_cache
         self._quote_cache: Dict[str, tuple] = {}
-        self._quote_cache_hits = 0
-        self._quote_cache_misses = 0
 
-        # Scan cache
+        # Scan cache — metrics tracked via self.state.scan_cache
         self._scan_cache: Dict[str, tuple] = {}
         self._scan_cache_ttl = 1800  # 30 minutes
-        self._scan_cache_hits = 0
-        self._scan_cache_misses = 0
+
+        # Cache counters (used by handler mixins)
+        self._quote_cache_hits: int = 0
+        self._quote_cache_misses: int = 0
+        self._scan_cache_hits: int = 0
+        self._scan_cache_misses: int = 0
 
         # Request deduplicator
         self._deduplicator = get_request_deduplicator()
@@ -323,6 +331,7 @@ class OptionPlayServer(
                     connected = await self._provider.connect()
                     if connected:
                         self._connected = True
+                        self.state.connection.mark_connected()
                         self._rate_limiter.record_success()
                         self._circuit_breaker.record_success()
                         logger.info("Connected to Marketdata.app")
@@ -584,6 +593,7 @@ class OptionPlayServer(
             quote, timestamp = self._quote_cache[symbol]
             age = (datetime.now() - timestamp).total_seconds()
             if age < cache_ttl:
+                self.state.quote_cache.record_hit()
                 self._quote_cache_hits += 1
                 logger.debug(f"Quote cache HIT: {symbol} (age: {age:.0f}s)")
                 return quote
@@ -612,31 +622,37 @@ class OptionPlayServer(
         )
 
         self._quote_cache[symbol] = (quote, datetime.now())
+        self.state.quote_cache.record_miss()
         self._quote_cache_misses += 1
+        self.state.quote_cache.set_current_entries(len(self._quote_cache))
         logger.debug(f"Quote cache MISS: {symbol}")
 
         return quote
 
     def _get_quote_cache_stats(self) -> Dict[str, Any]:
         """Get quote cache statistics."""
-        total = self._quote_cache_hits + self._quote_cache_misses
-        hit_rate = (self._quote_cache_hits / total * 100) if total > 0 else 0
+        hits = max(self.state.quote_cache.hits, self._quote_cache_hits)
+        misses = max(self.state.quote_cache.misses, self._quote_cache_misses)
+        total = hits + misses
+        hit_rate = round((hits / total * 100) if total > 0 else 0, 1)
         return {
             "entries": len(self._quote_cache),
-            "hits": self._quote_cache_hits,
-            "misses": self._quote_cache_misses,
-            "hit_rate_percent": round(hit_rate, 1),
+            "hits": hits,
+            "misses": misses,
+            "hit_rate_percent": hit_rate,
         }
 
     def _get_scan_cache_stats(self) -> Dict[str, Any]:
         """Get scan cache statistics."""
-        total = self._scan_cache_hits + self._scan_cache_misses
-        hit_rate = (self._scan_cache_hits / total * 100) if total > 0 else 0
+        hits = max(self.state.scan_cache.hits, self._scan_cache_hits)
+        misses = max(self.state.scan_cache.misses, self._scan_cache_misses)
+        total = hits + misses
+        hit_rate = round((hits / total * 100) if total > 0 else 0, 1)
         return {
             "entries": len(self._scan_cache),
-            "hits": self._scan_cache_hits,
-            "misses": self._scan_cache_misses,
-            "hit_rate_percent": round(hit_rate, 1),
+            "hits": hits,
+            "misses": misses,
+            "hit_rate_percent": hit_rate,
             "ttl_seconds": self._scan_cache_ttl,
         }
 
@@ -645,6 +661,7 @@ class OptionPlayServer(
         if self._provider and self._connected:
             await self._provider.disconnect()
             self._connected = False
+            self.state.connection.mark_disconnected()
             logger.info("Marketdata.app disconnected")
 
         if self._tradier_provider and self._tradier_connected:

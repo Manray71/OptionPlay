@@ -6,6 +6,10 @@ Implementiert robustes Out-of-Sample Testing mit rollierendem Train/Test Split
 über mehrere Epochen. Erkennt Overfitting und liefert produktionsreife
 Empfehlungen für Score-Schwellenwerte.
 
+Implementation split into sub-modules:
+- training/wf_epoch_runner.py - Single epoch logic (WFEpochRunnerMixin)
+- training/wf_result_aggregator.py - Result aggregation (WFResultAggregatorMixin)
+
 Verwendung:
     from src.backtesting import WalkForwardTrainer, TrainingConfig
 
@@ -39,6 +43,8 @@ from ..validation import (
     SignalReliability,
     StatisticalCalculator,
 )
+from .wf_epoch_runner import WFEpochRunnerMixin
+from .wf_result_aggregator import WFResultAggregatorMixin
 
 logger = logging.getLogger(__name__)
 
@@ -302,7 +308,7 @@ class TrainingResult:
 # Walk-Forward Trainer
 # =============================================================================
 
-class WalkForwardTrainer:
+class WalkForwardTrainer(WFResultAggregatorMixin, WFEpochRunnerMixin):
     """
     Walk-Forward Training für robuste Out-of-Sample Validierung.
 
@@ -315,6 +321,10 @@ class WalkForwardTrainer:
        - Vergleiche Metriken
     3. Aggregiere Ergebnisse über alle Epochen
     4. Erkenne Overfitting durch Degradationsanalyse
+
+    Implementation delegated to mixins:
+    - WFEpochRunnerMixin: single epoch training logic
+    - WFResultAggregatorMixin: result aggregation and overfitting classification
     """
 
     # Overfitting-Schwellenwerte
@@ -326,12 +336,6 @@ class WalkForwardTrainer:
     }
 
     def __init__(self, config: TrainingConfig):
-        """
-        Initialisiert den Trainer.
-
-        Args:
-            config: Training-Konfiguration
-        """
         self.config = config
         self._last_result: Optional[TrainingResult] = None
 
@@ -341,28 +345,15 @@ class WalkForwardTrainer:
         vix_data: List[Dict],
         symbols: Optional[List[str]] = None,
     ) -> TrainingResult:
-        """
-        Führt synchrones Walk-Forward Training durch.
-
-        Args:
-            historical_data: Dict mit {symbol: [{date, open, high, low, close, volume}, ...]}
-            vix_data: VIX-Historie [{date, close}, ...]
-            symbols: Optional: Symbole zum Testen (sonst config.symbols oder alle)
-
-        Returns:
-            TrainingResult mit allen Epochen und Empfehlungen
-        """
         training_id = f"wf_{datetime.now().strftime('%Y%m%d')}_{uuid.uuid4().hex[:8]}"
         training_date = datetime.now()
         warnings = []
 
-        # Symbole bestimmen
         test_symbols = symbols or self.config.symbols or list(historical_data.keys())
 
         if not test_symbols:
             raise ValueError("Keine Symbole für Training verfügbar.")
 
-        # Datenbereich ermitteln
         data_start, data_end = self._get_data_range(historical_data, test_symbols)
 
         if data_start is None or data_end is None:
@@ -372,7 +363,6 @@ class WalkForwardTrainer:
             f"Training mit {len(test_symbols)} Symbolen von {data_start} bis {data_end}"
         )
 
-        # Epochen generieren
         epochs_config = self._generate_epochs(data_start, data_end)
 
         if len(epochs_config) < self.config.min_valid_epochs:
@@ -381,7 +371,6 @@ class WalkForwardTrainer:
                 f"Minimum {self.config.min_valid_epochs} empfohlen."
             )
 
-        # Trainiere jede Epoche
         epoch_results: List[EpochResult] = []
 
         for i, (train_start, train_end, test_start, test_end) in enumerate(epochs_config):
@@ -408,7 +397,6 @@ class WalkForwardTrainer:
                     f"Epoche {i + 1} übersprungen: {epoch_result.skip_reason}"
                 )
 
-        # Aggregiere Ergebnisse
         result = self._aggregate_results(
             training_id=training_id,
             training_date=training_date,
@@ -420,429 +408,37 @@ class WalkForwardTrainer:
         return result
 
     def _generate_epochs(
-        self,
-        data_start: date,
-        data_end: date,
+        self, data_start: date, data_end: date,
     ) -> List[Tuple[date, date, date, date]]:
-        """
-        Generiert rollierende Train/Test-Epochen.
-
-        Returns:
-            Liste von (train_start, train_end, test_start, test_end) Tupeln
-        """
         epochs = []
-
-        # Start der ersten Epoche
         train_start = data_start
 
         while True:
-            # Training-Ende = Train-Start + train_months
             train_end = train_start + relativedelta(months=self.config.train_months)
-
-            # Test-Start = Training-Ende + 1 Tag
             test_start = train_end + timedelta(days=1)
-
-            # Test-Ende = Test-Start + test_months
             test_end = test_start + relativedelta(months=self.config.test_months)
 
-            # Prüfe ob Test-Periode noch in Datenbereich liegt
             if test_end > data_end:
-                # Letzte Epoche: verkürze Test-Periode wenn möglich
                 if test_start < data_end:
                     test_end = data_end
                     epochs.append((train_start, train_end, test_start, test_end))
                 break
 
             epochs.append((train_start, train_end, test_start, test_end))
-
-            # Nächste Epoche: step_months nach vorne
             train_start = train_start + relativedelta(months=self.config.step_months)
 
-            # Prüfe ob noch genug Daten für Training
             if train_start + relativedelta(months=self.config.train_months) > data_end:
                 break
 
         return epochs
 
-    def _train_epoch(
-        self,
-        epoch_id: int,
-        train_start: date,
-        train_end: date,
-        test_start: date,
-        test_end: date,
-        symbols: List[str],
-        historical_data: Dict[str, List[Dict]],
-        vix_data: List[Dict],
-    ) -> EpochResult:
-        """
-        Trainiert eine einzelne Epoche.
-
-        1. Backtest auf Training-Daten
-        2. Signal-Validierung
-        3. Backtest auf Test-Daten
-        4. Vergleiche In-Sample vs Out-of-Sample
-        """
-        # Erstelle Backtest-Config für Training
-        train_config = BacktestConfig(
-            start_date=train_start,
-            end_date=train_end,
-            min_pullback_score=self.config.min_pullback_score,
-            profit_target_pct=self.config.profit_target_pct,
-            stop_loss_pct=self.config.stop_loss_pct,
-            dte_min=self.config.dte_min,
-            dte_max=self.config.dte_max,
-        )
-
-        # 1. Training-Backtest
-        train_engine = BacktestEngine(train_config)
-        train_result = train_engine.run_sync(
-            symbols=symbols,
-            historical_data=historical_data,
-            vix_data=vix_data,
-        )
-
-        # Prüfe Mindest-Trades
-        if train_result.total_trades < self.config.min_trades_per_epoch:
-            return self._create_skipped_epoch(
-                epoch_id=epoch_id,
-                train_start=train_start,
-                train_end=train_end,
-                test_start=test_start,
-                test_end=test_end,
-                reason=f"Nur {train_result.total_trades} Training-Trades "
-                       f"(min: {self.config.min_trades_per_epoch})",
-            )
-
-        # 2. Signal-Validierung
-        validator = SignalValidator()
-        validation_result = validator.validate(
-            train_result,
-            include_regime_analysis=self.config.include_regime_analysis,
-        )
-
-        optimal_threshold = validation_result.optimal_threshold
-
-        # 3. Test-Backtest (mit optimiertem Threshold)
-        test_config = BacktestConfig(
-            start_date=test_start,
-            end_date=test_end,
-            min_pullback_score=optimal_threshold,
-            profit_target_pct=self.config.profit_target_pct,
-            stop_loss_pct=self.config.stop_loss_pct,
-            dte_min=self.config.dte_min,
-            dte_max=self.config.dte_max,
-        )
-
-        test_engine = BacktestEngine(test_config)
-        test_result = test_engine.run_sync(
-            symbols=symbols,
-            historical_data=historical_data,
-            vix_data=vix_data,
-        )
-
-        # Prüfe Test-Trades
-        if test_result.total_trades < 10:
-            return self._create_skipped_epoch(
-                epoch_id=epoch_id,
-                train_start=train_start,
-                train_end=train_end,
-                test_start=test_start,
-                test_end=test_end,
-                reason=f"Nur {test_result.total_trades} Test-Trades (min: 10)",
-            )
-
-        # 4. Metriken extrahieren
-        in_sample = self._extract_metrics(train_result)
-        out_sample = self._extract_metrics(test_result)
-
-        # 5. Overfitting berechnen
-        win_rate_degradation = in_sample["win_rate"] - out_sample["win_rate"]
-        sharpe_degradation = in_sample["sharpe"] - out_sample["sharpe"]
-        overfit_score = self._calculate_overfit_score(
-            win_rate_degradation,
-            sharpe_degradation,
-        )
-
-        return EpochResult(
-            epoch_id=epoch_id,
-            train_start=train_start,
-            train_end=train_end,
-            test_start=test_start,
-            test_end=test_end,
-            in_sample_trades=in_sample["trades"],
-            in_sample_win_rate=in_sample["win_rate"],
-            in_sample_sharpe=in_sample["sharpe"],
-            in_sample_profit_factor=in_sample["profit_factor"],
-            in_sample_avg_pnl=in_sample["avg_pnl"],
-            out_sample_trades=out_sample["trades"],
-            out_sample_win_rate=out_sample["win_rate"],
-            out_sample_sharpe=out_sample["sharpe"],
-            out_sample_profit_factor=out_sample["profit_factor"],
-            out_sample_avg_pnl=out_sample["avg_pnl"],
-            win_rate_degradation=win_rate_degradation,
-            sharpe_degradation=sharpe_degradation,
-            overfit_score=overfit_score,
-            optimal_threshold=optimal_threshold,
-            validation_result=validation_result,
-            is_valid=True,
-        )
-
-    def _create_skipped_epoch(
-        self,
-        epoch_id: int,
-        train_start: date,
-        train_end: date,
-        test_start: date,
-        test_end: date,
-        reason: str,
-    ) -> EpochResult:
-        """Erstellt eine übersprungene Epoche"""
-        return EpochResult(
-            epoch_id=epoch_id,
-            train_start=train_start,
-            train_end=train_end,
-            test_start=test_start,
-            test_end=test_end,
-            in_sample_trades=0,
-            in_sample_win_rate=0,
-            in_sample_sharpe=0,
-            in_sample_profit_factor=0,
-            in_sample_avg_pnl=0,
-            out_sample_trades=0,
-            out_sample_win_rate=0,
-            out_sample_sharpe=0,
-            out_sample_profit_factor=0,
-            out_sample_avg_pnl=0,
-            win_rate_degradation=0,
-            sharpe_degradation=0,
-            overfit_score=0,
-            optimal_threshold=self.config.min_pullback_score,
-            is_valid=False,
-            skip_reason=reason,
-        )
-
-    def _extract_metrics(self, backtest_result: BacktestResult) -> Dict[str, float]:
-        """Extrahiert relevante Metriken aus BacktestResult"""
-        trades = backtest_result.trades
-
-        if not trades:
-            return {
-                "trades": 0,
-                "win_rate": 0,
-                "sharpe": 0,
-                "profit_factor": 0,
-                "avg_pnl": 0,
-            }
-
-        return {
-            "trades": backtest_result.total_trades,
-            "win_rate": backtest_result.win_rate,
-            "sharpe": backtest_result.sharpe_ratio,
-            "profit_factor": backtest_result.profit_factor,
-            "avg_pnl": backtest_result.total_pnl / backtest_result.total_trades
-            if backtest_result.total_trades > 0 else 0,
-        }
-
-    def _calculate_overfit_score(
-        self,
-        win_rate_degradation: float,
-        sharpe_degradation: float,
-    ) -> float:
-        """
-        Berechnet Overfit-Score (0-1).
-
-        Kombiniert Win-Rate und Sharpe Degradation.
-        """
-        # Normalisiere Degradationen
-        wr_factor = min(abs(win_rate_degradation) / 20.0, 1.0)  # 20% = max
-        sharpe_factor = min(abs(sharpe_degradation) / 1.0, 1.0)  # 1.0 = max
-
-        # Gewichteter Durchschnitt (Win Rate wichtiger)
-        return 0.7 * wr_factor + 0.3 * sharpe_factor
-
-    def _aggregate_results(
-        self,
-        training_id: str,
-        training_date: datetime,
-        epochs: List[EpochResult],
-        warnings: List[str],
-    ) -> TrainingResult:
-        """Aggregiert Ergebnisse aller Epochen"""
-        valid_epochs = [e for e in epochs if e.is_valid]
-        n_valid = len(valid_epochs)
-
-        if n_valid == 0:
-            warnings.append("Keine gültigen Epochen für Aggregation!")
-            return TrainingResult(
-                training_id=training_id,
-                training_date=training_date,
-                config=self.config,
-                epochs=epochs,
-                valid_epochs=0,
-                total_epochs=len(epochs),
-                avg_in_sample_win_rate=0,
-                avg_in_sample_sharpe=0,
-                avg_out_sample_win_rate=0,
-                avg_out_sample_sharpe=0,
-                avg_win_rate_degradation=0,
-                max_win_rate_degradation=0,
-                overfit_severity="severe",
-                recommended_min_score=self.config.min_pullback_score,
-                top_predictors=[],
-                component_weights={},
-                regime_adjustments={},
-                warnings=warnings,
-            )
-
-        # In-Sample Durchschnitte
-        avg_in_sample_win_rate = sum(e.in_sample_win_rate for e in valid_epochs) / n_valid
-        avg_in_sample_sharpe = sum(e.in_sample_sharpe for e in valid_epochs) / n_valid
-
-        # Out-of-Sample Durchschnitte
-        avg_out_sample_win_rate = sum(e.out_sample_win_rate for e in valid_epochs) / n_valid
-        avg_out_sample_sharpe = sum(e.out_sample_sharpe for e in valid_epochs) / n_valid
-
-        # Degradation
-        avg_win_rate_degradation = avg_in_sample_win_rate - avg_out_sample_win_rate
-        max_win_rate_degradation = max(e.win_rate_degradation for e in valid_epochs)
-
-        # Overfit-Severity
-        overfit_severity = self._classify_overfit_severity(avg_win_rate_degradation)
-
-        # Empfehlungen aggregieren
-        recommended_min_score = self._aggregate_threshold(valid_epochs)
-        top_predictors = self._aggregate_predictors(valid_epochs)
-        component_weights = self._aggregate_component_weights(valid_epochs)
-        regime_adjustments = self._aggregate_regime_adjustments(valid_epochs)
-
-        # Warnungen für Overfit
-        if overfit_severity == "moderate":
-            warnings.append(
-                f"Moderate Overfitting erkannt ({avg_win_rate_degradation:.1f}% Degradation). "
-                "Empfehlung: Konservativere Parameter verwenden."
-            )
-        elif overfit_severity == "severe":
-            warnings.append(
-                f"Schweres Overfitting erkannt ({avg_win_rate_degradation:.1f}% Degradation). "
-                "WARNUNG: Strategie ist möglicherweise nicht produktionsreif!"
-            )
-
-        return TrainingResult(
-            training_id=training_id,
-            training_date=training_date,
-            config=self.config,
-            epochs=epochs,
-            valid_epochs=n_valid,
-            total_epochs=len(epochs),
-            avg_in_sample_win_rate=avg_in_sample_win_rate,
-            avg_in_sample_sharpe=avg_in_sample_sharpe,
-            avg_out_sample_win_rate=avg_out_sample_win_rate,
-            avg_out_sample_sharpe=avg_out_sample_sharpe,
-            avg_win_rate_degradation=avg_win_rate_degradation,
-            max_win_rate_degradation=max_win_rate_degradation,
-            overfit_severity=overfit_severity,
-            recommended_min_score=recommended_min_score,
-            top_predictors=top_predictors,
-            component_weights=component_weights,
-            regime_adjustments=regime_adjustments,
-            warnings=warnings,
-        )
-
-    def _classify_overfit_severity(self, degradation: float) -> str:
-        """Klassifiziert Overfit-Severity"""
-        abs_deg = abs(degradation)
-
-        if abs_deg < self.OVERFIT_THRESHOLDS["none"]:
-            return "none"
-        elif abs_deg < self.OVERFIT_THRESHOLDS["mild"]:
-            return "mild"
-        elif abs_deg < self.OVERFIT_THRESHOLDS["moderate"]:
-            return "moderate"
-        else:
-            return "severe"
-
-    def _aggregate_threshold(self, epochs: List[EpochResult]) -> float:
-        """Aggregiert optimalen Threshold aus allen Epochen"""
-        if not epochs:
-            return self.config.min_pullback_score
-
-        thresholds = [e.optimal_threshold for e in epochs]
-
-        # Konservativer Ansatz: 75. Perzentil
-        sorted_thresholds = sorted(thresholds)
-        idx = int(len(sorted_thresholds) * 0.75)
-        return sorted_thresholds[min(idx, len(sorted_thresholds) - 1)]
-
-    def _aggregate_predictors(self, epochs: List[EpochResult]) -> List[str]:
-        """Aggregiert Top-Predictors aus allen Epochen"""
-        from collections import Counter
-
-        predictor_counts: Counter = Counter()
-
-        for epoch in epochs:
-            if epoch.validation_result and epoch.validation_result.top_predictors:
-                for pred in epoch.validation_result.top_predictors[:3]:
-                    predictor_counts[pred] += 1
-
-        return [pred for pred, _ in predictor_counts.most_common(5)]
-
-    def _aggregate_component_weights(
-        self,
-        epochs: List[EpochResult],
-    ) -> Dict[str, float]:
-        """Aggregiert Komponenten-Gewichte"""
-        from collections import defaultdict
-
-        weights: Dict[str, List[float]] = defaultdict(list)
-
-        for epoch in epochs:
-            if epoch.validation_result:
-                for corr in epoch.validation_result.component_correlations:
-                    if corr.predictive_power in ("strong", "moderate"):
-                        weights[corr.component_name].append(
-                            abs(corr.win_rate_correlation)
-                        )
-
-        # Durchschnitt pro Komponente
-        return {
-            comp: sum(vals) / len(vals)
-            for comp, vals in weights.items()
-            if vals
-        }
-
-    def _aggregate_regime_adjustments(
-        self,
-        epochs: List[EpochResult],
-    ) -> Dict[str, Dict[str, float]]:
-        """Aggregiert Regime-Adjustments"""
-        from collections import defaultdict
-
-        adjustments: Dict[str, List[float]] = defaultdict(list)
-
-        for epoch in epochs:
-            if epoch.validation_result:
-                for regime, adj in epoch.validation_result.regime_sensitivity.items():
-                    adjustments[regime].append(adj)
-
-        return {
-            regime: {"win_rate_adjustment": sum(vals) / len(vals)}
-            for regime, vals in adjustments.items()
-            if vals
-        }
-
     def _get_data_range(
-        self,
-        historical_data: Dict[str, List[Dict]],
-        symbols: List[str],
+        self, historical_data: Dict[str, List[Dict]], symbols: List[str],
     ) -> Tuple[Optional[date], Optional[date]]:
-        """Ermittelt den Datenbereich aus historischen Daten"""
         all_dates = []
-
         for symbol in symbols:
             if symbol not in historical_data:
                 continue
-
             for bar in historical_data[symbol]:
                 bar_date = bar.get("date")
                 if isinstance(bar_date, str):
@@ -852,28 +448,13 @@ class WalkForwardTrainer:
 
         if not all_dates:
             return None, None
-
         return min(all_dates), max(all_dates)
 
     # =========================================================================
     # Persistenz
     # =========================================================================
 
-    def save(
-        self,
-        result: TrainingResult,
-        filepath: Optional[str] = None,
-    ) -> str:
-        """
-        Speichert TrainingResult als JSON.
-
-        Args:
-            result: Zu speicherndes Ergebnis
-            filepath: Optional: Pfad zum Speichern (sonst Default)
-
-        Returns:
-            Vollständiger Pfad der gespeicherten Datei
-        """
+    def save(self, result: TrainingResult, filepath: Optional[str] = None) -> str:
         if filepath is None:
             models_dir = Path.home() / ".optionplay" / "models"
             models_dir.mkdir(parents=True, exist_ok=True)
@@ -890,21 +471,11 @@ class WalkForwardTrainer:
 
     @classmethod
     def load(cls, filepath: str) -> "WalkForwardTrainer":
-        """
-        Lädt Trainer mit gespeichertem Training-Ergebnis.
-
-        Args:
-            filepath: Pfad zur JSON-Datei
-
-        Returns:
-            WalkForwardTrainer mit geladenem Ergebnis
-        """
         filepath = os.path.expanduser(filepath)
 
         with open(filepath, "r", encoding="utf-8") as f:
             data = json.load(f)
 
-        # Rekonstruiere Config
         config_data = data.get("config", {})
         config = TrainingConfig(
             train_months=config_data.get("train_months", 18),
@@ -921,8 +492,6 @@ class WalkForwardTrainer:
         )
 
         trainer = cls(config)
-
-        # Rekonstruiere TrainingResult (vereinfacht, ohne volle Epochs)
         summary = data.get("summary", {})
         recommendations = data.get("recommendations", {})
 
@@ -932,7 +501,7 @@ class WalkForwardTrainer:
                 data.get("training_date", datetime.now().isoformat())
             ),
             config=config,
-            epochs=[],  # Epochen werden nicht vollständig rekonstruiert
+            epochs=[],
             valid_epochs=summary.get("valid_epochs", 0),
             total_epochs=summary.get("total_epochs", 0),
             avg_in_sample_win_rate=summary.get("avg_in_sample_win_rate", 0),
@@ -956,21 +525,7 @@ class WalkForwardTrainer:
     # Produktions-Methoden
     # =========================================================================
 
-    def get_signal_reliability(
-        self,
-        score: float,
-        vix: Optional[float] = None,
-    ) -> SignalReliability:
-        """
-        Bewertet Signal-Reliability basierend auf Training-Ergebnissen.
-
-        Args:
-            score: Pullback-Score
-            vix: Optional: Aktueller VIX
-
-        Returns:
-            SignalReliability Bewertung
-        """
+    def get_signal_reliability(self, score: float, vix: Optional[float] = None) -> SignalReliability:
         if self._last_result is None:
             raise ValueError(
                 "Keine Training-Ergebnisse verfügbar. "
@@ -978,34 +533,26 @@ class WalkForwardTrainer:
             )
 
         result = self._last_result
-
-        # Regime-Adjustment ermitteln
         regime_adjustment = 0.0
         regime_context = None
 
         if vix is not None:
             regime = self._get_regime_for_vix(vix)
             regime_context = f"VIX={vix:.1f} ({regime})"
-
             if regime in result.regime_adjustments:
                 regime_adjustment = result.regime_adjustments[regime].get(
                     "win_rate_adjustment", 0
                 )
 
-        # Base Win Rate aus Training
         base_win_rate = result.avg_out_sample_win_rate
         adjusted_win_rate = base_win_rate + regime_adjustment
 
-        # Confidence Interval (konservativ aus Out-of-Sample)
-        # Vereinfacht: ±5% basierend auf Epochen-Varianz
         ci_margin = 5.0
         ci_lower = max(0, adjusted_win_rate - ci_margin)
         ci_upper = min(100, adjusted_win_rate + ci_margin)
 
-        # Grade basierend auf CI-Untergrenze
         grade = self._determine_grade(ci_lower)
 
-        # Component Strengths (vereinfacht)
         component_strengths = {}
         if result.component_weights:
             for comp, weight in result.component_weights.items():
@@ -1034,7 +581,7 @@ class WalkForwardTrainer:
             score_bucket=self._get_bucket_label(score),
             historical_win_rate=adjusted_win_rate,
             confidence_interval=(ci_lower, ci_upper),
-            expected_pnl_range=(0, 0),  # Nicht verfügbar ohne detaillierte Daten
+            expected_pnl_range=(0, 0),
             regime_context=regime_context,
             component_strengths=component_strengths,
             reliability_grade=grade,
@@ -1042,47 +589,25 @@ class WalkForwardTrainer:
             warnings=warnings,
         )
 
-    def should_trade(
-        self,
-        score: float,
-        vix: Optional[float] = None,
-        min_grade: str = "C",
-    ) -> Tuple[bool, str]:
-        """
-        Schnelle Prüfung ob ein Trade empfohlen wird.
-
-        Args:
-            score: Pullback-Score
-            vix: Optional: Aktueller VIX
-            min_grade: Mindest-Grade für Trade ("A", "B", "C", "D")
-
-        Returns:
-            Tuple von (should_trade, reason)
-        """
+    def should_trade(self, score: float, vix: Optional[float] = None, min_grade: str = "C") -> Tuple[bool, str]:
         if self._last_result is None:
             return False, "Keine Training-Ergebnisse verfügbar."
 
         result = self._last_result
-
-        # Score-Check
         if score < result.recommended_min_score:
             return False, f"Score {score:.1f} unter Minimum ({result.recommended_min_score:.1f})"
 
-        # Reliability-Check
         reliability = self.get_signal_reliability(score, vix)
-
         grade_order = {"A": 5, "B": 4, "C": 3, "D": 2, "F": 1}
         if grade_order.get(reliability.reliability_grade, 0) < grade_order.get(min_grade, 3):
             return False, f"Grade {reliability.reliability_grade} unter Minimum ({min_grade})"
 
-        # Overfit-Warning
         if result.overfit_severity == "severe":
             return False, "Schweres Overfitting erkannt - Trade nicht empfohlen"
 
         return True, f"Trade empfohlen (Grade: {reliability.reliability_grade})"
 
     def _get_regime_for_vix(self, vix: float) -> str:
-        """Ermittelt VIX-Regime"""
         if vix < 15:
             return "low_vol"
         elif vix < 20:
@@ -1093,23 +618,13 @@ class WalkForwardTrainer:
             return "high_vol"
 
     def _get_bucket_label(self, score: float) -> str:
-        """Ermittelt Bucket-Label für Score"""
-        buckets = [
-            (0, 5, "0-5"),
-            (5, 7, "5-7"),
-            (7, 9, "7-9"),
-            (9, 11, "9-11"),
-            (11, 16, "11-16"),
-        ]
-
+        buckets = [(0, 5, "0-5"), (5, 7, "5-7"), (7, 9, "7-9"), (9, 11, "9-11"), (11, 16, "11-16")]
         for low, high, label in buckets:
             if low <= score < high:
                 return label
-
         return "unknown"
 
     def _determine_grade(self, ci_lower: float) -> str:
-        """Bestimmt Grade basierend auf CI-Untergrenze"""
         if ci_lower >= 70:
             return "A"
         elif ci_lower >= 60:

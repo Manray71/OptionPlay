@@ -32,6 +32,39 @@ except ImportError:
     )
 
 
+def check_symbol_stability(
+    symbol: str,
+    current_vix: Optional[float] = None,
+    fundamentals_manager: Any = None,
+) -> tuple[bool, float, float]:
+    """
+    Check if a symbol meets the VIX-adjusted stability requirement.
+
+    Shared logic used by TradeValidator, PositionMonitor, and signal filters.
+    Consolidates stability checking (Task 2.4).
+
+    Args:
+        symbol: Symbol to check
+        current_vix: Current VIX level for regime adjustment
+        fundamentals_manager: FundamentalsManager instance
+
+    Returns:
+        Tuple of (passes: bool, stability_score: float, required_min: float)
+    """
+    required_min = get_adjusted_stability_min(current_vix)
+
+    if fundamentals_manager is None:
+        return (False, 0.0, required_min)
+
+    try:
+        f = fundamentals_manager.get_fundamentals(symbol)
+        if f is None or f.stability_score is None:
+            return (False, 0.0, required_min)
+        return (f.stability_score >= required_min, f.stability_score, required_min)
+    except Exception:
+        return (False, 0.0, required_min)
+
+
 def apply_blacklist_filter(
     signals: list[TradeSignal],
 ) -> list[TradeSignal]:
