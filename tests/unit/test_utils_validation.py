@@ -1332,8 +1332,8 @@ class TestEtfSymbolsConstant:
 
     def test_has_expected_count(self):
         """ETF_SYMBOLS has expected number of entries."""
-        # 4 index ETFs + 11 sector SPDRs = 15
-        assert len(ETF_SYMBOLS) == 15
+        # 4 index ETFs + 11 sector SPDRs + 2 thematic (ARKK, SMH) = 17
+        assert len(ETF_SYMBOLS) == 17
 
 
 # =============================================================================

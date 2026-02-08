@@ -45,7 +45,7 @@ DB-Schema & Code-Details → `CLAUDE.md`
 │                              │                                       │
 │  ┌──────────────────────────┼───────────────────────────────────┐  │
 │  │                     ANALYZER LAYER                             │  │
-│  │  Pullback │ Bounce │ ATH Breakout │ Earnings Dip              │  │
+│  │  Pullback │ Bounce │ ATH Breakout │ Earnings Dip │ Trend Cont │  │
 │  └──────────────────────────┬───────────────────────────────────┘  │
 │                              │                                       │
 │  ┌──────────────────────────┼───────────────────────────────────┐  │
@@ -79,7 +79,7 @@ Alle 3 Kern-Services (Validator, Monitor, Recommender) sind implementiert.
 ## Module Structure
 
 ```
-src/                                    183 Module | 80,184 LOC
+src/                                    216 Module | 88,317 LOC
 ├── mcp_server.py                       (905 LOC — Server-Klasse)
 ├── mcp_tool_registry.py                (1,081 LOC — 108 Tool-Registrierungen)
 ├── mcp_main.py                         (255 LOC — Entry Point)
@@ -119,15 +119,16 @@ src/                                    183 Module | 80,184 LOC
 │   ├── pick_formatter.py              Pick-Formatierung
 │   └── options_chain_validator.py     Chain-Validierung
 │
-├── analyzers/                          10 Dateien — 4 Trading-Strategien
+├── analyzers/                          13 Dateien — 5 Trading-Strategien
 │   ├── pullback.py                    Pullback im Aufwärtstrend
-│   ├── bounce.py                      Support Bounce
-│   ├── ath_breakout.py                All-Time-High Breakout
-│   ├── earnings_dip.py                Post-Earnings Dip
+│   ├── bounce.py                      Support Bounce (Session 1 Refactor)
+│   ├── ath_breakout.py                All-Time-High Breakout (Session 2 Refactor)
+│   ├── earnings_dip.py                Post-Earnings Dip (Session 3 Refactor)
+│   ├── trend_continuation.py          Trend Continuation (Session 4 NEU, 1004 LOC)
 │   ├── feature_scoring_mixin.py       ML-trained Scoring (VWAP, Market, Sector, Gap)
-│   ├── score_normalization.py         Cross-Strategy Scoring (0-10 Skala)
+│   ├── score_normalization.py         Cross-Strategy Scoring (0-10 Skala, 5 Strategien)
 │   ├── context.py                     Analysis-Kontext
-│   ├── pool.py                        Analyzer-Pool
+│   ├── pool.py                        Analyzer-Pool (5 Factories)
 │   └── base.py                        Abstrakte Basis
 │
 ├── backtesting/                        44 Dateien | 17,611 LOC | 7 Sub-Packages
@@ -210,12 +211,12 @@ Alle Parameter extern in YAML:
 
 ---
 
-## Codebase-Metriken (Stand 2026-02-06)
+## Codebase-Metriken (Stand 2026-02-08)
 
 | Bereich | Python-Dateien | Zeilen |
 |---------|---------------|--------|
-| **src/** | 183 | 80,184 |
-| **tests/** | 133 | ~57,000 |
+| **src/** | 216 | 88,317 |
+| **tests/** | 143 | ~60,000 |
 
 ### Größte Subsysteme in src/
 
@@ -224,7 +225,7 @@ Alle Parameter extern in YAML:
 | backtesting/ | 44 | 17,611 | ML-Training, Backtesting Engine (7 Sub-Packages nach Phase 6) |
 | handlers/ | 14 | ~4,500 | MCP Tool Handler (Mixin + Composition) |
 | services/ | 15 | ~5,000 | VIX, Scanner, Options, Recommender, Validator, Monitor |
-| analyzers/ | 10 | ~3,500 | 4 Strategy Analyzer + FeatureScoringMixin |
+| analyzers/ | 13 | ~4,500 | 5 Strategy Analyzer + FeatureScoringMixin |
 | indicators/ | 9 | ~2,800 | Support/Resistance, MACD, RSI, etc. |
 | data_providers/ | 7 | ~2,500 | Tradier, MarketData, Local DB |
 | cache/ | 10 | ~2,000 | Earnings, IV, Fundamentals, VIX |
@@ -331,7 +332,8 @@ Siehe `docs/REDUKTIONSSTRATEGIE.md` für den vollständigen Plan.
 ┌──────────────────────────────────────────────────────────┐
 │  Stufe 1: Komponenten-Scoring (pro Strategie)            │
 │  ─ Jeder Analyzer vergibt Punkte pro Indikator           │
-│  ─ Pullback: 26 Max, Bounce: 27, Breakout: 23, Dip: 21  │
+│  ─ Pullback: 26, Bounce: 10, Breakout: 9, Dip: 9.5,    │
+│  ─ Trend: 10.5 (max_possible nach Refactor)              │
 │  ─ Normalisierung auf 0-10 via score_normalization.py    │
 ├──────────────────────────────────────────────────────────┤
 │  Stufe 2: ML-Trained Weights (FeatureScoringMixin)       │
@@ -357,7 +359,7 @@ Siehe `docs/REDUKTIONSSTRATEGIE.md` für den vollständigen Plan.
 | Komponenten-Punktzahlen | Analyzer-Code + score_normalization.py | Mittel |
 | ML-Weights Retraining | MLWeightOptimizer Pipeline | Hoch |
 
-**WEIGHT-01 — GELÖST:** Komponenten-Gewichte sind in `config/scoring_weights.yaml` externalisiert. RecursiveConfigResolver bietet 4-Layer Auflösung (Base → Regime → Sector → Regime×Sector). Alle 4 Analyzer nutzen `self.get_weights()`. Training-Pipeline (`retrain_weights.py --apply`) schreibt trainierte Werte direkt in YAML.
+**WEIGHT-01 — GELÖST:** Komponenten-Gewichte sind in `config/scoring_weights.yaml` externalisiert. RecursiveConfigResolver bietet 4-Layer Auflösung (Base → Regime → Sector → Regime×Sector). Alle 5 Analyzer nutzen `self.get_weights()`. Training-Pipeline (`retrain_weights.py --apply`) schreibt trainierte Werte direkt in YAML.
 
 ---
 

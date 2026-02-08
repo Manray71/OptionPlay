@@ -55,7 +55,7 @@ class RegimeTrainer:
     4. Select best configuration per regime
     """
 
-    ALL_STRATEGIES = ["pullback", "bounce", "ath_breakout", "earnings_dip"]
+    ALL_STRATEGIES = ["pullback", "bounce", "ath_breakout", "earnings_dip", "trend_continuation"]
 
     def __init__(self, config: RegimeTrainingConfig):
         """

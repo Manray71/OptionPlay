@@ -82,7 +82,12 @@ class AnalysisHandlerMixin(BaseHandlerMixin):
         b.h2("Fundamentals")
         if fundamentals and fundamentals.stability_score is not None:
             stability = fundamentals.stability_score
-            stability_icon = "[OK]" if stability >= ENTRY_STABILITY_MIN else "[X]"
+            if stability >= 70:
+                stability_icon = "[OK]"
+            elif stability >= ENTRY_STABILITY_MIN:
+                stability_icon = "[~]"  # WARNING: 65-70 range
+            else:
+                stability_icon = "[X]"
             b.kv_line("Stability", f"{stability_icon} {stability:.0f}/100 (min: {ENTRY_STABILITY_MIN:.0f})")
             if fundamentals.sector:
                 b.kv_line("Sector", fundamentals.sector)
@@ -177,7 +182,9 @@ class AnalysisHandlerMixin(BaseHandlerMixin):
         vix = await self.get_vix()
 
         # Initialize scanner with earnings data
-        scanner = self._get_multi_scanner(min_score=0)
+        # For single-symbol analysis: disable earnings filter so user sees all scores
+        # (earnings warning is shown separately in the output)
+        scanner = self._get_multi_scanner(min_score=0, exclude_earnings_within_days=0)
 
         # Load earnings date for this symbol into scanner cache
         if self._earnings_fetcher is None:
@@ -195,10 +202,12 @@ class AnalysisHandlerMixin(BaseHandlerMixin):
         strategy_icons = {
             'pullback': '[PB]', 'bounce': '[BN]',
             'ath_breakout': '[ATH]', 'earnings_dip': '[ED]',
+            'trend_continuation': '[TC]',
         }
         strategy_names = {
             'pullback': 'Bull-Put-Spread', 'bounce': 'Support Bounce',
             'ath_breakout': 'ATH Breakout', 'earnings_dip': 'Earnings Dip',
+            'trend_continuation': 'Trend Continuation',
         }
 
         b = MarkdownBuilder()
@@ -226,7 +235,7 @@ class AnalysisHandlerMixin(BaseHandlerMixin):
 
         b.h2("Strategy Scores").blank()
         rows = []
-        for strat in ['pullback', 'bounce', 'ath_breakout', 'earnings_dip']:
+        for strat in ['pullback', 'bounce', 'ath_breakout', 'earnings_dip', 'trend_continuation']:
             icon = strategy_icons.get(strat, '*')
             name = strategy_names.get(strat, strat)
 
@@ -338,6 +347,7 @@ class AnalysisHandlerMixin(BaseHandlerMixin):
             "bounce": "[BN]",
             "ath_breakout": "[ATH]",
             "earnings_dip": "[ED]",
+            "trend_continuation": "[TC]",
         }
 
         icon = strategy_icons.get(rec.recommended_strategy, "[?]")

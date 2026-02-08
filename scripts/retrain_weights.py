@@ -54,7 +54,7 @@ OUTPUT_DIR = Path(__file__).parent.parent / "data_inventory"
 YAML_PATH = Path(__file__).parent.parent / "config" / "scoring_weights.yaml"
 HISTORY_DIR = OUTPUT_DIR / "retrain_history"
 
-STRATEGIES = ["pullback", "bounce", "ath_breakout", "earnings_dip"]
+STRATEGIES = ["pullback", "bounce", "ath_breakout", "earnings_dip", "trend_continuation"]
 REGIMES = ["low", "medium", "high", "extreme"]
 
 # Map DB regime names → YAML regime names
@@ -76,6 +76,13 @@ _SCORE_TO_YAML_KEY_BY_STRATEGY = {
     "ath_breakout": {"ma_score": "trend"},
     "earnings_dip": {"ma_score": "trend"},
     # pullback: ma_score → "ma" (default stripping works)
+    "trend_continuation": {
+        "tc_sma_alignment_score": "sma_alignment",
+        "tc_stability_score": "trend_stability",
+        "tc_buffer_score": "trend_buffer",
+        "tc_momentum_score": "momentum_health",
+        "tc_volatility_score": "volatility",
+    },
 }
 
 
@@ -114,12 +121,14 @@ class StrategyRetrainer:
         cols = [
             "symbol", "entry_date", "was_profitable", "pnl_pct",
             "vix_regime", "max_drawdown_pct",
-            "pullback_score", "bounce_score", "ath_breakout_score", "earnings_dip_score",
+            "pullback_score", "bounce_score", "ath_breakout_score", "earnings_dip_score", "trend_continuation_score",
             "rsi_score", "support_score", "fibonacci_score", "ma_score",
             "volume_score", "macd_score", "stoch_score", "keltner_score",
             "trend_strength_score", "momentum_score", "rs_score",
             "candlestick_score", "vwap_score", "market_context_score",
             "sector_score", "gap_score",
+            "tc_sma_alignment_score", "tc_stability_score", "tc_buffer_score",
+            "tc_momentum_score", "tc_volatility_score",
         ]
         query = f"SELECT {', '.join(cols)} FROM trade_outcomes WHERE pullback_score IS NOT NULL ORDER BY entry_date"
         df = pd.read_sql_query(query, conn)
@@ -385,6 +394,16 @@ class StrategyRetrainer:
             min_win_rate_improvement=self.safety.min_win_rate_improvement,
             max_objective_degradation=self.safety.max_objective_degradation,
         )
+
+        # Apply regime filter from training config (e.g. trend_continuation: only low+normal)
+        regime_filter = training_cfg.get("regime_filter")
+        if regime_filter and "vix_regime" in df.columns:
+            # Map YAML regime names to DB regime names
+            yaml_to_db = {"low": "low", "normal": "medium", "elevated": "high", "high": "extreme"}
+            db_regimes = [yaml_to_db.get(r, r) for r in regime_filter]
+            original_len = len(df)
+            df = df[df["vix_regime"].isin(db_regimes)].copy()
+            print(f"  Regime filter: {regime_filter} → {len(df)}/{original_len} trades")
 
         # Check new trade count
         last_date = self.get_last_retrain_date(strategy)

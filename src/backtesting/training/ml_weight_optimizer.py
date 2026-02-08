@@ -109,6 +109,10 @@ STRATEGY_COMPONENTS = {
         "macd_score", "stoch_score", "keltner_score",
         "vwap_score", "market_context_score", "sector_score",  # NEW
     ],
+    "trend_continuation": [
+        "tc_sma_alignment_score", "tc_stability_score", "tc_buffer_score",
+        "tc_momentum_score", "tc_volatility_score",
+    ],
 }
 
 # Default weights (equal weighting)

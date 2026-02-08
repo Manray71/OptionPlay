@@ -18,6 +18,7 @@ from src.analyzers.pool import (
 )
 from src.analyzers.base import BaseAnalyzer
 from src.analyzers.bounce import BounceAnalyzer, BounceConfig
+from src.analyzers.trend_continuation import TrendContinuationAnalyzer, TrendContinuationConfig
 from src.models.base import TradeSignal, SignalType, SignalStrength
 
 
@@ -394,9 +395,9 @@ class TestAnalyzerPoolWithRealAnalyzers:
         pool = AnalyzerPool()
         pool.register_factory("bounce", lambda: BounceAnalyzer(BounceConfig()))
 
-        # Test data
-        prices = [100.0 + i * 0.1 for i in range(100)]
-        volumes = [1000000] * 100
+        # Test data (120+ for bounce lookback)
+        prices = [100.0 + i * 0.1 for i in range(150)]
+        volumes = [1000000] * 150
         highs = [p + 1 for p in prices]
         lows = [p - 1 for p in prices]
 
@@ -411,6 +412,28 @@ class TestAnalyzerPoolWithRealAnalyzers:
 
             assert signal is not None
             assert signal.strategy == "bounce"
+
+    def test_trend_continuation_analyzer_pool(self):
+        pool = AnalyzerPool()
+        pool.register_factory("trend_continuation", lambda: TrendContinuationAnalyzer(TrendContinuationConfig()))
+
+        # Test data (250+ for SMA200 + slope lookback)
+        prices = [100.0 + i * 0.1 for i in range(300)]
+        volumes = [1000000] * 300
+        highs = [p + 1 for p in prices]
+        lows = [p - 1 for p in prices]
+
+        with pool.acquire("trend_continuation") as analyzer:
+            signal = analyzer.analyze(
+                "TEST",
+                prices,
+                volumes,
+                highs,
+                lows
+            )
+
+            assert signal is not None
+            assert signal.strategy == "trend_continuation"
 
     def test_multiple_strategies(self):
         pool = configure_default_pool()

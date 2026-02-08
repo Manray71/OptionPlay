@@ -518,6 +518,7 @@ def configure_default_pool() -> AnalyzerPool:
     from .bounce import BounceAnalyzer, BounceConfig
     from .ath_breakout import ATHBreakoutAnalyzer, ATHBreakoutConfig
     from .earnings_dip import EarningsDipAnalyzer, EarningsDipConfig
+    from .trend_continuation import TrendContinuationAnalyzer, TrendContinuationConfig
 
     try:
         from ..config import PullbackScoringConfig
@@ -545,6 +546,11 @@ def configure_default_pool() -> AnalyzerPool:
     pool.register_factory(
         "earnings_dip",
         lambda: EarningsDipAnalyzer(EarningsDipConfig())
+    )
+
+    pool.register_factory(
+        "trend_continuation",
+        lambda: TrendContinuationAnalyzer(TrendContinuationConfig())
     )
 
     logger.info(f"Configured default pool with strategies: {pool.registered_strategies}")

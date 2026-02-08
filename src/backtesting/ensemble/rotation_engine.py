@@ -39,7 +39,7 @@ class StrategyRotationEngine:
         self.min_trades = min_trades_for_rotation
 
         self._state = RotationState(
-            current_preferences=initial_preferences or {s: 0.25 for s in STRATEGIES},
+            current_preferences=initial_preferences or {s: 1.0 / len(STRATEGIES) for s in STRATEGIES},
             last_rotation_date=date.today(),
             rotation_reason=None,
             recent_win_rates={s: [] for s in STRATEGIES},
@@ -131,7 +131,7 @@ class StrategyRotationEngine:
         if total > 0:
             return {k: v / total for k, v in performances.items()}
         else:
-            return {s: 0.25 for s in STRATEGIES}
+            return {s: 1.0 / len(STRATEGIES) for s in STRATEGIES}
 
     def get_current_preferences(self) -> Dict[str, float]:
         """Get current strategy preferences"""

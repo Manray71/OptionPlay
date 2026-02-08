@@ -605,7 +605,7 @@ class TestEngineInitialization:
         """Test default configuration."""
         engine = DailyRecommendationEngine()
 
-        assert engine.config['min_stability_score'] == 70.0
+        assert engine.config['min_stability_score'] == 65.0
         assert engine.config['max_picks'] == 5
         assert engine.config['enable_strike_recommendations'] is True
 

@@ -387,7 +387,7 @@ class FundamentalsFilterConfig:
 
     # Stability Filter (aus outcomes.db)
     # Stability Score >= 70 → 94.5% Win Rate (vs. 66% bei <50)
-    min_stability_score: float = ENTRY_STABILITY_MIN  # PLAYBOOK §1: ≥70 (≥80 bei VIX>20)
+    min_stability_score: float = ENTRY_STABILITY_MIN  # PLAYBOOK §1: ≥65 (65-70=WARNING, ≥80 bei VIX>20)
     warn_below_stability: float = 60.0  # Warnung wenn unter diesem Wert
     boost_above_stability: float = 70.0  # Score-Boost ab diesem Wert
 

@@ -25,6 +25,7 @@ try:
     from ..analyzers.ath_breakout import ATHBreakoutAnalyzer, ATHBreakoutConfig
     from ..analyzers.bounce import BounceAnalyzer, BounceConfig
     from ..analyzers.earnings_dip import EarningsDipAnalyzer, EarningsDipConfig
+    from ..analyzers.trend_continuation import TrendContinuationAnalyzer, TrendContinuationConfig
     from ..analyzers.pool import AnalyzerPool, PoolConfig, get_analyzer_pool
     from ..models.base import TradeSignal, SignalType, SignalStrength
     from ..config import PullbackScoringConfig
@@ -48,6 +49,7 @@ except ImportError:
     from analyzers.ath_breakout import ATHBreakoutAnalyzer, ATHBreakoutConfig
     from analyzers.bounce import BounceAnalyzer, BounceConfig
     from analyzers.earnings_dip import EarningsDipAnalyzer, EarningsDipConfig
+    from analyzers.trend_continuation import TrendContinuationAnalyzer, TrendContinuationConfig
     from analyzers.pool import AnalyzerPool, PoolConfig, get_analyzer_pool
     from models.base import TradeSignal, SignalType, SignalStrength
     from config import PullbackScoringConfig
@@ -101,6 +103,7 @@ class ScanMode(Enum):
     BREAKOUT_ONLY = "breakout"    # Nur ATH Breakouts
     BOUNCE_ONLY = "bounce"        # Nur Support Bounces
     EARNINGS_DIP = "earnings_dip" # Nur Earnings Dips
+    TREND_ONLY = "trend_continuation"  # Nur Trend Continuation
     BEST_SIGNAL = "best"          # Nur bestes Signal pro Symbol
 
 
@@ -141,6 +144,7 @@ class ScanConfig:
     enable_ath_breakout: bool = True
     enable_bounce: bool = True
     enable_earnings_dip: bool = True
+    enable_trend_continuation: bool = True
 
     # Analyzer Pool Settings
     use_analyzer_pool: bool = True   # Object Pooling für Performance
@@ -173,7 +177,9 @@ class ScanConfig:
     stability_premium_min_score: float = 4.0   # Niedrigerer Score OK für Premium
     stability_good_threshold: float = 70.0     # Gute Symbole (86.1% WR)
     stability_good_min_score: float = 5.0      # Standard Score für gute Symbole
-    stability_ok_threshold: float = 50.0       # Akzeptable Symbole
+    stability_acceptable_threshold: float = 65.0  # Akzeptable Symbole (65-70, WARNING)
+    stability_acceptable_min_score: float = 5.5   # Leicht höherer Score für 65-70 Range
+    stability_ok_threshold: float = 50.0       # Grenzwertige Symbole
     stability_ok_min_score: float = 6.0        # Höherer Score für grenzwertige Symbole
     # Symbole unter stability_ok_threshold werden komplett gefiltert (Blacklist)
 
@@ -197,8 +203,16 @@ class ScanConfig:
     enable_fundamentals_filter: bool = True  # Master-Schalter
 
     # Stability-basierte Filterung (aus outcomes.db)
-    fundamentals_min_stability: float = ENTRY_STABILITY_MIN  # PLAYBOOK §1: ≥70
-    fundamentals_min_win_rate: float = 70.0   # Mindest historische Win Rate
+    # Note: Lowered from ENTRY_STABILITY_MIN (70) to align with stability_ok_threshold (50).
+    # The Stability-First post-filter (enable_stability_first) handles tiered filtering:
+    # - Premium (≥80): min_score 4.0
+    # - Good (≥70): min_score 5.0
+    # - OK (≥50): min_score 6.0 (requires stronger signals)
+    # - <50: blacklisted
+    # This prevents double-filtering where the pre-filter kills symbols that
+    # the tiered system would handle appropriately with higher score requirements.
+    fundamentals_min_stability: float = 50.0  # Aligned with stability_ok_threshold
+    fundamentals_min_win_rate: float = 65.0   # Lowered: tiered system handles quality control
 
     # Volatility-basierte Filterung
     fundamentals_max_volatility: float = 70.0  # Max HV (annualisiert %)
@@ -664,6 +678,12 @@ class MultiStrategyScanner:
                 lambda: EarningsDipAnalyzer(EarningsDipConfig())
             )
 
+        if self.config.enable_trend_continuation:
+            pool.register_factory(
+                "trend_continuation",
+                lambda: TrendContinuationAnalyzer(TrendContinuationConfig())
+            )
+
         logger.info(
             f"Created analyzer pool with strategies: {pool.registered_strategies}"
         )
@@ -688,6 +708,9 @@ class MultiStrategyScanner:
 
         if self.config.enable_earnings_dip:
             self._analyzers['earnings_dip'] = EarningsDipAnalyzer()
+
+        if self.config.enable_trend_continuation:
+            self._analyzers['trend_continuation'] = TrendContinuationAnalyzer()
 
         logger.info(f"Registered {len(self._analyzers)} analyzers: {list(self._analyzers.keys())}")
     
@@ -1293,6 +1316,14 @@ class MultiStrategyScanner:
                 else:
                     stats['score_too_low'] += 1
 
+            elif stability_score >= self.config.stability_acceptable_threshold:
+                # Akzeptables Symbol (65-70, WARNING): Leicht höherer Score
+                if signal.score >= self.config.stability_acceptable_min_score:
+                    filtered.append(signal)
+                    stats['ok_kept'] += 1
+                else:
+                    stats['score_too_low'] += 1
+
             elif stability_score >= self.config.stability_ok_threshold:
                 # OK Symbol (75% WR): Höherer Score erforderlich
                 if signal.score >= self.config.stability_ok_min_score:
@@ -1666,6 +1697,8 @@ class MultiStrategyScanner:
             return ['bounce']
         elif mode == ScanMode.EARNINGS_DIP:
             return ['earnings_dip']
+        elif mode == ScanMode.TREND_ONLY:
+            return ['trend_continuation']
         # Fallback for future modes
         return None  # pragma: no cover
     

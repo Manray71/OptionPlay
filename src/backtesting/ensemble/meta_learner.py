@@ -75,7 +75,7 @@ class MetaLearner:
         if symbol_perf and symbol_perf.best_strategy:
             symbol_weights = symbol_perf.get_preference_weights()
         else:
-            symbol_weights = {s: 0.25 for s in STRATEGIES}
+            symbol_weights = {s: 1.0 / len(STRATEGIES) for s in STRATEGIES}
 
         # Get regime weights
         regime_weights = self._regime_preferences.get(

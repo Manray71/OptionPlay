@@ -49,7 +49,7 @@ logger = logging.getLogger(__name__)
 # CONSTANTS
 # =============================================================================
 
-STRATEGIES = ['pullback', 'bounce', 'ath_breakout', 'earnings_dip']
+STRATEGIES = ['pullback', 'bounce', 'ath_breakout', 'earnings_dip', 'trend_continuation']
 
 VIX_THRESHOLDS = {
     'low': (0, 15),
@@ -169,11 +169,13 @@ class FastBacktester:
         from src.analyzers.bounce import BounceAnalyzer, BounceConfig
         from src.analyzers.ath_breakout import ATHBreakoutAnalyzer, ATHBreakoutConfig
         from src.analyzers.earnings_dip import EarningsDipAnalyzer, EarningsDipConfig
+        from src.analyzers.trend_continuation import TrendContinuationAnalyzer, TrendContinuationConfig
 
         self._analyzers['pullback'] = PullbackAnalyzer(PullbackScoringConfig())
         self._analyzers['bounce'] = BounceAnalyzer(BounceConfig())
         self._analyzers['ath_breakout'] = ATHBreakoutAnalyzer(ATHBreakoutConfig())
         self._analyzers['earnings_dip'] = EarningsDipAnalyzer(EarningsDipConfig())
+        self._analyzers['trend_continuation'] = TrendContinuationAnalyzer(TrendContinuationConfig())
 
     def run_period(
         self,

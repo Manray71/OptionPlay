@@ -4,9 +4,9 @@ Session-Kontext für Claude Code. Enthält DB-Schema, API-Beispiele und Code-Kon
 Für alle Trading-Regeln → siehe `docs/PLAYBOOK.md`
 
 **Version:** 4.0.0
-**Zuletzt aktualisiert:** 2026-02-06
-**Test-Coverage:** 80.19% (6,748 Tests)
-**Codebase:** 183 Module | 80,184 LOC (src/) | 133 Testdateien
+**Zuletzt aktualisiert:** 2026-02-08
+**Test-Coverage:** 80%+ (6,762 Tests)
+**Codebase:** 216 Module | 88,317 LOC (src/) | 143 Testdateien
 
 ---
 
@@ -225,9 +225,21 @@ python scripts/daily_data_fetcher.py         # VIX täglich (Cronjob)
 
 ## Architektur-Hinweise für Weiterentwicklung
 
+### Trading-Strategien (5 Analyzer)
+
+| Strategie | Datei | Max Score | Min Score | Besonderheit |
+|-----------|-------|-----------|-----------|--------------|
+| **Pullback** | `analyzers/pullback.py` | 26.0 (raw) | 4.0 | Pullback im Aufwärtstrend (bestehend) |
+| **Bounce** | `analyzers/bounce.py` | 10.0 | 3.5 | Support Bounce, 4-Step-Pipeline (Session 1) |
+| **ATH Breakout** | `analyzers/ath_breakout.py` | 9.0 | 4.0 | Konsolidierung + Close-Bestätigung (Session 2) |
+| **Earnings Dip** | `analyzers/earnings_dip.py` | 9.5 | 3.5 | Stabilisierung Pflicht, kein Tag-0-Signal (Session 3) |
+| **Trend Continuation** | `analyzers/trend_continuation.py` | 10.5 | 5.0 | NEU — SMA-Alignment, VIX-Gate bei >25 (Session 4) |
+
+Alle Scores werden via `score_normalization.py` auf 0-10 Skala normalisiert.
+
 ### Scoring-System (3 Stufen)
 
-1. **Komponenten-Scoring**: Jeder Analyzer vergibt Punkte pro Indikator (hardcoded in Analyzer-Klassen)
+1. **Komponenten-Scoring**: Jeder Analyzer vergibt Punkte pro Indikator (`config/scoring_weights.yaml`)
 2. **ML-Weights**: `FeatureScoringMixin` wendet trainierte Gewichte an (`~/.optionplay/models/weights_*.json`)
 3. **Ranking**: `recommendation_engine.py` kombiniert Signal (70%) + Stability (30%) × Speed-Multiplier
 
@@ -237,7 +249,24 @@ python scripts/daily_data_fetcher.py         # VIX täglich (Cronjob)
 |-------|-------------|-----------|
 | **CIRC-01** | ~~Zirkulärer Import~~ — Lazy Import in `reliability.py` | ✅ GELÖST |
 | **VER-01** | ~~Versionskonflikt~~ — Vereinheitlicht auf 4.0.0 | ✅ GELÖST |
-| **WEIGHT-01** | Scoring-Gewichte hardcoded in Analyzern statt Config | Mittel |
+| **WEIGHT-01** | ~~Scoring-Gewichte hardcoded~~ — `config/scoring_weights.yaml` + RecursiveConfigResolver | ✅ GELÖST |
+| **VOL-01** | ~~Volume=0 am Wochenende~~ — Fallback auf letzten non-zero Volume-Wert in Context + allen Analyzern | ✅ GELÖST |
+| **EARN-01** | ~~Earnings Pre-Filter blockiert Dip-Strategie~~ — `include_dip_candidates` in ALL/BEST_SIGNAL Mode | ✅ GELÖST |
+| **STAB-01** | ~~Fundamentals Pre-Filter zu aggressiv~~ — Von 70 auf 50 gesenkt, Tier-System (Stability-First) übernimmt Qualitätskontrolle | ✅ GELÖST |
+
+### Stability-Filterung (2-Stufen-System)
+
+1. **Fundamentals Pre-Filter** (VOR Scan): `min_stability ≥ 50` — entfernt nur Blacklist-Symbole
+2. **Stability-First Post-Filter** (NACH Scan): Tiered Score-Anforderungen:
+   - Premium (≥80 Stability): min_score 4.0 — 94.5% Win Rate
+   - Good (70-80): min_score 5.0 — 86.1% Win Rate
+   - OK (50-70): min_score 6.0 — 75% Win Rate (höhere Hürde!)
+   - Blacklist (<50): komplett gefiltert
+
+### Volume-Fallback (Wochenende/Feiertage)
+
+Wenn `volumes[-1] == 0`, wird der letzte non-zero Volume-Wert verwendet.
+Betrifft: `AnalysisContext`, `PullbackAnalyzer`, `BounceAnalyzer`, `ATHBreakoutAnalyzer`.
 
 ### Backtesting Sub-Packages (nach Phase 6)
 
@@ -247,10 +276,21 @@ src/backtesting/                    44 Module | 17,611 LOC
 ├── simulation/                     Options-Simulator, Real-Backtester
 ├── training/                       Walk-Forward, Regime, ML-Optimizer
 ├── validation/                     Signal-Validation, Reliability
-├── ensemble/                       Meta-Learner, Rotation, Selector
+├── ensemble/                       Meta-Learner, Rotation, Selector (5 Strategien)
 ├── tracking/                       Trade-CRUD, Storage (Price/VIX/Options)
 ├── models/                         25 Dataclasses (reine Datenmodelle)
 └── data_collector.py               Daten-Pipeline
 ```
+
+### Strategy-Refactor Sessions (2026-02)
+
+| Session | Strategie | Tests | Status |
+|---------|-----------|-------|--------|
+| 1 | Support Bounce (Refactor) | 65 | ✅ |
+| 2 | ATH Breakout (Refactor) | 79 | ✅ |
+| 3 | Earnings Dip (Refactor) | 77 | ✅ |
+| 4 | Trend Continuation (NEU) | 98 | ✅ |
+| 5 | Integration & Backtesting | — | ✅ |
+| 6 | Retraining (ML-Weights, Ensemble) | — | ⬜ Nächste Phase |
 
 *Alle Trading-Regeln, VIX-Regime, Stability-Schwellen, Watchlist und Blacklist stehen ausschließlich in PLAYBOOK.md.*

@@ -87,7 +87,12 @@ class AnalysisHandler(BaseHandler):
         b.h2("Fundamentals")
         if fundamentals and fundamentals.stability_score is not None:
             stability = fundamentals.stability_score
-            stability_icon = "[OK]" if stability >= ENTRY_STABILITY_MIN else "[X]"
+            if stability >= 70:
+                stability_icon = "[OK]"
+            elif stability >= ENTRY_STABILITY_MIN:
+                stability_icon = "[~]"  # WARNING: 65-70 range
+            else:
+                stability_icon = "[X]"
             b.kv_line("Stability", f"{stability_icon} {stability:.0f}/100 (min: {ENTRY_STABILITY_MIN:.0f})")
             if fundamentals.sector:
                 b.kv_line("Sector", fundamentals.sector)
@@ -183,7 +188,9 @@ class AnalysisHandler(BaseHandler):
         quote = await self._get_quote_cached(symbol)
         vix = await self._get_vix()
 
-        scanner = self._get_multi_scanner(min_score=0)
+        # For single-symbol analysis: disable earnings filter so user sees all scores
+        # (earnings warning is shown separately in the output)
+        scanner = self._get_multi_scanner(min_score=0, exclude_earnings_within_days=0)
 
         if self._ctx.earnings_fetcher is None:
             self._ctx.earnings_fetcher = get_earnings_fetcher()
@@ -200,10 +207,12 @@ class AnalysisHandler(BaseHandler):
         strategy_icons = {
             'pullback': '[PB]', 'bounce': '[BN]',
             'ath_breakout': '[ATH]', 'earnings_dip': '[ED]',
+            'trend_continuation': '[TC]',
         }
         strategy_names = {
             'pullback': 'Bull-Put-Spread', 'bounce': 'Support Bounce',
             'ath_breakout': 'ATH Breakout', 'earnings_dip': 'Earnings Dip',
+            'trend_continuation': 'Trend Continuation',
         }
 
         b = MarkdownBuilder()
@@ -230,7 +239,7 @@ class AnalysisHandler(BaseHandler):
 
         b.h2("Strategy Scores").blank()
         rows = []
-        for strat in ['pullback', 'bounce', 'ath_breakout', 'earnings_dip']:
+        for strat in ['pullback', 'bounce', 'ath_breakout', 'earnings_dip', 'trend_continuation']:
             icon = strategy_icons.get(strat, '*')
             name = strategy_names.get(strat, strat)
 
@@ -325,6 +334,7 @@ class AnalysisHandler(BaseHandler):
         strategy_icons = {
             "pullback": "[PB]", "bounce": "[BN]",
             "ath_breakout": "[ATH]", "earnings_dip": "[ED]",
+            "trend_continuation": "[TC]",
         }
 
         icon = strategy_icons.get(rec.recommended_strategy, "[?]")
@@ -609,7 +619,8 @@ class AnalysisHandler(BaseHandler):
 
     def _get_multi_scanner(self, min_score=3.5, enable_pullback=True,
                            enable_bounce=True, enable_breakout=True,
-                           enable_earnings_dip=True):
+                           enable_earnings_dip=True, enable_trend_continuation=True,
+                           exclude_earnings_within_days=None):
         from ..scanner.multi_strategy_scanner import MultiStrategyScanner, ScanConfig
         config = ScanConfig(
             min_score=min_score,
@@ -617,7 +628,10 @@ class AnalysisHandler(BaseHandler):
             enable_bounce=enable_bounce,
             enable_breakout=enable_breakout,
             enable_earnings_dip=enable_earnings_dip,
+            enable_trend_continuation=enable_trend_continuation,
         )
+        if exclude_earnings_within_days is not None:
+            config.exclude_earnings_within_days = exclude_earnings_within_days
         return MultiStrategyScanner(config=config)
 
     async def _get_options_chain_with_fallback(self, symbol, dte_min=60, dte_max=90, right="P"):

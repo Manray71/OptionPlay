@@ -1,13 +1,13 @@
 ---
 name: optionplay
-description: "MCP-Server für Options-Trading mit Bull-Put-Spread Strategien. 3 Jobs: Daily Picks, Trade Validator, Position Manager. Verwendet Tradier + Marketdata.app API + optionale IBKR-Bridge. 80%+ Test-Coverage, 53 Tools + 55 Aliases. Trigger: 'Options-Analyse', 'Pullback-Scan', 'Bull-Put-Spread', 'VIX-Strategie', 'Earnings-Check', 'Options-Chain', 'Max Pain', 'IV-Rank', 'Spread-Kandidaten', 'was sagt der Markt', 'Trading-Setup', 'Daily Picks', 'Zeig mir die heutigen Picks', 'Wie stehen meine Positionen', 'Kann ich X traden'."
+description: "MCP-Server für Options-Trading mit Bull-Put-Spread Strategien. 3 Jobs: Daily Picks, Trade Validator, Position Manager. Verwendet Tradier + Marketdata.app API + optionale IBKR-Bridge. 80%+ Test-Coverage, 54 Tools + 56 Aliases. Trigger: 'Options-Analyse', 'Pullback-Scan', 'Trend-Scan', 'Bull-Put-Spread', 'VIX-Strategie', 'Earnings-Check', 'Options-Chain', 'Max Pain', 'IV-Rank', 'Spread-Kandidaten', 'was sagt der Markt', 'Trading-Setup', 'Daily Picks', 'Zeig mir die heutigen Picks', 'Wie stehen meine Positionen', 'Kann ich X traden'."
 ---
 
 # OptionPlay - Trading Assistant MCP Server v4.0.0
 
 Bull-Put-Spread Trading-Assistent mit 3 klar definierten Jobs.
 
-**Version:** 4.0.0 | **Test-Coverage:** 80.19% | **Tests:** 6,748
+**Version:** 4.0.0 | **Test-Coverage:** 80%+ | **Tests:** 6,762
 
 **Alle Trading-Regeln → `docs/PLAYBOOK.md`**
 **DB-Schema & Code → `CLAUDE.md`**
@@ -29,7 +29,7 @@ User: "Zeig mir die heutigen Picks"
 Workflow:
 1. vix                           → Regime bestimmen
 2. prefilter min_days=60         → Earnings-sichere Symbole
-3. daily min_stability=70        → Top-Picks mit Strikes
+3. daily min_stability=50        → Top-Picks mit Strikes (Tier-System: ≥80→Premium, ≥70→Good, ≥50→OK mit höherer Score-Hürde)
 4. Pro Pick: earnings + strikes  → Fertige Setups
 
 Output pro Pick:
@@ -117,6 +117,7 @@ Output pro Position:
 | `optionplay_scan_bounce` | `bounce` | Support-Bounce-Kandidaten |
 | `optionplay_scan_breakout` | `breakout` | ATH-Breakout-Kandidaten |
 | `optionplay_scan_earnings_dip` | `dip` | Earnings-Dip-Kandidaten |
+| `optionplay_scan_trend` | `trend` | Trend-Continuation-Kandidaten (SMA-Alignment) |
 | `optionplay_earnings_prefilter` | `prefilter` | Earnings-Vorfilter (>60 Tage) |
 
 ### Einzel-Analyse
@@ -217,8 +218,8 @@ Output pro Position:
 │   ├── PLAYBOOK.md            # DAS Regelwerk (Entry, Exit, VIX, Disziplin)
 │   ├── ARCHITECTURE.md        # System-Architektur
 │   └── ROADMAP.md             # Stabilisierungs-Roadmap
-├── tests/                     # 133 Testdateien, 6,748 Tests
-└── src/                       # 183 Module, 80,184 LOC — Details in ARCHITECTURE.md
+├── tests/                     # 143 Testdateien, 6,762 Tests
+└── src/                       # 216 Module, 88,317 LOC — Details in ARCHITECTURE.md
 ```
 
 ---
@@ -227,10 +228,10 @@ Output pro Position:
 
 | Metrik | Wert |
 |--------|------|
-| Test-Coverage | 80.19% |
-| Tests | 6,748 (133 Testdateien) |
-| Module (src/) | 183 Python-Dateien, 80,184 LOC |
-| Tools | 53 + 55 Aliases = 108 Endpoints |
+| Test-Coverage | 80%+ |
+| Tests | 6,762 (143 Testdateien) |
+| Module (src/) | 216 Python-Dateien, 88,317 LOC |
+| Tools | 54 + 56 Aliases = 110 Endpoints |
 | Thread-Safety | ✅ (10+ Module mit Locks) |
 | Async-SQLite | ✅ (asyncio.to_thread) |
 
@@ -242,14 +243,15 @@ Trade-Auswahl erfolgt in 3 Stufen:
 
 ### Stufe 1: Komponenten-Scoring (pro Strategie)
 
-Jede der 4 Strategien vergibt Punkte pro technischem Indikator:
+Jede der 5 Strategien vergibt Punkte pro technischem Indikator:
 
 | Strategie | Max Punkte | Kern-Komponenten |
 |-----------|-----------|-----------------|
-| Pullback | 26 | RSI, RSI-Div, Support, Fib, MA, Trend, Volume, MACD, Stoch, Keltner, VWAP, Market, Sector, Gap |
-| Bounce | 27 | Support, RSI, RSI-Div, Candlestick, Volume, Trend, MACD, Stoch, Keltner, VWAP, Market, Sector, Gap |
-| ATH Breakout | 23 | ATH, Volume, Trend, RS, Momentum, Candle, VWAP, Market, Sector, Gap |
-| Earnings Dip | 21 | Dip, Quality, Stabilization, Support, Volume, RSI, VWAP, Market, Sector |
+| Pullback | 26.0 | RSI, RSI-Div, Support, Fib, MA, Trend, Volume, MACD, Stoch, Keltner, VWAP, Market, Sector, Gap |
+| Bounce | 10.0 | Support-Qualität, Proximity, Confirmation, Volume, Trend |
+| ATH Breakout | 9.0 | Konsolidierung, Breakout-Stärke, Volumen, Momentum |
+| Earnings Dip | 9.5 | Drop, Stabilization, Fundamental, Overreaction, BPS |
+| Trend Continuation | 10.5 | SMA-Alignment, Stability, Buffer, Momentum, Volatility |
 
 Normalisierung auf 0-10 Skala via `score_normalization.py`.
 

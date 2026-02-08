@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 class EpochRunner:
     """Generates and executes walk-forward training epochs."""
 
-    ALL_STRATEGIES = ["pullback", "bounce", "ath_breakout", "earnings_dip"]
+    ALL_STRATEGIES = ["pullback", "bounce", "ath_breakout", "earnings_dip", "trend_continuation"]
 
     def __init__(self, config: RegimeTrainingConfig):
         self.config = config

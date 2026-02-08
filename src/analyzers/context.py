@@ -187,10 +187,19 @@ class AnalysisContext:
         if len(prices) < 20:
             return cls(symbol=symbol, regime=regime, sector=sector, strategy=strategy)
 
+        # Volume fallback: if latest volume is 0 (weekend/holiday),
+        # use last non-zero volume from recent data
+        current_volume = volumes[-1] if volumes else 0
+        if current_volume == 0 and volumes and len(volumes) >= 2:
+            for v in reversed(volumes[:-1]):
+                if v > 0:
+                    current_volume = v
+                    break
+
         ctx = cls(
             symbol=symbol,
             current_price=prices[-1],
-            current_volume=volumes[-1] if volumes else 0,
+            current_volume=current_volume,
             regime=regime,
             sector=sector,
             strategy=strategy,
@@ -299,9 +308,14 @@ class AnalysisContext:
         # ATR (vectorized)
         self.atr_14 = calc_atr_numpy(highs_arr, lows_arr, prices_arr, 14)
 
-        # Volume (vectorized)
+        # Volume (vectorized) — exclude zero volumes (weekends/holidays)
         if volumes_arr is not None and len(volumes_arr) >= 20:
-            self.avg_volume_20 = float(np.mean(volumes_arr[-20:]))
+            recent_vols = volumes_arr[-20:]
+            nonzero_vols = recent_vols[recent_vols > 0]
+            if len(nonzero_vols) > 0:
+                self.avg_volume_20 = float(np.mean(nonzero_vols))
+            else:
+                self.avg_volume_20 = float(np.mean(recent_vols))
             if self.avg_volume_20 > 0:
                 self.volume_ratio = self.current_volume / self.avg_volume_20
 
@@ -385,9 +399,14 @@ class AnalysisContext:
         # ATR
         self.atr_14 = self._calc_atr(highs, lows, prices, 14)
 
-        # Volume
+        # Volume — exclude zero volumes (weekends/holidays)
         if len(volumes) >= 20:
-            self.avg_volume_20 = sum(volumes[-20:]) / 20
+            recent_vols = volumes[-20:]
+            nonzero_vols = [v for v in recent_vols if v > 0]
+            if nonzero_vols:
+                self.avg_volume_20 = sum(nonzero_vols) / len(nonzero_vols)
+            else:
+                self.avg_volume_20 = sum(recent_vols) / 20
             if self.avg_volume_20 > 0:
                 self.volume_ratio = self.current_volume / self.avg_volume_20
 

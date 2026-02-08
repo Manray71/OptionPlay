@@ -81,7 +81,7 @@ class RegimeConfig:
 
     # Strategy Settings
     strategies_enabled: List[str] = field(
-        default_factory=lambda: ["pullback", "bounce", "ath_breakout", "earnings_dip"]
+        default_factory=lambda: ["pullback", "bounce", "ath_breakout", "earnings_dip", "trend_continuation"]
     )
     strategy_weights: Dict[str, float] = field(default_factory=dict)
 
@@ -187,7 +187,7 @@ class RegimeConfig:
             stop_loss_pct=trading.get("stop_loss_pct", 150.0),
             position_size_pct=trading.get("position_size_pct", 5.0),
             max_concurrent_positions=trading.get("max_concurrent_positions", 10),
-            strategies_enabled=strategies.get("enabled", ["pullback", "bounce", "ath_breakout", "earnings_dip"]),
+            strategies_enabled=strategies.get("enabled", ["pullback", "bounce", "ath_breakout", "earnings_dip", "trend_continuation"]),
             strategy_weights=strategies.get("weights", {}),
             component_adjustments=data.get("component_adjustments", {}),
             description=metadata.get("description", ""),
@@ -317,7 +317,7 @@ FIXED_REGIMES: Dict[str, RegimeConfig] = {
         stop_loss_pct=200.0,
         position_size_pct=6.0,
         max_concurrent_positions=15,
-        strategies_enabled=["pullback", "bounce", "ath_breakout", "earnings_dip"],
+        strategies_enabled=["pullback", "bounce", "ath_breakout", "earnings_dip", "trend_continuation"],
     ),
     RegimeType.NORMAL.value: RegimeConfig(
         name="normal",
@@ -330,7 +330,7 @@ FIXED_REGIMES: Dict[str, RegimeConfig] = {
         stop_loss_pct=150.0,
         position_size_pct=5.0,
         max_concurrent_positions=10,
-        strategies_enabled=["pullback", "bounce", "ath_breakout", "earnings_dip"],
+        strategies_enabled=["pullback", "bounce", "ath_breakout", "earnings_dip", "trend_continuation"],
     ),
     RegimeType.ELEVATED.value: RegimeConfig(
         name="elevated",
@@ -824,12 +824,19 @@ class TrainedModelLoader:
                 continue
 
             # Get lowest min_score across all enabled strategies
+            # Merge trained strategies with base strategies that aren't in the trained model yet
             enabled_strategies = trained_cfg.get_enabled_strategies()
+            for base_strat in base.strategies_enabled:
+                if base_strat not in trained_cfg.strategies and base_strat not in enabled_strategies:
+                    enabled_strategies.append(base_strat)
             if enabled_strategies:
                 min_scores = [
                     trained_cfg.strategies[s].min_score
                     for s in enabled_strategies
+                    if s in trained_cfg.strategies
                 ]
+                if not min_scores:
+                    min_scores = [base.min_score]
                 regime_min_score = min(min_scores)
             else:
                 regime_min_score = base.min_score

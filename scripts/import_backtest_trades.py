@@ -38,11 +38,12 @@ from src.analyzers.pullback import PullbackAnalyzer
 from src.analyzers.bounce import BounceAnalyzer, BounceConfig
 from src.analyzers.ath_breakout import ATHBreakoutAnalyzer, ATHBreakoutConfig
 from src.analyzers.earnings_dip import EarningsDipAnalyzer, EarningsDipConfig
+from src.analyzers.trend_continuation import TrendContinuationAnalyzer, TrendContinuationConfig
 from src.models.base import SignalType
 
 logger = logging.getLogger(__name__)
 
-STRATEGIES = ["pullback", "bounce", "ath_breakout", "earnings_dip"]
+STRATEGIES = ["pullback", "bounce", "ath_breakout", "earnings_dip", "trend_continuation"]
 
 
 def create_analyzers():
@@ -52,6 +53,7 @@ def create_analyzers():
         "bounce": BounceAnalyzer(BounceConfig()),
         "ath_breakout": ATHBreakoutAnalyzer(ATHBreakoutConfig()),
         "earnings_dip": EarningsDipAnalyzer(EarningsDipConfig()),
+        "trend_continuation": TrendContinuationAnalyzer(TrendContinuationConfig()),
     }
 
 

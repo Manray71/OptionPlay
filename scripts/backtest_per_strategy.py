@@ -47,6 +47,7 @@ from src.analyzers.pullback import PullbackAnalyzer
 from src.analyzers.bounce import BounceAnalyzer, BounceConfig
 from src.analyzers.ath_breakout import ATHBreakoutAnalyzer, ATHBreakoutConfig
 from src.analyzers.earnings_dip import EarningsDipAnalyzer, EarningsDipConfig
+from src.analyzers.trend_continuation import TrendContinuationAnalyzer, TrendContinuationConfig
 from src.analyzers.base import BaseAnalyzer
 from src.models.base import TradeSignal, SignalType
 
@@ -165,7 +166,7 @@ class StrategyResult:
 class StrategyBacktester:
     """Führt Backtests für einzelne Strategien durch"""
 
-    STRATEGIES = ['pullback', 'bounce', 'ath_breakout', 'earnings_dip']
+    STRATEGIES = ['pullback', 'bounce', 'ath_breakout', 'earnings_dip', 'trend_continuation']
 
     def __init__(self, config: StrategyBacktestConfig):
         self.config = config
@@ -189,6 +190,10 @@ class StrategyBacktester:
         # Earnings Dip
         dip_config = EarningsDipConfig()
         self._analyzers['earnings_dip'] = EarningsDipAnalyzer(dip_config)
+
+        # Trend Continuation
+        tc_config = TrendContinuationConfig()
+        self._analyzers['trend_continuation'] = TrendContinuationAnalyzer(tc_config)
 
     def run_backtest(
         self,
@@ -635,7 +640,7 @@ def main():
         epilog=__doc__
     )
 
-    parser.add_argument('--strategy', type=str, choices=['pullback', 'bounce', 'ath_breakout', 'earnings_dip', 'all'],
+    parser.add_argument('--strategy', type=str, choices=['pullback', 'bounce', 'ath_breakout', 'earnings_dip', 'trend_continuation', 'all'],
                         default='all', help='Strategy to test (default: all)')
     parser.add_argument('--min-score', type=float, default=5.0,
                         help='Minimum signal score (default: 5.0)')

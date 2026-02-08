@@ -118,7 +118,8 @@ class BaseHandlerMixin:
         self,
         symbols: list[str],
         min_days: int,
-        for_earnings_dip: bool = False
+        for_earnings_dip: bool = False,
+        include_dip_candidates: bool = False,
     ) -> tuple[list[str], int, int]:
         """Apply earnings pre-filter to symbols."""
         raise NotImplementedError

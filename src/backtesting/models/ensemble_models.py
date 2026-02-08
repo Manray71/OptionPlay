@@ -27,7 +27,7 @@ import numpy as np
 # CONSTANTS
 # =============================================================================
 
-STRATEGIES = ["pullback", "bounce", "ath_breakout", "earnings_dip"]
+STRATEGIES = ["pullback", "bounce", "ath_breakout", "earnings_dip", "trend_continuation"]
 
 # Default strategy preferences by regime (based on typical performance patterns)
 # Updated 2026-01-28 based on training results (52,935 trades):
@@ -37,28 +37,32 @@ STRATEGIES = ["pullback", "bounce", "ath_breakout", "earnings_dip"]
 #   earnings_dip: 55.5% win rate
 DEFAULT_REGIME_PREFERENCES = {
     "low_vol": {
-        "pullback": 0.27,
-        "bounce": 0.23,
-        "ath_breakout": 0.27,  # Breakouts work well in low vol
-        "earnings_dip": 0.23,
+        "pullback": 0.22,
+        "bounce": 0.19,
+        "ath_breakout": 0.22,  # Breakouts work well in low vol
+        "earnings_dip": 0.19,
+        "trend_continuation": 0.18,  # Trends thrive in low vol
     },
     "normal": {
-        "pullback": 0.28,
-        "bounce": 0.22,
-        "ath_breakout": 0.27,
-        "earnings_dip": 0.23,
+        "pullback": 0.23,
+        "bounce": 0.18,
+        "ath_breakout": 0.22,
+        "earnings_dip": 0.19,
+        "trend_continuation": 0.18,
     },
     "elevated": {
-        "pullback": 0.30,  # Mean reversion stronger
-        "bounce": 0.30,
-        "ath_breakout": 0.20,  # Breakouts less reliable
-        "earnings_dip": 0.20,
+        "pullback": 0.28,  # Mean reversion stronger
+        "bounce": 0.28,
+        "ath_breakout": 0.18,  # Breakouts less reliable
+        "earnings_dip": 0.18,
+        "trend_continuation": 0.08,  # Trends weaken in elevated vol
     },
     "high_vol": {
-        "pullback": 0.35,  # Only high-conviction plays
-        "bounce": 0.35,
-        "ath_breakout": 0.15,
-        "earnings_dip": 0.15,
+        "pullback": 0.34,  # Only high-conviction plays
+        "bounce": 0.34,
+        "ath_breakout": 0.14,
+        "earnings_dip": 0.14,
+        "trend_continuation": 0.04,  # Nearly disabled at high vol
     },
 }
 
@@ -129,6 +133,7 @@ MIN_SCORE_THRESHOLDS = {
     "bounce": 4.0,
     "ath_breakout": 5.0,
     "earnings_dip": 5.0,
+    "trend_continuation": 5.0,
 }
 
 
@@ -291,7 +296,7 @@ class SymbolPerformance:
     def get_preference_weights(self) -> Dict[str, float]:
         """Get strategy preference weights based on history"""
         if not self.strategy_win_rates:
-            return {s: 0.25 for s in STRATEGIES}
+            return {s: 1.0 / len(STRATEGIES) for s in STRATEGIES}
 
         # Weight by win rate * sqrt(sample size)
         weights = {}

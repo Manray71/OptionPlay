@@ -205,7 +205,7 @@ class TestScanConfig:
 
         assert config.enable_fundamentals_filter is True
         assert config.fundamentals_min_stability >= 0
-        assert config.fundamentals_min_win_rate == 70.0
+        assert config.fundamentals_min_win_rate == 65.0
         assert config.fundamentals_max_volatility == 70.0
         assert config.fundamentals_max_beta == 2.0
 

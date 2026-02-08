@@ -110,6 +110,7 @@ def create_outcome_database(db_path: Path = OUTCOME_DB_PATH) -> sqlite3.Connecti
         ("bounce_score", "REAL"),
         ("ath_breakout_score", "REAL"),
         ("earnings_dip_score", "REAL"),
+        ("trend_continuation_score", "REAL"),
 
         # Zusätzliche technische Daten
         ("rsi_value", "REAL"),
@@ -213,9 +214,10 @@ def save_outcomes_to_db(
                 momentum_score, rs_score, candlestick_score,
                 vwap_score, market_context_score, sector_score, gap_score,
                 pullback_score, bounce_score, ath_breakout_score, earnings_dip_score,
+                trend_continuation_score,
                 rsi_value, distance_to_support_pct, spy_trend, score_breakdown_json
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 entry.symbol,
                 entry.entry_date.isoformat(),
@@ -261,6 +263,7 @@ def save_outcomes_to_db(
                 scores.get('bounce_score'),
                 scores.get('ath_breakout_score'),
                 scores.get('earnings_dip_score'),
+                scores.get('trend_continuation_score'),
                 scores.get('rsi_value'),
                 scores.get('distance_to_support_pct'),
                 scores.get('spy_trend'),
@@ -459,7 +462,7 @@ def update_trade_scores(
         'macd_score', 'stoch_score', 'keltner_score', 'trend_strength_score',
         'momentum_score', 'rs_score', 'candlestick_score',
         'vwap_score', 'market_context_score', 'sector_score', 'gap_score',
-        'pullback_score', 'bounce_score', 'ath_breakout_score', 'earnings_dip_score',
+        'pullback_score', 'bounce_score', 'ath_breakout_score', 'earnings_dip_score', 'trend_continuation_score',
         'rsi_value', 'distance_to_support_pct', 'spy_trend', 'score_breakdown_json',
     ]
 

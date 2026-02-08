@@ -23,8 +23,8 @@ class TestStrategyEnum:
         assert Strategy.EARNINGS_DIP.value == "earnings_dip"
     
     def test_strategy_count(self):
-        """Genau 4 Strategien sind definiert."""
-        assert len(Strategy) == 4
+        """Genau 5 Strategien sind definiert."""
+        assert len(Strategy) == 5
     
     def test_icons_defined_for_all(self):
         """Jede Strategie hat ein Icon."""
@@ -114,9 +114,10 @@ class TestStrategyClassMethods:
         credit_strategies = Strategy.credit_spread_strategies()
         assert Strategy.PULLBACK in credit_strategies
         assert Strategy.BOUNCE in credit_strategies
+        assert Strategy.TREND_CONTINUATION in credit_strategies
         assert Strategy.ATH_BREAKOUT not in credit_strategies
         assert Strategy.EARNINGS_DIP not in credit_strategies
-        assert len(credit_strategies) == 2
+        assert len(credit_strategies) == 3
     
     def test_all_values(self):
         """all_values gibt alle Values zurück."""
@@ -125,7 +126,8 @@ class TestStrategyClassMethods:
         assert "bounce" in values
         assert "ath_breakout" in values
         assert "earnings_dip" in values
-        assert len(values) == 4
+        assert "trend_continuation" in values
+        assert len(values) == 5
     
     def test_to_dict(self):
         """to_dict serialisiert korrekt."""

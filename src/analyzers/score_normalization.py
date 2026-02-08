@@ -4,9 +4,9 @@
 #
 # Problem: Different strategies have different max scores
 # - Pullback: max 26 points
-# - Bounce: max 27 points
-# - ATH Breakout: max 23 points
-# - Earnings Dip: max 21 points
+# - Bounce: max 10 points (v2: 5-component scoring)
+# - ATH Breakout: max 10 points (v2: 4-component scoring)
+# - Earnings Dip: max 9.5 points (v2: 5-component + penalties)
 #
 # Solution: Normalize all scores to 0-10 scale for direct comparability
 
@@ -43,32 +43,40 @@ STRATEGY_SCORE_CONFIGS: Dict[str, StrategyScoreConfig] = {
         weak_threshold=3.0,
     ),
     'bounce': StrategyScoreConfig(
-        max_possible=27.0,
-        # Component breakdown:
-        # Support: 3, RSI: 3, RSI Divergence: 3, Candlestick: 3,
-        # Volume: 2, Trend: 2, MACD: 2, Stoch: 2, Keltner: 2,
-        # VWAP: 3, Market Context: 2, Sector: 1, Gap: 1
+        max_possible=10.0,
+        # Component breakdown (v2 refactored):
+        # Support Quality: 2.5, Proximity: 2.0, Bounce Confirmation: 2.5,
+        # Volume: 1.5 (can be -1.0), Trend Context: 1.5 (can be -1.0)
         strong_threshold=7.0,
         moderate_threshold=5.0,
-        weak_threshold=3.0,
+        weak_threshold=3.5,
     ),
     'ath_breakout': StrategyScoreConfig(
-        max_possible=23.0,
-        # Component breakdown:
-        # ATH Score: 4, Volume: 3, Trend: 2, RS: 2, Momentum: 3,
-        # Candlestick: 2, VWAP: 3, Market Context: 2, Sector: 1, Gap: 1
+        max_possible=10.0,
+        # Component breakdown (v2 refactored):
+        # Consolidation Quality: 2.5, Breakout Strength: 2.0,
+        # Volume: 2.5 (can be -1.0), Momentum/Trend: 1.5 (can be -1.0)
         strong_threshold=7.0,
-        moderate_threshold=5.0,
-        weak_threshold=3.0,
+        moderate_threshold=5.5,
+        weak_threshold=4.0,
     ),
     'earnings_dip': StrategyScoreConfig(
-        max_possible=21.0,
-        # Component breakdown:
-        # Dip Magnitude: 3, Quality: 3, Stabilization: 3, Support: 2,
-        # Volume: 2, RSI: 2, VWAP: 3, Market Context: 2, Sector: 1
-        strong_threshold=7.0,
+        max_possible=9.5,
+        # Component breakdown (v2 refactored):
+        # Drop Magnitude: 2.0, Stabilization: 2.5, Fundamental: 2.0,
+        # Overreaction: 2.0, BPS Suitability: 1.0, Penalties: -3.0
+        strong_threshold=6.5,
         moderate_threshold=5.0,
-        weak_threshold=3.0,
+        weak_threshold=3.5,
+    ),
+    'trend_continuation': StrategyScoreConfig(
+        max_possible=10.5,
+        # Component breakdown (v2 new):
+        # SMA Alignment: 2.5, Trend Stability: 2.0 (+0.5 bonus),
+        # Trend Buffer: 2.0, Momentum Health: 2.0, Volatility: 1.5
+        strong_threshold=7.5,
+        moderate_threshold=6.0,
+        weak_threshold=5.0,
     ),
 }
 

@@ -359,7 +359,7 @@ class StrategyWeightTrainer:
         """Filter trades where this strategy has the highest score."""
         strategy_score_col = f"{self.strategy}_score"
         other_cols = [
-            f"{s}_score" for s in ["pullback", "bounce", "ath_breakout", "earnings_dip"]
+            f"{s}_score" for s in ["pullback", "bounce", "ath_breakout", "earnings_dip", "trend_continuation"]
             if s != self.strategy
         ]
 

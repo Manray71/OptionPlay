@@ -65,7 +65,7 @@ class TestStrategyScoreConfigs:
 
     def test_has_all_strategies(self):
         """Test that all expected strategies are present."""
-        expected = ['pullback', 'bounce', 'ath_breakout', 'earnings_dip']
+        expected = ['pullback', 'bounce', 'ath_breakout', 'earnings_dip', 'trend_continuation']
         for strategy in expected:
             assert strategy in STRATEGY_SCORE_CONFIGS
 
@@ -78,17 +78,25 @@ class TestStrategyScoreConfigs:
     def test_bounce_config(self):
         """Test bounce configuration."""
         config = STRATEGY_SCORE_CONFIGS['bounce']
-        assert config.max_possible == 27.0
+        assert config.max_possible == 10.0
 
     def test_ath_breakout_config(self):
         """Test ATH breakout configuration."""
         config = STRATEGY_SCORE_CONFIGS['ath_breakout']
-        assert config.max_possible == 23.0
+        assert config.max_possible == 10.0
 
     def test_earnings_dip_config(self):
         """Test earnings dip configuration."""
         config = STRATEGY_SCORE_CONFIGS['earnings_dip']
-        assert config.max_possible == 21.0
+        assert config.max_possible == 9.5
+
+    def test_trend_continuation_config(self):
+        """Test trend continuation configuration."""
+        config = STRATEGY_SCORE_CONFIGS['trend_continuation']
+        assert config.max_possible == 10.5
+        assert config.strong_threshold == 7.5
+        assert config.moderate_threshold == 6.0
+        assert config.weak_threshold == 5.0
 
 
 # =============================================================================
@@ -112,25 +120,35 @@ class TestNormalizeScore:
 
     def test_normalize_bounce(self):
         """Test normalizing bounce score."""
-        # Bounce max is 27, so 27 should be 10.0
-        result = normalize_score(27.0, 'bounce')
+        # Bounce max is 10.0, so 10.0 should be 10.0
+        result = normalize_score(10.0, 'bounce')
         assert result == 10.0
 
-        # 13.5 should be 5.0
-        result = normalize_score(13.5, 'bounce')
+        # 5.0 should be 5.0 (already normalized scale)
+        result = normalize_score(5.0, 'bounce')
         assert result == 5.0
 
     def test_normalize_ath_breakout(self):
         """Test normalizing ATH breakout score."""
-        # ATH max is 23
-        result = normalize_score(23.0, 'ath_breakout')
+        # ATH max is 10.0 (v2: 4-component scoring)
+        result = normalize_score(10.0, 'ath_breakout')
         assert result == 10.0
 
     def test_normalize_earnings_dip(self):
         """Test normalizing earnings dip score."""
-        # Earnings dip max is 21
-        result = normalize_score(21.0, 'earnings_dip')
+        # Earnings dip max is 9.5 (v2: 5-component + penalties)
+        result = normalize_score(9.5, 'earnings_dip')
         assert result == 10.0
+
+    def test_normalize_trend_continuation(self):
+        """Test normalizing trend continuation score."""
+        # Trend continuation max is 10.5
+        result = normalize_score(10.5, 'trend_continuation')
+        assert result == 10.0
+
+        # Half of max
+        result = normalize_score(5.25, 'trend_continuation')
+        assert result == 5.0
 
     def test_normalize_zero_score(self):
         """Test normalizing zero score."""
@@ -180,7 +198,7 @@ class TestDenormalizeScore:
     def test_denormalize_bounce(self):
         """Test denormalizing bounce score."""
         result = denormalize_score(10.0, 'bounce')
-        assert result == 27.0
+        assert result == 10.0
 
     def test_denormalize_unknown_strategy(self):
         """Test denormalizing unknown strategy returns input."""
@@ -256,17 +274,22 @@ class TestGetMaxPossible:
     def test_bounce_max(self):
         """Test bounce max."""
         result = get_max_possible('bounce')
-        assert result == 27.0
+        assert result == 10.0
 
     def test_ath_breakout_max(self):
         """Test ATH breakout max."""
         result = get_max_possible('ath_breakout')
-        assert result == 23.0
+        assert result == 10.0
 
     def test_earnings_dip_max(self):
         """Test earnings dip max."""
         result = get_max_possible('earnings_dip')
-        assert result == 21.0
+        assert result == 9.5
+
+    def test_trend_continuation_max(self):
+        """Test trend continuation max."""
+        result = get_max_possible('trend_continuation')
+        assert result == 10.5
 
     def test_unknown_strategy_returns_default(self):
         """Test unknown strategy returns default of 10."""
@@ -285,7 +308,7 @@ class TestCompareScores:
         """Test comparing and normalizing scores."""
         scores = {
             'pullback': 13.0,  # 50% of 26 = 5.0
-            'bounce': 13.5,    # 50% of 27 = 5.0
+            'bounce': 5.0,     # 50% of 10 = 5.0
         }
 
         result = compare_scores(scores, normalize=True)
@@ -297,7 +320,7 @@ class TestCompareScores:
         """Test comparing without normalization."""
         scores = {
             'pullback': 13.0,
-            'bounce': 15.0,
+            'bounce': 7.0,
         }
 
         result = compare_scores(scores, normalize=False)
@@ -313,9 +336,10 @@ class TestCompareScores:
         """Test comparing multiple strategies."""
         scores = {
             'pullback': 26.0,    # Max = 10.0
-            'bounce': 27.0,      # Max = 10.0
-            'ath_breakout': 23.0,  # Max = 10.0
-            'earnings_dip': 21.0,  # Max = 10.0
+            'bounce': 10.0,      # Max = 10.0
+            'ath_breakout': 10.0,  # Max = 10.0 (v2)
+            'earnings_dip': 9.5,  # Max = 10.0 (v2)
+            'trend_continuation': 10.5,  # Max = 10.0
         }
 
         result = compare_scores(scores, normalize=True)
@@ -441,8 +465,8 @@ class TestScoreNormalizer:
 
         candidates = [
             Candidate(13.0, 'pullback'),   # 50% = 5.0
-            Candidate(20.25, 'bounce'),    # 75% = 7.5
-            Candidate(11.5, 'ath_breakout'),  # 50% = 5.0
+            Candidate(7.5, 'bounce'),      # 75% = 7.5
+            Candidate(5.0, 'ath_breakout'),  # 50% = 5.0 (v2: max=10)
         ]
 
         result = normalizer.rank_candidates(candidates)
@@ -461,7 +485,7 @@ class TestScoreNormalizer:
 
         candidates = [
             Candidate(13.0, 'pullback'),
-            Candidate(27.0, 'bounce'),  # Max score
+            Candidate(10.0, 'bounce'),  # Max score
         ]
 
         result = normalizer.rank_candidates(candidates, score_attr='raw_score')

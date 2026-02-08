@@ -466,7 +466,7 @@ class ConfigLoader:
         )
 
         # Parse each strategy
-        for strategy in ['pullback', 'bounce', 'ath_breakout', 'earnings_dip']:
+        for strategy in ['pullback', 'bounce', 'ath_breakout', 'earnings_dip', 'trend_continuation']:
             if strategy in raw:
                 strat_data = raw[strategy]
                 tw = TrainedWeights(
@@ -487,7 +487,7 @@ class ConfigLoader:
 
             # Build strategy_boosts dict from per-strategy configs
             strategy_boosts = {}
-            for strategy in ['pullback', 'bounce', 'ath_breakout', 'earnings_dip']:
+            for strategy in ['pullback', 'bounce', 'ath_breakout', 'earnings_dip', 'trend_continuation']:
                 if strategy in gb_data:
                     strategy_boosts[strategy] = gb_data[strategy]
 

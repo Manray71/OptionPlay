@@ -249,6 +249,13 @@ class PullbackAnalyzer(PullbackScoringMixin, BaseAnalyzer):
         current_price = prices[-1]
         current_volume = volumes[-1]
 
+        # Weekend/holiday fallback: use last non-zero volume
+        if current_volume == 0 and len(volumes) >= 2:
+            for v in reversed(volumes[:-1]):
+                if v > 0:
+                    current_volume = v
+                    break
+
         # Use context if provided, otherwise calculate
         if context and context.rsi_14 is not None:
             # Use pre-calculated values from context

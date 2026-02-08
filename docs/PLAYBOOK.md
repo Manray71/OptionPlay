@@ -3,7 +3,7 @@
 Einziges, verbindliches Regelwerk für Bull-Put-Spread Trading.
 Alle anderen Dokumente verweisen hierher. Bei Widersprüchen gilt dieses Dokument.
 
-**Letzte Aktualisierung:** 2026-02-03
+**Letzte Aktualisierung:** 2026-02-08
 **Konsolidiert aus:** REGELWERK.md, ML-Training (Jan 2026), Verlustanalyse, Backtest-Ergebnisse
 
 ---
@@ -16,8 +16,8 @@ Jeder Trade muss ALLE harten Filter bestehen. Kein Filter darf übersprungen wer
 
 | Filter | Schwelle | Aktion bei Verletzung |
 |--------|----------|----------------------|
-| Stability Score | ≥ 70 | NO-GO, keine Ausnahme |
-| Earnings-Abstand | > 60 Tage | NO-GO, keine Ausnahme |
+| Stability Score | ≥ 70 | NO-GO für Trade Execution. Scanner zeigt Signale ab ≥50 (mit höherer Score-Hürde) |
+| Earnings-Abstand | > 60 Tage | NO-GO, keine Ausnahme (Earnings-Dip-Strategie ausgenommen: benötigt kürzliche Earnings) |
 | VIX | < 30 | NO-GO für neue Trades (> 35 = kein Trading) |
 | Blacklist | Symbol nicht auf Liste | NO-GO, keine Ausnahme |
 | Preis | $20 – $1500 | NO-GO |
@@ -35,8 +35,8 @@ Jeder Trade muss ALLE harten Filter bestehen. Kein Filter darf übersprungen wer
 
 ```
 1. Blacklist-Check     → sofort raus wenn gelistet
-2. Stability ≥ 70     → sofort raus wenn < 70
-3. Earnings > 60 Tage → sofort raus wenn zu nah
+2. Stability ≥ 70     → NO-GO bei Trade Execution (Scanner: ≥50 mit Tier-System)
+3. Earnings > 60 Tage → sofort raus wenn zu nah (Dip-Strategie: kürzliche Earnings erlaubt)
 4. VIX < 30           → sofort raus wenn ≥ 30
 5. Preis $20-$1500     → sofort raus wenn außerhalb
 6. Volumen > 500k     → sofort raus wenn zu dünn

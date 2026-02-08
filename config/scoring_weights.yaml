@@ -1,120 +1,133 @@
 ---
-version: "3.1.0"
-date: "2026-02-06"
-trained: "2026-02-06"  # Last training date
-
+version: 3.1.0
+date: '2026-02-08'
+trained: '2026-02-08'
 defaults:
   min_stability: 70
-
-# =============================================================================
-# STRATEGY-SPECIFIC WEIGHTS (v3.1: Trained via Iter 2-3)
-# =============================================================================
 strategies:
   pullback:
     weights:
-      rsi: 3.1          # Trained: +0.10 (Iter 2)
+      rsi: 3.1
       rsi_divergence: 3.0
-      support: 2.46      # Trained: -0.04
+      support: 2.46
       fibonacci: 1.99
-      ma: 1.06           # Trained: -0.94 (key matches _scale('ma'))
+      ma: 1.06
       trend_strength: 2.05
       volume: 1.0
       macd: 1.98
-      stoch: 1.0         # key matches _scale('stoch')
+      stoch: 1.0
       keltner: 2.0
-      vwap: 3.06         # Trained: +0.06
-      market_context: 1.70  # Trained: -0.30 (strongest signal)
+      vwap: 3.06
+      market_context: 1.7
       sector: 1.0
       gap: 1.0
     max_possible: 26.0
-
     regimes:
       low:
-        weights: {market_context: 1.60}  # Iter 3: -0.10
+        weights:
+          market_context: 1.6
       normal: {}
       elevated:
         min_stability: 85
       danger:
         min_stability: 80
-        weights: {rsi: 3.5, support: 3.0, fibonacci: 2.11, market_context: 1.84}  # Iter 3 medium merged
+        weights:
+          rsi: 3.5
+          support: 3.0
+          fibonacci: 2.11
+          market_context: 1.84
       high:
         min_stability: 80
-        weights: {rsi: 3.15, market_context: 1.50}  # Iter 3: mkt_ctx -0.20
-
+        weights:
+          rsi: 3.15
+          market_context: 1.5
     sectors:
       Technology:
-        weights: {trend_strength: 3.0, volume: 2.0}
+        weights:
+          trend_strength: 3.0
+          volume: 2.0
       Energy:
-        weights: {support: 3.0}
-      "Consumer Defensive":
-        sector_factor: 1.126  # Iter 4: best sector
+        weights:
+          support: 3.0
+      Consumer Defensive:
+        sector_factor: 1.126
       Healthcare:
-        sector_factor: 0.733  # Iter 4: worst sector
-      "Communication Services":
+        sector_factor: 0.733
+      Communication Services:
         sector_factor: 0.745
-      "danger:Technology":
-        weights: {rsi: 4.0, support: 3.5, trend_strength: 3.5}
-
+      danger:Technology:
+        weights:
+          rsi: 4.0
+          support: 3.5
+          trend_strength: 3.5
   bounce:
     weights:
-      support: 1.05        # Trained: -1.95 (Iter 2, key matches _scale('support'))
-      rsi: 2.24            # Trained: +0.24
+      support: 1.05
+      rsi: 2.24
       rsi_divergence: 3.0
       candlestick: 2.0
       volume: 2.0
-      trend: 0.99          # Trained: -1.01
+      trend: 0.99
       macd: 1.99
-      stoch: 1.10          # Trained: +0.10 (key matches _scale('stoch'))
+      stoch: 1.1
       keltner: 2.0
       vwap: 2.99
-      market_context: 1.58  # Trained: -0.42
+      market_context: 1.58
       sector: 1.0
       gap: 1.0
     max_possible: 27.0
-
     regimes:
       low:
-        weights: {vwap: 3.11, trend: 1.11}  # Iter 3
+        weights:
+          vwap: 3.11
+          trend: 1.11
       normal: {}
       elevated:
         min_stability: 80
       danger:
         min_stability: 75
-        weights: {support: 4.0, candlestick: 2.5, rsi: 2.04, macd: 2.10}  # Iter 3 medium merged
+        weights:
+          support: 4.0
+          candlestick: 2.5
+          rsi: 2.04
+          macd: 2.1
       high:
         min_stability: 90
-        weights: {rsi: 2.48, support: 0.76, stoch: 1.25}  # Iter 3: dramatic shift
-
+        weights:
+          rsi: 2.48
+          support: 0.76
+          stoch: 1.25
     sectors:
       Technology:
         sector_factor: 0.874
-        weights: {support: 3.5}
-      "Financial Services":
+        weights:
+          support: 3.5
+      Financial Services:
         sector_factor: 0.969
-        weights: {support: 3.5, volume: 2.5}
+        weights:
+          support: 3.5
+          volume: 2.5
       Utilities:
-        sector_factor: 1.089  # Iter 4: best sector
+        sector_factor: 1.089
       Industrials:
         sector_factor: 1.042
-      "Communication Services":
-        sector_factor: 0.808  # Iter 4: worst sector
-
+      Communication Services:
+        sector_factor: 0.808
   ath_breakout:
     weights:
-      ath: 1.03            # Trained: -1.97 (Iter 2, key matches _scale('ath'))
+      ath: 1.03
       volume: 2.0
-      trend: 1.06          # Trained: -0.94
-      rsi: 0.92            # Trained: -0.08
-      rs: 2.0              # key matches _scale('rs')
+      trend: 1.06
+      rsi: 0.92
+      rs: 2.0
       momentum: 1.97
       macd: 2.02
       keltner: 2.0
-      vwap: 3.06           # Trained: +0.06
-      market_context: 1.90  # Trained: -0.10
+      vwap: 3.06
+      market_context: 1.9
       sector: 1.0
       gap: 1.0
     max_possible: 23.0
-
     regimes:
       low: {}
       normal: {}
@@ -122,46 +135,50 @@ strategies:
         min_stability: 90
       danger:
         min_stability: 85
-        weights: {volume: 3.0, trend: 3.0, market_context: 1.80}  # Iter 3 medium merged
+        weights:
+          volume: 3.0
+          trend: 3.0
+          market_context: 1.8
       high:
-        enabled: false    # DEAKTIVIERT bei High VIX (PLAYBOOK)
+        enabled: false
         min_stability: 95
-        # Iter 3: If were enabled, mkt_ctx -0.30, vwap +0.26, ath -0.22
-        weights: {vwap: 3.32, market_context: 1.60, ath: 0.80}
-
+        weights:
+          vwap: 3.32
+          market_context: 1.6
+          ath: 0.8
     sectors:
       Technology:
-        sector_factor: 0.780  # Iter 4: heavily penalized
-        weights: {volume: 2.5, momentum: 2.5}
-      "Consumer Cyclical":
-        sector_factor: 0.758  # Iter 4: worst sector
+        sector_factor: 0.78
+        weights:
+          volume: 2.5
+          momentum: 2.5
+      Consumer Cyclical:
+        sector_factor: 0.758
       Industrials:
-        sector_factor: 0.760
-      "Real Estate":
+        sector_factor: 0.76
+      Real Estate:
         sector_factor: 0.796
-      "Financial Services":
-        sector_factor: 1.014  # Iter 4: only boosted sector
-      "Consumer Defensive":
+      Financial Services:
+        sector_factor: 1.014
+      Consumer Defensive:
         sector_factor: 0.928
       Utilities:
         sector_factor: 0.939
-
   earnings_dip:
     weights:
-      dip: 3.0             # key matches _scale('dip')
-      gap: 2.0             # key matches _scale('gap'), was gap_analysis
+      dip: 3.0
+      gap: 2.0
       rsi: 2.0
       stabilization: 2.0
       volume: 2.0
       trend: 2.0
       macd: 2.0
-      stoch: 2.0           # key matches _scale('stoch')
+      stoch: 2.0
       keltner: 2.0
       vwap: 3.0
       market_context: 2.0
       sector: 1.0
-    max_possible: 21.0  # No training data available (0 trades in DB)
-
+    max_possible: 21.0
     regimes:
       low: {}
       normal: {}
@@ -171,14 +188,56 @@ strategies:
         min_stability: 70
       high:
         min_stability: 80
-
-    sectors: {}  # Kein Sektor-Einfluss (fundamentalgetrieben)
-
-# =============================================================================
-# STRATEGY-SPECIFIC STABILITY THRESHOLDS (v3.1: Trained via Iter 5)
-# =============================================================================
+    sectors: {}
+  trend_continuation:
+    weights:
+      sma_alignment: 0.75
+      trend_stability: 0.6
+      trend_buffer: 0.6
+      momentum_health: 0.6
+      volatility: 1.4
+    max_possible: 10.5
+    regimes:
+      low:
+        weights:
+          sma_alignment: 0.6
+          trend_stability: 0.65
+          trend_buffer: 0.6
+          momentum_health: 0.6
+          volatility: 1.4
+      normal:
+        weights:
+          sma_alignment: 0.6
+          trend_stability: 1.4
+          trend_buffer: 1.03
+          momentum_health: 0.68
+          volatility: 0.6
+      elevated:
+        min_stability: 80
+      danger:
+        min_stability: 80
+      high:
+        enabled: false
+    sectors:
+      Basic Materials:
+        sector_factor: 0.843
+      Communication Services:
+        sector_factor: 0.955
+      Consumer Cyclical:
+        sector_factor: 0.918
+      Consumer Defensive:
+        sector_factor: 0.892
+      Financial Services:
+        sector_factor: 1.03
+      Healthcare:
+        sector_factor: 0.925
+      Industrials:
+        sector_factor: 0.936
+      Technology:
+        sector_factor: 1.049
+      Utilities:
+        sector_factor: 0.888
 stability_thresholds:
-  # Global fallback (used when strategy-specific not found)
   by_regime:
     low: 70
     normal: 70
@@ -186,52 +245,56 @@ stability_thresholds:
     danger: 80
     high: 999
   by_sector: {}
-
-  # v3.1: Trained per-strategy thresholds (Iter 5)
   by_strategy:
     pullback:
       by_regime:
-        low: 80       # Trained (Iter 5)
+        low: 80
         normal: 80
-        danger: 90     # Iter 5: was 80, raised to 90 (merged from medium)
+        danger: 90
         elevated: 85
         high: 80
         extreme: 80
       by_sector:
-        Technology: -20    # Iter 5: can use lower threshold
+        Technology: -20
         Healthcare: 0
-        "Consumer Defensive": -40  # Iter 5: very permissive
-        "Financial Services": -40
+        Consumer Defensive: -40
+        Financial Services: -40
     bounce:
       by_regime:
-        low: 90        # Trained (Iter 5)
+        low: 90
         normal: 90
         danger: 90
         elevated: 90
         high: 90
-        extreme: 65    # Much lower in extreme (Iter 5)
+        extreme: 65
       by_sector:
         Technology: -5
-        "Financial Services": -5
+        Financial Services: -5
     ath_breakout:
       by_regime:
-        low: 90        # Trained (Iter 5)
+        low: 90
         normal: 90
         danger: 90
         elevated: 90
         high: 90
-        extreme: 60    # Much lower in extreme (Iter 5)
+        extreme: 60
       by_sector:
-        Technology: -35   # Iter 5: can use much lower
-        "Financial Services": -35
-        "Consumer Cyclical": -25
+        Technology: -35
+        Financial Services: -35
+        Consumer Cyclical: -25
     earnings_dip:
-      by_regime: {low: 60, normal: 65, danger: 70, elevated: 75, high: 80}
-      by_sector: {}  # Kein Sektor-Einfluss (keine Daten)
-
-# =============================================================================
-# STRATEGY-SPECIFIC SECTOR MOMENTUM (v3)
-# =============================================================================
+      by_regime:
+        low: 60
+        normal: 65
+        danger: 70
+        elevated: 75
+        high: 80
+      by_sector: {}
+    trend_continuation:
+      by_regime:
+        low: 50
+        normal: 50
+        elevated: 65
 sector_momentum:
   enabled: true
   cache_ttl_hours: 4
@@ -239,15 +302,14 @@ sector_momentum:
     Technology: XLK
     Healthcare: XLV
     Financials: XLF
-    "Consumer Discretionary": XLY
-    "Consumer Staples": XLP
+    Consumer Discretionary: XLY
+    Consumer Staples: XLP
     Energy: XLE
     Industrials: XLI
-    "Communication Services": XLC
+    Communication Services: XLC
     Utilities: XLU
     Materials: XLB
-    "Real Estate": XLRE
-  # Global defaults (fallback when no strategy override)
+    Real Estate: XLRE
   factor_range:
     min: 0.6
     max: 1.2
@@ -255,66 +317,74 @@ sector_momentum:
     short: 30
     long: 60
   component_weights:
-    relative_strength_30d: 0.40
-    relative_strength_60d: 0.30
-    breadth: 0.20
-    vol_premium: 0.10
-
-  # v3: per-strategy overrides for factor range and component weights
+    relative_strength_30d: 0.4
+    relative_strength_60d: 0.3
+    breadth: 0.2
+    vol_premium: 0.1
   strategy_overrides:
     pullback:
-      # Trend-folgend → volle Sensitivität
-      factor_range: {min: 0.60, max: 1.20}
+      factor_range:
+        min: 0.6
+        max: 1.2
       component_weights:
         relative_strength_30d: 0.45
         relative_strength_60d: 0.25
-        breadth: 0.20
-        vol_premium: 0.10
+        breadth: 0.2
+        vol_premium: 0.1
     bounce:
-      # Mean-Reversion → moderate Sensitivität
-      factor_range: {min: 0.75, max: 1.15}
+      factor_range:
+        min: 0.75
+        max: 1.15
       component_weights:
-        relative_strength_30d: 0.30
-        relative_strength_60d: 0.30
+        relative_strength_30d: 0.3
+        relative_strength_60d: 0.3
         breadth: 0.25
         vol_premium: 0.15
     ath_breakout:
-      # Momentum → MAXIMALE Sensitivität
-      factor_range: {min: 0.50, max: 1.25}
+      factor_range:
+        min: 0.5
+        max: 1.25
       component_weights:
-        relative_strength_30d: 0.50
-        relative_strength_60d: 0.20
+        relative_strength_30d: 0.5
+        relative_strength_60d: 0.2
         breadth: 0.15
         vol_premium: 0.15
     earnings_dip:
-      # Contrarian → MINIMALE Sensitivität
-      factor_range: {min: 0.90, max: 1.10}
+      factor_range:
+        min: 0.9
+        max: 1.1
       component_weights:
-        relative_strength_30d: 0.20
-        relative_strength_60d: 0.20
-        breadth: 0.30
-        vol_premium: 0.30
-
-# =============================================================================
-# TRAINING CONFIGURATION (v3: per-strategy training parameters)
-# =============================================================================
+        relative_strength_30d: 0.2
+        relative_strength_60d: 0.2
+        breadth: 0.3
+        vol_premium: 0.3
+    trend_continuation:
+      factor_range:
+        min: 0.7
+        max: 1.15
+      component_weights:
+        relative_strength_30d: 0.35
+        relative_strength_60d: 0.35
+        breadth: 0.2
+        vol_premium: 0.1
 training:
   strategy_configs:
     pullback:
       walk_forward:
-        train_months: 9       # Erhöht wegen weniger Daten (912 Trades)
+        train_months: 9
         validation_months: 2
         min_trades: 200
       regularization:
-        l2_lambda: 0.03       # Stärker wegen weniger Daten
+        l2_lambda: 0.03
         max_weight_change: 0.25
-        weight_bounds: [0.7, 4.0]
+        weight_bounds:
+        - 0.7
+        - 4.0
       objective_weights:
-        win_rate: 0.40
-        avg_profit: 0.30
-        max_consecutive_losses: -0.20
-        sector_crisis_loss: -0.10
-
+        win_rate: 0.4
+        avg_profit: 0.3
+        max_consecutive_losses: -0.2
+        sector_crisis_loss: -0.1
     bounce:
       walk_forward:
         train_months: 9
@@ -323,13 +393,14 @@ training:
       regularization:
         l2_lambda: 0.02
         max_weight_change: 0.25
-        weight_bounds: [0.5, 4.0]
+        weight_bounds:
+        - 0.5
+        - 4.0
       objective_weights:
         win_rate: 0.35
         avg_profit: 0.25
-        support_accuracy: 0.20
-        false_support: -0.20
-
+        support_accuracy: 0.2
+        false_support: -0.2
     ath_breakout:
       walk_forward:
         train_months: 12
@@ -337,14 +408,15 @@ training:
         min_trades: 80
       regularization:
         l2_lambda: 0.03
-        max_weight_change: 0.20
-        weight_bounds: [0.5, 5.0]
+        max_weight_change: 0.2
+        weight_bounds:
+        - 0.5
+        - 5.0
       objective_weights:
-        win_rate: 0.30
+        win_rate: 0.3
         avg_profit: 0.25
-        false_breakout: -0.30
+        false_breakout: -0.3
         max_single_loss: -0.15
-
     earnings_dip:
       walk_forward:
         train_quarters: 4
@@ -353,16 +425,35 @@ training:
       regularization:
         l2_lambda: 0.05
         max_weight_change: 0.15
-        weight_bounds: [0.5, 3.0]
+        weight_bounds:
+        - 0.5
+        - 3.0
       objective_weights:
-        win_rate: 0.30
+        win_rate: 0.3
         avg_profit: 0.35
         max_drawdown: -0.15
-        dip_without_recovery: -0.20
-
-# =============================================================================
-# Feature-Engineering Thresholds (Step 12)
-# =============================================================================
+        dip_without_recovery: -0.2
+    trend_continuation:
+      walk_forward:
+        train_months: 12
+        validation_months: 3
+        min_trades: 100
+      regularization:
+        l2_lambda: 0.02
+        max_weight_change: 0.30
+        weight_bounds:
+        - 0.5
+        - 3.0
+      regime_filter:
+      - low
+      - normal
+      elevated_weights: default
+      high_weights: disabled
+      objective_weights:
+        win_rate: 0.4
+        avg_profit: 0.3
+        max_consecutive_losses: -0.2
+        max_drawdown: -0.1
 feature_engineering:
   vwap:
     period: 20
@@ -376,13 +467,9 @@ feature_engineering:
   gap:
     size_large: 3.0
     size_medium: 1.0
-
-# =============================================================================
-# Parallelization
-# =============================================================================
 parallelization:
   sector_batch_size: 11
   scan_concurrency: 50
-  training_workers: null      # os.cpu_count()
+  training_workers: null
   enable_batch_scoring: false
-  strategy_parallel: true     # v3: Trainiere 4 Strategien parallel
+  strategy_parallel: true

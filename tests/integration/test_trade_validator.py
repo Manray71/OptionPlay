@@ -71,12 +71,12 @@ class TestStabilityCheck:
         assert result.decision == TradeDecision.GO
 
     def test_low_stability_is_no_go(self, validator, mock_fundamentals):
-        mock_fundamentals.stability_score = 65.0
+        mock_fundamentals.stability_score = 60.0
         result = validator._check_stability("AAPL", mock_fundamentals, 18.0)
         assert result.decision == TradeDecision.NO_GO
 
-    def test_boundary_stability_70_is_go(self, validator, mock_fundamentals):
-        mock_fundamentals.stability_score = 70.0
+    def test_boundary_stability_65_is_go(self, validator, mock_fundamentals):
+        mock_fundamentals.stability_score = 65.0
         result = validator._check_stability("AAPL", mock_fundamentals, 18.0)
         assert result.decision == TradeDecision.GO
 

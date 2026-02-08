@@ -96,8 +96,15 @@ class ScanHandlerMixin(BaseHandlerMixin):
         if scanner_config.auto_earnings_prefilter:
             min_days = scanner_config.earnings_prefilter_min_days
             for_earnings_dip = (mode == ScanMode.EARNINGS_DIP)
+            # In ALL/BEST_SIGNAL mode, include earnings_dip candidates too.
+            # The scanner's per-strategy _should_skip_for_earnings() handles
+            # filtering for non-dip strategies, so we must not remove
+            # recent-earnings symbols here that the dip analyzer needs.
+            include_dip_candidates = mode in (ScanMode.ALL, ScanMode.BEST_SIGNAL)
             symbols, excluded_by_earnings, earnings_cache_hits = await self._apply_earnings_prefilter(
-                symbols, min_days, for_earnings_dip=for_earnings_dip
+                symbols, min_days,
+                for_earnings_dip=for_earnings_dip,
+                include_dip_candidates=include_dip_candidates,
             )
             if excluded_by_earnings > 0:
                 if for_earnings_dip:
@@ -443,6 +450,48 @@ class ScanHandlerMixin(BaseHandlerMixin):
             no_results_msg="No earnings dip candidates found (requires recent earnings within 10 days).",
         )
 
+    @mcp_endpoint(operation="trend continuation scan")
+    async def scan_trend_continuation(
+        self,
+        symbols: Optional[List[str]] = None,
+        max_results: int = 10,
+        min_score: float = 5.0,
+    ) -> str:
+        """
+        Scan for trend continuation candidates.
+
+        Looks for stocks in stable uptrends with perfect SMA alignment.
+        Ideal for Bull-Put-Spreads with short strike below SMA 50.
+
+        Args:
+            symbols: List of symbols to scan
+            max_results: Maximum results
+            min_score: Minimum score threshold
+
+        Returns:
+            Formatted scan results
+        """
+        def format_row(signal):
+            return [
+                signal.symbol,
+                f"{signal.score:.1f}",
+                f"${signal.current_price:.2f}" if signal.current_price else "N/A",
+                truncate(signal.reason, 40) if signal.reason else "-"
+            ]
+
+        return await self._execute_scan(
+            mode=ScanMode.TREND_ONLY,
+            title="Trend Continuation Candidates",
+            emoji="[TREND]",
+            symbols=symbols,
+            max_results=max_results,
+            min_score=min_score,
+            min_historical_days=250,
+            table_columns=["Symbol", "Score", "Price", "Signal"],
+            row_formatter=format_row,
+            no_results_msg="No trend continuation candidates found.",
+        )
+
     @mcp_endpoint(operation="multi-strategy scan")
     async def scan_multi_strategy(
         self,
@@ -474,6 +523,7 @@ class ScanHandlerMixin(BaseHandlerMixin):
             "bounce": "[BN]",
             "ath_breakout": "[ATH]",
             "earnings_dip": "[ED]",
+            "trend_continuation": "[TC]",
         }
 
         def format_row(signal):
@@ -555,7 +605,8 @@ class ScanHandlerMixin(BaseHandlerMixin):
         if scanner_config.auto_earnings_prefilter:
             min_days = scanner_config.earnings_prefilter_min_days
             symbols, excluded_by_earnings, _ = await self._apply_earnings_prefilter(
-                symbols, min_days, for_earnings_dip=False
+                symbols, min_days, for_earnings_dip=False,
+                include_dip_candidates=True,
             )
             if excluded_by_earnings > 0:
                 logger.info(

@@ -86,7 +86,7 @@ class TestPlaybookEntryRules:
     """PLAYBOOK §1: Entry Rules."""
 
     def test_stability_minimum(self):
-        assert ENTRY_STABILITY_MIN == 70.0
+        assert ENTRY_STABILITY_MIN == 65.0
 
     def test_earnings_minimum_days(self):
         assert ENTRY_EARNINGS_MIN_DAYS == 60
@@ -170,7 +170,7 @@ class TestPlaybookVIXRegime:
     def test_low_vol_rules(self):
         rules = get_regime_rules(12.0)
         assert rules.regime == VIXRegime.LOW_VOL
-        assert rules.stability_min == 70.0
+        assert rules.stability_min == 65.0
         assert rules.new_trades_allowed is True
         assert rules.max_positions == 10
         assert rules.max_per_sector == 2
@@ -179,7 +179,7 @@ class TestPlaybookVIXRegime:
     def test_normal_rules(self):
         rules = get_regime_rules(18.0)
         assert rules.regime == VIXRegime.NORMAL
-        assert rules.stability_min == 70.0
+        assert rules.stability_min == 65.0
         assert rules.new_trades_allowed is True
         assert rules.max_positions == 10
 
@@ -281,7 +281,7 @@ class TestTradingRulesConvenience:
 
     def test_instantiation(self):
         tr = TradingRules()
-        assert tr.ENTRY_STABILITY_MIN == 70.0
+        assert tr.ENTRY_STABILITY_MIN == 65.0
         assert tr.DTE_MIN == 60
         assert tr.DTE_MAX == 90
         assert tr.SHORT_DELTA == -0.20

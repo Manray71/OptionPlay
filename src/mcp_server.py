@@ -380,6 +380,7 @@ class OptionPlayServer(
         enable_bounce: bool = True,
         enable_breakout: bool = True,
         enable_earnings_dip: bool = True,
+        exclude_earnings_within_days: Optional[int] = None,
     ) -> MultiStrategyScanner:
         """Get scanner instance with all strategies enabled."""
         scanner_cfg = self._config.settings.scanner
@@ -397,6 +398,8 @@ class OptionPlayServer(
             enable_earnings_dip=enable_earnings_dip,
             enable_iv_filter=enable_iv,
         )
+        if exclude_earnings_within_days is not None:
+            config.exclude_earnings_within_days = exclude_earnings_within_days
         return MultiStrategyScanner(config)
 
     async def _fetch_historical_cached(
@@ -476,7 +479,8 @@ class OptionPlayServer(
         self,
         symbols: List[str],
         min_days: int,
-        for_earnings_dip: bool = False
+        for_earnings_dip: bool = False,
+        include_dip_candidates: bool = False,
     ) -> Tuple[List[str], int, int]:
         """
         Apply earnings pre-filter to symbols.
@@ -545,6 +549,11 @@ class OptionPlayServer(
                 # Normal strategies: use BMO/AMC-aware result
                 if is_safe:
                     safe_symbols.append(symbol)
+                elif include_dip_candidates and days_to is not None and -10 <= days_to <= 0:
+                    # In ALL/BEST_SIGNAL mode: keep symbols with recent past earnings
+                    # for the earnings_dip strategy. The scanner's per-strategy
+                    # _should_skip_for_earnings() will filter them for non-dip strategies.
+                    safe_symbols.append(symbol)
                 else:
                     logger.debug(f"{symbol}: Excluded - {reason} (days_to={days_to})")
                     excluded_count += 1
@@ -575,6 +584,9 @@ class OptionPlayServer(
                         logger.debug(f"{symbol}: Past earnings ({days_to}d ago) — treating as safe")
                         safe_symbols.append(symbol)
                     elif days_to is not None and days_to >= min_days:
+                        safe_symbols.append(symbol)
+                    elif include_dip_candidates and days_to is not None and -10 <= days_to <= 0:
+                        # Keep recent-earnings symbols for dip strategy in multi-mode
                         safe_symbols.append(symbol)
                     elif days_to is None:
                         logger.debug(f"{symbol}: Excluded - unknown earnings date")
@@ -814,6 +826,7 @@ async def run_interactive():
         "bounce": ("scan_bounce", []),
         "breakout": ("scan_ath_breakout", []),
         "earningsdip": ("scan_earnings_dip", []),
+        "trend": ("scan_trend_continuation", []),
         "multi": ("scan_multi_strategy", []),
         "analyzem": ("analyze_multi_strategy", ["symbol"]),
         "quote": ("get_quote", ["symbol"]),

@@ -170,11 +170,12 @@ class TestConstants:
 
     def test_strategies_defined(self):
         """Test that all strategies are defined."""
-        assert len(STRATEGIES) == 4
+        assert len(STRATEGIES) == 5
         assert "pullback" in STRATEGIES
         assert "bounce" in STRATEGIES
         assert "ath_breakout" in STRATEGIES
         assert "earnings_dip" in STRATEGIES
+        assert "trend_continuation" in STRATEGIES
 
     def test_default_regime_preferences_complete(self):
         """Test that default regime preferences cover all regimes."""
@@ -352,7 +353,8 @@ class TestSymbolPerformance:
         """Test preference weights with no history."""
         perf = SymbolPerformance(symbol="TEST")
         weights = perf.get_preference_weights()
-        assert all(w == 0.25 for w in weights.values())
+        expected = 1.0 / len(STRATEGIES)
+        assert all(abs(w - expected) < 0.001 for w in weights.values())
 
     def test_to_dict(self, sample_symbol_performance):
         """Test to_dict serialization."""

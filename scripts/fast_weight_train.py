@@ -36,7 +36,7 @@ from src.models.base import SignalType
 
 logger = logging.getLogger(__name__)
 
-STRATEGIES = ['pullback', 'bounce', 'ath_breakout', 'earnings_dip']
+STRATEGIES = ['pullback', 'bounce', 'ath_breakout', 'earnings_dip', 'trend_continuation']
 
 
 @dataclass
@@ -190,6 +190,9 @@ def train_strategy_fast(
         analyzer = ATHBreakoutAnalyzer(ATHBreakoutConfig())
     elif strategy == 'earnings_dip':
         analyzer = EarningsDipAnalyzer(EarningsDipConfig())
+    elif strategy == 'trend_continuation':
+        from src.analyzers.trend_continuation import TrendContinuationAnalyzer, TrendContinuationConfig
+        analyzer = TrendContinuationAnalyzer(TrendContinuationConfig())
     else:
         return {}
 

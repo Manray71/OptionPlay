@@ -228,6 +228,7 @@ class SetupFeatures:
     bounce_score: Optional[float] = None
     ath_breakout_score: Optional[float] = None
     earnings_dip_score: Optional[float] = None
+    trend_continuation_score: Optional[float] = None
 
     def to_dict(self) -> dict:
         """Konvertiert zu Dictionary"""

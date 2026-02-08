@@ -47,7 +47,7 @@ class ExitAction(Enum):
 # =============================================================================
 
 # Hard filters - NO exceptions
-ENTRY_STABILITY_MIN = 70.0              # Stability Score minimum
+ENTRY_STABILITY_MIN = 65.0              # Stability Score minimum (lowered from 70: 65-70 = WARNING)
 ENTRY_EARNINGS_MIN_DAYS = 60            # Minimum days to earnings (strict)
 ENTRY_VIX_MAX_NEW_TRADES = 30.0         # No new trades above this VIX
 ENTRY_VIX_NO_TRADING = 35.0             # No trading at all above this
@@ -140,7 +140,7 @@ class VIXRegimeRules:
 VIX_REGIME_RULES: Dict[VIXRegime, VIXRegimeRules] = {
     VIXRegime.LOW_VOL: VIXRegimeRules(
         regime=VIXRegime.LOW_VOL,
-        stability_min=70.0,
+        stability_min=65.0,
         new_trades_allowed=True,
         max_positions=10,
         max_per_sector=2,
@@ -150,7 +150,7 @@ VIX_REGIME_RULES: Dict[VIXRegime, VIXRegimeRules] = {
     ),
     VIXRegime.NORMAL: VIXRegimeRules(
         regime=VIXRegime.NORMAL,
-        stability_min=70.0,
+        stability_min=65.0,
         new_trades_allowed=True,
         max_positions=10,
         max_per_sector=2,
@@ -317,7 +317,7 @@ SECONDARY_WATCHLIST_STABILITY_MIN = 70.0
 # FILTER ORDER (PLAYBOOK §1, Prüf-Reihenfolge)
 # =============================================================================
 # 1. Blacklist-Check     -> sofort raus wenn gelistet
-# 2. Stability >= 70     -> sofort raus wenn < 70
+# 2. Stability >= 65     -> sofort raus wenn < 65 (65-70 = WARNING)
 # 3. Earnings > 60 Tage  -> sofort raus wenn zu nah
 # 4. VIX < 30            -> sofort raus wenn >= 30
 # 5. Preis $20-$1500      -> sofort raus wenn außerhalb

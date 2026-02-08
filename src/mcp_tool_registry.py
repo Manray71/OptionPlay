@@ -311,6 +311,20 @@ async def handle_scan_earnings_dip(server, arguments):
 
 
 @tool_registry.register(
+    name="optionplay_scan_trend",
+    description="Scan for Trend Continuation candidates - stocks in stable uptrends with perfect SMA alignment, ideal for Bull-Put-Spreads.",
+    input_schema=SCAN_SCHEMA,
+    aliases=["trend"],
+)
+async def handle_scan_trend(server, arguments):
+    return await server.scan_trend_continuation(
+        symbols=arguments.get("symbols"),
+        max_results=arguments.get("max_results", 10),
+        min_score=arguments.get("min_score", 5.0),
+    )
+
+
+@tool_registry.register(
     name="optionplay_scan_multi",
     description="Multi-Strategy Scan - runs all strategies and returns the best signal per symbol.",
     input_schema=SCAN_SCHEMA,

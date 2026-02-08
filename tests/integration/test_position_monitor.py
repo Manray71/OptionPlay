@@ -628,11 +628,11 @@ class TestCanRollStability:
             result = monitor._can_roll(snap, current_vix=18.0)
         assert result is True
 
-    def test_acceptance_stability_below_70_blocked(self, monitor):
-        """TASKS acceptance: Roll rejected when stability < 70."""
+    def test_acceptance_stability_below_65_blocked(self, monitor):
+        """TASKS acceptance: Roll rejected when stability < 65."""
         mock_fund = MagicMock()
         mock_f = MagicMock()
-        mock_f.stability_score = 65.0
+        mock_f.stability_score = 60.0
         mock_fund.get_fundamentals.return_value = mock_f
         monitor._fundamentals_manager = mock_fund
 

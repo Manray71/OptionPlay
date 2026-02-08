@@ -8,6 +8,7 @@ from .pullback import PullbackAnalyzer
 from .ath_breakout import ATHBreakoutAnalyzer, ATHBreakoutConfig
 from .bounce import BounceAnalyzer, BounceConfig
 from .earnings_dip import EarningsDipAnalyzer, EarningsDipConfig
+from .trend_continuation import TrendContinuationAnalyzer, TrendContinuationConfig
 from .pool import (
     AnalyzerPool,
     PoolConfig,
@@ -41,11 +42,13 @@ __all__ = [
     'ATHBreakoutAnalyzer',
     'BounceAnalyzer',
     'EarningsDipAnalyzer',
+    'TrendContinuationAnalyzer',
 
     # Configs
     'ATHBreakoutConfig',
     'BounceConfig',
     'EarningsDipConfig',
+    'TrendContinuationConfig',
 
     # Pool
     'AnalyzerPool',

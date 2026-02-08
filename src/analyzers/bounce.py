@@ -1,11 +1,20 @@
-# OptionPlay - Bounce Analyzer
-# ==============================
-# Analyzes bounces from support levels
+# OptionPlay - Bounce Analyzer (Refactored v2)
+# ==============================================
+# Analyzes bounces from established support levels
 #
-# Strategy: Buy when stock bounces off established support
-# - Mean-Reversion Signal
-# - Works best with range-bound stocks
-# - Risk: Support breaks, trend continues
+# Strategy: Buy when stock bounces off support that has held 2+ times
+# - Requires confirmed bounce (not just proximity to support)
+# - Dead Cat Bounce filter via volume
+# - Trend context via SMA 200 direction
+#
+# 5-Component Scoring (max 10.0):
+#   1. Support Quality    (0 – 2.5)
+#   2. Proximity          (0 – 2.0)
+#   3. Bounce Confirmation(0 – 2.5)
+#   4. Volume             (-1.0 – 1.5)
+#   5. Trend Context      (-1.0 – 1.5)
+#
+# Minimum for signal: 3.5
 
 from dataclasses import dataclass
 from typing import List, Optional, Dict, Any, Tuple
@@ -17,34 +26,22 @@ from .context import AnalysisContext
 
 try:
     from ..models.base import TradeSignal, SignalType, SignalStrength
-    from ..models.indicators import MACDResult, StochasticResult, KeltnerChannelResult, RSIDivergenceResult
     from ..models.strategy_breakdowns import BounceScoreBreakdown
-    from ..config import BounceScoringConfig
 except ImportError:
     from models.base import TradeSignal, SignalType, SignalStrength
-    from models.indicators import MACDResult, StochasticResult, KeltnerChannelResult, RSIDivergenceResult
     from models.strategy_breakdowns import BounceScoreBreakdown
-    from config import BounceScoringConfig
 
 # Import shared indicators
 try:
-    from ..indicators.momentum import calculate_rsi_divergence, calculate_macd, calculate_stochastic
-    from ..indicators.trend import calculate_ema
-    from ..indicators.volatility import calculate_atr_simple, calculate_keltner_channel
-except ImportError:
-    from indicators.momentum import calculate_rsi_divergence, calculate_macd, calculate_stochastic
-    from indicators.trend import calculate_ema
-    from indicators.volatility import calculate_atr_simple, calculate_keltner_channel
-
-# Import optimized support/resistance functions
-try:
+    from ..indicators.momentum import calculate_macd
     from ..indicators.support_resistance import find_support_levels as find_support_optimized
     from ..indicators.support_resistance import get_nearest_sr_levels
 except ImportError:
+    from indicators.momentum import calculate_macd
     from indicators.support_resistance import find_support_levels as find_support_optimized
     from indicators.support_resistance import get_nearest_sr_levels
 
-# Import Feature Scoring Mixin (NEW from Feature Engineering)
+# Import Feature Scoring Mixin
 try:
     from .feature_scoring_mixin import FeatureScoringMixin
 except ImportError:
@@ -53,96 +50,95 @@ except ImportError:
 # Import central constants
 try:
     from ..constants import (
-        RSI_PERIOD, RSI_OVERSOLD,
+        RSI_PERIOD,
         MACD_FAST, MACD_SLOW, MACD_SIGNAL,
-        STOCH_K_PERIOD, STOCH_D_PERIOD, STOCH_SMOOTH,
-        SMA_MEDIUM, SMA_LONG,
-        VOLUME_AVG_PERIOD, VOLUME_RECENT_WINDOW,
-        VOLUME_TREND_LOW, VOLUME_TREND_HIGH,
-        KELTNER_NEUTRAL_LOW,
-        DIVERGENCE_SWING_WINDOW, DIVERGENCE_MIN_BARS, DIVERGENCE_MAX_BARS,
-        DIVERGENCE_STRENGTH_STRONG, DIVERGENCE_STRENGTH_MODERATE,
+        SMA_LONG,
+        VOLUME_AVG_PERIOD,
         SR_LOOKBACK_DAYS_EXTENDED,
-        SUPPORT_LOOKBACK_DAYS,
         BOUNCE_MIN_TOUCHES,
     )
 except ImportError:
     from constants import (
-        RSI_PERIOD, RSI_OVERSOLD,
+        RSI_PERIOD,
         MACD_FAST, MACD_SLOW, MACD_SIGNAL,
-        STOCH_K_PERIOD, STOCH_D_PERIOD, STOCH_SMOOTH,
-        SMA_MEDIUM, SMA_LONG,
-        VOLUME_AVG_PERIOD, VOLUME_RECENT_WINDOW,
-        VOLUME_TREND_LOW, VOLUME_TREND_HIGH,
-        KELTNER_NEUTRAL_LOW,
-        DIVERGENCE_SWING_WINDOW, DIVERGENCE_MIN_BARS, DIVERGENCE_MAX_BARS,
-        DIVERGENCE_STRENGTH_STRONG, DIVERGENCE_STRENGTH_MODERATE,
+        SMA_LONG,
+        VOLUME_AVG_PERIOD,
         SR_LOOKBACK_DAYS_EXTENDED,
-        SUPPORT_LOOKBACK_DAYS,
         BOUNCE_MIN_TOUCHES,
     )
 
 logger = logging.getLogger(__name__)
 
+# =============================================================================
+# CONSTANTS for Bounce Strategy v2
+# =============================================================================
+
+BOUNCE_SUPPORT_LOOKBACK = 120       # 120 trading days for support detection
+BOUNCE_SUPPORT_TOLERANCE = 1.0      # ±1.0% tolerance for touch detection
+BOUNCE_PROXIMITY_MAX_ABOVE = 5.0    # Max +5% above support
+BOUNCE_PROXIMITY_MAX_BELOW = -0.5   # Max -0.5% below support (wick tolerance)
+BOUNCE_DCB_THRESHOLD = 0.7          # Volume < 0.7x avg = Dead Cat Bounce risk
+BOUNCE_MIN_SCORE = 3.5              # Minimum total score for signal
+BOUNCE_MAX_SCORE = 10.0             # Theoretical maximum
+
 
 @dataclass
 class BounceConfig:
-    """Configuration for Bounce Analyzer (Legacy - for backward compatibility)"""
+    """Configuration for Bounce Analyzer v2"""
     # Support Detection
-    support_lookback_days: int = SUPPORT_LOOKBACK_DAYS
+    support_lookback_days: int = BOUNCE_SUPPORT_LOOKBACK
     support_touches_min: int = BOUNCE_MIN_TOUCHES  # Minimum 2x tested
-    support_tolerance_pct: float = 1.5  # Support zone tolerance
+    support_tolerance_pct: float = BOUNCE_SUPPORT_TOLERANCE
 
-    # Bounce Confirmation
-    bounce_min_pct: float = 1.0  # Minimum bounce from low
-    volume_confirmation: bool = True
-    volume_spike_multiplier: float = 1.3
+    # Proximity
+    max_above_support_pct: float = BOUNCE_PROXIMITY_MAX_ABOVE
+    max_below_support_pct: float = BOUNCE_PROXIMITY_MAX_BELOW
 
-    # RSI for Oversold
-    rsi_oversold_threshold: float = 40.0
+    # Volume
+    volume_avg_period: int = VOLUME_AVG_PERIOD
+    dcb_threshold: float = BOUNCE_DCB_THRESHOLD
+
+    # RSI
     rsi_period: int = RSI_PERIOD
-
-    # Candlestick Patterns
-    require_bullish_candle: bool = True
 
     # Risk Management
     stop_below_support_pct: float = 2.0
     target_risk_reward: float = 2.0
 
     # Scoring
-    max_score: int = 10
-    min_score_for_signal: int = 6
+    min_score_for_signal: float = BOUNCE_MIN_SCORE
+    max_score: float = BOUNCE_MAX_SCORE
 
 
 class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
     """
-    Analyzes stocks for support bounces.
+    Analyzes stocks for support bounces (v2 — Refactored).
 
-    Scoring criteria (extended):
-    - Support test (price near established support): 0-3 points
-    - RSI oversold (< 40): 0-2 points
-    - Bullish Candlestick (Hammer, Engulfing): 0-2 points
-    - Volume analysis: 0-2 points
-    - Trend check (above SMA200): 0-2 points
-    - MACD signal: 0-2 points (NEW)
-    - Stochastic signal: 0-2 points (NEW)
-    - Keltner Channel: 0-2 points (NEW)
+    Implements a strict 4-step filter pipeline:
+      1. Valid support level (>= 2 touches in 120 days)
+      2. Price at or above support (max -0.5% tolerance)
+      3. Bounce confirmation (at least one reversal signal)
+      4. Volume check (< 0.7x avg = Dead Cat Bounce → disqualify)
+
+    5-Component Scoring (max 10.0):
+      - Support Quality:       0 – 2.5
+      - Proximity:             0 – 2.0
+      - Bounce Confirmation:   0 – 2.5
+      - Volume:               -1.0 – 1.5
+      - Trend Context:        -1.0 – 1.5
+
+    Signal threshold: total_score >= 3.5
 
     Usage:
         analyzer = BounceAnalyzer()
         signal = analyzer.analyze("AAPL", prices, volumes, highs, lows)
-
-        if signal.is_actionable:
-            print(f"Bounce Signal: {signal.score}/17")
+        if signal.signal_type == SignalType.LONG:
+            print(f"Bounce Signal: {signal.score}/10")
     """
 
-    def __init__(
-        self,
-        config: Optional[BounceConfig] = None,
-        scoring_config: Optional[BounceScoringConfig] = None
-    ):
+    def __init__(self, config: Optional[BounceConfig] = None, **kwargs):
+        # Accept scoring_config for backward compat but ignore it
         self.config = config or BounceConfig()
-        self.scoring_config = scoring_config or BounceScoringConfig()
 
     @property
     def strategy_name(self) -> str:
@@ -150,7 +146,11 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
 
     @property
     def description(self) -> str:
-        return "Support Bounce - Buy on bounce from established support level"
+        return "Support Bounce - Buy on confirmed bounce from established support level"
+
+    # =========================================================================
+    # MAIN ANALYZE METHOD
+    # =========================================================================
 
     def analyze(
         self,
@@ -165,687 +165,730 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         """
         Analyzes a symbol for support bounce.
 
+        Pipeline:
+          1. Find valid support levels (>= 2 touches)
+          2. Check proximity (price at/above support)
+          3. Check bounce confirmation (reversal signals)
+          4. Check volume (Dead Cat Bounce filter)
+          5. Score all 5 components
+          6. Build signal text
+
         Args:
             symbol: Ticker symbol
             prices: Closing prices (oldest first)
             volumes: Daily volume
             highs: Daily highs
             lows: Daily lows
-            context: Optional pre-calculated AnalysisContext for performance
+            context: Optional pre-calculated AnalysisContext
 
         Returns:
-            TradeSignal with bounce rating
+            TradeSignal with bounce rating (score 0-10)
         """
-        # Input validation
-        min_data = max(self.config.support_lookback_days, SUPPORT_LOOKBACK_DAYS)
+        min_data = self.config.support_lookback_days
         self.validate_inputs(prices, volumes, highs, lows, min_length=min_data)
 
         current_price = prices[-1]
-        current_low = lows[-1]
 
-        # Initialize score breakdown
+        # Initialize breakdown
         breakdown = BounceScoreBreakdown()
         reasons = []
         warnings = []
 
-        # 1. Support Detection & Test (0-3 points)
-        if context and context.support_levels:
-            support_levels = context.support_levels
+        # =====================================================================
+        # STEP 1: Find valid support level (PFLICHT — >= 2 touches)
+        # =====================================================================
+        support_info = self._find_valid_support(prices, lows, volumes, context)
+
+        if not support_info['valid']:
+            return self._make_disqualified_signal(
+                symbol, current_price,
+                support_info.get('disqualify_reason', 'No valid support level'),
+                support_info
+            )
+
+        support_level = support_info['support_level']
+        touches = support_info['touches']
+        sma_200_confluence = support_info.get('sma_200_confluence', False)
+
+        breakdown.support_level = support_level
+        breakdown.support_touches = touches
+        breakdown.support_strength = support_info['strength']
+
+        # =====================================================================
+        # STEP 2: Proximity check — price must be AT or ABOVE support
+        # =====================================================================
+        distance_pct = (current_price - support_level) / support_level * 100
+        breakdown.support_distance_pct = distance_pct
+
+        if distance_pct < self.config.max_below_support_pct:
+            # Support broken — price too far below
+            return self._make_disqualified_signal(
+                symbol, current_price,
+                f"Support broken: price ${current_price:.2f} is {distance_pct:.1f}% below support ${support_level:.2f}",
+                support_info
+            )
+
+        if distance_pct > self.config.max_above_support_pct:
+            # Too far above support
+            return self._make_disqualified_signal(
+                symbol, current_price,
+                f"Too far from support: price ${current_price:.2f} is {distance_pct:.1f}% above support ${support_level:.2f}",
+                support_info
+            )
+
+        # =====================================================================
+        # STEP 3: Bounce confirmation (PFLICHT — at least one signal)
+        # =====================================================================
+        confirmations = self._check_bounce_confirmation(
+            prices, highs, lows, volumes, support_level
+        )
+
+        if not confirmations['confirmed']:
+            return self._make_disqualified_signal(
+                symbol, current_price,
+                f"Bounce not confirmed at support ${support_level:.2f} — no reversal signals",
+                support_info
+            )
+
+        # =====================================================================
+        # STEP 4: Dead Cat Bounce filter (volume check)
+        # =====================================================================
+        volume_info = self._check_volume(volumes)
+
+        if volume_info['dcb_risk'] == 'high':
+            return self._make_disqualified_signal(
+                symbol, current_price,
+                f"Dead Cat Bounce risk: volume {volume_info['ratio']:.2f}x avg (< {self.config.dcb_threshold}x)",
+                support_info
+            )
+
+        # =====================================================================
+        # SCORING: 5 Components
+        # =====================================================================
+
+        # 1. Support Quality (0 – 2.5)
+        support_score = self._score_support_quality(touches, sma_200_confluence)
+        breakdown.support_score = support_score
+        breakdown.support_reason = f"{touches}x tested" + (" + SMA 200 confluence" if sma_200_confluence else "")
+
+        # 2. Proximity (0 – 2.0)
+        proximity_score = self._score_proximity(distance_pct)
+
+        # 3. Bounce Confirmation (0 – 2.5)
+        confirmation_score = confirmations['score']
+
+        # 4. Volume (-1.0 – 1.5)
+        volume_score = self._score_volume(volume_info['ratio'])
+        breakdown.volume_score = volume_score
+        breakdown.volume_ratio = volume_info['ratio']
+        breakdown.volume_reason = volume_info.get('reason', '')
+
+        # 5. Trend Context (-1.0 – 1.5)
+        trend_info = self._score_trend_context(prices)
+        trend_score = trend_info['score']
+        breakdown.trend_score = trend_score
+        breakdown.trend_status = trend_info['status']
+        breakdown.trend_reason = trend_info['reason']
+
+        # Total score
+        total_score = support_score + proximity_score + confirmation_score + volume_score + trend_score
+        total_score = max(0.0, min(BOUNCE_MAX_SCORE, total_score))
+        breakdown.total_score = round(total_score, 1)
+        breakdown.max_possible = BOUNCE_MAX_SCORE
+
+        # =====================================================================
+        # BUILD SIGNAL
+        # =====================================================================
+        signal_text = self._build_signal_text(
+            support_level, touches, sma_200_confluence,
+            confirmations, volume_info, trend_info, distance_pct
+        )
+
+        # Signal strength
+        if total_score >= 7.0:
+            strength = SignalStrength.STRONG
+        elif total_score >= 5.0:
+            strength = SignalStrength.MODERATE
+        elif total_score >= BOUNCE_MIN_SCORE:
+            strength = SignalStrength.WEAK
         else:
-            support_levels = find_support_optimized(
+            strength = SignalStrength.NONE
+
+        # Entry/Stop/Target
+        entry_price = current_price
+        stop_loss = support_level * (1 - self.config.stop_below_support_pct / 100)
+        target_price = entry_price + (entry_price - stop_loss) * self.config.target_risk_reward
+
+        # Extended S/R for context
+        sr_levels = get_nearest_sr_levels(
+            current_price=current_price,
+            prices=prices, highs=highs, lows=lows,
+            volumes=volumes,
+            lookback=SR_LOOKBACK_DAYS_EXTENDED,
+            num_levels=3
+        )
+
+        # Warnings
+        if trend_score < 0:
+            warnings.append("Downtrend context — higher risk")
+        if volume_info['ratio'] < 1.0:
+            warnings.append(f"Below-average volume ({volume_info['ratio']:.1f}x)")
+
+        # Store component scores in breakdown for compatibility
+        breakdown.rsi_score = 0
+        breakdown.rsi_value = confirmations.get('rsi_value', 50.0)
+        breakdown.rsi_reason = f"RSI={breakdown.rsi_value:.1f}"
+        breakdown.candlestick_score = 0
+        breakdown.candlestick_pattern = confirmations.get('candle_pattern')
+        breakdown.candlestick_bullish = confirmations.get('candle_pattern') is not None
+        breakdown.candlestick_reason = f"Pattern: {breakdown.candlestick_pattern or 'None'}"
+
+        return TradeSignal(
+            symbol=symbol,
+            strategy=self.strategy_name,
+            signal_type=SignalType.LONG if total_score >= BOUNCE_MIN_SCORE else SignalType.NEUTRAL,
+            strength=strength,
+            score=round(total_score, 1),
+            current_price=current_price,
+            entry_price=entry_price,
+            stop_loss=stop_loss,
+            target_price=target_price,
+            reason=signal_text,
+            details={
+                'score_breakdown': breakdown.to_dict(),
+                'raw_score': total_score,
+                'max_possible': BOUNCE_MAX_SCORE,
+                'support_levels': [support_level],
+                'support_info': support_info,
+                'trend_info': trend_info,
+                'rsi': confirmations.get('rsi_value', 50.0),
+                'candle_info': {
+                    'pattern': confirmations.get('candle_pattern'),
+                    'bullish': confirmations.get('candle_pattern') is not None
+                },
+                'sr_levels': sr_levels,
+                'confirmations': confirmations['signals'],
+                'volume_ratio': volume_info['ratio'],
+                'distance_pct': distance_pct,
+                'components': {
+                    'support_quality': support_score,
+                    'proximity': proximity_score,
+                    'bounce_confirmation': confirmation_score,
+                    'volume': volume_score,
+                    'trend_context': trend_score,
+                },
+            },
+            warnings=warnings
+        )
+
+    # =========================================================================
+    # STEP 1: SUPPORT LEVEL DETECTION
+    # =========================================================================
+
+    def _find_valid_support(
+        self,
+        prices: List[float],
+        lows: List[float],
+        volumes: List[int],
+        context: Optional[AnalysisContext] = None,
+    ) -> Dict[str, Any]:
+        """
+        Find the nearest valid support level with >= min touches.
+
+        Uses pivot-low detection with clustering. A valid support needs
+        at least 2 touches within tolerance_pct.
+
+        Returns dict with:
+            valid: bool
+            support_level: float or None
+            touches: int
+            strength: str
+            sma_200_confluence: bool
+            disqualify_reason: str (if not valid)
+        """
+        current_price = prices[-1]
+        lookback = self.config.support_lookback_days
+        tolerance = self.config.support_tolerance_pct / 100
+
+        # Get support levels from context or calculate
+        if context and context.support_levels:
+            raw_levels = context.support_levels
+        else:
+            raw_levels = find_support_optimized(
                 lows=lows,
-                lookback=self.config.support_lookback_days,
+                lookback=lookback,
                 window=5,
                 max_levels=10,
                 volumes=volumes if volumes else None,
                 tolerance_pct=self.config.support_tolerance_pct
             )
 
-        support_result = self._score_support_test(
-            current_low, current_price, support_levels, lows
-        )
-        breakdown.support_score = support_result[0]
-        breakdown.support_level = support_result[1].get('tested_support') or support_result[1].get('nearest_support')
-        breakdown.support_distance_pct = support_result[1].get('distance_pct', 0)
-        breakdown.support_strength = support_result[1].get('strength', 'weak')
-        breakdown.support_touches = support_result[1].get('touches', 0)
-        breakdown.support_reason = f"Support-Test Score: {breakdown.support_score}"
+        if not raw_levels:
+            return {
+                'valid': False,
+                'support_level': None,
+                'touches': 0,
+                'strength': 'none',
+                'sma_200_confluence': False,
+                'disqualify_reason': 'No support levels found',
+            }
 
-        if breakdown.support_score == 0:
-            return self.create_neutral_signal(
-                symbol, current_price,
-                f"No support test. Nearest support at ${support_result[1].get('nearest_support', 'N/A')}"
-            )
+        # Find nearest support BELOW or AT current price (with tolerance)
+        # We want supports that are below current price (support must be below)
+        candidates = []
+        for level in raw_levels:
+            dist_pct = (current_price - level) / level * 100
+            # Accept levels below price and up to 0.5% above (wick tolerance)
+            if dist_pct >= self.config.max_below_support_pct:
+                touches = self._count_support_touches(lows, level, tolerance, lookback)
+                candidates.append((level, touches, dist_pct))
 
-        if 'tested_support' in support_result[1]:
-            reasons.append(f"Support test at ${support_result[1]['tested_support']:.2f}")
-        elif 'near_support' in support_result[1]:
-            reasons.append(f"Near support at ${support_result[1].get('nearest_support', 0):.2f}")
+        if not candidates:
+            nearest = min(raw_levels, key=lambda s: abs(current_price - s))
+            return {
+                'valid': False,
+                'support_level': nearest,
+                'touches': 0,
+                'strength': 'none',
+                'sma_200_confluence': False,
+                'disqualify_reason': f'No support below current price ${current_price:.2f}',
+            }
 
-        # 2. RSI Oversold (0-2 points)
-        rsi_result = self._score_rsi_oversold(prices)
-        breakdown.rsi_score = rsi_result[0]
-        breakdown.rsi_value = rsi_result[1]
-        breakdown.rsi_reason = f"RSI={rsi_result[1]:.1f}"
+        # Pick the nearest valid support (closest to current price)
+        # Filter for min touches first
+        valid_candidates = [(l, t, d) for l, t, d in candidates if t >= self.config.support_touches_min]
 
-        if breakdown.rsi_score > 0:
-            reasons.append(f"RSI oversold ({breakdown.rsi_value:.0f})")
+        if not valid_candidates:
+            best = min(candidates, key=lambda x: x[2])
+            return {
+                'valid': False,
+                'support_level': best[0],
+                'touches': best[1],
+                'strength': 'weak',
+                'sma_200_confluence': False,
+                'disqualify_reason': f'Support at ${best[0]:.2f} has only {best[1]} touch(es), need >= {self.config.support_touches_min}',
+            }
+
+        # Pick closest valid support
+        best = min(valid_candidates, key=lambda x: x[2])
+        level, touches, dist_pct = best
+
+        # Strength classification
+        if touches >= 4:
+            strength = 'strong'
+        elif touches >= 3:
+            strength = 'moderate'
         else:
-            warnings.append(f"RSI not oversold ({breakdown.rsi_value:.0f})")
+            strength = 'established'
 
-        # 2b. RSI Divergence (0-3 points) - NEW
-        # Bullish divergence is a strong signal for bounce
-        divergence_result = calculate_rsi_divergence(
-            prices=prices,
-            lows=lows,
-            highs=highs,
-            rsi_period=self.config.rsi_period,
-            lookback=SUPPORT_LOOKBACK_DAYS,
-            swing_window=DIVERGENCE_SWING_WINDOW,
-            min_divergence_bars=DIVERGENCE_MIN_BARS,
-            max_divergence_bars=DIVERGENCE_MAX_BARS
-        )
-        div_score_result = self._score_rsi_divergence(divergence_result)
-        breakdown.rsi_divergence_score = div_score_result[0]
-        breakdown.rsi_divergence_type = divergence_result.divergence_type if divergence_result else None
-        breakdown.rsi_divergence_strength = divergence_result.strength if divergence_result else 0
-        breakdown.rsi_divergence_formation_days = divergence_result.formation_days if divergence_result else 0
-        breakdown.rsi_divergence_reason = div_score_result[1]
+        # SMA 200 confluence check
+        sma_200 = sum(prices[-SMA_LONG:]) / SMA_LONG if len(prices) >= SMA_LONG else sum(prices) / len(prices)
+        sma_200_confluence = abs(level - sma_200) / sma_200 <= 0.02  # within 2%
 
-        if breakdown.rsi_divergence_score >= 2:
-            reasons.append(f"RSI Bullish Divergence (strength: {breakdown.rsi_divergence_strength:.0%})")
-        elif breakdown.rsi_divergence_type == 'bearish':
-            warnings.append("RSI Bearish Divergence - caution!")
-
-        # 3. Candlestick Pattern (0-2 points)
-        candle_result = self._score_candlestick_pattern(prices, highs, lows)
-        breakdown.candlestick_score = candle_result[0]
-        breakdown.candlestick_pattern = candle_result[1].get('pattern')
-        breakdown.candlestick_bullish = candle_result[1].get('bullish', False)
-        breakdown.candlestick_reason = f"Pattern: {breakdown.candlestick_pattern or 'None'}"
-
-        if breakdown.candlestick_score > 0:
-            reasons.append(f"Bullish Pattern: {breakdown.candlestick_pattern}")
-
-        # 4. Volume Analysis (0-2 points) - extended
-        vol_result = self._score_volume(volumes)
-        breakdown.volume_score = vol_result[0]
-        breakdown.volume_ratio = vol_result[1].get('multiplier', 0)
-        breakdown.volume_trend = vol_result[1].get('trend', 'unknown')
-        breakdown.volume_reason = vol_result[1].get('reason', '')
-
-        if breakdown.volume_score > 0:
-            reasons.append("Volume confirms bounce")
-
-        # 5. Trend Check (0-2 points)
-        trend_result = self._score_trend(prices)
-        breakdown.trend_score = trend_result[0]
-        breakdown.trend_status = trend_result[1].get('trend', 'unknown')
-        breakdown.trend_reason = f"Trend: {breakdown.trend_status}"
-
-        if breakdown.trend_score >= 2:
-            reasons.append("Uptrend intact (above SMA200)")
-        elif breakdown.trend_score == 1:
-            reasons.append("Neutral trend")
-        else:
-            warnings.append("Downtrend - increased risk")
-
-        # 6. MACD Score (0-2 points) - NEW
-        macd_result = self._calculate_macd(prices)
-        macd_score_result = self._score_macd(macd_result)
-        breakdown.macd_score = macd_score_result[0]
-        breakdown.macd_signal = macd_score_result[2]
-        breakdown.macd_histogram = macd_result.histogram if macd_result else 0
-        breakdown.macd_reason = macd_score_result[1]
-
-        if breakdown.macd_score >= 2:
-            reasons.append("MACD bullish cross")
-        elif breakdown.macd_score > 0:
-            reasons.append("MACD bullish")
-
-        # 7. Stochastic Score (0-2 points) - NEW
-        stoch_result = self._calculate_stochastic(prices, highs, lows)
-        stoch_score_result = self._score_stochastic(stoch_result)
-        breakdown.stoch_score = stoch_score_result[0]
-        breakdown.stoch_signal = stoch_score_result[2]
-        breakdown.stoch_k = stoch_result.k if stoch_result else 0
-        breakdown.stoch_d = stoch_result.d if stoch_result else 0
-        breakdown.stoch_reason = stoch_score_result[1]
-
-        if breakdown.stoch_score >= 2:
-            reasons.append("Stoch oversold + cross")
-        elif breakdown.stoch_score > 0:
-            reasons.append("Stoch oversold")
-
-        # 8. Keltner Channel (0-2 points) - NEW
-        keltner_result = self._calculate_keltner_channel(prices, highs, lows)
-        if keltner_result:
-            keltner_score_result = self._score_keltner(keltner_result, current_price)
-            breakdown.keltner_score = keltner_score_result[0]
-            breakdown.keltner_position = keltner_result.price_position
-            breakdown.keltner_percent = keltner_result.percent_position
-            breakdown.keltner_reason = keltner_score_result[1]
-
-            if breakdown.keltner_score >= 2:
-                reasons.append("Below Keltner lower band")
-            elif breakdown.keltner_score > 0:
-                reasons.append("Near Keltner lower band")
-
-        # NEW: Apply Feature Engineering scores (VWAP, Market Context, Sector, Gap)
-        self._apply_feature_scores(breakdown, symbol, prices, volumes, highs, lows, context)
-
-        # Resolve weights from config (4-layer: Base → Regime → Sector → Regime×Sector)
-        regime = getattr(context, 'regime', 'normal') if context else 'normal'
-        sector_ctx = getattr(context, 'sector', None) if context else None
-        try:
-            resolved = self.get_weights(regime=regime, sector=sector_ctx)
-            w = resolved.weights
-        except Exception:
-            w = {}
-
-        # Default max weights per component (original hardcoded values)
-        _DEFAULTS = {
-            'support': 3.0, 'rsi': 2.0, 'rsi_divergence': 3.0, 'candlestick': 2.0,
-            'volume': 2.0, 'trend': 2.0, 'macd': 2.0, 'stoch': 2.0, 'keltner': 2.0,
-            'vwap': 3.0, 'market_context': 2.0, 'sector': 1.0, 'gap': 1.0,
+        return {
+            'valid': True,
+            'support_level': level,
+            'touches': touches,
+            'strength': strength,
+            'sma_200_confluence': sma_200_confluence,
+            'sma_200': sma_200,
+            'distance_pct': dist_pct,
         }
-
-        def _scale(component: str, raw: float) -> float:
-            yaml_max = w.get(component)
-            if yaml_max is None:
-                return raw
-            default_max = _DEFAULTS.get(component, 1.0)
-            if default_max <= 0:
-                return raw
-            return raw * (yaml_max / default_max)
-
-        # Calculate total score with config-based weight scaling
-        breakdown.total_score = (
-            _scale('support', breakdown.support_score) +
-            _scale('rsi', breakdown.rsi_score) +
-            _scale('rsi_divergence', breakdown.rsi_divergence_score) +
-            _scale('candlestick', breakdown.candlestick_score) +
-            _scale('volume', breakdown.volume_score) +
-            _scale('trend', breakdown.trend_score) +
-            _scale('macd', breakdown.macd_score) +
-            _scale('stoch', breakdown.stoch_score) +
-            _scale('keltner', breakdown.keltner_score) +
-            _scale('vwap', breakdown.vwap_score) +
-            _scale('market_context', breakdown.market_context_score) +
-            _scale('sector', breakdown.sector_score) +
-            _scale('gap', breakdown.gap_score)
-        )
-
-        # Apply sector_factor as multiplicative adjustment (Iter 4 trained)
-        if w and resolved.sector_factor != 1.0:
-            breakdown.total_score *= resolved.sector_factor
-
-        breakdown.max_possible = resolved.max_possible if w else 27
-
-        # Normalize score to 0-10 scale for fair cross-strategy comparison
-        normalized_score = (breakdown.total_score / breakdown.max_possible) * 10 if breakdown.max_possible > 0 else 0
-
-        # Determine signal strength (based on normalized 0-10 scale)
-        if normalized_score >= 7:
-            strength = SignalStrength.STRONG
-        elif normalized_score >= 5:
-            strength = SignalStrength.MODERATE
-        elif normalized_score >= 3:
-            strength = SignalStrength.WEAK
-        else:
-            strength = SignalStrength.NONE
-
-        # Calculate Entry/Stop/Target
-        entry_price = current_price
-        support = support_result[1].get('tested_support', current_low)
-        stop_loss = support * (1 - self.config.stop_below_support_pct / 100)
-        target_price = self._calculate_target(entry_price, stop_loss)
-
-        # Extended S/R analysis with 12-month lookback
-        sr_levels = get_nearest_sr_levels(
-            current_price=current_price,
-            prices=prices,
-            highs=highs,
-            lows=lows,
-            volumes=volumes,
-            lookback=SR_LOOKBACK_DAYS_EXTENDED,
-            num_levels=3
-        )
-
-        return TradeSignal(
-            symbol=symbol,
-            strategy=self.strategy_name,
-            signal_type=SignalType.LONG if normalized_score >= 3.5 else SignalType.NEUTRAL,
-            strength=strength,
-            score=round(normalized_score, 1),  # Normalized 0-10 score
-            current_price=current_price,
-            entry_price=entry_price,
-            stop_loss=stop_loss,
-            target_price=target_price,
-            reason=" | ".join(reasons),
-            details={
-                'score_breakdown': breakdown.to_dict(),
-                'raw_score': breakdown.total_score,
-                'max_possible': breakdown.max_possible,
-                'support_levels': support_levels[:3],
-                'support_info': support_result[1],
-                'trend_info': trend_result[1],
-                'rsi': breakdown.rsi_value,
-                'candle_info': {'pattern': breakdown.candlestick_pattern, 'bullish': breakdown.candlestick_bullish},
-                'sr_levels': sr_levels  # Extended S/R with 12-month lookback
-            },
-            warnings=warnings
-        )
-
-    def _score_support_test(
-        self,
-        current_low: float,
-        current_price: float,
-        support_levels: List[float],
-        lows: List[float]
-    ) -> Tuple[int, Dict[str, Any]]:
-        """Checks if current price tests support and evaluates support strength"""
-        tolerance = self.config.support_tolerance_pct / 100
-
-        info = {
-            'current_low': current_low,
-            'current_price': current_price,
-            'supports_found': len(support_levels)
-        }
-
-        if not support_levels:
-            info['nearest_support'] = None
-            return 0, info
-
-        # Find nearest support
-        nearest_support = min(support_levels, key=lambda s: abs(current_low - s))
-        info['nearest_support'] = nearest_support
-
-        # Check if low tested the support
-        distance_pct = abs(current_low - nearest_support) / nearest_support
-        info['distance_pct'] = distance_pct * 100
-
-        # Calculate support strength (count touches)
-        touches = self._count_support_touches(lows, nearest_support, tolerance)
-        info['touches'] = touches
-
-        if touches >= BOUNCE_MIN_TOUCHES + 2:
-            info['strength'] = 'strong'
-        elif touches >= BOUNCE_MIN_TOUCHES:
-            info['strength'] = 'moderate'
-        else:
-            info['strength'] = 'weak'
-
-        if distance_pct <= tolerance:
-            # Support getestet
-            info['tested_support'] = nearest_support
-
-            # Check if bounce (Close above Low)
-            bounce_pct = (current_price - current_low) / current_low * 100
-            info['bounce_pct'] = bounce_pct
-
-            if bounce_pct >= self.config.bounce_min_pct:
-                # Bonus for strong support
-                base_score = 3
-                if info['strength'] == 'strong':
-                    return base_score, info
-                elif info['strength'] == 'moderate':
-                    return base_score, info
-                else:
-                    return 2, info
-            else:
-                return 2, info  # Support getestet, aber schwacher Bounce
-
-        # Nahe am Support aber nicht getestet
-        if distance_pct <= tolerance * 2:
-            info['near_support'] = True
-            return 1, info
-
-        return 0, info
 
     def _count_support_touches(
         self,
         lows: List[float],
         support_level: float,
-        tolerance: float
+        tolerance: float,
+        lookback: int = 120,
     ) -> int:
-        """Counts how many times the support level was tested"""
+        """Count how many times price touched this support level."""
         touches = 0
-        lookback = min(len(lows), self.config.support_lookback_days)
+        n = len(lows)
+        start = max(0, n - lookback)
 
-        for i in range(-lookback, 0):
+        # Group consecutive touches as one touch
+        in_touch = False
+        for i in range(start, n):
             low = lows[i]
             if abs(low - support_level) / support_level <= tolerance:
-                touches += 1
+                if not in_touch:
+                    touches += 1
+                    in_touch = True
+            else:
+                in_touch = False
 
         return touches
 
-    def _score_rsi_oversold(self, prices: List[float]) -> Tuple[int, float]:
-        """RSI-Score für Oversold-Bedingung"""
-        period = self.config.rsi_period
+    # =========================================================================
+    # STEP 3: BOUNCE CONFIRMATION
+    # =========================================================================
 
-        if len(prices) < period + 1:
-            return 0, 50.0
-
-        changes = [prices[i] - prices[i-1] for i in range(1, len(prices))]
-        recent_changes = changes[-period:]
-
-        gains = [c for c in recent_changes if c > 0]
-        losses = [-c for c in recent_changes if c < 0]
-
-        avg_gain = sum(gains) / period if gains else 0
-        avg_loss = sum(losses) / period if losses else 0.0001
-
-        rs = avg_gain / avg_loss
-        rsi = 100 - (100 / (1 + rs))
-
-        if rsi < RSI_OVERSOLD:
-            return 2, rsi  # Stark oversold
-        elif rsi < self.config.rsi_oversold_threshold:
-            return 1, rsi  # Oversold
-        else:
-            return 0, rsi
-
-    def _score_candlestick_pattern(
+    def _check_bounce_confirmation(
         self,
         prices: List[float],
         highs: List[float],
-        lows: List[float]
-    ) -> Tuple[int, Dict[str, Any]]:
-        """Detects bullish candlestick patterns"""
-        if len(prices) < 3:
-            return 0, {'pattern': None}
+        lows: List[float],
+        volumes: List[int],
+        support_level: float,
+    ) -> Dict[str, Any]:
+        """
+        Check if a bounce at support is confirmed.
 
-        # Last candle
-        open_price = prices[-2]  # Approximation: vorheriger Close
+        At least ONE of these signals must be present:
+          1. Reversal Candlestick (Hammer, Bullish Engulfing, Doji)
+          2. Price Action: close[-1] > close[-2]
+          3. Green Sequence: 2+ green days after support test
+          4. RSI turning up: RSI < 40 AND RSI today > RSI yesterday
+          5. MACD histogram turning positive
+
+        Returns dict with:
+            confirmed: bool
+            signals: list[str]
+            score: float (0-2.5)
+            candle_pattern: str or None
+            rsi_value: float
+        """
+        signals = []
+        score = 0.0
+        candle_pattern = None
+        rsi_value = 50.0
+
+        if len(prices) < 3:
+            return {'confirmed': False, 'signals': [], 'score': 0, 'candle_pattern': None, 'rsi_value': 50.0}
+
+        # --- 1. Reversal Candlestick ---
+        candle = self._detect_reversal_candle(prices, highs, lows, support_level)
+        if candle:
+            signals.append(candle)
+            candle_pattern = candle
+            score += 1.0
+
+        # --- 2. Price Action: close > prev close ---
+        if prices[-1] > prices[-2]:
+            signals.append("Close > prev close")
+            score += 0.5
+
+        # --- 3. Green Sequence: 2+ consecutive green days ---
+        if len(prices) >= 3:
+            # Approximate open as previous close
+            green_today = prices[-1] > prices[-2]
+            green_yesterday = prices[-2] > prices[-3]
+            if green_today and green_yesterday:
+                signals.append("2 green days")
+                score += 1.0
+
+        # --- 4. RSI < 40 AND turning up ---
+        rsi_values = self._calculate_rsi(prices)
+        if len(rsi_values) >= 2:
+            rsi_value = rsi_values[-1]
+            if rsi_value < 40 and rsi_values[-1] > rsi_values[-2]:
+                signals.append(f"RSI oversold turning up ({rsi_value:.0f})")
+                score += 0.5
+
+        # --- 5. MACD histogram turning positive ---
+        macd_result = calculate_macd(
+            prices,
+            fast_period=MACD_FAST, slow_period=MACD_SLOW, signal_period=MACD_SIGNAL
+        )
+        if macd_result:
+            if macd_result.crossover == 'bullish':
+                signals.append("MACD bullish cross")
+                score += 0.5
+            elif macd_result.histogram > 0:
+                signals.append("MACD positive")
+                score += 0.25
+
+        # Cap at 2.5
+        score = min(2.5, score)
+
+        return {
+            'confirmed': len(signals) > 0,
+            'signals': signals,
+            'score': score,
+            'candle_pattern': candle_pattern,
+            'rsi_value': rsi_value,
+        }
+
+    def _detect_reversal_candle(
+        self,
+        prices: List[float],
+        highs: List[float],
+        lows: List[float],
+        support_level: float,
+    ) -> Optional[str]:
+        """Detect reversal candlestick patterns near support."""
+        if len(prices) < 3:
+            return None
+
+        # Use previous close as approximation for open
+        open_price = prices[-2]
         close = prices[-1]
         high = highs[-1]
         low = lows[-1]
 
         body = close - open_price
-        upper_wick = high - max(open_price, close)
-        lower_wick = min(open_price, close) - low
         body_size = abs(body)
+        lower_wick = min(open_price, close) - low
+        upper_wick = high - max(open_price, close)
+        total_range = high - low
 
-        info = {'pattern': None, 'bullish': False}
+        # Hammer: small body at top, long lower wick (>= 2x body)
+        if body_size > 0 and lower_wick >= body_size * 2 and upper_wick < body_size * 0.5:
+            return "Hammer"
 
-        # Hammer Detection
-        if body_size > 0:
-            if lower_wick >= body_size * 2 and upper_wick < body_size * 0.5:
-                info['pattern'] = 'Hammer'
-                info['bullish'] = True
-                return 2 if body > 0 else 1, info  # Green hammer = better
-
-        # Bullish Engulfing
+        # Bullish Engulfing: red day followed by larger green day
         if len(prices) >= 3:
             prev_body = prices[-2] - prices[-3]
             if prev_body < 0 and body > 0 and body > abs(prev_body):
-                info['pattern'] = 'Bullish Engulfing'
-                info['bullish'] = True
-                return 2, info
+                return "Bullish Engulfing"
 
-        # Doji am Support
-        total_range = high - low
+        # Doji at support: very small body relative to range
         if total_range > 0 and body_size / total_range < 0.1:
-            info['pattern'] = 'Doji'
-            info['bullish'] = False  # Neutral, but relevant at support
-            return 1, info
+            # Only count if low is near support
+            if support_level > 0 and abs(low - support_level) / support_level <= 0.02:
+                return "Doji"
 
-        # Bullish Kerze (grün)
-        if body > 0:
-            info['pattern'] = 'Bullish Candle'
-            info['bullish'] = True
-            return 1, info
+        return None
 
-        return 0, info
+    # =========================================================================
+    # STEP 4: VOLUME CHECK
+    # =========================================================================
 
-    def _score_volume(self, volumes: List[int]) -> Tuple[int, Dict[str, Any]]:
-        """Extended volume analysis"""
-        avg_period = VOLUME_AVG_PERIOD
+    def _check_volume(self, volumes: List[int]) -> Dict[str, Any]:
+        """
+        Check bounce volume relative to 20-day average.
+
+        Returns:
+            ratio: float (bounce vol / avg vol)
+            dcb_risk: 'low' | 'medium' | 'high'
+            reason: str
+        """
+        avg_period = self.config.volume_avg_period
 
         if len(volumes) < avg_period + 1:
-            return 0, {'trend': 'unknown', 'reason': 'Insufficient data'}
+            return {'ratio': 1.0, 'dcb_risk': 'low', 'reason': 'Insufficient volume data'}
 
-        avg_volume = sum(volumes[-avg_period-1:-1]) / avg_period
-        current_volume = volumes[-1]
+        avg_volume = sum(volumes[-avg_period - 1:-1]) / avg_period
+        bounce_volume = volumes[-1]
 
-        multiplier = current_volume / avg_volume if avg_volume > 0 else 0
+        # Weekend/holiday fallback: use last non-zero volume
+        if bounce_volume == 0 and len(volumes) >= 2:
+            for v in reversed(volumes[:-1]):
+                if v > 0:
+                    bounce_volume = v
+                    break
 
-        info = {
-            'current_volume': current_volume,
-            'avg_volume': avg_volume,
-            'multiplier': multiplier
-        }
+        ratio = bounce_volume / avg_volume if avg_volume > 0 else 0
 
-        # Volume trend of the last N days
-        recent_volumes = volumes[-VOLUME_RECENT_WINDOW:]
-        if len(recent_volumes) >= 3:
-            vol_trend = recent_volumes[-1] / recent_volumes[0] if recent_volumes[0] > 0 else 1
-            if vol_trend < VOLUME_TREND_LOW:
-                info['trend'] = 'decreasing'
-            elif vol_trend > VOLUME_TREND_HIGH:
-                info['trend'] = 'increasing'
-            else:
-                info['trend'] = 'stable'
+        if ratio < self.config.dcb_threshold:
+            return {'ratio': ratio, 'dcb_risk': 'high', 'reason': f'Dead Cat Bounce risk: vol {ratio:.2f}x avg'}
+        elif ratio < 1.0:
+            return {'ratio': ratio, 'dcb_risk': 'medium', 'reason': f'Below-average volume: {ratio:.2f}x'}
         else:
-            info['trend'] = 'unknown'
+            return {'ratio': ratio, 'dcb_risk': 'low', 'reason': f'Volume confirms: {ratio:.2f}x avg'}
 
-        # Scoring
-        score = 0
+    # =========================================================================
+    # SCORING COMPONENTS
+    # =========================================================================
 
-        # 1. Volume spike at bounce = good (1 point)
-        if multiplier >= self.config.volume_spike_multiplier:
-            score += 1
-            info['reason'] = "Volume spike confirms bounce"
+    def _score_support_quality(self, touches: int, sma_200_confluence: bool) -> float:
+        """
+        Score support quality (0 – 2.5).
 
-        # 2. Declining volume during pullback = healthy (1 point)
-        if info['trend'] == 'decreasing':
-            score += 1
-            info['reason'] = info.get('reason', '') + " | Healthy declining volume"
+        2 touches = 1.0, 3 = 1.5, 4+ = 2.0
+        SMA 200 confluence = +0.5 bonus
+        """
+        if touches >= 4:
+            score = 2.0
+        elif touches >= 3:
+            score = 1.5
+        elif touches >= 2:
+            score = 1.0
+        else:
+            score = 0.0
 
-        if not info.get('reason'):
-            info['reason'] = "Normal volume"
+        if sma_200_confluence:
+            score += 0.5
 
-        return score, info
+        return min(2.5, score)
 
-    def _score_trend(self, prices: List[float]) -> Tuple[int, Dict[str, Any]]:
-        """Trend analysis for bounce context"""
-        sma_50 = sum(prices[-SMA_MEDIUM:]) / SMA_MEDIUM if len(prices) >= SMA_MEDIUM else sum(prices) / len(prices)
+    def _score_proximity(self, distance_pct: float) -> float:
+        """
+        Score proximity to support (0 – 2.0).
+
+        0% to +1%:   2.0 (directly at support)
+        +1% to +2%:  1.5
+        +2% to +3%:  1.0
+        +3% to +5%:  0.5
+        -0.5% to 0%: 1.0 (slightly below, wick tolerance)
+        """
+        if distance_pct < 0:
+            # Below support (within tolerance)
+            return 1.0
+        elif distance_pct <= 1.0:
+            return 2.0
+        elif distance_pct <= 2.0:
+            return 1.5
+        elif distance_pct <= 3.0:
+            return 1.0
+        elif distance_pct <= 5.0:
+            return 0.5
+        else:
+            return 0.0
+
+    def _score_volume(self, ratio: float) -> float:
+        """
+        Score volume confirmation (-1.0 – 1.5).
+
+        > 2.0x:  1.5
+        > 1.5x:  1.0
+        > 1.0x:  0.5
+        < 1.0x:  0.0
+        < 0.7x: -1.0 (penalty — Dead Cat Bounce)
+        """
+        if ratio >= 2.0:
+            return 1.5
+        elif ratio >= 1.5:
+            return 1.0
+        elif ratio >= 1.0:
+            return 0.5
+        elif ratio >= self.config.dcb_threshold:
+            return 0.0
+        else:
+            return -1.0  # Dead Cat Bounce penalty
+
+    def _score_trend_context(self, prices: List[float]) -> Dict[str, Any]:
+        """
+        Score trend context (-1.0 – 1.5).
+
+        Price above SMA 200, SMA 200 rising:  1.5 (uptrend)
+        Price above SMA 200, SMA 200 flat:    1.0
+        Price near SMA 200 (±2%):             0.5
+        Price below SMA 200, SMA 200 falling: -1.0 (penalty)
+        """
         sma_200 = sum(prices[-SMA_LONG:]) / SMA_LONG if len(prices) >= SMA_LONG else sum(prices) / len(prices)
-
         current = prices[-1]
 
-        info = {
-            'sma_50': sma_50,
-            'sma_200': sma_200,
-            'price': current
-        }
-
-        # For bounce, uptrend is important (Mean Reversion)
-        if current > sma_200:
-            if current > sma_50:
-                info['trend'] = 'uptrend'
-                return 2, info
-            else:
-                info['trend'] = 'pullback_in_uptrend'
-                return 2, info  # Pullback in uptrend = ideal for bounce
+        # SMA 200 direction (compare current SMA vs 20 days ago)
+        if len(prices) >= SMA_LONG + 20:
+            sma_200_prev = sum(prices[-(SMA_LONG + 20):-20]) / SMA_LONG
+            sma_direction = 'rising' if sma_200 > sma_200_prev * 1.001 else (
+                'falling' if sma_200 < sma_200_prev * 0.999 else 'flat'
+            )
         else:
-            info['trend'] = 'downtrend'
-            return 0, info  # Downtrend = risky
+            sma_direction = 'flat'
 
-    # =========================================================================
-    # RSI DIVERGENCE SCORING (NEW)
-    # =========================================================================
+        distance_to_sma = (current - sma_200) / sma_200 * 100
 
-    def _score_rsi_divergence(
-        self,
-        divergence: Optional[RSIDivergenceResult]
-    ) -> Tuple[float, str]:
-        """
-        RSI Divergence Score (0-3 points).
-
-        Bullish divergence is a strong signal for bounce:
-        - Price makes lower low
-        - RSI makes higher low
-        - Selling pressure decreasing -> bottom formation likely
-
-        Bearish divergence is a warning signal (no point deduction, but warning).
-        """
-        if not divergence:
-            return 0, "No RSI divergence detected"
-
-        if divergence.divergence_type == 'bullish':
-            # Scoring based on divergence strength
-            strength = divergence.strength
-
-            if strength >= DIVERGENCE_STRENGTH_STRONG:
-                score = 3.0
-                reason = f"Strong bullish divergence (strength: {strength:.0%}, {divergence.formation_days} days)"
-            elif strength >= DIVERGENCE_STRENGTH_MODERATE:
-                score = 2.0
-                reason = f"Moderate bullish divergence (strength: {strength:.0%}, {divergence.formation_days} days)"
+        if current > sma_200:
+            if sma_direction == 'rising':
+                return {'score': 1.5, 'status': 'uptrend', 'reason': 'Uptrend: above rising SMA 200', 'sma_200': sma_200}
             else:
-                score = 1.0
-                reason = f"Weak bullish divergence (strength: {strength:.0%}, {divergence.formation_days} days)"
-
-            return score, reason
-
-        elif divergence.divergence_type == 'bearish':
-            # Bearish divergence in bounce = warning signal, but no deduction
-            return 0, f"Bearish divergence detected - caution! (strength: {divergence.strength:.0%})"
-
-        return 0, "No significant divergence"
+                return {'score': 1.0, 'status': 'above_sma200', 'reason': f'Above SMA 200 (SMA {sma_direction})', 'sma_200': sma_200}
+        elif abs(distance_to_sma) <= 2.0:
+            return {'score': 0.5, 'status': 'near_sma200', 'reason': f'Near SMA 200 ({distance_to_sma:+.1f}%)', 'sma_200': sma_200}
+        else:
+            if sma_direction == 'falling':
+                return {'score': -1.0, 'status': 'downtrend', 'reason': 'Downtrend: below falling SMA 200', 'sma_200': sma_200}
+            else:
+                return {'score': -0.5, 'status': 'below_sma200', 'reason': f'Below SMA 200 ({distance_to_sma:+.1f}%)', 'sma_200': sma_200}
 
     # =========================================================================
-    # MACD SCORING (NEW)
+    # RSI CALCULATION (internal)
     # =========================================================================
 
-    def _calculate_macd(
+    def _calculate_rsi(self, prices: List[float], period: int = None) -> List[float]:
+        """Calculate RSI values for the last few periods."""
+        period = period or self.config.rsi_period
+
+        if len(prices) < period + 2:
+            return [50.0]
+
+        changes = [prices[i] - prices[i - 1] for i in range(1, len(prices))]
+
+        # Wilder's smoothed RSI
+        gains = [max(c, 0) for c in changes[:period]]
+        losses = [max(-c, 0) for c in changes[:period]]
+        avg_gain = sum(gains) / period
+        avg_loss = sum(losses) / period if sum(losses) > 0 else 0.0001
+
+        rsi_values = []
+        for i in range(period, len(changes)):
+            c = changes[i]
+            avg_gain = (avg_gain * (period - 1) + max(c, 0)) / period
+            avg_loss = (avg_loss * (period - 1) + max(-c, 0)) / period
+
+            if avg_loss == 0:
+                rsi_values.append(100.0)
+            else:
+                rs = avg_gain / avg_loss
+                rsi_values.append(100 - (100 / (1 + rs)))
+
+        return rsi_values if rsi_values else [50.0]
+
+    # =========================================================================
+    # SIGNAL TEXT
+    # =========================================================================
+
+    def _build_signal_text(
         self,
-        prices: List[float],
-        fast: int = MACD_FAST,
-        slow: int = MACD_SLOW,
-        signal: int = MACD_SIGNAL
-    ) -> Optional[MACDResult]:
-        """Calculates MACD. Delegates to shared indicators library."""
-        return calculate_macd(prices, fast_period=fast, slow_period=slow, signal_period=signal)
+        support_level: float,
+        touches: int,
+        sma_200_confluence: bool,
+        confirmations: Dict[str, Any],
+        volume_info: Dict[str, Any],
+        trend_info: Dict[str, Any],
+        distance_pct: float,
+    ) -> str:
+        """
+        Build signal text in the new format:
+        "Bounce at support $X (Nx tested) | [Confirmation] | [Indicators]"
+        """
+        parts = []
 
-    def _score_macd(self, macd: Optional[MACDResult]) -> Tuple[float, str, str]:
-        """MACD Score (0-2 points)"""
-        if not macd:
-            return 0, "No MACD data", "neutral"
+        # Support info
+        proximity = "at" if distance_pct <= 2.0 else "near"
+        support_desc = f"${support_level:.2f} ({touches}x tested"
+        if sma_200_confluence:
+            support_desc += ", SMA 200 confluence"
+        support_desc += ")"
+        parts.append(f"Bounce {proximity} support {support_desc}")
 
-        cfg = self.scoring_config.macd
+        # Confirmation signals
+        if confirmations['signals']:
+            parts.append(" + ".join(confirmations['signals']))
 
-        if macd.crossover == 'bullish':
-            return cfg.weight_bullish_cross, "MACD bullish crossover", "bullish_cross"
+        # Volume
+        ratio = volume_info['ratio']
+        if ratio >= 1.5:
+            parts.append(f"Vol {ratio:.1f}x avg")
 
-        if macd.histogram > 0:
-            return cfg.weight_bullish, "MACD histogram positive", "bullish"
+        # Trend
+        if trend_info['status'] == 'uptrend':
+            parts.append("Uptrend intact")
+        elif trend_info['status'] == 'downtrend':
+            parts.append("Downtrend caution")
 
-        if macd.histogram < 0:
-            return 0, "MACD histogram negative", "bearish"
-
-        return 0, "MACD neutral", "neutral"
+        return " | ".join(parts)
 
     # =========================================================================
-    # STOCHASTIC SCORING (NEW)
+    # HELPER: Create disqualified/neutral signal
     # =========================================================================
 
-    def _calculate_stochastic(
+    def _make_disqualified_signal(
         self,
-        prices: List[float],
-        highs: List[float],
-        lows: List[float],
-        k_period: int = STOCH_K_PERIOD,
-        d_period: int = STOCH_D_PERIOD
-    ) -> Optional[StochasticResult]:
-        """Calculates Stochastic Oscillator. Delegates to shared indicators library."""
-        cfg = self.scoring_config.stochastic
-        return calculate_stochastic(
-            highs=highs, lows=lows, closes=prices,
-            k_period=k_period, d_period=d_period, smooth=STOCH_SMOOTH,
-            oversold=cfg.oversold_threshold, overbought=cfg.overbought_threshold
-        )
-
-    def _score_stochastic(self, stoch: Optional[StochasticResult]) -> Tuple[float, str, str]:
-        """Stochastic Score (0-2 points)"""
-        if not stoch:
-            return 0, "No Stochastic data", "neutral"
-
-        cfg = self.scoring_config.stochastic
-
-        if stoch.zone == 'oversold':
-            if stoch.crossover == 'bullish':
-                return cfg.weight_oversold_cross, "Stoch oversold + bullish cross", "oversold_bullish_cross"
-            return cfg.weight_oversold, f"Stoch oversold (K={stoch.k:.0f})", "oversold"
-
-        if stoch.zone == 'overbought':
-            return 0, f"Stoch overbought (K={stoch.k:.0f})", "overbought"
-
-        return 0, f"Stoch neutral (K={stoch.k:.0f})", "neutral"
+        symbol: str,
+        current_price: float,
+        reason: str,
+        support_info: Dict[str, Any],
+    ) -> TradeSignal:
+        """Create a neutral signal for disqualified candidates."""
+        return self.create_neutral_signal(symbol, current_price, reason)
 
     # =========================================================================
-    # KELTNER CHANNEL (NEW)
+    # LEGACY HELPER METHODS (kept for backward compatibility)
     # =========================================================================
-
-    def _calculate_keltner_channel(
-        self,
-        prices: List[float],
-        highs: List[float],
-        lows: List[float]
-    ) -> Optional[KeltnerChannelResult]:
-        """Calculates Keltner Channel. Delegates to shared indicators library."""
-        cfg = self.scoring_config.keltner
-        return calculate_keltner_channel(
-            prices=prices, highs=highs, lows=lows,
-            ema_period=cfg.ema_period, atr_period=cfg.atr_period,
-            atr_multiplier=cfg.atr_multiplier
-        )
-
-    def _score_keltner(
-        self,
-        keltner: KeltnerChannelResult,
-        current_price: float
-    ) -> Tuple[float, str]:
-        """Keltner Channel Score for Bounce (0-2 points)"""
-        cfg = self.scoring_config.keltner
-        position = keltner.price_position
-        pct = keltner.percent_position
-
-        if position == 'below_lower':
-            return cfg.weight_below_lower, f"Price below Keltner Lower Band ({pct:.2f})"
-
-        if position == 'near_lower':
-            return cfg.weight_near_lower, f"Price near Keltner Lower Band ({pct:.2f})"
-
-        if position == 'in_channel' and pct < KELTNER_NEUTRAL_LOW:
-            return cfg.weight_mean_reversion * 0.5, f"Bounce in lower channel area ({pct:.2f})"
-
-        if position == 'above_upper':
-            return 0, f"Price above Keltner Upper Band ({pct:.2f}) - overbought"
-
-        return 0, f"Price in neutral channel position ({pct:.2f})"
-
-    # =========================================================================
-    # HELPER METHODS
-    # =========================================================================
-
-    def _calculate_ema(self, values: List[float], period: int) -> Optional[List[float]]:
-        """Calculates EMA. Delegates to shared indicators library."""
-        if len(values) < period:
-            return None
-        return calculate_ema(values, period)
-
-    def _calculate_atr(
-        self,
-        highs: List[float],
-        lows: List[float],
-        closes: List[float],
-        period: int = RSI_PERIOD  # ATR uses same default period as RSI (14)
-    ) -> Optional[float]:
-        """Calculates ATR (SMA-based). Delegates to shared indicators library."""
-        return calculate_atr_simple(highs, lows, closes, period)
 
     def _calculate_target(self, entry: float, stop: float) -> float:
         """Calculates target based on Risk/Reward"""

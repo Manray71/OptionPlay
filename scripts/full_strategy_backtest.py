@@ -59,6 +59,7 @@ from src.analyzers.pullback import PullbackAnalyzer
 from src.analyzers.bounce import BounceAnalyzer, BounceConfig
 from src.analyzers.ath_breakout import ATHBreakoutAnalyzer, ATHBreakoutConfig
 from src.analyzers.earnings_dip import EarningsDipAnalyzer, EarningsDipConfig
+from src.analyzers.trend_continuation import TrendContinuationAnalyzer, TrendContinuationConfig
 from src.analyzers.base import BaseAnalyzer
 from src.models.base import TradeSignal, SignalType
 
@@ -88,7 +89,7 @@ class VIXRegime(Enum):
             return cls.HIGH
 
 
-STRATEGIES = ['pullback', 'bounce', 'ath_breakout', 'earnings_dip']
+STRATEGIES = ['pullback', 'bounce', 'ath_breakout', 'earnings_dip', 'trend_continuation']
 
 
 # =============================================================================
@@ -446,6 +447,10 @@ class FullStrategyBacktester:
         # Earnings Dip
         dip_config = EarningsDipConfig()
         self._analyzers['earnings_dip'] = EarningsDipAnalyzer(dip_config)
+
+        # Trend Continuation
+        tc_config = TrendContinuationConfig()
+        self._analyzers['trend_continuation'] = TrendContinuationAnalyzer(tc_config)
 
     def set_vix_data(self, vix_data: List[Dict]):
         """Setzt VIX-Daten für Regime-Analyse"""
@@ -1309,7 +1314,7 @@ def main():
     )
 
     parser.add_argument('--strategy', type=str,
-                        choices=['pullback', 'bounce', 'ath_breakout', 'earnings_dip', 'all'],
+                        choices=['pullback', 'bounce', 'ath_breakout', 'earnings_dip', 'trend_continuation', 'all'],
                         default='all', help='Strategy to test (default: all)')
     parser.add_argument('--train', action='store_true',
                         help='Run walk-forward training with parameter optimization')

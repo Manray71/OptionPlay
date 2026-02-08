@@ -1,11 +1,20 @@
-# OptionPlay - ATH Breakout Analyzer
-# ====================================
-# Analyzes breakouts to new all-time highs
+# OptionPlay - ATH Breakout Analyzer (Refactored v2)
+# ===================================================
+# Analyzes breakouts to new all-time highs with consolidation check
 #
 # Strategy: Buy when stock breaks out of consolidation to new ATH
-# - Strong momentum signal
-# - Works best with quality stocks in uptrends
-# - Risk: False breakouts, overbought conditions
+# - Requires prior consolidation (base building)
+# - Requires close confirmation (not just intraday wick)
+# - Volume confirmation as gate
+# - Momentum/trend context for bonus scoring
+#
+# 4-Component Scoring (max ~9.0):
+#   1. Consolidation Quality  (0 – 2.5)
+#   2. Breakout Strength      (0 – 2.0)
+#   3. Volume Confirmation    (-1.0 – 2.5)
+#   4. Momentum / Trend       (-1.0 – 1.5)
+#
+# Minimum for signal: 4.0
 
 from dataclasses import dataclass
 from typing import List, Optional, Dict, Any, Tuple
@@ -17,14 +26,10 @@ from .context import AnalysisContext
 
 try:
     from ..models.base import TradeSignal, SignalType, SignalStrength
-    from ..models.indicators import MACDResult, KeltnerChannelResult
     from ..models.strategy_breakdowns import ATHBreakoutScoreBreakdown
-    from ..config import ATHBreakoutScoringConfig
 except ImportError:
     from models.base import TradeSignal, SignalType, SignalStrength
-    from models.indicators import MACDResult, KeltnerChannelResult
     from models.strategy_breakdowns import ATHBreakoutScoreBreakdown
-    from config import ATHBreakoutScoringConfig
 
 logger = logging.getLogger(__name__)
 
@@ -37,14 +42,10 @@ except ImportError:
 # Import shared indicators
 try:
     from ..indicators.momentum import calculate_macd
-    from ..indicators.trend import calculate_ema
-    from ..indicators.volatility import calculate_atr_simple, calculate_keltner_channel
 except ImportError:
     from indicators.momentum import calculate_macd
-    from indicators.trend import calculate_ema
-    from indicators.volatility import calculate_atr_simple, calculate_keltner_channel
 
-# Import Feature Scoring Mixin (NEW from Feature Engineering)
+# Import Feature Scoring Mixin
 try:
     from .feature_scoring_mixin import FeatureScoringMixin
 except ImportError:
@@ -56,78 +57,109 @@ try:
         RSI_PERIOD,
         MACD_FAST, MACD_SLOW, MACD_SIGNAL,
         SMA_SHORT, SMA_MEDIUM, SMA_LONG,
-        VOLUME_RECENT_WINDOW, VOLUME_TREND_LOW, VOLUME_TREND_HIGH,
-        KELTNER_NEUTRAL_LOW,
+        VOLUME_AVG_PERIOD,
         SR_LOOKBACK_DAYS_EXTENDED,
-        ATH_LOOKBACK_DAYS, ATH_CONFIRMATION_DAYS, ATH_CONFIRMATION_THRESHOLD,
+        ATH_LOOKBACK_DAYS,
     )
 except ImportError:
     from constants import (
         RSI_PERIOD,
         MACD_FAST, MACD_SLOW, MACD_SIGNAL,
         SMA_SHORT, SMA_MEDIUM, SMA_LONG,
-        VOLUME_RECENT_WINDOW, VOLUME_TREND_LOW, VOLUME_TREND_HIGH,
-        KELTNER_NEUTRAL_LOW,
+        VOLUME_AVG_PERIOD,
         SR_LOOKBACK_DAYS_EXTENDED,
-        ATH_LOOKBACK_DAYS, ATH_CONFIRMATION_DAYS, ATH_CONFIRMATION_THRESHOLD,
+        ATH_LOOKBACK_DAYS,
     )
+
+
+# =============================================================================
+# CONSTANTS for ATH Breakout Strategy v2
+# =============================================================================
+
+ATH_CONSOL_LOOKBACK = 60           # Max lookback for consolidation detection
+ATH_CONSOL_MIN_DAYS = 20           # Minimum consolidation duration
+ATH_CONSOL_MAX_RANGE_PCT = 15.0    # Max range for consolidation (%)
+ATH_CONSOL_ATH_TEST_PCT = 1.0     # ATH test = high within 1% of ATH
+ATH_VOLUME_DISQUALIFY = 1.0       # Vol < 1.0x avg = disqualify
+ATH_RSI_DISQUALIFY = 80.0         # RSI > 80 = disqualify
+ATH_MIN_SCORE = 4.0                # Minimum total score for signal
+ATH_MAX_SCORE = 9.5                # Theoretical maximum (2.5 + 2.0 + 2.5 + 1.5 + bonus)
 
 
 @dataclass
 class ATHBreakoutConfig:
-    """Configuration for ATH Breakout Analyzer (Legacy - for backward compatibility)"""
+    """Configuration for ATH Breakout Analyzer v2"""
     # ATH Detection
-    ath_lookback_days: int = ATH_LOOKBACK_DAYS  # 1 year for ATH
-    consolidation_days: int = 20  # Minimum consolidation time
-    breakout_threshold_pct: float = 1.0  # Min % above old ATH
+    ath_lookback_days: int = ATH_LOOKBACK_DAYS  # 252 days (1 year)
 
-    # Multi-Day Confirmation (NEW - P1-B)
-    confirmation_days: int = ATH_CONFIRMATION_DAYS  # Breakout must hold N days above ATH
-    confirmation_threshold_pct: float = ATH_CONFIRMATION_THRESHOLD  # Min % above ATH during confirmation
+    # Consolidation
+    consolidation_lookback: int = ATH_CONSOL_LOOKBACK
+    consolidation_min_days: int = ATH_CONSOL_MIN_DAYS
+    consolidation_max_range_pct: float = ATH_CONSOL_MAX_RANGE_PCT
+    ath_test_tolerance_pct: float = ATH_CONSOL_ATH_TEST_PCT
 
-    # Volume Confirmation
-    volume_spike_multiplier: float = 1.5  # Volume must be 1.5x average
-    volume_avg_period: int = 20
+    # Volume
+    volume_avg_period: int = VOLUME_AVG_PERIOD
+    volume_disqualify_threshold: float = ATH_VOLUME_DISQUALIFY
 
-    # Technical Filters
-    rsi_max: float = 80.0  # Don't buy if too overbought
+    # RSI
     rsi_period: int = RSI_PERIOD
-    min_uptrend_days: int = 50  # SMA50 must point upward
+    rsi_disqualify: float = ATH_RSI_DISQUALIFY
+
+    # Risk Management
+    stop_below_recent_low_pct: float = 1.0
+    target_risk_reward: float = 2.0
 
     # Scoring
-    max_score: int = 10
-    min_score_for_signal: int = 6
+    min_score_for_signal: float = ATH_MIN_SCORE
+    max_score: float = ATH_MAX_SCORE
+
+    # Legacy compat fields (ignored by v2, but accepted for backward compat)
+    consolidation_days: int = 20
+    breakout_threshold_pct: float = 1.0
+    confirmation_days: int = 2
+    confirmation_threshold_pct: float = 0.5
+    volume_spike_multiplier: float = 1.5
+    rsi_max: float = 80.0
+    min_uptrend_days: int = 50
+    max_score_legacy: int = 10
+    min_score_for_signal_legacy: int = 6
 
 
 class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
     """
-    Analyzes stocks for ATH breakouts.
+    Analyzes stocks for ATH breakouts (v2 — Refactored).
 
-    Scoring criteria (extended):
-    - ATH breakout (new high after consolidation): 0-3 points
-    - Volume confirmation: 0-2 points
-    - Strong uptrend (SMA20 > SMA50 > SMA200): 0-2 points
-    - RSI not overbought (< 70): 0-1 point
-    - Relative Strength (outperforming SPY): 0-2 points
-    - MACD signal: 0-2 points (NEW)
-    - Momentum/ROC: 0-2 points (NEW)
-    - Keltner Channel (Breakout above Upper): 0-2 points (NEW)
+    Implements a strict 4-step filter pipeline:
+      1. ATH identification + Consolidation check (base required)
+      2. Close confirmation (close > previous ATH, not just intraday)
+      3. Volume confirmation (vol >= 1.0x avg, < 1.0x = disqualify)
+      4. RSI check (> 80 = disqualify)
+
+    4-Component Scoring (max ~9.0):
+      - Consolidation Quality:  0 – 2.5
+      - Breakout Strength:      0 – 2.0
+      - Volume Confirmation:   -1.0 – 2.5
+      - Momentum / Trend:      -1.0 – 1.5
+
+    Signal threshold: total_score >= 4.0
 
     Usage:
         analyzer = ATHBreakoutAnalyzer()
         signal = analyzer.analyze("AAPL", prices, volumes, highs, lows)
-
-        if signal.is_actionable:
-            print(f"Breakout Signal: {signal.score}/16")
+        if signal.signal_type == SignalType.LONG:
+            print(f"ATH Breakout: {signal.score}/10")
     """
 
     def __init__(
         self,
         config: Optional[ATHBreakoutConfig] = None,
-        scoring_config: Optional[ATHBreakoutScoringConfig] = None
+        scoring_config=None,  # Accepted for backward compat, ignored
+        **kwargs
     ):
         self.config = config or ATHBreakoutConfig()
-        self.scoring_config = scoring_config or ATHBreakoutScoringConfig()
+        # Accept scoring_config for backward compat but ignore it
+        self.scoring_config = scoring_config
 
     @property
     def strategy_name(self) -> str:
@@ -135,7 +167,11 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
 
     @property
     def description(self) -> str:
-        return "All-Time-High Breakout - Buy on breakout to new ATH with volume confirmation"
+        return "ATH Breakout - Buy on confirmed breakout from consolidation to new all-time high"
+
+    # =========================================================================
+    # MAIN ANALYZE METHOD
+    # =========================================================================
 
     def analyze(
         self,
@@ -151,19 +187,26 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         """
         Analyzes a symbol for ATH breakout.
 
+        Pipeline:
+          1. Identify ATH and detect prior consolidation
+          2. Check close confirmation (close > previous ATH)
+          3. Check volume (< 1.0x avg = disqualify)
+          4. Check RSI (> 80 = disqualify)
+          5. Score all 4 components
+          6. Build signal text
+
         Args:
             symbol: Ticker symbol
             prices: Closing prices (oldest first)
             volumes: Daily volume
             highs: Daily highs
             lows: Daily lows
-            spy_prices: Optional SPY prices for Relative Strength
-            context: Optional pre-calculated AnalysisContext for performance
+            spy_prices: Optional SPY prices (unused in v2, kept for compat)
+            context: Optional pre-calculated AnalysisContext
 
         Returns:
-            TradeSignal with breakout rating
+            TradeSignal with breakout rating (score 0-10)
         """
-        # Input validation
         min_data = max(self.config.ath_lookback_days, 60)
         self.validate_inputs(prices, volumes, highs, lows, min_length=min_data)
 
@@ -172,635 +215,703 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
 
         # Initialize score breakdown
         breakdown = ATHBreakoutScoreBreakdown()
-        reasons = []
         warnings = []
 
-        # 1. ATH-Breakout Detection (0-3 Punkte) mit Multi-Day Confirmation
-        ath_result = self._score_ath_breakout(highs, current_high, prices)
-        breakdown.ath_score = ath_result[0]
-        breakdown.ath_old = ath_result[1].get('old_ath', 0)
-        breakdown.ath_current = ath_result[1].get('current_high', 0)
-        breakdown.ath_pct_above = ath_result[1].get('pct_above_old', 0)
-        breakdown.ath_had_consolidation = ath_result[1].get('had_consolidation', False)
+        # =====================================================================
+        # STEP 1: ATH Identification + Consolidation Check (PFLICHT)
+        # =====================================================================
+        ath_info = self._identify_ath(highs, prices)
 
-        # NEW: Confirmation status in breakdown
-        confirmation_info = ath_result[1].get('confirmation')
-        if confirmation_info:
-            breakdown.ath_reason = f"ATH Score: {breakdown.ath_score} ({confirmation_info.get('status', 'unknown')})"
-        else:
-            breakdown.ath_reason = f"ATH Score: {breakdown.ath_score}"
-
-        if breakdown.ath_score > 0:
-            reason_text = f"Neues {ath_result[1]['lookback']}-Tage-Hoch (+{breakdown.ath_pct_above:.1f}%)"
-
-            # Warning for unconfirmed breakout
-            if confirmation_info and confirmation_info.get('status') == 'unconfirmed':
-                days_req = confirmation_info.get('confirmation_days_required', 2)
-                days_above = confirmation_info.get('days_close_above_ath', 0)
-                warnings.append(f"⚠️ Unconfirmed breakout - only {days_above}/{days_req} days above ATH")
-                reason_text += " (unconfirmed)"
-
-            reasons.append(reason_text)
-        else:
-            # No breakout = neutral signal
-            return self.create_neutral_signal(
+        if not ath_info['has_ath']:
+            return self._make_disqualified_signal(
                 symbol, current_price,
-                f"No ATH breakout. Currently {ath_result[1].get('pct_below_ath', 0):.1f}% below ATH"
+                f"No ATH breakout: price is {ath_info.get('pct_below_ath', 0):.1f}% below {ath_info['lookback']}-day high"
             )
 
-        # 2. Volume confirmation (0-2 points)
-        vol_result = self._score_volume_confirmation(volumes)
-        breakdown.volume_score = vol_result[0]
-        breakdown.volume_ratio = vol_result[1].get('multiplier', 0)
-        breakdown.volume_trend = vol_result[1].get('trend', 'unknown')
-        breakdown.volume_reason = vol_result[1].get('reason', '')
+        previous_ath = ath_info['previous_ath']
 
-        if breakdown.volume_score > 0:
-            reasons.append(f"Volume {breakdown.volume_ratio:.1f}x above average")
-        else:
-            warnings.append("Weak volume confirmation")
+        # Check consolidation
+        consol_info = self._detect_consolidation(highs, lows, prices, previous_ath)
 
-        # 3. Trend analysis (0-2 points)
-        trend_result = self._score_trend(prices)
-        breakdown.trend_score = trend_result[0]
-        breakdown.trend_status = trend_result[1].get('trend', 'unknown')
-        breakdown.trend_reason = f"Trend: {breakdown.trend_status}"
+        if not consol_info['has_consolidation']:
+            return self._make_disqualified_signal(
+                symbol, current_price,
+                consol_info.get('disqualify_reason', 'No consolidation before breakout')
+            )
 
-        if breakdown.trend_score >= 2:
-            reasons.append("Strong uptrend (SMA20 > SMA50 > SMA200)")
-        elif breakdown.trend_score == 1:
-            reasons.append("Moderate uptrend")
+        breakdown.ath_old = previous_ath
+        breakdown.ath_current = current_high
+        breakdown.ath_had_consolidation = True
 
-        # 4. RSI Check (0-1 Punkt)
-        rsi_result = self._score_rsi(prices)
-        breakdown.rsi_score = rsi_result[0]
-        breakdown.rsi_value = rsi_result[1]
-        breakdown.rsi_reason = f"RSI={breakdown.rsi_value:.1f}"
+        # =====================================================================
+        # STEP 2: Close Confirmation (PFLICHT)
+        # =====================================================================
+        close_info = self._check_close_confirmation(prices, previous_ath)
 
-        if breakdown.rsi_score == 0:
-            warnings.append(f"RSI overbought ({breakdown.rsi_value:.0f})")
+        if not close_info['confirmed']:
+            return self._make_disqualified_signal(
+                symbol, current_price,
+                f"Breakout not confirmed: close ${current_price:.2f} is below ATH ${previous_ath:.2f} (intraday fakeout)"
+            )
 
-        # 5. Relative Strength (0-2 points)
-        if spy_prices and len(spy_prices) >= 20:
-            rs_result = self._score_relative_strength(prices, spy_prices)
-            breakdown.rs_score = rs_result[0]
-            breakdown.rs_outperformance = rs_result[1].get('outperformance', 0)
-            breakdown.rs_reason = f"RS: {breakdown.rs_outperformance:.1f}% vs SPY"
+        breakdown.ath_pct_above = close_info['pct_above']
 
-            if breakdown.rs_score > 0:
-                reasons.append(f"Relative Strength: +{breakdown.rs_outperformance:.1f}% vs SPY")
+        # =====================================================================
+        # STEP 3: Volume Confirmation (PFLICHT — < 1.0x = disqualify)
+        # =====================================================================
+        volume_info = self._check_volume(volumes)
 
-        # 6. MACD Score (0-2 points) - NEW
-        macd_result = self._calculate_macd(prices)
-        macd_score_result = self._score_macd(macd_result)
-        breakdown.macd_score = macd_score_result[0]
-        breakdown.macd_signal = macd_score_result[2]
-        breakdown.macd_histogram = macd_result.histogram if macd_result else 0
-        breakdown.macd_reason = macd_score_result[1]
+        if volume_info['ratio'] < self.config.volume_disqualify_threshold:
+            return self._make_disqualified_signal(
+                symbol, current_price,
+                f"Weak volume: {volume_info['ratio']:.2f}x avg (< {self.config.volume_disqualify_threshold}x) — likely false breakout"
+            )
 
-        if breakdown.macd_score >= 2:
-            reasons.append("MACD bullish cross")
-        elif breakdown.macd_score > 0:
-            reasons.append("MACD bullish momentum")
+        # =====================================================================
+        # STEP 4: RSI Check (> 80 = disqualify)
+        # =====================================================================
+        rsi_value = self._calculate_rsi(prices)
 
-        # 7. Momentum/ROC Score (0-2 points) - NEW
-        momentum_result = self._score_momentum(prices)
-        breakdown.momentum_score = momentum_result[0]
-        breakdown.momentum_roc = momentum_result[1]
-        breakdown.momentum_reason = momentum_result[2]
+        if rsi_value > self.config.rsi_disqualify:
+            return self._make_disqualified_signal(
+                symbol, current_price,
+                f"RSI overbought at {rsi_value:.0f} (> {self.config.rsi_disqualify:.0f}) — reversal likely"
+            )
 
-        if breakdown.momentum_score >= 2:
-            reasons.append(f"Strong momentum (ROC: {breakdown.momentum_roc:.1f}%)")
-        elif breakdown.momentum_score > 0:
-            reasons.append(f"Positive momentum (ROC: {breakdown.momentum_roc:.1f}%)")
+        # =====================================================================
+        # SCORING: 4 Components
+        # =====================================================================
 
-        # 8. Keltner Channel (0-2 points) - NEW (Breakout above upper band)
-        keltner_result = self._calculate_keltner_channel(prices, highs, lows)
-        if keltner_result:
-            keltner_score_result = self._score_keltner_breakout(keltner_result, current_price)
-            breakdown.keltner_score = keltner_score_result[0]
-            breakdown.keltner_position = keltner_result.price_position
-            breakdown.keltner_percent = keltner_result.percent_position
-            breakdown.keltner_reason = keltner_score_result[1]
-
-            if breakdown.keltner_score >= 2:
-                reasons.append("Breakout above Keltner upper band")
-            elif breakdown.keltner_score > 0:
-                reasons.append("Near Keltner upper band")
-
-        # NEW: Apply Feature Engineering scores (VWAP, Market Context, Sector, Gap)
-        self._apply_feature_scores(breakdown, symbol, prices, volumes, highs, lows, context)
-
-        # Resolve weights from config (4-layer: Base → Regime → Sector → Regime×Sector)
-        regime = getattr(context, 'regime', 'normal') if context else 'normal'
-        sector_ctx = getattr(context, 'sector', None) if context else None
-        try:
-            resolved = self.get_weights(regime=regime, sector=sector_ctx)
-            w = resolved.weights
-        except Exception:
-            w = {}
-
-        # Default max weights per component (original hardcoded values)
-        _DEFAULTS = {
-            'ath': 3.0, 'volume': 2.0, 'trend': 2.0, 'rsi': 1.0,
-            'rs': 2.0, 'macd': 2.0, 'momentum': 2.0, 'keltner': 2.0,
-            'vwap': 3.0, 'market_context': 2.0, 'sector': 1.0, 'gap': 1.0,
-        }
-
-        def _scale(component: str, raw: float) -> float:
-            yaml_max = w.get(component)
-            if yaml_max is None:
-                return raw
-            default_max = _DEFAULTS.get(component, 1.0)
-            if default_max <= 0:
-                return raw
-            return raw * (yaml_max / default_max)
-
-        # Calculate total score with config-based weight scaling
-        breakdown.total_score = (
-            _scale('ath', breakdown.ath_score) +
-            _scale('volume', breakdown.volume_score) +
-            _scale('trend', breakdown.trend_score) +
-            _scale('rsi', breakdown.rsi_score) +
-            _scale('rs', breakdown.rs_score) +
-            _scale('macd', breakdown.macd_score) +
-            _scale('momentum', breakdown.momentum_score) +
-            _scale('keltner', breakdown.keltner_score) +
-            _scale('vwap', breakdown.vwap_score) +
-            _scale('market_context', breakdown.market_context_score) +
-            _scale('sector', breakdown.sector_score) +
-            _scale('gap', breakdown.gap_score)
+        # 1. Consolidation Quality (0 – 2.5)
+        consol_score = self._score_consolidation_quality(consol_info)
+        breakdown.ath_score = consol_score
+        breakdown.ath_reason = (
+            f"Base {consol_info['duration']} days, "
+            f"{consol_info['range_pct']:.1f}% range"
+            + (f", {consol_info['ath_tests']}x tested" if consol_info['ath_tests'] >= 2 else "")
         )
 
-        # Apply sector_factor as multiplicative adjustment (Iter 4 trained)
-        if w and resolved.sector_factor != 1.0:
-            breakdown.total_score *= resolved.sector_factor
+        # 2. Breakout Strength (0 – 2.0)
+        breakout_score = self._score_breakout_strength(close_info)
 
-        breakdown.max_possible = resolved.max_possible if w else 23
+        # 3. Volume Confirmation (-1.0 – 2.5)
+        volume_score = self._score_volume(volume_info['ratio'])
+        breakdown.volume_score = volume_score
+        breakdown.volume_ratio = volume_info['ratio']
+        breakdown.volume_reason = volume_info.get('reason', '')
 
-        # Normalize score to 0-10 scale for fair cross-strategy comparison
-        normalized_score = (breakdown.total_score / breakdown.max_possible) * 10 if breakdown.max_possible > 0 else 0
+        # 4. Momentum / Trend Context (-1.0 – 1.5)
+        momentum_info = self._score_momentum_trend(prices, rsi_value)
+        momentum_score = momentum_info['score']
+        breakdown.trend_score = momentum_score
+        breakdown.trend_status = momentum_info.get('status', '')
+        breakdown.trend_reason = momentum_info.get('reason', '')
+        breakdown.rsi_value = rsi_value
+        breakdown.rsi_reason = f"RSI={rsi_value:.1f}"
 
-        # Determine signal strength (based on normalized 0-10 scale)
-        if normalized_score >= 7:
+        # Total score
+        total_score = consol_score + breakout_score + volume_score + momentum_score
+        total_score = max(0.0, min(10.0, total_score))
+        breakdown.total_score = round(total_score, 1)
+        breakdown.max_possible = 10.0
+
+        # =====================================================================
+        # BUILD SIGNAL
+        # =====================================================================
+        signal_text = self._build_signal_text(
+            current_price, previous_ath, close_info,
+            consol_info, volume_info, momentum_info, rsi_value
+        )
+
+        # Signal strength
+        if total_score >= 7.0:
             strength = SignalStrength.STRONG
-        elif normalized_score >= 5:
+        elif total_score >= 5.5:
             strength = SignalStrength.MODERATE
-        elif normalized_score >= 3:
+        elif total_score >= ATH_MIN_SCORE:
             strength = SignalStrength.WEAK
         else:
             strength = SignalStrength.NONE
 
-        # Calculate Entry/Stop/Target
+        # Entry/Stop/Target
         entry_price = current_price
         stop_loss = self._calculate_stop_loss(lows, current_price)
         target_price = self._calculate_target(current_price, stop_loss)
 
-        # Extended S/R analysis with 12-month lookback
+        # Extended S/R for context
         sr_levels = get_nearest_sr_levels(
             current_price=current_price,
-            prices=prices,
-            highs=highs,
-            lows=lows,
+            prices=prices, highs=highs, lows=lows,
             volumes=volumes,
             lookback=SR_LOOKBACK_DAYS_EXTENDED,
             num_levels=3
         )
 
+        # Warnings
+        if rsi_value > 75:
+            warnings.append(f"RSI elevated at {rsi_value:.0f} — near overbought")
+        if volume_info['ratio'] < 1.5:
+            warnings.append(f"Volume only {volume_info['ratio']:.1f}x avg — elevated false breakout risk")
+        if momentum_score < 0:
+            warnings.append("Weak momentum context")
+
         return TradeSignal(
             symbol=symbol,
             strategy=self.strategy_name,
-            signal_type=SignalType.LONG if normalized_score >= 3.5 else SignalType.NEUTRAL,
+            signal_type=SignalType.LONG if total_score >= ATH_MIN_SCORE else SignalType.NEUTRAL,
             strength=strength,
-            score=round(normalized_score, 1),  # Normalized 0-10 score
+            score=round(total_score, 1),
             current_price=current_price,
             entry_price=entry_price,
             stop_loss=stop_loss,
             target_price=target_price,
-            reason=" | ".join(reasons),
+            reason=signal_text,
             details={
                 'score_breakdown': breakdown.to_dict(),
-                'raw_score': breakdown.total_score,
-                'max_possible': breakdown.max_possible,
-                'ath_info': ath_result[1],
-                'trend_info': trend_result[1],
-                'rsi': breakdown.rsi_value,
-                'sr_levels': sr_levels  # Extended S/R with 12-month lookback
+                'raw_score': total_score,
+                'max_possible': 10.0,
+                'ath_info': {
+                    'previous_ath': previous_ath,
+                    'pct_above': close_info['pct_above'],
+                    'days_above': close_info['days_above'],
+                    'lookback': ath_info['lookback'],
+                },
+                'consolidation_info': consol_info,
+                'volume_info': volume_info,
+                'momentum_info': momentum_info,
+                'rsi': rsi_value,
+                'sr_levels': sr_levels,
+                'components': {
+                    'consolidation_quality': consol_score,
+                    'breakout_strength': breakout_score,
+                    'volume': volume_score,
+                    'momentum_trend': momentum_score,
+                },
             },
             warnings=warnings
         )
 
-    def _check_breakout_confirmation(
+    # =========================================================================
+    # STEP 1: ATH IDENTIFICATION
+    # =========================================================================
+
+    def _identify_ath(
         self,
-        prices: List[float],
         highs: List[float],
-        ath_price: float,
-        confirmation_days: int = 2
-    ) -> Tuple[bool, float, Dict[str, Any]]:
+        prices: List[float],
+    ) -> Dict[str, Any]:
         """
-        Checks if breakout has been confirmed for N days.
-
-        Single-day breakouts often lead to false positives.
-        Price must stay 2-3 days above ATH.
-
-        Args:
-            prices: Closing prices (oldest first)
-            highs: Daily highs
-            ath_price: Old ATH (level to beat)
-            confirmation_days: Number of days for confirmation
+        Identify the previous ATH (252-day high) and check if current price
+        is at or above it.
 
         Returns:
-            Tuple of (is_confirmed, confirmation_score, info)
-            - is_confirmed: True if breakout confirmed
-            - confirmation_score: 0.0-1.0 (partial credit)
-            - info: Confirmation details
-        """
-        info = {
-            'confirmation_days_required': confirmation_days,
-            'ath_price': ath_price,
-        }
-
-        if len(prices) < confirmation_days + 1:
-            info['status'] = 'insufficient_data'
-            return False, 0.0, info
-
-        # Check the last N days (excluding today)
-        # We check if the closing prices of the last N days were above ATH
-        recent_closes = prices[-(confirmation_days + 1):-1]  # N Tage vor heute
-        recent_highs = highs[-(confirmation_days + 1):-1]
-
-        days_above_ath = sum(1 for p in recent_closes if p > ath_price)
-        days_high_above = sum(1 for h in recent_highs if h > ath_price)
-
-        info['days_close_above_ath'] = days_above_ath
-        info['days_high_above_ath'] = days_high_above
-        info['recent_closes'] = recent_closes
-        info['closes_vs_ath'] = [round(((p / ath_price) - 1) * 100, 2) for p in recent_closes]
-
-        # Confirmation ratio
-        confirmation_ratio = days_above_ath / confirmation_days
-
-        # Full confirmation: All N days above ATH
-        is_confirmed = days_above_ath >= confirmation_days
-
-        if is_confirmed:
-            # Bonus: How far above ATH on average?
-            avg_above_pct = sum(((p / ath_price) - 1) * 100 for p in recent_closes) / len(recent_closes)
-            info['avg_above_pct'] = avg_above_pct
-            info['status'] = 'confirmed'
-
-            # Score: Full score + bonus for strong confirmation
-            # 2% above ATH = maximum bonus
-            bonus = min(1.0, avg_above_pct / 2.0) if avg_above_pct > 0 else 0
-            confirmation_score = 1.0 + (bonus * 0.5)  # Max 1.5
-        else:
-            info['status'] = 'unconfirmed'
-            # Partial credit für teilweise Bestätigung
-            confirmation_score = confirmation_ratio * 0.5  # Max 0.5 bei unbestätigt
-
-        return is_confirmed, confirmation_score, info
-
-    def _score_ath_breakout(
-        self,
-        highs: List[float],
-        current_high: float,
-        prices: Optional[List[float]] = None
-    ) -> Tuple[int, Dict[str, Any]]:
-        """
-        Checks for ATH breakout with multi-day confirmation.
-
-        New (P1-B): Single-day breakouts are scored lower.
-        Confirmed breakouts (2+ days above ATH) receive full score.
+            has_ath: bool — True if current high >= previous ATH
+            previous_ath: float — the old ATH value
+            pct_below_ath: float — how far below ATH (if not breaking out)
+            lookback: int
         """
         lookback = min(self.config.ath_lookback_days, len(highs) - 1)
 
-        # Old ATH: Maximum of highs BEFORE the consolidation period
-        consolidation_start = -self.config.consolidation_days - 1
-        if abs(consolidation_start) >= len(highs):
-            consolidation_start = -len(highs) + 1
+        # Previous ATH = max high in lookback EXCLUDING last bar
+        if lookback < 2:
+            return {'has_ath': False, 'previous_ath': 0, 'pct_below_ath': 0, 'lookback': lookback}
 
-        # Old ATH = Maximum before consolidation
-        old_ath = max(highs[-lookback:consolidation_start])
-
-        # Check if new ATH
-        threshold = old_ath * (1 + self.config.breakout_threshold_pct / 100)
+        previous_ath = max(highs[-lookback - 1:-1])
+        current_high = highs[-1]
+        current_close = prices[-1]
 
         info = {
-            'lookback': lookback,
-            'old_ath': old_ath,
+            'previous_ath': previous_ath,
             'current_high': current_high,
-            'threshold': threshold,
-            'confirmation': None
+            'lookback': lookback,
         }
 
-        if current_high >= threshold:
-            # New ATH!
-            pct_above = ((current_high / old_ath) - 1) * 100
-            info['pct_above_old'] = pct_above
-
-            # Check consolidation (not already at ATH in recent days)
-            consolidation_highs = highs[consolidation_start:-1]
-            recent_ath = max(consolidation_highs) if consolidation_highs else current_high
-
-            if recent_ath < old_ath * 0.98:  # Was at least 2% below ATH
-                info['had_consolidation'] = True
-                base_score = 3
-            else:
-                info['had_consolidation'] = False
-                base_score = 2  # ATH but without consolidation
-
-            # NEW (P1-B): Multi-Day Confirmation Check
-            if prices and len(prices) >= self.config.confirmation_days + 1:
-                is_confirmed, conf_score, conf_info = self._check_breakout_confirmation(
-                    prices=prices,
-                    highs=highs,
-                    ath_price=old_ath,
-                    confirmation_days=self.config.confirmation_days
-                )
-                info['confirmation'] = conf_info
-
-                if not is_confirmed:
-                    # Unconfirmed breakout: Reduce score
-                    # 3 points -> 1.5-2 points (50% reduction)
-                    adjusted_score = int(base_score * 0.5 + conf_score)
-                    info['score_adjustment'] = 'reduced_unconfirmed'
-                    info['original_score'] = base_score
-                    logger.debug(
-                        f"ATH Breakout unconfirmed: score {base_score} -> {adjusted_score}"
-                    )
-                    return adjusted_score, info
-                else:
-                    # Confirmed breakout: Bonus possible
-                    bonus = int(conf_score - 1.0) if conf_score > 1.0 else 0
-                    adjusted_score = min(base_score + bonus, 3)  # Max 3 Punkte
-                    info['score_adjustment'] = 'confirmed'
-                    return adjusted_score, info
-
-            # No price data for confirmation - standard score
-            return base_score, info
+        # Check if current bar reaches or exceeds ATH
+        if current_high >= previous_ath:
+            info['has_ath'] = True
         else:
-            pct_below = ((old_ath / current_high) - 1) * 100
+            pct_below = ((previous_ath - current_high) / previous_ath) * 100
+            info['has_ath'] = False
             info['pct_below_ath'] = pct_below
-            return 0, info
 
-    def _score_volume_confirmation(
+        return info
+
+    # =========================================================================
+    # STEP 1b: CONSOLIDATION DETECTION
+    # =========================================================================
+
+    def _detect_consolidation(
         self,
-        volumes: List[int]
-    ) -> Tuple[int, Dict[str, Any]]:
-        """Checks volume confirmation with trend analysis"""
+        highs: List[float],
+        lows: List[float],
+        prices: List[float],
+        previous_ath: float,
+    ) -> Dict[str, Any]:
+        """
+        Detect consolidation (base building) before the breakout.
+
+        Looks at the 20-60 days before the breakout and checks:
+        1. Range = (max_high - min_low) / max_high * 100  → must be ≤ 15%
+        2. Duration ≥ 20 days
+        3. Count ATH tests (high within 1% of ATH without closing above)
+
+        Returns:
+            has_consolidation: bool
+            range_pct: float
+            duration: int
+            ath_tests: int
+            disqualify_reason: str (if not valid)
+        """
+        lookback = self.config.consolidation_lookback
+        min_days = self.config.consolidation_min_days
+        max_range = self.config.consolidation_max_range_pct
+        test_tolerance = self.config.ath_test_tolerance_pct / 100
+
+        # We look at data BEFORE the breakout day (excluding last bar)
+        n = len(highs)
+        if n < min_days + 1:
+            return {
+                'has_consolidation': False,
+                'range_pct': 0,
+                'duration': 0,
+                'ath_tests': 0,
+                'disqualify_reason': 'Insufficient data for consolidation check',
+            }
+
+        # Consolidation window: last lookback bars excluding current bar
+        end_idx = n - 1  # Exclude breakout bar
+        start_idx = max(0, end_idx - lookback)
+        consol_highs = highs[start_idx:end_idx]
+        consol_lows = lows[start_idx:end_idx]
+        consol_closes = prices[start_idx:end_idx]
+
+        if len(consol_highs) < min_days:
+            return {
+                'has_consolidation': False,
+                'range_pct': 0,
+                'duration': len(consol_highs),
+                'ath_tests': 0,
+                'disqualify_reason': f'Consolidation too short: {len(consol_highs)} days (need >= {min_days})',
+            }
+
+        # Calculate range
+        max_high = max(consol_highs)
+        min_low = min(consol_lows)
+        range_pct = ((max_high - min_low) / max_high) * 100 if max_high > 0 else 0
+
+        # Find the best (tightest) consolidation window
+        # Try different window sizes from min_days to full lookback
+        best_range = range_pct
+        best_duration = len(consol_highs)
+
+        # Try progressively larger windows starting from min_days
+        for window_size in range(min_days, len(consol_highs) + 1, 5):
+            window_start = len(consol_highs) - window_size
+            w_highs = consol_highs[window_start:]
+            w_lows = consol_lows[window_start:]
+            w_max = max(w_highs)
+            w_min = min(w_lows)
+            w_range = ((w_max - w_min) / w_max) * 100 if w_max > 0 else 0
+
+            if w_range <= max_range:
+                best_range = w_range
+                best_duration = window_size
+                break  # Take the longest valid window
+
+        # If even the shortest window exceeds max_range, check if there's
+        # any valid window
+        if best_range > max_range:
+            # Try the minimum window
+            w_start = len(consol_highs) - min_days
+            w_highs = consol_highs[w_start:]
+            w_lows = consol_lows[w_start:]
+            w_max = max(w_highs)
+            w_min = min(w_lows)
+            w_range = ((w_max - w_min) / w_max) * 100 if w_max > 0 else 0
+
+            if w_range > max_range:
+                return {
+                    'has_consolidation': False,
+                    'range_pct': round(w_range, 1),
+                    'duration': min_days,
+                    'ath_tests': 0,
+                    'disqualify_reason': f'Range too wide: {w_range:.1f}% (max {max_range}%) — no consolidation',
+                }
+            best_range = w_range
+            best_duration = min_days
+
+        # Count ATH tests (high within test_tolerance of ATH, close below ATH)
+        ath_tests = 0
+        in_test = False
+        for i in range(len(consol_highs)):
+            h = consol_highs[i]
+            c = consol_closes[i]
+            if abs(h - previous_ath) / previous_ath <= test_tolerance and c < previous_ath:
+                if not in_test:
+                    ath_tests += 1
+                    in_test = True
+            else:
+                in_test = False
+
+        return {
+            'has_consolidation': True,
+            'range_pct': round(best_range, 1),
+            'duration': best_duration,
+            'ath_tests': ath_tests,
+        }
+
+    # =========================================================================
+    # STEP 2: CLOSE CONFIRMATION
+    # =========================================================================
+
+    def _check_close_confirmation(
+        self,
+        prices: List[float],
+        previous_ath: float,
+    ) -> Dict[str, Any]:
+        """
+        Check if the breakout is confirmed by a daily close above ATH.
+
+        Returns:
+            confirmed: bool
+            pct_above: float — % close is above ATH
+            days_above: int — consecutive days with close > ATH
+        """
+        current_close = prices[-1]
+        confirmed = current_close > previous_ath
+
+        # Count consecutive days above ATH (from most recent backwards)
+        days_above = 0
+        for i in range(len(prices) - 1, -1, -1):
+            if prices[i] > previous_ath:
+                days_above += 1
+            else:
+                break
+
+        pct_above = ((current_close - previous_ath) / previous_ath) * 100
+
+        return {
+            'confirmed': confirmed,
+            'pct_above': round(pct_above, 2),
+            'days_above': days_above,
+        }
+
+    # =========================================================================
+    # STEP 3: VOLUME CHECK
+    # =========================================================================
+
+    def _check_volume(self, volumes: List[int]) -> Dict[str, Any]:
+        """
+        Check breakout volume relative to 20-day average.
+
+        Returns:
+            ratio: float (breakout vol / avg vol)
+            reason: str
+        """
         avg_period = self.config.volume_avg_period
 
         if len(volumes) < avg_period + 1:
-            return 0, {'trend': 'unknown', 'reason': 'Insufficient data'}
+            return {'ratio': 1.0, 'reason': 'Insufficient volume data'}
 
-        avg_volume = sum(volumes[-avg_period-1:-1]) / avg_period
-        current_volume = volumes[-1]
+        avg_volume = sum(volumes[-avg_period - 1:-1]) / avg_period
+        breakout_volume = volumes[-1]
 
-        multiplier = current_volume / avg_volume if avg_volume > 0 else 0
+        # Weekend/holiday fallback: use last non-zero volume
+        if breakout_volume == 0 and len(volumes) >= 2:
+            for v in reversed(volumes[:-1]):
+                if v > 0:
+                    breakout_volume = v
+                    break
 
-        info = {
-            'current_volume': current_volume,
-            'avg_volume': avg_volume,
-            'multiplier': multiplier
-        }
+        ratio = breakout_volume / avg_volume if avg_volume > 0 else 0
 
-        # Volume trend of the last N days (for breakout should increase)
-        recent_volumes = volumes[-VOLUME_RECENT_WINDOW:]
-        if len(recent_volumes) >= 3:
-            vol_trend = recent_volumes[-1] / recent_volumes[0] if recent_volumes[0] > 0 else 1
-            if vol_trend > VOLUME_TREND_HIGH:
-                info['trend'] = 'increasing'
-            elif vol_trend < VOLUME_TREND_LOW:
-                info['trend'] = 'decreasing'
+        if ratio >= 2.0:
+            reason = f"Very strong volume: {ratio:.1f}x avg"
+        elif ratio >= 1.5:
+            reason = f"Strong volume: {ratio:.1f}x avg"
+        elif ratio >= 1.0:
+            reason = f"Moderate volume: {ratio:.1f}x avg"
+        else:
+            reason = f"Weak volume: {ratio:.2f}x avg — breakout may fail"
+
+        return {'ratio': round(ratio, 2), 'reason': reason}
+
+    # =========================================================================
+    # STEP 4: RSI CHECK
+    # =========================================================================
+
+    def _calculate_rsi(self, prices: List[float]) -> float:
+        """Calculate current RSI value."""
+        period = self.config.rsi_period
+
+        if len(prices) < period + 2:
+            return 50.0
+
+        changes = [prices[i] - prices[i - 1] for i in range(1, len(prices))]
+
+        # Wilder's smoothed RSI
+        gains = [max(c, 0) for c in changes[:period]]
+        losses_list = [max(-c, 0) for c in changes[:period]]
+        avg_gain = sum(gains) / period
+        avg_loss = sum(losses_list) / period if sum(losses_list) > 0 else 0.0001
+
+        for i in range(period, len(changes)):
+            c = changes[i]
+            avg_gain = (avg_gain * (period - 1) + max(c, 0)) / period
+            avg_loss = (avg_loss * (period - 1) + max(-c, 0)) / period
+
+        if avg_loss == 0:
+            return 100.0
+
+        rs = avg_gain / avg_loss
+        return 100 - (100 / (1 + rs))
+
+    # =========================================================================
+    # SCORING COMPONENTS
+    # =========================================================================
+
+    def _score_consolidation_quality(self, consol_info: Dict[str, Any]) -> float:
+        """
+        Score consolidation quality (0 – 2.5).
+
+        Tighter and longer base = higher score.
+        ATH tests (2+) = +0.5 bonus.
+
+        Scoring table:
+          Range ≤ 8%, Duration 30+ days  → 2.5
+          Range ≤ 8%, Duration 20-30     → 2.0
+          Range 8-12%, Duration 30+      → 2.0
+          Range 8-12%, Duration 20-30    → 1.5
+          Range 12-15%, Duration 20+     → 1.0
+          ATH tested 2+ times            → +0.5 bonus (max 2.5)
+        """
+        range_pct = consol_info['range_pct']
+        duration = consol_info['duration']
+        ath_tests = consol_info['ath_tests']
+
+        # Base score from range + duration
+        if range_pct <= 8.0:
+            if duration >= 30:
+                score = 2.5
             else:
-                info['trend'] = 'stable'
+                score = 2.0
+        elif range_pct <= 12.0:
+            if duration >= 30:
+                score = 2.0
+            else:
+                score = 1.5
+        elif range_pct <= 15.0:
+            score = 1.0
         else:
-            info['trend'] = 'unknown'
+            score = 0.0
 
-        # Scoring: High volume is important for breakout
-        cfg = self.scoring_config
-        if multiplier >= cfg.volume_strong_multiplier:
-            info['reason'] = "Very strong volume confirms breakout"
-            return 2, info
-        elif multiplier >= cfg.volume_spike_multiplier:
-            info['reason'] = "Good volume confirms breakout"
-            return 1, info
+        # ATH test bonus
+        if ath_tests >= 2:
+            score += 0.5
+
+        return min(2.5, score)
+
+    def _score_breakout_strength(self, close_info: Dict[str, Any]) -> float:
+        """
+        Score breakout strength (0 – 2.0).
+
+        Based on how far close is above ATH and days confirmed.
+
+        Scoring table:
+          Close 0-1% above ATH           → 1.0
+          Close 1-3% above ATH           → 1.5
+          Close 3-5% above ATH           → 2.0
+          Close > 5% above ATH           → 1.5 (potentially overextended)
+          2+ days close above ATH         → +0.5 bonus (max 2.0)
+        """
+        pct_above = close_info['pct_above']
+        days_above = close_info['days_above']
+
+        # Base score from % above ATH
+        if pct_above <= 1.0:
+            score = 1.0
+        elif pct_above <= 3.0:
+            score = 1.5
+        elif pct_above <= 5.0:
+            score = 2.0
         else:
-            info['reason'] = "Weak volume - breakout may fail"
-            return 0, info
+            score = 1.5  # Overextended
 
-    def _score_trend(self, prices: List[float]) -> Tuple[int, Dict[str, Any]]:
-        """Analyzes trend via SMAs"""
-        sma_20 = sum(prices[-SMA_SHORT:]) / SMA_SHORT
-        sma_50 = sum(prices[-SMA_MEDIUM:]) / SMA_MEDIUM
+        # Multi-day confirmation bonus
+        if days_above >= 2:
+            score += 0.5
+
+        return min(2.0, score)
+
+    def _score_volume(self, ratio: float) -> float:
+        """
+        Score volume confirmation (-1.0 – 2.5).
+
+        Scoring table:
+          > 2.5x avg  → 2.5
+          > 2.0x avg  → 2.0
+          > 1.5x avg  → 1.5
+          1.0-1.5x    → 0.5
+          < 1.0x      → -1.0 (penalty)
+        """
+        if ratio >= 2.5:
+            return 2.5
+        elif ratio >= 2.0:
+            return 2.0
+        elif ratio >= 1.5:
+            return 1.5
+        elif ratio >= 1.0:
+            return 0.5
+        else:
+            return -1.0
+
+    def _score_momentum_trend(
+        self,
+        prices: List[float],
+        rsi_value: float,
+    ) -> Dict[str, Any]:
+        """
+        Score momentum and trend context (-1.0 – 1.5).
+
+        Components:
+          SMA 20 > SMA 50 > SMA 200 (perfect alignment) → +0.5
+          MACD bullish (line > signal)                    → +0.5
+          RSI 50-70 (healthy momentum)                    → +0.5
+
+        Penalties:
+          RSI > 75 (overbought)   → -0.5
+          SMA 200 falling         → -0.5
+        """
+        score = 0.0
+        signals = []
+
+        # SMA alignment check
+        sma_20 = sum(prices[-SMA_SHORT:]) / SMA_SHORT if len(prices) >= SMA_SHORT else prices[-1]
+        sma_50 = sum(prices[-SMA_MEDIUM:]) / SMA_MEDIUM if len(prices) >= SMA_MEDIUM else prices[-1]
         sma_200 = sum(prices[-SMA_LONG:]) / SMA_LONG if len(prices) >= SMA_LONG else sum(prices) / len(prices)
 
         current = prices[-1]
 
-        info = {
+        if current > sma_20 > sma_50 > sma_200:
+            score += 0.5
+            signals.append("Perfect SMA alignment")
+            trend_status = 'strong_uptrend'
+        elif current > sma_50 > sma_200:
+            score += 0.25
+            signals.append("Good SMA alignment")
+            trend_status = 'uptrend'
+        elif current > sma_200:
+            trend_status = 'above_sma200'
+        else:
+            trend_status = 'below_sma200'
+
+        # SMA 200 direction check
+        if len(prices) >= SMA_LONG + 20:
+            sma_200_prev = sum(prices[-(SMA_LONG + 20):-20]) / SMA_LONG
+            if sma_200 < sma_200_prev * 0.999:
+                score -= 0.5
+                signals.append("SMA 200 falling")
+                trend_status = 'downtrend'
+
+        # MACD check
+        macd_result = calculate_macd(
+            prices,
+            fast_period=MACD_FAST, slow_period=MACD_SLOW, signal_period=MACD_SIGNAL
+        )
+        if macd_result:
+            if macd_result.crossover == 'bullish' or (macd_result.macd_line > macd_result.signal_line):
+                score += 0.5
+                signals.append("MACD bullish")
+
+        # RSI scoring
+        if 50 <= rsi_value <= 70:
+            score += 0.5
+            signals.append(f"RSI healthy ({rsi_value:.0f})")
+        elif rsi_value > 75:
+            score -= 0.5
+            signals.append(f"RSI overbought ({rsi_value:.0f})")
+
+        # Clamp
+        score = max(-1.0, min(1.5, score))
+
+        reason = ", ".join(signals) if signals else "Neutral momentum"
+
+        return {
+            'score': round(score, 2),
+            'status': trend_status,
+            'reason': reason,
             'sma_20': sma_20,
             'sma_50': sma_50,
             'sma_200': sma_200,
-            'price': current
+            'rsi': rsi_value,
+            'signals': signals,
         }
 
-        score = 0
-
-        # Price above all SMAs
-        if current > sma_20 > sma_50 > sma_200:
-            score = 2
-            info['trend'] = 'strong_uptrend'
-        elif current > sma_50 > sma_200:
-            score = 1
-            info['trend'] = 'uptrend'
-        elif current > sma_200:
-            score = 0
-            info['trend'] = 'weak_uptrend'
-        else:
-            score = 0
-            info['trend'] = 'downtrend'
-
-        return score, info
-
-    def _score_rsi(self, prices: List[float]) -> Tuple[int, float]:
-        """Calculates RSI and scores (not overbought = good)"""
-        period = self.config.rsi_period
-
-        if len(prices) < period + 1:
-            return 0, 50.0
-
-        changes = [prices[i] - prices[i-1] for i in range(1, len(prices))]
-        recent_changes = changes[-period:]
-
-        gains = [c for c in recent_changes if c > 0]
-        losses = [-c for c in recent_changes if c < 0]
-
-        avg_gain = sum(gains) / period if gains else 0
-        avg_loss = sum(losses) / period if losses else 0.0001
-
-        rs = avg_gain / avg_loss
-        rsi = 100 - (100 / (1 + rs))
-
-        # Not overbought = good for breakout
-        cfg = self.scoring_config
-        if rsi < cfg.rsi_ideal_max:
-            return 1, rsi
-        else:
-            return 0, rsi
-
-    def _score_relative_strength(
-        self,
-        prices: List[float],
-        spy_prices: List[float]
-    ) -> Tuple[int, Dict[str, float]]:
-        """Compares performance with SPY"""
-        cfg = self.scoring_config.relative_strength
-        period = cfg.lookback_days
-
-        stock_return = (prices[-1] / prices[-period] - 1) * 100
-        spy_return = (spy_prices[-1] / spy_prices[-period] - 1) * 100
-
-        outperformance = stock_return - spy_return
-
-        info = {
-            'stock_return': stock_return,
-            'spy_return': spy_return,
-            'outperformance': outperformance
-        }
-
-        if outperformance > cfg.strong_threshold:
-            return 2, info
-        elif outperformance > cfg.moderate_threshold:
-            return 1, info
-        else:
-            return 0, info
-
-    def _score_momentum(self, prices: List[float]) -> Tuple[float, float, str]:
-        """Calculates Momentum/Rate of Change Score"""
-        cfg = self.scoring_config.momentum
-        period = cfg.roc_period
-
-        if len(prices) < period + 1:
-            return 0, 0, "Insufficient data"
-
-        roc = ((prices[-1] / prices[-period]) - 1) * 100
-
-        if roc > cfg.strong_threshold:
-            return cfg.weight_strong_momentum, roc, f"Strong momentum: ROC {roc:.1f}%"
-        elif roc > cfg.moderate_threshold:
-            return cfg.weight_moderate_momentum, roc, f"Moderate momentum: ROC {roc:.1f}%"
-        elif roc > 0:
-            return 0, roc, f"Weak momentum: ROC {roc:.1f}%"
-        else:
-            return 0, roc, f"Negative momentum: ROC {roc:.1f}%"
-
     # =========================================================================
-    # MACD SCORING (NEW)
+    # SIGNAL TEXT
     # =========================================================================
 
-    def _calculate_macd(
+    def _build_signal_text(
         self,
-        prices: List[float],
-        fast: int = MACD_FAST,
-        slow: int = MACD_SLOW,
-        signal: int = MACD_SIGNAL
-    ) -> Optional[MACDResult]:
-        """Calculates MACD. Delegates to shared indicators library."""
-        return calculate_macd(prices, fast_period=fast, slow_period=slow, signal_period=signal)
+        current_price: float,
+        previous_ath: float,
+        close_info: Dict[str, Any],
+        consol_info: Dict[str, Any],
+        volume_info: Dict[str, Any],
+        momentum_info: Dict[str, Any],
+        rsi_value: float,
+    ) -> str:
+        """
+        Build signal text in the new format:
+        "ATH Breakout: Close $X (+Y% over ATH) | Base Z days (W% range, Nx tested) | Vol Mx avg | [Momentum]"
+        """
+        parts = []
 
-    def _score_macd(self, macd: Optional[MACDResult]) -> Tuple[float, str, str]:
-        """MACD Score for Breakout (0-2 points)"""
-        if not macd:
-            return 0, "No MACD data", "neutral"
+        # Close info
+        pct_above = close_info['pct_above']
+        days_str = f", day {close_info['days_above']}" if close_info['days_above'] >= 2 else ""
+        parts.append(f"ATH Breakout: Close ${current_price:.2f} (+{pct_above:.1f}% over ATH{days_str})")
 
-        cfg = self.scoring_config.macd
+        # Base info
+        base_desc = f"{consol_info['duration']}-day base ({consol_info['range_pct']:.1f}% range"
+        if consol_info['ath_tests'] >= 2:
+            base_desc += f", {consol_info['ath_tests']}x tested"
+        base_desc += ")"
+        parts.append(base_desc)
 
-        # For breakout: Bullish MACD is confirmation
-        if macd.crossover == 'bullish':
-            return cfg.weight_bullish_cross, "MACD bullish crossover confirms breakout", "bullish_cross"
+        # Volume
+        parts.append(f"Vol {volume_info['ratio']:.1f}x avg")
 
-        if macd.histogram > 0 and macd.macd_line > 0:
-            return cfg.weight_bullish, "MACD positive momentum", "bullish"
+        # Momentum signals
+        if momentum_info.get('signals'):
+            parts.append(", ".join(momentum_info['signals']))
 
-        if macd.histogram > 0:
-            return cfg.weight_bullish * 0.5, "MACD histogram positive", "bullish_weak"
-
-        return 0, "MACD not confirming breakout", "neutral"
-
-    # =========================================================================
-    # KELTNER CHANNEL (NEW - for Breakout)
-    # =========================================================================
-
-    def _calculate_keltner_channel(
-        self,
-        prices: List[float],
-        highs: List[float],
-        lows: List[float]
-    ) -> Optional[KeltnerChannelResult]:
-        """Calculates Keltner Channel. Delegates to shared indicators library."""
-        cfg = self.scoring_config.keltner
-        return calculate_keltner_channel(
-            prices=prices, highs=highs, lows=lows,
-            ema_period=cfg.ema_period, atr_period=cfg.atr_period,
-            atr_multiplier=cfg.atr_multiplier
-        )
-
-    def _score_keltner_breakout(
-        self,
-        keltner: KeltnerChannelResult,
-        current_price: float
-    ) -> Tuple[float, str]:
-        """Keltner Channel Score for Breakout (0-2 points) - UPPER Band"""
-        cfg = self.scoring_config.keltner
-        position = keltner.price_position
-        pct = keltner.percent_position
-
-        # For breakout: ABOVE the upper band is bullish
-        if position == 'above_upper':
-            return cfg.weight_above_upper, f"Breakout above Keltner Upper Band ({pct:.2f})"
-
-        if position == 'near_upper':
-            return cfg.weight_near_upper, f"Near Keltner Upper Band ({pct:.2f})"
-
-        if position == 'in_channel' and pct > abs(KELTNER_NEUTRAL_LOW):
-            return cfg.weight_near_upper * 0.5, f"Upper channel area ({pct:.2f})"
-
-        if position == 'below_lower':
-            return 0, f"Below Keltner Lower Band ({pct:.2f}) - not a breakout"
-
-        return 0, f"Neutral channel position ({pct:.2f})"
+        return " | ".join(parts)
 
     # =========================================================================
     # HELPER METHODS
     # =========================================================================
 
-    def _calculate_ema(self, values: List[float], period: int) -> Optional[List[float]]:
-        """Calculates EMA. Delegates to shared indicators library."""
-        if len(values) < period:
-            return None
-        return calculate_ema(values, period)
-
-    def _calculate_atr(
+    def _make_disqualified_signal(
         self,
-        highs: List[float],
-        lows: List[float],
-        closes: List[float],
-        period: int = RSI_PERIOD
-    ) -> Optional[float]:
-        """Calculates ATR (SMA-based). Delegates to shared indicators library."""
-        return calculate_atr_simple(highs, lows, closes, period)
+        symbol: str,
+        current_price: float,
+        reason: str,
+    ) -> TradeSignal:
+        """Create a neutral signal for disqualified candidates."""
+        return self.create_neutral_signal(symbol, current_price, reason)
 
     def _calculate_stop_loss(
         self,
         lows: List[float],
-        current_price: float
+        current_price: float,
     ) -> float:
-        """Calculates stop-loss below last swing low"""
+        """Calculates stop-loss below last swing low."""
         # Last 10-day low as support
         recent_low = min(lows[-10:])
 
         # Stop 1% below support
-        stop = recent_low * 0.99
+        stop = recent_low * (1 - self.config.stop_below_recent_low_pct / 100)
 
         # Max 5% below current price
         max_stop = current_price * 0.95
@@ -810,8 +921,8 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
     def _calculate_target(
         self,
         entry: float,
-        stop: float
+        stop: float,
     ) -> float:
-        """Calculates target with 2:1 Risk/Reward"""
+        """Calculates target with configurable Risk/Reward."""
         risk = entry - stop
-        return entry + (risk * 2)
+        return entry + (risk * self.config.target_risk_reward)

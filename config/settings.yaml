@@ -195,12 +195,12 @@ filters:
 
     # Stability Filter (aus historischen Backtest-Ergebnissen)
     # Stability Score = 100 - (avg_drawdown * 3 + avg_days_below_short * 2)
-    min_stability_score: 70.0     # Mindest-Stabilität (0-100), PLAYBOOK §1: ≥70 (≥80 bei VIX>20)
+    min_stability_score: 50.0     # Scanner Pre-Filter: ≥50 (Stability-First Tier-System handhabt Rest: ≥80→4.0, ≥70→5.0, ≥50→6.0 min_score)
     warn_below_stability: 60.0    # Warnung im Signal wenn unter diesem Wert
     boost_above_stability: 70.0   # Score-Boost für sehr stabile Symbole
 
     # Historical Win Rate aus Backtests
-    min_historical_win_rate: 70.0 # Nur Symbole mit ≥70% historischer Win Rate
+    min_historical_win_rate: 65.0 # Gesenkt von 70: Tier-System filtert nach Score-Qualität
 
     # Volatilitäts-Filter
     max_historical_volatility: 70.0  # Max. annualisierte HV (%), 70% = Grenzwert
