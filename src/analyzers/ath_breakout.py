@@ -85,6 +85,69 @@ ATH_RSI_DISQUALIFY = 80.0         # RSI > 80 = disqualify
 ATH_MIN_SCORE = 4.0                # Minimum total score for signal
 ATH_MAX_SCORE = 9.5                # Theoretical maximum (2.5 + 2.0 + 2.5 + 1.5 + bonus)
 
+# Consolidation Range Tiers
+ATH_RANGE_TIGHT_PCT = 8.0
+ATH_RANGE_MODERATE_PCT = 12.0
+ATH_RANGE_WIDE_PCT = 15.0
+ATH_CONSOL_DURATION_MIN = 30
+ATH_CONSOL_SCORE_TIGHT_LONG = 2.5
+ATH_CONSOL_SCORE_TIGHT_SHORT = 2.0
+ATH_CONSOL_SCORE_MOD_LONG = 2.0
+ATH_CONSOL_SCORE_MOD_SHORT = 1.5
+ATH_CONSOL_SCORE_WIDE = 1.0
+ATH_CONSOL_TEST_MIN = 2
+ATH_CONSOL_TEST_BONUS = 0.5
+ATH_CONSOL_SCORE_MAX = 2.5
+
+# Breakout Strength Tiers
+ATH_BREAKOUT_WEAK_PCT = 1.0
+ATH_BREAKOUT_MODERATE_PCT = 3.0
+ATH_BREAKOUT_STRONG_PCT = 5.0
+ATH_BREAKOUT_SCORE_WEAK = 1.0
+ATH_BREAKOUT_SCORE_MODERATE = 1.5
+ATH_BREAKOUT_SCORE_STRONG = 2.0
+ATH_BREAKOUT_SCORE_OVEREXTENDED = 1.5
+ATH_BREAKOUT_DAYS_BONUS_MIN = 2
+ATH_BREAKOUT_CONFIRMATION_BONUS = 0.5
+ATH_BREAKOUT_SCORE_MAX = 2.0
+
+# Volume Score Tiers
+ATH_VOLUME_EXCEPTIONAL = 2.5
+ATH_VOLUME_STRONG = 2.0
+ATH_VOLUME_GOOD = 1.5
+ATH_VOLUME_ADEQUATE = 1.0
+ATH_VOLUME_SCORE_EXCEPTIONAL = 2.5
+ATH_VOLUME_SCORE_STRONG = 2.0
+ATH_VOLUME_SCORE_GOOD = 1.5
+ATH_VOLUME_SCORE_ADEQUATE = 0.5
+ATH_VOLUME_SCORE_WEAK = -1.0
+
+# Momentum/Trend Scoring
+ATH_MOMENTUM_SMA_PERFECT_BONUS = 0.5
+ATH_MOMENTUM_SMA_GOOD_BONUS = 0.25
+ATH_MOMENTUM_SMA200_DECLINE = 0.999
+ATH_MOMENTUM_SMA200_DECLINE_PENALTY = 0.5
+ATH_MOMENTUM_SMA200_LOOKBACK = 20
+ATH_MOMENTUM_MACD_BONUS = 0.5
+ATH_RSI_HEALTHY_LOW = 50
+ATH_RSI_HEALTHY_HIGH = 70
+ATH_RSI_HEALTHY_BONUS = 0.5
+ATH_RSI_OVERBOUGHT = 75
+ATH_RSI_OVERBOUGHT_PENALTY = 0.5
+ATH_MOMENTUM_SCORE_MIN = -1.0
+ATH_MOMENTUM_SCORE_MAX = 1.5
+
+# Signal Strength
+ATH_SIGNAL_STRONG = 7.0
+ATH_SIGNAL_MODERATE = 5.5
+
+# Stop Loss
+ATH_STOP_RECENT_LOW_DAYS = 10
+ATH_STOP_MAX_PCT = 0.95
+
+# Consolidation Search
+ATH_CONSOL_WINDOW_STEP = 5
+
 
 @dataclass
 class ATHBreakoutConfig:
@@ -324,9 +387,9 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         )
 
         # Signal strength
-        if total_score >= 7.0:
+        if total_score >= ATH_SIGNAL_STRONG:
             strength = SignalStrength.STRONG
-        elif total_score >= 5.5:
+        elif total_score >= ATH_SIGNAL_MODERATE:
             strength = SignalStrength.MODERATE
         elif total_score >= ATH_MIN_SCORE:
             strength = SignalStrength.WEAK
@@ -348,9 +411,9 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         )
 
         # Warnings
-        if rsi_value > 75:
+        if rsi_value > ATH_RSI_OVERBOUGHT:
             warnings.append(f"RSI elevated at {rsi_value:.0f} — near overbought")
-        if volume_info['ratio'] < 1.5:
+        if volume_info['ratio'] < ATH_VOLUME_GOOD:
             warnings.append(f"Volume only {volume_info['ratio']:.1f}x avg — elevated false breakout risk")
         if momentum_score < 0:
             warnings.append("Weak momentum context")
@@ -505,7 +568,7 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         best_duration = len(consol_highs)
 
         # Try progressively larger windows starting from min_days
-        for window_size in range(min_days, len(consol_highs) + 1, 5):
+        for window_size in range(min_days, len(consol_highs) + 1, ATH_CONSOL_WINDOW_STEP):
             window_start = len(consol_highs) - window_size
             w_highs = consol_highs[window_start:]
             w_lows = consol_lows[window_start:]
@@ -690,26 +753,26 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         ath_tests = consol_info['ath_tests']
 
         # Base score from range + duration
-        if range_pct <= 8.0:
-            if duration >= 30:
-                score = 2.5
+        if range_pct <= ATH_RANGE_TIGHT_PCT:
+            if duration >= ATH_CONSOL_DURATION_MIN:
+                score = ATH_CONSOL_SCORE_TIGHT_LONG
             else:
-                score = 2.0
-        elif range_pct <= 12.0:
-            if duration >= 30:
-                score = 2.0
+                score = ATH_CONSOL_SCORE_TIGHT_SHORT
+        elif range_pct <= ATH_RANGE_MODERATE_PCT:
+            if duration >= ATH_CONSOL_DURATION_MIN:
+                score = ATH_CONSOL_SCORE_MOD_LONG
             else:
-                score = 1.5
-        elif range_pct <= 15.0:
-            score = 1.0
+                score = ATH_CONSOL_SCORE_MOD_SHORT
+        elif range_pct <= ATH_RANGE_WIDE_PCT:
+            score = ATH_CONSOL_SCORE_WIDE
         else:
             score = 0.0
 
         # ATH test bonus
-        if ath_tests >= 2:
-            score += 0.5
+        if ath_tests >= ATH_CONSOL_TEST_MIN:
+            score += ATH_CONSOL_TEST_BONUS
 
-        return min(2.5, score)
+        return min(ATH_CONSOL_SCORE_MAX, score)
 
     def _score_breakout_strength(self, close_info: Dict[str, Any]) -> float:
         """
@@ -728,20 +791,20 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         days_above = close_info['days_above']
 
         # Base score from % above ATH
-        if pct_above <= 1.0:
-            score = 1.0
-        elif pct_above <= 3.0:
-            score = 1.5
-        elif pct_above <= 5.0:
-            score = 2.0
+        if pct_above <= ATH_BREAKOUT_WEAK_PCT:
+            score = ATH_BREAKOUT_SCORE_WEAK
+        elif pct_above <= ATH_BREAKOUT_MODERATE_PCT:
+            score = ATH_BREAKOUT_SCORE_MODERATE
+        elif pct_above <= ATH_BREAKOUT_STRONG_PCT:
+            score = ATH_BREAKOUT_SCORE_STRONG
         else:
-            score = 1.5  # Overextended
+            score = ATH_BREAKOUT_SCORE_OVEREXTENDED  # Overextended
 
         # Multi-day confirmation bonus
-        if days_above >= 2:
-            score += 0.5
+        if days_above >= ATH_BREAKOUT_DAYS_BONUS_MIN:
+            score += ATH_BREAKOUT_CONFIRMATION_BONUS
 
-        return min(2.0, score)
+        return min(ATH_BREAKOUT_SCORE_MAX, score)
 
     def _score_volume(self, ratio: float) -> float:
         """
@@ -754,16 +817,16 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
           1.0-1.5x    → 0.5
           < 1.0x      → -1.0 (penalty)
         """
-        if ratio >= 2.5:
-            return 2.5
-        elif ratio >= 2.0:
-            return 2.0
-        elif ratio >= 1.5:
-            return 1.5
-        elif ratio >= 1.0:
-            return 0.5
+        if ratio >= ATH_VOLUME_EXCEPTIONAL:
+            return ATH_VOLUME_SCORE_EXCEPTIONAL
+        elif ratio >= ATH_VOLUME_STRONG:
+            return ATH_VOLUME_SCORE_STRONG
+        elif ratio >= ATH_VOLUME_GOOD:
+            return ATH_VOLUME_SCORE_GOOD
+        elif ratio >= ATH_VOLUME_ADEQUATE:
+            return ATH_VOLUME_SCORE_ADEQUATE
         else:
-            return -1.0
+            return ATH_VOLUME_SCORE_WEAK
 
     def _score_momentum_trend(
         self,
@@ -793,11 +856,11 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         current = prices[-1]
 
         if current > sma_20 > sma_50 > sma_200:
-            score += 0.5
+            score += ATH_MOMENTUM_SMA_PERFECT_BONUS
             signals.append("Perfect SMA alignment")
             trend_status = 'strong_uptrend'
         elif current > sma_50 > sma_200:
-            score += 0.25
+            score += ATH_MOMENTUM_SMA_GOOD_BONUS
             signals.append("Good SMA alignment")
             trend_status = 'uptrend'
         elif current > sma_200:
@@ -806,10 +869,10 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             trend_status = 'below_sma200'
 
         # SMA 200 direction check
-        if len(prices) >= SMA_LONG + 20:
-            sma_200_prev = sum(prices[-(SMA_LONG + 20):-20]) / SMA_LONG
-            if sma_200 < sma_200_prev * 0.999:
-                score -= 0.5
+        if len(prices) >= SMA_LONG + ATH_MOMENTUM_SMA200_LOOKBACK:
+            sma_200_prev = sum(prices[-(SMA_LONG + ATH_MOMENTUM_SMA200_LOOKBACK):-ATH_MOMENTUM_SMA200_LOOKBACK]) / SMA_LONG
+            if sma_200 < sma_200_prev * ATH_MOMENTUM_SMA200_DECLINE:
+                score -= ATH_MOMENTUM_SMA200_DECLINE_PENALTY
                 signals.append("SMA 200 falling")
                 trend_status = 'downtrend'
 
@@ -820,19 +883,19 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         )
         if macd_result:
             if macd_result.crossover == 'bullish' or (macd_result.macd_line > macd_result.signal_line):
-                score += 0.5
+                score += ATH_MOMENTUM_MACD_BONUS
                 signals.append("MACD bullish")
 
         # RSI scoring
-        if 50 <= rsi_value <= 70:
-            score += 0.5
+        if ATH_RSI_HEALTHY_LOW <= rsi_value <= ATH_RSI_HEALTHY_HIGH:
+            score += ATH_RSI_HEALTHY_BONUS
             signals.append(f"RSI healthy ({rsi_value:.0f})")
-        elif rsi_value > 75:
-            score -= 0.5
+        elif rsi_value > ATH_RSI_OVERBOUGHT:
+            score -= ATH_RSI_OVERBOUGHT_PENALTY
             signals.append(f"RSI overbought ({rsi_value:.0f})")
 
         # Clamp
-        score = max(-1.0, min(1.5, score))
+        score = max(ATH_MOMENTUM_SCORE_MIN, min(ATH_MOMENTUM_SCORE_MAX, score))
 
         reason = ", ".join(signals) if signals else "Neutral momentum"
 
@@ -907,14 +970,14 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         current_price: float,
     ) -> float:
         """Calculates stop-loss below last swing low."""
-        # Last 10-day low as support
-        recent_low = min(lows[-10:])
+        # Last N-day low as support
+        recent_low = min(lows[-ATH_STOP_RECENT_LOW_DAYS:])
 
         # Stop 1% below support
         stop = recent_low * (1 - self.config.stop_below_recent_low_pct / 100)
 
-        # Max 5% below current price
-        max_stop = current_price * 0.95
+        # Max stop distance below current price
+        max_stop = current_price * ATH_STOP_MAX_PCT
 
         return max(stop, max_stop)
 

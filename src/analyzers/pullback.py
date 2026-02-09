@@ -92,6 +92,35 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+# Signal strength thresholds (on 0-10 normalized scale)
+PULLBACK_SIGNAL_STRONG = 7.0
+PULLBACK_SIGNAL_MODERATE = 5.0
+PULLBACK_MIN_NORMALIZED_SCORE = 3.5
+
+# Stop loss & targets
+PULLBACK_STOP_BUFFER = 0.98
+PULLBACK_TARGET_RR_RATIO = 2.0
+
+# RSI divergence detection
+PULLBACK_DIVERGENCE_LOOKBACK = 60
+PULLBACK_DIVERGENCE_SWING_WINDOW = 3
+PULLBACK_DIVERGENCE_MIN_BARS = 5
+PULLBACK_DIVERGENCE_MAX_BARS = 50
+
+# Support/resistance detection
+PULLBACK_SUPPORT_WINDOW = 5
+PULLBACK_MAX_SUPPORT_LEVELS = 5
+PULLBACK_SUPPORT_TOLERANCE_PCT = 1.5
+PULLBACK_RESISTANCE_LOOKBACK = 60
+PULLBACK_RESISTANCE_WINDOW = 5
+PULLBACK_MAX_RESISTANCE_LEVELS = 5
+PULLBACK_RESISTANCE_TOLERANCE_PCT = 1.5
+
+# Gap detection thresholds
+PULLBACK_GAP_WARNING_MIN = -3.0
+PULLBACK_GAP_WARNING_MAX = -1.0
+PULLBACK_GAP_VOL_THRESHOLD = 0.8
+
 
 class PullbackAnalyzer(PullbackScoringMixin, BaseAnalyzer):
     """
@@ -159,11 +188,11 @@ class PullbackAnalyzer(PullbackScoringMixin, BaseAnalyzer):
         normalized_score = (candidate.score / max_possible) * 10 if max_possible > 0 else 0
 
         # Convert to TradeSignal (based on normalized 0-10 scale)
-        if normalized_score >= 3.5:
+        if normalized_score >= PULLBACK_MIN_NORMALIZED_SCORE:
             signal_type = SignalType.LONG
-            if normalized_score >= 7:
+            if normalized_score >= PULLBACK_SIGNAL_STRONG:
                 strength = SignalStrength.STRONG
-            elif normalized_score >= 5:
+            elif normalized_score >= PULLBACK_SIGNAL_MODERATE:
                 strength = SignalStrength.MODERATE
             else:
                 strength = SignalStrength.WEAK
@@ -180,7 +209,7 @@ class PullbackAnalyzer(PullbackScoringMixin, BaseAnalyzer):
             # Stop below the nearest support
             nearest_support = min(candidate.support_levels,
                                   key=lambda x: abs(x - entry_price))
-            stop_loss = nearest_support * 0.98  # 2% unter Support
+            stop_loss = nearest_support * PULLBACK_STOP_BUFFER  # 2% unter Support
 
             # Target at next resistance or 2:1 R/R
             if candidate.resistance_levels:
@@ -190,7 +219,7 @@ class PullbackAnalyzer(PullbackScoringMixin, BaseAnalyzer):
             if not target_price or target_price <= entry_price:
                 # Fallback: 2:1 Risk/Reward
                 risk = entry_price - stop_loss
-                target_price = entry_price + (risk * 2)
+                target_price = entry_price + (risk * PULLBACK_TARGET_RR_RATIO)
 
         return TradeSignal(
             symbol=symbol,
@@ -317,18 +346,18 @@ class PullbackAnalyzer(PullbackScoringMixin, BaseAnalyzer):
             support_levels = find_support_optimized(
                 lows=lows,
                 lookback=self.config.support.lookback_days,
-                window=5,
-                max_levels=5,
+                window=PULLBACK_SUPPORT_WINDOW,
+                max_levels=PULLBACK_MAX_SUPPORT_LEVELS,
                 volumes=volumes if volumes else None,
-                tolerance_pct=1.5
+                tolerance_pct=PULLBACK_SUPPORT_TOLERANCE_PCT
             )
             resistance_levels = find_resistance_optimized(
                 highs=highs,
-                lookback=60,
-                window=5,
-                max_levels=5,
+                lookback=PULLBACK_RESISTANCE_LOOKBACK,
+                window=PULLBACK_RESISTANCE_WINDOW,
+                max_levels=PULLBACK_MAX_RESISTANCE_LEVELS,
                 volumes=volumes if volumes else None,
-                tolerance_pct=1.5
+                tolerance_pct=PULLBACK_RESISTANCE_TOLERANCE_PCT
             )
 
         technicals = TechnicalIndicators(
@@ -365,10 +394,10 @@ class PullbackAnalyzer(PullbackScoringMixin, BaseAnalyzer):
             lows=lows,
             highs=highs,
             rsi_period=self.config.rsi.period,
-            lookback=60,
-            swing_window=3,  # Relaxiert für bessere Swing-Erkennung
-            min_divergence_bars=5,
-            max_divergence_bars=50  # Längere Formationen erlauben
+            lookback=PULLBACK_DIVERGENCE_LOOKBACK,
+            swing_window=PULLBACK_DIVERGENCE_SWING_WINDOW,  # Relaxiert für bessere Swing-Erkennung
+            min_divergence_bars=PULLBACK_DIVERGENCE_MIN_BARS,
+            max_divergence_bars=PULLBACK_DIVERGENCE_MAX_BARS  # Längere Formationen erlauben
         )
         div_score_result = self._score_rsi_divergence(divergence_result)
         breakdown.rsi_divergence_score = div_score_result[0]
@@ -421,7 +450,7 @@ class PullbackAnalyzer(PullbackScoringMixin, BaseAnalyzer):
         if len(prices) >= 2 and avg_volume > 0:
             overnight_gap_pct = (prices[-1] - prices[-2]) / prices[-2] * 100
             vol_ratio = current_volume / avg_volume
-            if -3.0 <= overnight_gap_pct <= -1.0 and vol_ratio < 0.8:
+            if PULLBACK_GAP_WARNING_MIN <= overnight_gap_pct <= PULLBACK_GAP_WARNING_MAX and vol_ratio < PULLBACK_GAP_VOL_THRESHOLD:
                 warnings.append(
                     f"Potential dividend gap ({overnight_gap_pct:.1f}%, vol {vol_ratio:.1f}x)"
                 )

@@ -83,6 +83,38 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+# RSI Divergence Scoring
+SCORE_DIVERGENCE_STRONG = 0.7
+SCORE_DIVERGENCE_MODERATE = 0.4
+SCORE_DIVERGENCE_STRONG_PTS = 3.0
+SCORE_DIVERGENCE_MODERATE_PTS = 2.0
+SCORE_DIVERGENCE_WEAK_PTS = 1.0
+
+# Moving Average Scoring
+SCORE_MA_DIP_IN_UPTREND = 2
+
+# Support Strength
+SCORE_SUPPORT_STRONG_BONUS = 0.5
+SCORE_SUPPORT_STRONG_EXTRA_TOUCHES = 2
+
+# Keltner Channel
+SCORE_KELTNER_LOWER_THIRD_MULT = 0.5
+
+# VWAP Scoring
+SCORE_VWAP_STRONG_ABOVE_PTS = 3.0
+SCORE_VWAP_ABOVE_PTS = 2.0
+SCORE_VWAP_NEAR_PTS = 1.0
+
+# Market Context Scoring
+SCORE_MARKET_STRONG_UPTREND = 2.0
+SCORE_MARKET_UPTREND = 1.0
+SCORE_MARKET_STRONG_DOWNTREND = -1.0
+SCORE_MARKET_DOWNTREND = -0.5
+
+# Sector Scoring Thresholds
+SCORE_SECTOR_STRONG_THRESHOLD = 0.5
+SCORE_SECTOR_WEAK_THRESHOLD = -0.5
+
 
 class PullbackScoringMixin:
     """
@@ -121,14 +153,14 @@ class PullbackScoringMixin:
             # Scoring based on divergence strength
             strength = divergence.strength
 
-            if strength >= 0.7:
-                score = 3.0
+            if strength >= SCORE_DIVERGENCE_STRONG:
+                score = SCORE_DIVERGENCE_STRONG_PTS
                 reason = f"Strong bullish divergence (strength: {strength:.0%}, {divergence.formation_days} days)"
-            elif strength >= 0.4:
-                score = 2.0
+            elif strength >= SCORE_DIVERGENCE_MODERATE:
+                score = SCORE_DIVERGENCE_MODERATE_PTS
                 reason = f"Moderate bullish divergence (strength: {strength:.0%}, {divergence.formation_days} days)"
             else:
-                score = 1.0
+                score = SCORE_DIVERGENCE_WEAK_PTS
                 reason = f"Weak bullish divergence (strength: {strength:.0%}, {divergence.formation_days} days)"
 
             return score, reason
@@ -191,7 +223,7 @@ class PullbackScoringMixin:
     ) -> Tuple[float, str]:
         """Moving Average Score (0-2 points)"""
         if price > sma_200 and price < sma_20:
-            return 2, "Dip in uptrend (price > SMA200, < SMA20)"
+            return SCORE_MA_DIP_IN_UPTREND, "Dip in uptrend (price > SMA200, < SMA20)"
         elif price > sma_200 and price > sma_20:
             return 0, "Strong uptrend, no pullback"
         elif price < sma_200:
@@ -346,7 +378,7 @@ class PullbackScoringMixin:
             tolerance = nearest * (cfg.touch_tolerance_pct / 100)
             touches = sum(1 for low in lows[-cfg.lookback_days:] if abs(low - nearest) <= tolerance)
 
-            if touches >= cfg.min_touches + 2:
+            if touches >= cfg.min_touches + SCORE_SUPPORT_STRONG_EXTRA_TOUCHES:
                 strength = "strong"
             elif touches >= cfg.min_touches:
                 strength = "moderate"
@@ -362,7 +394,7 @@ class PullbackScoringMixin:
 
         # Bonus for strong support
         if strength == "strong" and base_score > 0:
-            base_score += 0.5  # Bonus for strong support
+            base_score += SCORE_SUPPORT_STRONG_BONUS  # Bonus for strong support
 
         reason = f"Within {distance_pct:.1f}% of {strength} support ${nearest:.2f} ({touches} touches)"
         return base_score, reason, strength, touches
@@ -461,7 +493,7 @@ class PullbackScoringMixin:
 
         if position == 'in_channel' and pct < KELTNER_NEUTRAL_LOW:
             # In channel, but in lower third
-            return cfg.weight_mean_reversion * 0.5, f"Pullback in lower channel area ({pct:.2f})"
+            return cfg.weight_mean_reversion * SCORE_KELTNER_LOWER_THIRD_MULT, f"Pullback in lower channel area ({pct:.2f})"
 
         if position == 'above_upper':
             # Overbought = no pullback signal
@@ -501,13 +533,13 @@ class PullbackScoringMixin:
 
         # Scoring based on training results
         if distance > VWAP_STRONG_ABOVE:
-            score = 3.0
+            score = SCORE_VWAP_STRONG_ABOVE_PTS
             reason = f"Strong momentum: {distance:.1f}% above VWAP (91.9% win rate)"
         elif distance > VWAP_ABOVE:
-            score = 2.0
+            score = SCORE_VWAP_ABOVE_PTS
             reason = f"Above VWAP: {distance:.1f}% (87.6% win rate)"
         elif distance > VWAP_BELOW:
-            score = 1.0
+            score = SCORE_VWAP_NEAR_PTS
             reason = f"Near VWAP: {distance:.1f}% (78.3% win rate)"
         elif distance > VWAP_STRONG_BELOW:
             score = 0.0
@@ -545,11 +577,11 @@ class PullbackScoringMixin:
 
         if current > sma20 > sma50:
             trend = "strong_uptrend"
-            score = 2.0
+            score = SCORE_MARKET_STRONG_UPTREND
             reason = "Strong market uptrend (76.1% win rate)"
         elif current > sma50 and current > sma20:
             trend = "uptrend"
-            score = 1.0
+            score = SCORE_MARKET_UPTREND
             reason = "Market uptrend (70.9% win rate)"
         elif current > sma50:
             trend = "sideways"
@@ -557,11 +589,11 @@ class PullbackScoringMixin:
             reason = "Market sideways"
         elif current < sma20 < sma50:
             trend = "strong_downtrend"
-            score = -1.0
+            score = SCORE_MARKET_STRONG_DOWNTREND
             reason = "Strong market downtrend - CAUTION (59.3% win rate)"
         else:
             trend = "downtrend"
-            score = -0.5
+            score = SCORE_MARKET_DOWNTREND
             reason = "Market downtrend - reduced expectation (60.1% win rate)"
 
         return score, trend, reason
@@ -583,11 +615,11 @@ class PullbackScoringMixin:
         sector = get_sector(symbol)
         adjustment = get_sector_adjustment(symbol)
 
-        if adjustment > 0.5:
+        if adjustment > SCORE_SECTOR_STRONG_THRESHOLD:
             reason = f"{sector}: strong sector (+{adjustment * 10:.0f}% win rate)"
         elif adjustment > 0:
             reason = f"{sector}: favorable sector (+{adjustment * 10:.0f}% win rate)"
-        elif adjustment < -0.5:
+        elif adjustment < SCORE_SECTOR_WEAK_THRESHOLD:
             reason = f"{sector}: challenging sector ({adjustment * 10:.0f}% win rate)"
         elif adjustment < 0:
             reason = f"{sector}: slightly unfavorable ({adjustment * 10:.0f}% win rate)"

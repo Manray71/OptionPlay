@@ -81,6 +81,82 @@ BOUNCE_DCB_THRESHOLD = 0.7          # Volume < 0.7x avg = Dead Cat Bounce risk
 BOUNCE_MIN_SCORE = 3.5              # Minimum total score for signal
 BOUNCE_MAX_SCORE = 10.0             # Theoretical maximum
 
+# Support Quality Scoring
+BOUNCE_SUPPORT_TOUCHES_STRONG = 4
+BOUNCE_SUPPORT_TOUCHES_MODERATE = 3
+BOUNCE_SUPPORT_TOUCHES_ESTABLISHED = 2
+BOUNCE_SUPPORT_SCORE_STRONG = 2.0
+BOUNCE_SUPPORT_SCORE_MODERATE = 1.5
+BOUNCE_SUPPORT_SCORE_ESTABLISHED = 1.0
+BOUNCE_SMA200_CONFLUENCE_BONUS = 0.5
+BOUNCE_SUPPORT_QUALITY_MAX = 2.5
+
+# Proximity Scoring
+BOUNCE_PROXIMITY_TIER1_PCT = 1.0
+BOUNCE_PROXIMITY_TIER2_PCT = 2.0
+BOUNCE_PROXIMITY_TIER3_PCT = 3.0
+BOUNCE_PROXIMITY_TIER4_PCT = 5.0
+BOUNCE_PROXIMITY_SCORE_AT = 2.0
+BOUNCE_PROXIMITY_SCORE_NEAR = 1.5
+BOUNCE_PROXIMITY_SCORE_CLOSE = 1.0
+BOUNCE_PROXIMITY_SCORE_FAR = 0.5
+BOUNCE_PROXIMITY_SCORE_BELOW = 1.0
+
+# Volume Scoring
+BOUNCE_VOLUME_STRONG_RATIO = 2.0
+BOUNCE_VOLUME_MODERATE_RATIO = 1.5
+BOUNCE_VOLUME_ADEQUATE_RATIO = 1.0
+BOUNCE_VOLUME_SCORE_STRONG = 1.5
+BOUNCE_VOLUME_SCORE_MODERATE = 1.0
+BOUNCE_VOLUME_SCORE_ADEQUATE = 0.5
+BOUNCE_VOLUME_DCB_PENALTY = -1.0
+
+# Trend Context Scoring
+BOUNCE_SMA200_RISING_MULT = 1.001
+BOUNCE_SMA200_FALLING_MULT = 0.999
+BOUNCE_SMA200_DIRECTION_LOOKBACK = 20
+BOUNCE_SMA200_NEAR_PCT = 2.0
+BOUNCE_TREND_SCORE_UPTREND = 1.5
+BOUNCE_TREND_SCORE_ABOVE_SMA200 = 1.0
+BOUNCE_TREND_SCORE_NEAR_SMA200 = 0.5
+BOUNCE_TREND_SLOPE_STEEP = -1.0
+BOUNCE_TREND_SCORE_STEEP_DOWN = -2.0
+BOUNCE_TREND_SLOPE_MODERATE = -0.5
+BOUNCE_TREND_SCORE_MOD_DOWN = -1.5
+BOUNCE_TREND_SCORE_MILD_DOWN = -1.0
+BOUNCE_TREND_SCORE_BELOW_SMA200 = -0.5
+
+# Bounce Confirmation
+BOUNCE_CONFIRM_SCORE_REVERSAL = 1.0
+BOUNCE_CONFIRM_SCORE_CLOSE_UP = 0.5
+BOUNCE_CONFIRM_SCORE_GREEN_SEQ = 1.0
+BOUNCE_RSI_OVERSOLD = 40
+BOUNCE_CONFIRM_SCORE_RSI_TURN = 0.5
+BOUNCE_CONFIRM_SCORE_MACD_CROSS = 0.5
+BOUNCE_CONFIRM_SCORE_MACD_POS = 0.25
+BOUNCE_CONFIRM_PENALTY_MOMENTUM = -0.5
+BOUNCE_CONFIRM_PENALTY_MACD = -0.5
+BOUNCE_CONFIRM_MAX = 2.5
+
+# Candlestick Pattern Detection
+BOUNCE_HAMMER_WICK_BODY_RATIO = 2
+BOUNCE_HAMMER_UPPER_WICK_PCT = 0.5
+BOUNCE_DOJI_BODY_RANGE_PCT = 0.1
+BOUNCE_DOJI_SUPPORT_PCT = 0.02
+
+# SMA Confluence
+BOUNCE_SMA200_CONFLUENCE_PCT = 0.02
+
+# Signal Strength
+BOUNCE_SIGNAL_STRONG = 7.0
+BOUNCE_SIGNAL_MODERATE = 5.0
+
+# DCB Filter
+BOUNCE_DCB_RSI_OVERBOUGHT = 70
+
+# RSI Momentum
+BOUNCE_RSI_MOMENTUM_FADE = 50
+
 
 @dataclass
 class BounceConfig:
@@ -264,7 +340,7 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
 
         # E.4: RSI overbought after bounce — unsustainable short squeeze
         rsi_values = confirmations.get('rsi_values', [])
-        if rsi_values and rsi_values[-1] > 70:
+        if rsi_values and rsi_values[-1] > BOUNCE_DCB_RSI_OVERBOUGHT:
             return self._make_disqualified_signal(
                 symbol, current_price,
                 f"Dead Cat Bounce: RSI overbought ({rsi_values[-1]:.0f})",
@@ -325,9 +401,9 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         )
 
         # Signal strength
-        if total_score >= 7.0:
+        if total_score >= BOUNCE_SIGNAL_STRONG:
             strength = SignalStrength.STRONG
-        elif total_score >= 5.0:
+        elif total_score >= BOUNCE_SIGNAL_MODERATE:
             strength = SignalStrength.MODERATE
         elif total_score >= BOUNCE_MIN_SCORE:
             strength = SignalStrength.WEAK
@@ -494,16 +570,16 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         level, touches, dist_pct = best
 
         # Strength classification
-        if touches >= 4:
+        if touches >= BOUNCE_SUPPORT_TOUCHES_STRONG:
             strength = 'strong'
-        elif touches >= 3:
+        elif touches >= BOUNCE_SUPPORT_TOUCHES_MODERATE:
             strength = 'moderate'
         else:
             strength = 'established'
 
         # SMA 200 confluence check
         sma_200 = sum(prices[-SMA_LONG:]) / SMA_LONG if len(prices) >= SMA_LONG else sum(prices) / len(prices)
-        sma_200_confluence = abs(level - sma_200) / sma_200 <= 0.02  # within 2%
+        sma_200_confluence = abs(level - sma_200) / sma_200 <= BOUNCE_SMA200_CONFLUENCE_PCT
 
         return {
             'valid': True,
@@ -582,12 +658,12 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         if candle:
             signals.append(candle)
             candle_pattern = candle
-            score += 1.0
+            score += BOUNCE_CONFIRM_SCORE_REVERSAL
 
         # --- 2. Price Action: close > prev close ---
         if prices[-1] > prices[-2]:
             signals.append("Close > prev close")
-            score += 0.5
+            score += BOUNCE_CONFIRM_SCORE_CLOSE_UP
 
         # --- 3. Green Sequence: 2+ consecutive green days ---
         if len(prices) >= 3:
@@ -596,15 +672,15 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             green_yesterday = prices[-2] > prices[-3]
             if green_today and green_yesterday:
                 signals.append("2 green days")
-                score += 1.0
+                score += BOUNCE_CONFIRM_SCORE_GREEN_SEQ
 
-        # --- 4. RSI < 40 AND turning up ---
+        # --- 4. RSI < BOUNCE_RSI_OVERSOLD AND turning up ---
         rsi_values = self._calculate_rsi(prices)
         if len(rsi_values) >= 2:
             rsi_value = rsi_values[-1]
-            if rsi_value < 40 and rsi_values[-1] > rsi_values[-2]:
+            if rsi_value < BOUNCE_RSI_OVERSOLD and rsi_values[-1] > rsi_values[-2]:
                 signals.append(f"RSI oversold turning up ({rsi_value:.0f})")
-                score += 0.5
+                score += BOUNCE_CONFIRM_SCORE_RSI_TURN
 
         # --- 5. MACD histogram turning positive ---
         macd_result = calculate_macd(
@@ -614,17 +690,17 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         if macd_result:
             if macd_result.crossover == 'bullish':
                 signals.append("MACD bullish cross")
-                score += 0.5
+                score += BOUNCE_CONFIRM_SCORE_MACD_CROSS
             elif macd_result.histogram > 0:
                 signals.append("MACD positive")
-                score += 0.25
+                score += BOUNCE_CONFIRM_SCORE_MACD_POS
 
         # --- E.1: Momentum penalty (bearish momentum reduces score) ---
-        # RSI falling above 50 = momentum fading, not oversold
+        # RSI falling above BOUNCE_RSI_MOMENTUM_FADE = momentum fading, not oversold
         if len(rsi_values) >= 2:
-            if rsi_values[-1] > 50 and rsi_values[-1] < rsi_values[-2]:
+            if rsi_values[-1] > BOUNCE_RSI_MOMENTUM_FADE and rsi_values[-1] < rsi_values[-2]:
                 signals.append(f"Momentum fading (RSI {rsi_values[-1]:.0f} falling)")
-                score -= 0.5
+                score += BOUNCE_CONFIRM_PENALTY_MOMENTUM
 
         # MACD histogram increasingly negative = declining momentum
         if macd_result and macd_result.histogram < 0:
@@ -635,11 +711,11 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             )
             if prev_macd is not None and macd_result.histogram < prev_macd.histogram:
                 signals.append("MACD momentum declining")
-                score -= 0.5
+                score += BOUNCE_CONFIRM_PENALTY_MACD
 
-        # Floor at 0.0, cap at 2.5
+        # Floor at 0.0, cap at BOUNCE_CONFIRM_MAX
         score = max(0.0, score)
-        score = min(2.5, score)
+        score = min(BOUNCE_CONFIRM_MAX, score)
 
         return {
             'confirmed': len(signals) > 0,
@@ -674,7 +750,7 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         total_range = high - low
 
         # Hammer: small body at top, long lower wick (>= 2x body)
-        if body_size > 0 and lower_wick >= body_size * 2 and upper_wick < body_size * 0.5:
+        if body_size > 0 and lower_wick >= body_size * BOUNCE_HAMMER_WICK_BODY_RATIO and upper_wick < body_size * BOUNCE_HAMMER_UPPER_WICK_PCT:
             return "Hammer"
 
         # Bullish Engulfing: red day followed by larger green day
@@ -684,9 +760,9 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
                 return "Bullish Engulfing"
 
         # Doji at support: very small body relative to range
-        if total_range > 0 and body_size / total_range < 0.1:
+        if total_range > 0 and body_size / total_range < BOUNCE_DOJI_BODY_RANGE_PCT:
             # Only count if low is near support
-            if support_level > 0 and abs(low - support_level) / support_level <= 0.02:
+            if support_level > 0 and abs(low - support_level) / support_level <= BOUNCE_DOJI_SUPPORT_PCT:
                 return "Doji"
 
         return None
@@ -739,19 +815,19 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         2 touches = 1.0, 3 = 1.5, 4+ = 2.0
         SMA 200 confluence = +0.5 bonus
         """
-        if touches >= 4:
-            score = 2.0
-        elif touches >= 3:
-            score = 1.5
-        elif touches >= 2:
-            score = 1.0
+        if touches >= BOUNCE_SUPPORT_TOUCHES_STRONG:
+            score = BOUNCE_SUPPORT_SCORE_STRONG
+        elif touches >= BOUNCE_SUPPORT_TOUCHES_MODERATE:
+            score = BOUNCE_SUPPORT_SCORE_MODERATE
+        elif touches >= BOUNCE_SUPPORT_TOUCHES_ESTABLISHED:
+            score = BOUNCE_SUPPORT_SCORE_ESTABLISHED
         else:
             score = 0.0
 
         if sma_200_confluence:
-            score += 0.5
+            score += BOUNCE_SMA200_CONFLUENCE_BONUS
 
-        return min(2.5, score)
+        return min(BOUNCE_SUPPORT_QUALITY_MAX, score)
 
     def _score_proximity(self, distance_pct: float) -> float:
         """
@@ -765,15 +841,15 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         """
         if distance_pct < 0:
             # Below support (within tolerance)
-            return 1.0
-        elif distance_pct <= 1.0:
-            return 2.0
-        elif distance_pct <= 2.0:
-            return 1.5
-        elif distance_pct <= 3.0:
-            return 1.0
-        elif distance_pct <= 5.0:
-            return 0.5
+            return BOUNCE_PROXIMITY_SCORE_BELOW
+        elif distance_pct <= BOUNCE_PROXIMITY_TIER1_PCT:
+            return BOUNCE_PROXIMITY_SCORE_AT
+        elif distance_pct <= BOUNCE_PROXIMITY_TIER2_PCT:
+            return BOUNCE_PROXIMITY_SCORE_NEAR
+        elif distance_pct <= BOUNCE_PROXIMITY_TIER3_PCT:
+            return BOUNCE_PROXIMITY_SCORE_CLOSE
+        elif distance_pct <= BOUNCE_PROXIMITY_TIER4_PCT:
+            return BOUNCE_PROXIMITY_SCORE_FAR
         else:
             return 0.0
 
@@ -787,16 +863,16 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         < 1.0x:  0.0
         < 0.7x: -1.0 (penalty — Dead Cat Bounce)
         """
-        if ratio >= 2.0:
-            return 1.5
-        elif ratio >= 1.5:
-            return 1.0
-        elif ratio >= 1.0:
-            return 0.5
+        if ratio >= BOUNCE_VOLUME_STRONG_RATIO:
+            return BOUNCE_VOLUME_SCORE_STRONG
+        elif ratio >= BOUNCE_VOLUME_MODERATE_RATIO:
+            return BOUNCE_VOLUME_SCORE_MODERATE
+        elif ratio >= BOUNCE_VOLUME_ADEQUATE_RATIO:
+            return BOUNCE_VOLUME_SCORE_ADEQUATE
         elif ratio >= self.config.dcb_threshold:
             return 0.0
         else:
-            return -1.0  # Dead Cat Bounce penalty
+            return BOUNCE_VOLUME_DCB_PENALTY
 
     def _score_trend_context(self, prices: List[float]) -> Dict[str, Any]:
         """
@@ -813,11 +889,11 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         sma_200 = sum(prices[-SMA_LONG:]) / SMA_LONG if len(prices) >= SMA_LONG else sum(prices) / len(prices)
         current = prices[-1]
 
-        # SMA 200 direction (compare current SMA vs 20 days ago)
-        if len(prices) >= SMA_LONG + 20:
-            sma_200_prev = sum(prices[-(SMA_LONG + 20):-20]) / SMA_LONG
-            sma_direction = 'rising' if sma_200 > sma_200_prev * 1.001 else (
-                'falling' if sma_200 < sma_200_prev * 0.999 else 'flat'
+        # SMA 200 direction (compare current SMA vs BOUNCE_SMA200_DIRECTION_LOOKBACK days ago)
+        if len(prices) >= SMA_LONG + BOUNCE_SMA200_DIRECTION_LOOKBACK:
+            sma_200_prev = sum(prices[-(SMA_LONG + BOUNCE_SMA200_DIRECTION_LOOKBACK):-BOUNCE_SMA200_DIRECTION_LOOKBACK]) / SMA_LONG
+            sma_direction = 'rising' if sma_200 > sma_200_prev * BOUNCE_SMA200_RISING_MULT else (
+                'falling' if sma_200 < sma_200_prev * BOUNCE_SMA200_FALLING_MULT else 'flat'
             )
         else:
             sma_direction = 'flat'
@@ -826,27 +902,27 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
 
         if current > sma_200:
             if sma_direction == 'rising':
-                return {'score': 1.5, 'status': 'uptrend', 'reason': 'Uptrend: above rising SMA 200', 'sma_200': sma_200}
+                return {'score': BOUNCE_TREND_SCORE_UPTREND, 'status': 'uptrend', 'reason': 'Uptrend: above rising SMA 200', 'sma_200': sma_200}
             else:
-                return {'score': 1.0, 'status': 'above_sma200', 'reason': f'Above SMA 200 (SMA {sma_direction})', 'sma_200': sma_200}
-        elif abs(distance_to_sma) <= 2.0:
-            return {'score': 0.5, 'status': 'near_sma200', 'reason': f'Near SMA 200 ({distance_to_sma:+.1f}%)', 'sma_200': sma_200}
+                return {'score': BOUNCE_TREND_SCORE_ABOVE_SMA200, 'status': 'above_sma200', 'reason': f'Above SMA 200 (SMA {sma_direction})', 'sma_200': sma_200}
+        elif abs(distance_to_sma) <= BOUNCE_SMA200_NEAR_PCT:
+            return {'score': BOUNCE_TREND_SCORE_NEAR_SMA200, 'status': 'near_sma200', 'reason': f'Near SMA 200 ({distance_to_sma:+.1f}%)', 'sma_200': sma_200}
         else:
             if sma_direction == 'falling':
                 # E.2: Gradient penalty based on SMA200 slope steepness
-                if len(prices) >= SMA_LONG + 20:
+                if len(prices) >= SMA_LONG + BOUNCE_SMA200_DIRECTION_LOOKBACK:
                     sma_slope_pct = (sma_200 - sma_200_prev) / sma_200_prev * 100
                 else:
                     sma_slope_pct = 0.0
 
-                if sma_slope_pct < -1.0:
-                    return {'score': -2.0, 'status': 'downtrend', 'reason': f'Strong downtrend: SMA200 slope {sma_slope_pct:.1f}%', 'sma_200': sma_200}
-                elif sma_slope_pct < -0.5:
-                    return {'score': -1.5, 'status': 'downtrend', 'reason': f'Downtrend: SMA200 slope {sma_slope_pct:.1f}%', 'sma_200': sma_200}
+                if sma_slope_pct < BOUNCE_TREND_SLOPE_STEEP:
+                    return {'score': BOUNCE_TREND_SCORE_STEEP_DOWN, 'status': 'downtrend', 'reason': f'Strong downtrend: SMA200 slope {sma_slope_pct:.1f}%', 'sma_200': sma_200}
+                elif sma_slope_pct < BOUNCE_TREND_SLOPE_MODERATE:
+                    return {'score': BOUNCE_TREND_SCORE_MOD_DOWN, 'status': 'downtrend', 'reason': f'Downtrend: SMA200 slope {sma_slope_pct:.1f}%', 'sma_200': sma_200}
                 else:
-                    return {'score': -1.0, 'status': 'downtrend', 'reason': f'Mild downtrend: SMA200 slope {sma_slope_pct:.1f}%', 'sma_200': sma_200}
+                    return {'score': BOUNCE_TREND_SCORE_MILD_DOWN, 'status': 'downtrend', 'reason': f'Mild downtrend: SMA200 slope {sma_slope_pct:.1f}%', 'sma_200': sma_200}
             else:
-                return {'score': -0.5, 'status': 'below_sma200', 'reason': f'Below SMA 200 ({distance_to_sma:+.1f}%)', 'sma_200': sma_200}
+                return {'score': BOUNCE_TREND_SCORE_BELOW_SMA200, 'status': 'below_sma200', 'reason': f'Below SMA 200 ({distance_to_sma:+.1f}%)', 'sma_200': sma_200}
 
     # =========================================================================
     # RSI CALCULATION (internal)

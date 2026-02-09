@@ -71,6 +71,62 @@ EDIP_NEXT_EARNINGS_MIN_DAYS = 60 # Min days to next earnings for BPS
 EDIP_MIN_SCORE = 3.5             # Minimum total score for signal
 EDIP_MAX_SCORE = 9.5             # Theoretical maximum
 
+# Scoring: Drop Magnitude Tiers
+EDIP_DROP_MINOR_PCT = 7.0
+EDIP_DROP_MODERATE_PCT = 10.0
+EDIP_DROP_MAJOR_PCT = 15.0
+EDIP_DROP_SCORE_SMALL = 0.5
+EDIP_DROP_SCORE_MODERATE = 1.0
+EDIP_DROP_SCORE_GOOD = 1.5
+EDIP_DROP_SCORE_IDEAL = 2.0
+EDIP_DROP_SCORE_EXTREME = 1.0
+
+# Scoring: Stabilization
+EDIP_STAB_SCORE_GREEN_MULTI = 1.5
+EDIP_STAB_SCORE_GREEN_SINGLE = 1.0
+EDIP_STAB_SCORE_HIGHER_LOW = 1.0
+EDIP_STAB_SCORE_VOL_DECLINE = 0.5
+EDIP_STAB_SCORE_HAMMER = 0.5
+EDIP_STAB_SCORE_MAX = 2.5
+
+# Scoring: Fundamental Strength
+EDIP_STABILITY_VERY_HIGH = 90
+EDIP_STABILITY_HIGH = 80
+EDIP_STABILITY_MODERATE = 70
+EDIP_FUND_SCORE_VERY_HIGH = 1.5
+EDIP_FUND_SCORE_HIGH = 1.0
+EDIP_FUND_SCORE_MODERATE = 0.5
+EDIP_FUND_SCORE_SMA200 = 0.5
+EDIP_FUND_SCORE_MAX = 2.0
+
+# Scoring: Overreaction Indicators
+EDIP_RSI_EXTREME_OVERSOLD = 30
+EDIP_RSI_MODERATE_OVERSOLD = 40
+EDIP_OVERREACTION_COMPONENT = 0.5
+EDIP_PANIC_VOLUME_MULTIPLIER = 3.0
+EDIP_HISTORICAL_MOVE_MULTIPLIER = 2.0
+EDIP_OVERREACTION_MAX = 2.0
+
+# Scoring: BPS Suitability
+EDIP_BPS_EARNINGS_SCORE = 0.5
+
+# Penalties
+EDIP_PENALTY_UNDER_SMA200 = 1.0
+EDIP_PENALTY_CONTINUED_DECLINE = 1.5
+EDIP_PENALTY_NEW_LOWS_MIN = 2
+EDIP_PENALTY_RSI_NOT_EXTREME = 0.5
+EDIP_PENALTY_MAX = 3.0
+
+# Signal Strength
+EDIP_SIGNAL_STRONG = 6.5
+EDIP_SIGNAL_MODERATE = 5.0
+
+# Stabilization Detection
+EDIP_STAB_VOLUME_DECLINE_RATIO = 0.7
+EDIP_HAMMER_LOWER_WICK_RATIO = 0.6
+EDIP_HAMMER_BODY_RATIO = 0.3
+EDIP_HAMMER_APPROX_RATIO = 0.7
+
 
 @dataclass
 class EarningsDipConfig:
@@ -334,9 +390,9 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         )
 
         # Signal strength
-        if total_score >= 6.5:
+        if total_score >= EDIP_SIGNAL_STRONG:
             strength = SignalStrength.STRONG
-        elif total_score >= 5.0:
+        elif total_score >= EDIP_SIGNAL_MODERATE:
             strength = SignalStrength.MODERATE
         elif total_score >= EDIP_MIN_SCORE:
             strength = SignalStrength.WEAK
@@ -526,7 +582,7 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
                 has_higher_low = True
 
             # Volume declining check
-            if drop_volume > 0 and volumes[i] < drop_volume * 0.7:
+            if drop_volume > 0 and volumes[i] < drop_volume * EDIP_STAB_VOLUME_DECLINE_RATIO:
                 vol_declining = True
 
             # Hammer detection (intraday recovery)
@@ -534,14 +590,14 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
                 body = abs(prices[i] - opens[i])
                 total_range = highs[i] - lows[i]
                 lower_wick = min(prices[i], opens[i]) - lows[i]
-                if total_range > 0 and lower_wick / total_range > 0.6 and body / total_range < 0.3:
+                if total_range > 0 and lower_wick / total_range > EDIP_HAMMER_LOWER_WICK_RATIO and body / total_range < EDIP_HAMMER_BODY_RATIO:
                     has_hammer = True
             else:
                 # Approximate hammer from close vs range
                 total_range = highs[i] - lows[i]
                 if total_range > 0:
                     close_from_low = prices[i] - lows[i]
-                    if close_from_low / total_range > 0.7:
+                    if close_from_low / total_range > EDIP_HAMMER_APPROX_RATIO:
                         # Close near high with long lower wick
                         has_hammer = True
 
@@ -661,18 +717,18 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         | 15% to 20% | 2.0   |
         | > 20%      | 1.0   | (reduced — might be fundamental)
         """
-        if dip_pct < 5.0:
+        if dip_pct < EDIP_MIN_DIP_PCT:
             return 0.0
-        elif dip_pct < 7.0:
-            return 0.5
-        elif dip_pct < 10.0:
-            return 1.0
-        elif dip_pct < 15.0:
-            return 1.5
-        elif dip_pct <= 20.0:
-            return 2.0
+        elif dip_pct < EDIP_DROP_MINOR_PCT:
+            return EDIP_DROP_SCORE_SMALL
+        elif dip_pct < EDIP_DROP_MODERATE_PCT:
+            return EDIP_DROP_SCORE_MODERATE
+        elif dip_pct < EDIP_DROP_MAJOR_PCT:
+            return EDIP_DROP_SCORE_GOOD
+        elif dip_pct <= EDIP_MAX_DIP_PCT:
+            return EDIP_DROP_SCORE_IDEAL
         else:
-            return 1.0  # Reduced for extreme drops
+            return EDIP_DROP_SCORE_EXTREME  # Reduced for extreme drops
 
     # =========================================================================
     # SCORING: 2. Stabilization (0 – 2.5)
@@ -696,20 +752,20 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
 
         green_days = stab_info.get('green_days', 0)
         if green_days >= 2:
-            score += 1.5
+            score += EDIP_STAB_SCORE_GREEN_MULTI
         elif green_days >= 1:
-            score += 1.0
+            score += EDIP_STAB_SCORE_GREEN_SINGLE
 
         if stab_info.get('higher_low', False):
-            score += 1.0
+            score += EDIP_STAB_SCORE_HIGHER_LOW
 
         if stab_info.get('volume_declining', False):
-            score += 0.5
+            score += EDIP_STAB_SCORE_VOL_DECLINE
 
         if stab_info.get('hammer_detected', False):
-            score += 0.5
+            score += EDIP_STAB_SCORE_HAMMER
 
-        return min(2.5, score)
+        return min(EDIP_STAB_SCORE_MAX, score)
 
     # =========================================================================
     # SCORING: 3. Fundamental Strength (0 – 2.0)
@@ -733,17 +789,17 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         score = 0.0
 
         if stability_score is not None:
-            if stability_score > 90:
-                score += 1.5
-            elif stability_score > 80:
-                score += 1.0
-            elif stability_score >= 70:
-                score += 0.5
+            if stability_score > EDIP_STABILITY_VERY_HIGH:
+                score += EDIP_FUND_SCORE_VERY_HIGH
+            elif stability_score > EDIP_STABILITY_HIGH:
+                score += EDIP_FUND_SCORE_HIGH
+            elif stability_score >= EDIP_STABILITY_MODERATE:
+                score += EDIP_FUND_SCORE_MODERATE
 
         if fund_info.get('was_above_sma200', False) and fund_info.get('sma200_rising', False):
-            score += 0.5
+            score += EDIP_FUND_SCORE_SMA200
 
-        return min(2.0, score)
+        return min(EDIP_FUND_SCORE_MAX, score)
 
     # =========================================================================
     # SCORING: 4. Overreaction Indicators (0 – 2.0)
@@ -783,12 +839,12 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         rsi = self._calculate_rsi(prices)
         info['rsi_value'] = rsi
 
-        if rsi < 30:
-            total += 0.5
-            info['rsi_component'] = 0.5
+        if rsi < EDIP_RSI_EXTREME_OVERSOLD:
+            total += EDIP_OVERREACTION_COMPONENT
+            info['rsi_component'] = EDIP_OVERREACTION_COMPONENT
             info['rsi_reason'] = f"RSI {rsi:.0f} strongly oversold"
             info['indicators'].append(f"RSI {rsi:.0f}")
-        elif rsi < 40:
+        elif rsi < EDIP_RSI_MODERATE_OVERSOLD:
             info['rsi_reason'] = f"RSI {rsi:.0f} moderately oversold"
         else:
             info['rsi_reason'] = f"RSI {rsi:.0f} not oversold"
@@ -806,9 +862,9 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
                 info['avg_volume'] = avg_vol
                 info['drop_volume'] = drop_vol
 
-                if panic_ratio > 3.0:
-                    total += 0.5
-                    info['volume_component'] = 0.5
+                if panic_ratio > EDIP_PANIC_VOLUME_MULTIPLIER:
+                    total += EDIP_OVERREACTION_COMPONENT
+                    info['volume_component'] = EDIP_OVERREACTION_COMPONENT
                     info['volume_reason'] = f"Panic volume {panic_ratio:.1f}x avg"
                     info['indicators'].append(f"Panic vol {panic_ratio:.1f}x")
                 else:
@@ -825,12 +881,12 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             move_ratio = dip_pct / historical_avg_earnings_move
             info['historical_move_ratio'] = move_ratio
 
-            if move_ratio > 2.0:
-                total += 0.5
-                info['historical_component'] = 0.5
+            if move_ratio > EDIP_HISTORICAL_MOVE_MULTIPLIER:
+                total += EDIP_OVERREACTION_COMPONENT
+                info['historical_component'] = EDIP_OVERREACTION_COMPONENT
                 info['indicators'].append(f"Drop {move_ratio:.1f}x avg earnings move")
 
-        info['score'] = min(2.0, total)
+        info['score'] = min(EDIP_OVERREACTION_MAX, total)
         return info
 
     # =========================================================================
@@ -853,7 +909,7 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
 
         if next_earnings_days is not None:
             if next_earnings_days >= self.config.next_earnings_min_days:
-                score += 0.5
+                score += EDIP_BPS_EARNINGS_SCORE
 
         return score
 
@@ -890,8 +946,8 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             still_below = current_price < sma_200
 
             if was_below and still_below:
-                info['total'] -= 1.0
-                info['details'].append("Under SMA 200 before and after (-1.0)")
+                info['total'] -= EDIP_PENALTY_UNDER_SMA200
+                info['details'].append(f"Under SMA 200 before and after (-{EDIP_PENALTY_UNDER_SMA200})")
 
         # Penalty: continued decline after drop
         if drop_day_idx < len(lows) - 1:
@@ -899,17 +955,17 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             # Check if any day after drop made new low
             post_drop_lows = lows[drop_day_idx + 1:]
             new_lows = sum(1 for l in post_drop_lows if l < drop_low)
-            if new_lows >= 2:
-                info['total'] -= 1.5
-                info['details'].append(f"Continued decline: {new_lows} new lows after drop (-1.5)")
+            if new_lows >= EDIP_PENALTY_NEW_LOWS_MIN:
+                info['total'] -= EDIP_PENALTY_CONTINUED_DECLINE
+                info['details'].append(f"Continued decline: {new_lows} new lows after drop (-{EDIP_PENALTY_CONTINUED_DECLINE})")
 
         # Penalty: RSI not extreme
         rsi = self._calculate_rsi(prices)
-        if rsi > 40:
-            info['total'] -= 0.5
-            info['details'].append(f"RSI {rsi:.0f} not extreme enough (-0.5)")
+        if rsi > EDIP_RSI_MODERATE_OVERSOLD:
+            info['total'] -= EDIP_PENALTY_RSI_NOT_EXTREME
+            info['details'].append(f"RSI {rsi:.0f} not extreme enough (-{EDIP_PENALTY_RSI_NOT_EXTREME})")
 
-        info['total'] = max(-3.0, info['total'])
+        info['total'] = max(-EDIP_PENALTY_MAX, info['total'])
         return info
 
     # =========================================================================
