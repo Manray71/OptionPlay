@@ -809,17 +809,6 @@ class ScanHandler(BaseHandler):
 
     # --- Shared helper methods (delegating to server context) ---
 
-    async def _ensure_connected(self):
-        """Ensure data provider is connected."""
-        if not self._ctx.connected and self._ctx.provider:
-            try:
-                await self._ctx.provider.connect()
-                self._ctx.connected = True
-            except Exception as e:
-                self._logger.error(f"Connection failed: {e}")
-                raise
-        return self._ctx.provider
-
     async def _fetch_historical_cached(self, symbol: str, days: Optional[int] = None):
         """Fetch historical data with caching.
 

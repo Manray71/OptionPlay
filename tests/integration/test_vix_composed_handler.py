@@ -29,6 +29,7 @@ class MockServerContext:
         # Mutable state
         self.connected = False
         self.tradier_connected = False
+        self.tradier_api_key = None
         self.current_vix = None
         self.vix_updated = None
 

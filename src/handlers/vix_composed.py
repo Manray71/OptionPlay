@@ -401,17 +401,6 @@ class VixHandler(BaseHandler):
 
     # --- Shared helper methods ---
 
-    async def _ensure_connected(self):
-        """Ensure data provider is connected."""
-        if not self._ctx.connected and self._ctx.provider:
-            try:
-                await self._ctx.provider.connect()
-                self._ctx.connected = True
-            except Exception as e:
-                self._logger.error(f"Connection failed: {e}")
-                raise
-        return self._ctx.provider
-
     def _fetch_vix_yahoo(self) -> Optional[float]:
         """Fetch VIX from Yahoo Finance as fallback."""
         import json

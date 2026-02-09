@@ -546,17 +546,6 @@ class QuoteHandler(BaseHandler):
 
     # --- Shared helper methods ---
 
-    async def _ensure_connected(self):
-        """Ensure data provider is connected."""
-        if not self._ctx.connected and self._ctx.provider:
-            try:
-                await self._ctx.provider.connect()
-                self._ctx.connected = True
-            except Exception as e:
-                self._logger.error(f"Connection failed: {e}")
-                raise
-        return self._ctx.provider
-
     async def _get_quote_cached(self, symbol: str):
         """Get quote with caching."""
         now = datetime.now()

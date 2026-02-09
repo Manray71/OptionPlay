@@ -573,16 +573,6 @@ class AnalysisHandler(BaseHandler):
 
     # --- Shared helper methods ---
 
-    async def _ensure_connected(self):
-        if not self._ctx.connected and self._ctx.provider:
-            try:
-                await self._ctx.provider.connect()
-                self._ctx.connected = True
-            except Exception as e:
-                self._logger.error(f"Connection failed: {e}")
-                raise
-        return self._ctx.provider
-
     async def _get_vix(self) -> Optional[float]:
         if self._ctx.current_vix is not None:
             return self._ctx.current_vix

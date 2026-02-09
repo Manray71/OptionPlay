@@ -92,6 +92,9 @@ class ServerContext:
         self.scan_cache_hits = 0
         self.scan_cache_misses = 0
 
+        # Tradier lazy init
+        self.tradier_api_key: Optional[str] = None
+
         # Optional components
         self.earnings_fetcher: Optional["EarningsFetcher"] = None
         self.scanner: Optional["MultiStrategyScanner"] = None
@@ -120,6 +123,49 @@ class BaseHandler:
     @property
     def tradier_provider(self) -> Optional["TradierProvider"]:
         return self._ctx.tradier_provider
+
+    async def _ensure_tradier_connected(self) -> Optional["TradierProvider"]:
+        """Establish connection to Tradier API if key is available."""
+        if self._ctx.tradier_connected:
+            return self._ctx.tradier_provider
+
+        # Lazy-create provider if API key is available but provider not yet created
+        if self._ctx.tradier_provider is None and self._ctx.tradier_api_key:
+            from ..data_providers.tradier import TradierProvider, TradierEnvironment
+            tradier_cfg = self._ctx.config.settings.tradier
+            env = TradierEnvironment.PRODUCTION if tradier_cfg.is_production else TradierEnvironment.SANDBOX
+            self._ctx.tradier_provider = TradierProvider(
+                api_key=self._ctx.tradier_api_key,
+                environment=env,
+            )
+
+        if not self._ctx.tradier_provider:
+            return None
+
+        try:
+            connected = await self._ctx.tradier_provider.connect()
+            if connected:
+                self._ctx.tradier_connected = True
+                self._logger.info("Tradier connected")
+            else:
+                self._logger.debug("Tradier connection returned False")
+        except (ConnectionError, TimeoutError, OSError) as e:
+            self._logger.debug(f"Tradier connection failed: {e}")
+
+        return self._ctx.tradier_provider if self._ctx.tradier_connected else None
+
+    async def _ensure_connected(self) -> Optional["MarketDataProvider"]:
+        """Ensure data providers are connected (Tradier + Marketdata.app)."""
+        await self._ensure_tradier_connected()
+
+        if not self._ctx.connected and self._ctx.provider:
+            try:
+                await self._ctx.provider.connect()
+                self._ctx.connected = True
+            except Exception as e:
+                self._logger.error(f"Provider connection failed: {e}")
+                raise
+        return self._ctx.provider
 
 
 class HandlerContainer:
@@ -255,6 +301,7 @@ def create_handler_container_from_server(server) -> HandlerContainer:
     # Copy mutable state
     context.connected = server._connected
     context.tradier_connected = getattr(server, '_tradier_connected', False)
+    context.tradier_api_key = getattr(server, '_tradier_api_key', None)
     context.current_vix = server._current_vix
     context.vix_updated = server._vix_updated
     context.quote_cache = server._quote_cache
