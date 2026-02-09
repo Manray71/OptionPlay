@@ -127,6 +127,9 @@ class BacktestConfig:
     use_black_scholes: bool = True  # True = realistische Options-Pricing
     default_iv: float = 0.25  # Default IV wenn keine historischen Daten
 
+    # E.6: Survivorship-Bias Mitigation
+    include_delisted: bool = False  # True = include delisted symbols in backtest
+
 
 @dataclass
 class TradeResult:
@@ -463,6 +466,10 @@ class BacktestEngine(MetricsCalcMixin, EntryExitMixin):
         self._vix_data = vix_data or []
         self._iv_data = iv_data or {}
 
+        # E.6: Filter delisted symbols unless explicitly included
+        if not self.config.include_delisted:
+            symbols = self._filter_delisted(symbols)
+
         trades: List[TradeResult] = []
         open_positions: List[Dict] = []
         current_capital = self.config.initial_capital
@@ -520,3 +527,21 @@ class BacktestEngine(MetricsCalcMixin, EntryExitMixin):
             trades.append(trade)
 
         return BacktestResult(config=self.config, trades=trades)
+
+    def _filter_delisted(self, symbols: List[str]) -> List[str]:
+        """E.6: Filter out delisted symbols using symbol_fundamentals table."""
+        try:
+            from ...cache import get_fundamentals_manager
+            manager = get_fundamentals_manager()
+            filtered = []
+            for sym in symbols:
+                f = manager.get_fundamentals(sym)
+                # Check delisted column (added via ALTER TABLE)
+                if f and getattr(f, 'delisted', 0) == 1:
+                    logger.info(f"Excluding delisted symbol: {sym}")
+                    continue
+                filtered.append(sym)
+            return filtered
+        except Exception as e:
+            logger.debug(f"Delisted filter unavailable ({e}), using all symbols")
+            return symbols

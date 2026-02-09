@@ -122,6 +122,9 @@ class VolumeConfig:
     # NEW: Volume-Trend Scoring
     weight_decreasing: float = 1.0  # Sinkendes Volumen = gesunder Pullback
     decrease_threshold: float = 0.7  # Vol < 70% des Durchschnitts = "decreasing"
+    # E.3: Very low volume penalty
+    very_low_threshold: float = 0.5  # Vol < 50% = very low (weak conviction)
+    weight_very_low: float = -0.5   # Penalty for very low volume
 
 
 @dataclass

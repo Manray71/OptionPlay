@@ -1308,5 +1308,46 @@ class TestExitReasonEnum:
         assert ExitReason.DTE_THRESHOLD.value == "dte_threshold"
 
 
+class TestDelistedFilter:
+    """E.6: Tests for survivorship-bias delisted symbol filtering"""
+
+    def test_include_delisted_false_filters_symbols(self, basic_config, sample_historical_data, sample_vix_data):
+        """E.6: With include_delisted=False, delisted symbols should be filtered"""
+        # Default config has include_delisted=False
+        assert basic_config.include_delisted is False
+
+        engine = BacktestEngine(basic_config)
+
+        # Mock _filter_delisted to simulate filtering
+        original_symbols = ["AAPL", "DELIST_CO"]
+        with patch.object(engine, '_filter_delisted', return_value=["AAPL"]) as mock_filter:
+            result = engine.run_sync(
+                symbols=original_symbols,
+                historical_data=sample_historical_data,
+                vix_data=sample_vix_data,
+            )
+            mock_filter.assert_called_once_with(original_symbols)
+
+    def test_include_delisted_true_skips_filter(self, sample_historical_data, sample_vix_data):
+        """E.6: With include_delisted=True, no filtering should occur"""
+        config = BacktestConfig(
+            start_date=date(2023, 1, 2),
+            end_date=date(2023, 1, 31),
+            initial_capital=100000.0,
+            min_pullback_score=3.0,
+            use_black_scholes=False,
+            include_delisted=True,
+        )
+        engine = BacktestEngine(config)
+
+        with patch.object(engine, '_filter_delisted') as mock_filter:
+            result = engine.run_sync(
+                symbols=["AAPL"],
+                historical_data=sample_historical_data,
+                vix_data=sample_vix_data,
+            )
+            mock_filter.assert_not_called()
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

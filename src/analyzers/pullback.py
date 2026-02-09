@@ -416,6 +416,16 @@ class PullbackAnalyzer(PullbackScoringMixin, BaseAnalyzer):
         breakdown.volume_trend = vol_result[2]
         breakdown.volume_ratio = current_volume / avg_volume if avg_volume > 0 else 0
 
+        # E.5: Detect potential dividend gap (warning only, no score penalty)
+        warnings = []
+        if len(prices) >= 2 and avg_volume > 0:
+            overnight_gap_pct = (prices[-1] - prices[-2]) / prices[-2] * 100
+            vol_ratio = current_volume / avg_volume
+            if -3.0 <= overnight_gap_pct <= -1.0 and vol_ratio < 0.8:
+                warnings.append(
+                    f"Potential dividend gap ({overnight_gap_pct:.1f}%, vol {vol_ratio:.1f}x)"
+                )
+
         # 7. MACD Score (0-2 points) - NEW
         macd_result_score = self._score_macd(macd_result)
         breakdown.macd_score = macd_result_score[0]
@@ -546,7 +556,8 @@ class PullbackAnalyzer(PullbackScoringMixin, BaseAnalyzer):
             resistance_levels=resistance_levels,
             fib_levels=fib_levels,
             avg_volume=avg_volume,
-            current_volume=current_volume
+            current_volume=current_volume,
+            warnings=warnings,
         )
 
     def _build_reason(self, candidate: PullbackCandidate) -> str:

@@ -564,6 +564,44 @@ class TestVolumeScoring:
         assert score == 0
         assert trend == "unknown"
 
+    def test_volume_very_low_penalty(self, analyzer):
+        """E.3: Very low volume (ratio < 0.5) should get -0.5 penalty"""
+        current_volume = 300000
+        avg_volume = 1000000  # 30% of average = very low
+
+        score, reason, trend = analyzer._score_volume(current_volume, avg_volume)
+
+        assert score == -0.5
+        assert trend == "very_low"
+        assert "weak conviction" in reason.lower()
+
+    def test_volume_very_low_boundary(self, analyzer):
+        """E.3: At exactly 0.5 ratio, should be 'decreasing' not penalized"""
+        current_volume = 500000
+        avg_volume = 1000000  # 50% of average = boundary
+
+        score, reason, trend = analyzer._score_volume(current_volume, avg_volume)
+
+        assert score == 1.0
+        assert trend == "decreasing"
+
+    def test_volume_existing_behavior_unchanged(self, analyzer):
+        """E.3: Existing volume tiers should remain unchanged"""
+        # 0.6x = decreasing (healthy)
+        score, reason, trend = analyzer._score_volume(600000, 1000000)
+        assert score == 1.0
+        assert trend == "decreasing"
+
+        # 1.0x = stable
+        score, reason, trend = analyzer._score_volume(1000000, 1000000)
+        assert score == 0
+        assert trend == "stable"
+
+        # 2.0x = increasing (caution)
+        score, reason, trend = analyzer._score_volume(2000000, 1000000)
+        assert score == 0
+        assert trend == "increasing"
+
 
 class TestSupportWithStrength:
     """Tests for Support scoring with strength (NEW)"""
@@ -974,6 +1012,48 @@ class TestCandidateMethods:
         assert 'technicals' in d
         assert 'support_levels' in d
         assert 'score_breakdown' in d
+
+
+class TestDividendGapWarning:
+    """E.5: Tests for dividend gap warning detection"""
+
+    @pytest.fixture
+    def analyzer(self):
+        config = PullbackScoringConfig()
+        return PullbackAnalyzer(config)
+
+    def test_dividend_gap_warning_detected(self, analyzer):
+        """E.5: -2% gap with low volume should trigger dividend gap warning"""
+        n = 250
+        # Create uptrend data with a -2% gap on last day
+        prices = [100 + i * 0.1 for i in range(n - 1)]
+        last_price = prices[-1] * 0.98  # -2% overnight gap
+        prices.append(last_price)
+        # Low volume on gap day (0.6x average)
+        volumes = [1000000] * (n - 1) + [600000]
+        highs = [p + 1 for p in prices]
+        lows = [p - 1 for p in prices]
+
+        result = analyzer.analyze_detailed("TEST", prices, volumes, highs, lows)
+
+        assert len(result.warnings) > 0
+        assert any("dividend gap" in w.lower() for w in result.warnings)
+
+    def test_normal_pullback_no_dividend_warning(self, analyzer):
+        """E.5: Large drop with high volume should NOT trigger dividend warning"""
+        n = 250
+        # Create data with a -5% drop (too large for dividend) with high volume
+        prices = [100 + i * 0.1 for i in range(n - 1)]
+        last_price = prices[-1] * 0.95  # -5% drop
+        prices.append(last_price)
+        # High volume (1.5x average)
+        volumes = [1000000] * (n - 1) + [1500000]
+        highs = [p + 1 for p in prices]
+        lows = [p - 1 for p in prices]
+
+        result = analyzer.analyze_detailed("TEST", prices, volumes, highs, lows)
+
+        assert not any("dividend gap" in w.lower() for w in result.warnings)
 
 
 if __name__ == "__main__":

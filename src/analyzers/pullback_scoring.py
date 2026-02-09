@@ -211,8 +211,11 @@ class PullbackScoringMixin:
         ratio = current / average
         cfg = self.config.volume
 
+        # E.3: Very low volume = weak conviction penalty
+        if ratio < cfg.very_low_threshold:
+            return cfg.weight_very_low, f"Very low volume: {ratio:.1f}x avg (weak conviction)", "very_low"
         # NEW: Decreasing volume is POSITIVE during a pullback
-        if ratio < cfg.decrease_threshold:
+        elif ratio < cfg.decrease_threshold:
             return cfg.weight_decreasing, f"Low volume pullback: {ratio:.1f}x avg (healthy)", "decreasing"
         elif ratio >= cfg.spike_multiplier:
             # High volume during pullback = potentially problematic (panic)

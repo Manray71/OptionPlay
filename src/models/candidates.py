@@ -234,6 +234,7 @@ class PullbackCandidate:
     # Meta
     timestamp: datetime = field(default_factory=datetime.now)
     data_source: str = "calculated"
+    warnings: list[str] = field(default_factory=list)  # E.5: runtime warnings
     
     # Für Rückwärtskompatibilität
     @property

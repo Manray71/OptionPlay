@@ -383,4 +383,28 @@ WÄHREND DES TRADES:
 | Max 25 Trades/Monat | Verlustanalyse | Nicht in REGELWERK vorhanden |
 | 3 Verluste → Pause | Verlustanalyse | Nicht in REGELWERK vorhanden |
 
+## Anhang C: Daten-Integrität
+
+### Stock-Splits (E.7)
+
+Historische Preisdaten via Tradier API sind **split-adjustiert** (API-Standard).
+Bei Stock-Splits (z.B. NVDA 10:1) werden alle historischen Preise automatisch
+angepasst. Manuelle Korrektur nicht nötig.
+
+### Dividend-Gap Warnung (E.5)
+
+Keine Dividenden-Datenbank vorhanden (Tradier bietet kein Dividend-Endpoint).
+Der Pullback-Analyzer erkennt verdächtige Gap-Signaturen (-1% bis -3% Overnight-Gap
+bei unterdurchschnittlichem Volumen) und gibt eine Warnung aus. Kein automatischer
+Filter — manuelle Prüfung empfohlen.
+
+### Survivorship Bias (E.6)
+
+Backtests enthalten nur überlebende Unternehmen. Delisted-Symbole können via
+`scripts/mark_delisted.py SYMBOL YYYY-MM-DD` markiert werden. Die BacktestEngine
+filtert delisted Symbole per Default (`include_delisted=False`).
+Bekannte Limitation: Manuelles Tracking, keine automatische Delist-Erkennung.
+
+---
+
 Dieses Dokument ersetzt REGELWERK.md vollständig. REGELWERK.md wird archiviert.
