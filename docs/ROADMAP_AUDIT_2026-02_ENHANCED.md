@@ -540,7 +540,7 @@ CREATE INDEX IF NOT EXISTS idx_earnings_symbol_date ON earnings_history(symbol, 
 
 ---
 
-## Phase F — Testing Gaps (Monat 3)
+## Phase F — Testing Gaps (Monat 3) ✅ 5/5 (2026-02-09)
 
 **Ziel:** Test-Coverage gezielt erhoehen, Sicherheits-Tests ergaenzen.
 
@@ -730,11 +730,11 @@ Phase G (Optimization)  Phase H (Long-term)
 | E.6 | E | Survivorship-Bias-Korrektur (Schema) | ✅ | 2026-02-09 |
 | E.7 | E | Stock-Split-Handling verifizieren | ✅ N/A | 2026-02-09 |
 | E.8 | E | Earnings Pre-Filter dokumentieren | ✅ | Strategy-Refactor |
-| F.1 | F | Negative/Malicious Input Tests | ⬜ | 2-3 Std |
-| F.2 | F | Concurrent-Access Tests | ⬜ | 2-3 Std |
-| F.3 | F | Fehlende Modul-Tests | ⬜ | 1-2 Tage |
-| F.4 | F | Data-Type-Coercion Tests | ⬜ | 1-2 Std |
-| F.5 | F | Hypothesis PBT ausbauen | ⬜ | 2-3 Std |
+| F.1 | F | Negative/Malicious Input Tests | ✅ | 2026-02-09 |
+| F.2 | F | Concurrent-Access Tests | ✅ | 2026-02-09 |
+| F.3 | F | Fehlende Modul-Tests | ✅ | 2026-02-09 |
+| F.4 | F | Data-Type-Coercion Tests | ✅ | 2026-02-09 |
+| F.5 | F | Hypothesis PBT ausbauen | ✅ | 2026-02-09 |
 | G.1 | G | NumPy batch-vektorisieren | ⬜ | 1-2 Tage |
 | G.2 | G | asyncio.create_task Tracking | ⬜ | 2-3 Std |
 | G.3 | G | Cache-Eviction-Statistik | ⬜ | 1-2 Std |

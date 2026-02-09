@@ -237,9 +237,13 @@ def validate_delta(delta: Union[int, float], param_name: str = "delta") -> float
     """
     if not isinstance(delta, (int, float)):
         raise ValidationError(f"{param_name} must be numeric, got {type(delta).__name__}")
-    
+
     delta = float(delta)
-    
+
+    import math as _math
+    if _math.isnan(delta) or _math.isinf(delta):
+        raise ValidationError(f"{param_name} must be a finite number, got {delta}")
+
     if delta < -1.0 or delta > 1.0:
         raise ValidationError(f"{param_name} must be between -1.0 and 1.0, got {delta}")
     
@@ -396,6 +400,10 @@ def validate_min_score(min_score: Union[int, float, str]) -> float:
             raise ValidationError(f"min_score must be numeric, got {type(min_score).__name__}")
 
     min_score = float(min_score)
+
+    import math as _math
+    if _math.isnan(min_score) or _math.isinf(min_score):
+        raise ValidationError(f"min_score must be a finite number, got {min_score}")
 
     if min_score < 0.0:
         raise ValidationError(f"min_score cannot be negative, got {min_score}")
