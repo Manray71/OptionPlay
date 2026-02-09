@@ -15,7 +15,6 @@ import logging
 from typing import Dict, Optional, Any
 
 from ..constants.trading_rules import (
-    SPREAD_MIN_CREDIT_PCT,
     LIQUIDITY_SPREAD_PCT_GOOD,
 )
 
@@ -125,14 +124,6 @@ class StrikeMetricsMixin:
                             f"Wide spread ({spread_pct:.1f}% > "
                             f"{LIQUIDITY_SPREAD_PCT_GOOD}%)"
                         )
-            # Credit too low warning
-            if net_credit > 0 and spread_width > 0:
-                credit_pct = (net_credit / spread_width) * 100
-                if credit_pct < SPREAD_MIN_CREDIT_PCT:
-                    liquidity_warnings.append(
-                        f"Credit ${net_credit:.2f} = {credit_pct:.0f}% of "
-                        f"spread (min {SPREAD_MIN_CREDIT_PCT}%)"
-                    )
             metrics["liquidity_warnings"] = liquidity_warnings
 
         else:
@@ -301,20 +292,7 @@ class StrikeMetricsMixin:
             score -= 5
             warnings.append("No support level used")
 
-        # 3. Credit/Width ratio (+/- 10 points)
-        credit = metrics.get("credit", 0)
-        width = metrics.get("spread_width", 5)
-        credit_pct = (credit / width * 100) if width > 0 else 0
-
-        if credit_pct >= 30:
-            score += 10
-        elif credit_pct >= 25:
-            score += 5
-        elif credit_pct < 20:
-            score -= 10
-            warnings.append(f"Credit only {credit_pct:.0f}% of spread width")
-
-        # 4. IV rank (+/- 10 points)
+        # 3. IV rank (+/- 10 points)
         if iv_rank is not None:
             if iv_rank > 50:
                 score += 10  # Credit spreads benefit from high IV
