@@ -111,6 +111,9 @@ class StrikeRecommendation:
     confidence_score: float = 0.0  # 0-100
     warnings: List[str] = field(default_factory=list)
 
+    # Data source: "provider", "black_scholes", or "heuristic"
+    data_source: str = "provider"
+
     def to_dict(self) -> Dict:
         """Converts to dictionary for JSON output"""
         return {
@@ -131,6 +134,7 @@ class StrikeRecommendation:
             "quality": self.quality.value,
             "confidence_score": self.confidence_score,
             "warnings": self.warnings,
+            "data_source": self.data_source,
             "support_level": {
                 "price": self.support_level_used.price,
                 "strength": self.support_level_used.strength,
@@ -398,7 +402,8 @@ class StrikeRecommender(StrikeMetricsMixin):
             risk_reward_ratio=metrics.get("risk_reward"),
             quality=quality,
             confidence_score=confidence,
-            warnings=warnings
+            warnings=warnings,
+            data_source=metrics.get("data_source", "provider"),
         )
 
         logger.info(f"Recommendation: Short {short_strike} / Long {long_strike}, Quality: {quality.value}")

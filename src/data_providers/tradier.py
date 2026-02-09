@@ -1076,12 +1076,13 @@ class TradierProvider(DataProvider):
     
     @staticmethod
     def _safe_float(value: Any) -> Optional[float]:
-        """Sichere Float-Konvertierung"""
+        """Sichere Float-Konvertierung (erlaubt negative Werte für Delta/Theta)"""
         if value is None:
             return None
         try:
+            import math
             f = float(value)
-            return f if f > 0 else None
+            return f if not math.isnan(f) else None
         except (ValueError, TypeError):
             return None
     

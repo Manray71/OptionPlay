@@ -563,6 +563,13 @@ class AnalysisHandlerMixin(BaseHandlerMixin):
         b.kv_line("Long Delta", f"{rec.long_delta:.2f}" if rec.long_delta else "N/A")
         b.kv_line("Prob. Profit", f"{rec.prob_profit:.0f}%" if rec.prob_profit else "N/A")
         b.kv_line("Quality", rec.quality.value if rec.quality else "N/A")
+        # Show data source for transparency
+        source_labels = {
+            "provider": "Live (Tradier/ORATS)",
+            "black_scholes": "Black-Scholes (geschätzt)",
+            "heuristic": "Heuristik (geschätzt)",
+        }
+        b.kv_line("Datenquelle", source_labels.get(rec.data_source, rec.data_source))
         b.blank()
 
         # Support levels

@@ -1193,15 +1193,16 @@ class TestSafeConversions:
         assert TradierProvider._safe_float("") is None
         assert TradierProvider._safe_float({}) is None
 
-    def test_safe_float_zero_returns_none(self):
-        """_safe_float should return None for zero"""
-        assert TradierProvider._safe_float(0) is None
-        assert TradierProvider._safe_float(0.0) is None
+    def test_safe_float_zero_returns_zero(self):
+        """_safe_float should return 0.0 for zero (valid bid/ask value)"""
+        assert TradierProvider._safe_float(0) == 0.0
+        assert TradierProvider._safe_float(0.0) == 0.0
 
-    def test_safe_float_negative_returns_none(self):
-        """_safe_float should return None for negative values"""
-        assert TradierProvider._safe_float(-5) is None
-        assert TradierProvider._safe_float(-0.01) is None
+    def test_safe_float_negative_returns_value(self):
+        """_safe_float should return negative values (needed for Delta/Theta)"""
+        assert TradierProvider._safe_float(-5) == -5.0
+        assert TradierProvider._safe_float(-0.01) == -0.01
+        assert TradierProvider._safe_float(-0.20) == -0.20
 
     def test_safe_float_nan_returns_none(self):
         """_safe_float should handle NaN"""

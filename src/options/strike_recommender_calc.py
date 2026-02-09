@@ -84,6 +84,7 @@ class StrikeMetricsMixin:
 
         if short_put and long_put:
             # Real options data
+            metrics["data_source"] = "provider"
             short_credit = short_put.get("bid", 0) or 0
             long_debit = long_put.get("ask", 0) or 0
             net_credit = short_credit - long_debit
@@ -160,8 +161,10 @@ class StrikeMetricsMixin:
                     long_put_price = long_bs.put_price()
                     estimated_credit = short_put_price - long_put_price
 
-                    # Calculate accurate delta
+                    # Calculate accurate delta for both legs
                     metrics["delta"] = short_bs.delta(OptionType.PUT)
+                    metrics["long_delta"] = long_bs.delta(OptionType.PUT)
+                    metrics["data_source"] = "black_scholes"
 
                     if estimated_credit > 0:
                         metrics["credit"] = round(estimated_credit, 2)
@@ -193,6 +196,8 @@ class StrikeMetricsMixin:
                 metrics["max_profit"] = round(estimated_credit * 100, 2)
                 metrics["max_loss"] = round((spread_width - estimated_credit) * 100, 2)
                 metrics["break_even"] = round(short_strike - estimated_credit, 2)
+                if "data_source" not in metrics:
+                    metrics["data_source"] = "heuristic"
 
             # Delta via Black-Scholes if available but pricing failed
             if "delta" not in metrics:
@@ -214,6 +219,7 @@ class StrikeMetricsMixin:
                     estimated_delta = -0.50 * (1 - otm_pct / 20)
                     estimated_delta = max(min(estimated_delta, -0.15), -0.45)
                     metrics["delta"] = round(estimated_delta, 2)
+                    metrics["data_source"] = "heuristic"
 
         # Profit probability with Black-Scholes or delta-based
         if _BLACK_SCHOLES_AVAILABLE and dte > 0:
