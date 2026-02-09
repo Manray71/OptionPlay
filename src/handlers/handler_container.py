@@ -167,6 +167,41 @@ class BaseHandler:
                 raise
         return self._ctx.provider
 
+    async def _get_quote_cached(self, symbol: str) -> Optional[Any]:
+        """Get quote with caching. Tries Tradier first, then Marketdata.app."""
+        from datetime import datetime
+
+        now = datetime.now()
+        if symbol in self._ctx.quote_cache:
+            cached_quote, cached_time = self._ctx.quote_cache[symbol]
+            if (now - cached_time).total_seconds() < 60:
+                self._ctx.quote_cache_hits += 1
+                return cached_quote
+
+        self._ctx.quote_cache_misses += 1
+        await self._ensure_connected()
+
+        # Try Tradier first
+        if self._ctx.tradier_connected and self._ctx.tradier_provider:
+            try:
+                quote = await self._ctx.tradier_provider.get_quote(symbol)
+                if quote and quote.last:
+                    self._ctx.quote_cache[symbol] = (quote, now)
+                    return quote
+            except Exception as e:
+                self._logger.debug(f"Tradier quote failed for {symbol}: {e}")
+
+        # Fall back to Marketdata.app
+        if self._ctx.provider:
+            await self._ctx.rate_limiter.acquire()
+            quote = await self._ctx.provider.get_quote(symbol)
+            self._ctx.rate_limiter.record_success()
+            if quote:
+                self._ctx.quote_cache[symbol] = (quote, now)
+            return quote
+
+        return None
+
 
 class HandlerContainer:
     """

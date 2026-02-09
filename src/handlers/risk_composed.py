@@ -412,33 +412,40 @@ class RiskHandler(BaseHandler):
                 logger.debug("VIX fetch failed: %s", e)
         return None
 
-    async def _get_quote_cached(self, symbol: str):
-        now = datetime.now()
-        if symbol in self._ctx.quote_cache:
-            cached_quote, cached_time = self._ctx.quote_cache[symbol]
-            age = (now - cached_time).total_seconds()
-            if age < 60:
-                self._ctx.quote_cache_hits += 1
-                return cached_quote
-
-        self._ctx.quote_cache_misses += 1
-        if not self._ctx.connected and self._ctx.provider:
-            await self._ctx.provider.connect()
-            self._ctx.connected = True
-        provider = self._ctx.provider
-        await self._ctx.rate_limiter.acquire()
-        quote = await provider.get_quote(symbol)
-        self._ctx.rate_limiter.record_success()
-
-        if quote:
-            self._ctx.quote_cache[symbol] = (quote, now)
-        return quote
+    # _get_quote_cached inherited from BaseHandler
 
     async def _fetch_historical_cached(self, symbol: str, days: Optional[int] = None):
+        """Fetch historical data with caching.
+
+        Priority: in-memory cache → Tradier → Marketdata.app provider.
+        """
+        from ..cache.historical_cache import CacheStatus
+
+        if days is None:
+            days = self._ctx.config.settings.performance.historical_days
+
         if self._ctx.historical_cache:
-            return await self._ctx.historical_cache.get_historical(
-                symbol, days=days, provider=self._ctx.provider
-            )
+            cache_result = self._ctx.historical_cache.get(symbol, days)
+            if cache_result.status == CacheStatus.HIT:
+                return cache_result.data
+
+        if self._ctx.tradier_connected and self._ctx.tradier_provider:
+            try:
+                data = await self._ctx.tradier_provider.get_historical_for_scanner(symbol, days=days)
+                if data:
+                    if self._ctx.historical_cache:
+                        self._ctx.historical_cache.set(symbol, data, days=days)
+                    return data
+            except (ConnectionError, TimeoutError, ValueError) as e:
+                self._logger.debug(f"Tradier historical failed for {symbol}: {e}")
+
         if self._ctx.provider:
-            return await self._ctx.provider.get_historical_for_scanner(symbol, days=days or 120)
+            try:
+                data = await self._ctx.provider.get_historical_for_scanner(symbol, days=days)
+                if data and self._ctx.historical_cache:
+                    self._ctx.historical_cache.set(symbol, data, days=days)
+                return data
+            except Exception as e:
+                self._logger.debug(f"Provider historical failed for {symbol}: {e}")
+
         return None

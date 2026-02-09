@@ -71,7 +71,7 @@ class AnalysisHandler(BaseHandler):
             b.status_error(f"**BLACKLISTED** -- {symbol} darf nicht getradet werden (PLAYBOOK)")
             return b.build()
 
-        provider = await self._ensure_connected()
+        await self._ensure_connected()
         vix = await self._get_vix()
         recommendation = get_strategy_for_vix(vix)
 
@@ -83,13 +83,18 @@ class AnalysisHandler(BaseHandler):
         except Exception:
             fundamentals = None
 
-        await self._ctx.rate_limiter.acquire()
-        historical = await provider.get_historical_for_scanner(symbol, days=260)
-        self._ctx.rate_limiter.record_success()
+        historical = await self._fetch_historical_cached(symbol, days=260)
 
-        await self._ctx.rate_limiter.acquire()
-        earnings = await provider.get_earnings_date(symbol)
-        self._ctx.rate_limiter.record_success()
+        earnings = None
+        if self._ctx.tradier_connected and self._ctx.tradier_provider:
+            try:
+                earnings = await self._ctx.tradier_provider.get_earnings_date(symbol)
+            except Exception:
+                pass
+        if earnings is None and self._ctx.provider:
+            await self._ctx.rate_limiter.acquire()
+            earnings = await self._ctx.provider.get_earnings_date(symbol)
+            self._ctx.rate_limiter.record_success()
 
         b = MarkdownBuilder()
         b.h1(f"Complete Analysis: {symbol}").blank()
@@ -188,7 +193,7 @@ class AnalysisHandler(BaseHandler):
             b.status_error(f"**BLACKLISTED** -- {symbol} darf nicht getradet werden (PLAYBOOK)")
             return b.build()
 
-        provider = await self._ensure_connected()
+        await self._ensure_connected()
 
         historical_days = max(self._ctx.config.settings.performance.historical_days, 260)
         data = await self._fetch_historical_cached(symbol, days=historical_days)
@@ -235,9 +240,16 @@ class AnalysisHandler(BaseHandler):
             b.kv_line("Price", f"${quote.last:.2f}" if quote.last else "N/A")
         b.kv_line("VIX", f"{vix:.2f}" if vix else "N/A")
 
-        await self._ctx.rate_limiter.acquire()
-        earnings = await provider.get_earnings_date(symbol)
-        self._ctx.rate_limiter.record_success()
+        earnings = None
+        if self._ctx.tradier_connected and self._ctx.tradier_provider:
+            try:
+                earnings = await self._ctx.tradier_provider.get_earnings_date(symbol)
+            except Exception:
+                pass
+        if earnings is None and self._ctx.provider:
+            await self._ctx.rate_limiter.acquire()
+            earnings = await self._ctx.provider.get_earnings_date(symbol)
+            self._ctx.rate_limiter.record_success()
 
         if earnings and earnings.earnings_date:
             if earnings.days_to_earnings < ENTRY_EARNINGS_MIN_DAYS:
@@ -585,26 +597,6 @@ class AnalysisHandler(BaseHandler):
             except (ConnectionError, AttributeError, TimeoutError) as e:
                 logger.debug("VIX fetch failed: %s", e)
         return None
-
-    async def _get_quote_cached(self, symbol: str):
-        from datetime import datetime
-        now = datetime.now()
-        if symbol in self._ctx.quote_cache:
-            cached_quote, cached_time = self._ctx.quote_cache[symbol]
-            age = (now - cached_time).total_seconds()
-            if age < 60:
-                self._ctx.quote_cache_hits += 1
-                return cached_quote
-
-        self._ctx.quote_cache_misses += 1
-        provider = await self._ensure_connected()
-        await self._ctx.rate_limiter.acquire()
-        quote = await provider.get_quote(symbol)
-        self._ctx.rate_limiter.record_success()
-
-        if quote:
-            self._ctx.quote_cache[symbol] = (quote, now)
-        return quote
 
     async def _fetch_historical_cached(self, symbol: str, days: Optional[int] = None):
         """Fetch historical data with caching.

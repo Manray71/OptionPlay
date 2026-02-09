@@ -434,22 +434,4 @@ class VixHandler(BaseHandler):
             self._logger.debug(f"Yahoo VIX fetch error: {e}")
             return None
 
-    async def _get_quote_cached(self, symbol: str):
-        """Get quote with caching (60s TTL)."""
-        now = datetime.now()
-        if symbol in self._ctx.quote_cache:
-            cached_quote, cached_time = self._ctx.quote_cache[symbol]
-            age = (now - cached_time).total_seconds()
-            if age < 60:
-                self._ctx.quote_cache_hits += 1
-                return cached_quote
-
-        self._ctx.quote_cache_misses += 1
-        provider = await self._ensure_connected()
-        await self._ctx.rate_limiter.acquire()
-        quote = await provider.get_quote(symbol)
-        self._ctx.rate_limiter.record_success()
-
-        if quote:
-            self._ctx.quote_cache[symbol] = (quote, now)
-        return quote
+    # _get_quote_cached inherited from BaseHandler

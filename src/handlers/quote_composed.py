@@ -546,27 +546,6 @@ class QuoteHandler(BaseHandler):
 
     # --- Shared helper methods ---
 
-    async def _get_quote_cached(self, symbol: str):
-        """Get quote with caching."""
-        now = datetime.now()
-        if symbol in self._ctx.quote_cache:
-            cached_quote, cached_time = self._ctx.quote_cache[symbol]
-            age = (now - cached_time).total_seconds()
-            if age < 60:
-                self._ctx.quote_cache_hits += 1
-                return cached_quote
-
-        self._ctx.quote_cache_misses += 1
-        provider = await self._ensure_connected()
-        await self._ctx.rate_limiter.acquire()
-        quote = await provider.get_quote(symbol)
-        self._ctx.rate_limiter.record_success()
-
-        if quote:
-            self._ctx.quote_cache[symbol] = (quote, now)
-
-        return quote
-
     async def _get_options_chain_with_fallback(self, symbol, dte_min=60, dte_max=90, right="P"):
         """Fetch options chain with Tradier-first, IBKR-fallback."""
         options = None
