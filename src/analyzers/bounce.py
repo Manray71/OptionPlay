@@ -12,7 +12,7 @@
 #   2. Proximity          (0 – 2.0)
 #   3. Bounce Confirmation(0 – 2.5)
 #   4. Volume             (-1.0 – 1.5)
-#   5. Trend Context      (-1.0 – 1.5)
+#   5. Trend Context      (-2.0 – 1.5)
 #
 # Minimum for signal: 3.5
 
@@ -125,7 +125,7 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
       - Proximity:             0 – 2.0
       - Bounce Confirmation:   0 – 2.5
       - Volume:               -1.0 – 1.5
-      - Trend Context:        -1.0 – 1.5
+      - Trend Context:        -2.0 – 1.5
 
     Signal threshold: total_score >= 3.5
 
@@ -251,7 +251,7 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             )
 
         # =====================================================================
-        # STEP 4: Dead Cat Bounce filter (volume check)
+        # STEP 4: Dead Cat Bounce filter (volume + momentum checks)
         # =====================================================================
         volume_info = self._check_volume(volumes)
 
@@ -261,6 +261,26 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
                 f"Dead Cat Bounce risk: volume {volume_info['ratio']:.2f}x avg (< {self.config.dcb_threshold}x)",
                 support_info
             )
+
+        # E.4: RSI overbought after bounce — unsustainable short squeeze
+        rsi_values = confirmations.get('rsi_values', [])
+        if rsi_values and rsi_values[-1] > 70:
+            return self._make_disqualified_signal(
+                symbol, current_price,
+                f"Dead Cat Bounce: RSI overbought ({rsi_values[-1]:.0f})",
+                support_info
+            )
+
+        # E.4: No green candle in last 2 bars — no actual bounce
+        if len(prices) >= 3:
+            last_red = prices[-1] < prices[-2]
+            prev_red = prices[-2] < prices[-3]
+            if last_red and prev_red:
+                return self._make_disqualified_signal(
+                    symbol, current_price,
+                    "Dead Cat Bounce: no green candles (2 consecutive red)",
+                    support_info
+                )
 
         # =====================================================================
         # SCORING: 5 Components
@@ -599,7 +619,26 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
                 signals.append("MACD positive")
                 score += 0.25
 
-        # Cap at 2.5
+        # --- E.1: Momentum penalty (bearish momentum reduces score) ---
+        # RSI falling above 50 = momentum fading, not oversold
+        if len(rsi_values) >= 2:
+            if rsi_values[-1] > 50 and rsi_values[-1] < rsi_values[-2]:
+                signals.append(f"Momentum fading (RSI {rsi_values[-1]:.0f} falling)")
+                score -= 0.5
+
+        # MACD histogram increasingly negative = declining momentum
+        if macd_result and macd_result.histogram < 0:
+            # Calculate previous histogram from prices[:-1]
+            prev_macd = calculate_macd(
+                prices[:-1],
+                fast_period=MACD_FAST, slow_period=MACD_SLOW, signal_period=MACD_SIGNAL
+            )
+            if prev_macd is not None and macd_result.histogram < prev_macd.histogram:
+                signals.append("MACD momentum declining")
+                score -= 0.5
+
+        # Floor at 0.0, cap at 2.5
+        score = max(0.0, score)
         score = min(2.5, score)
 
         return {
@@ -608,6 +647,7 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             'score': score,
             'candle_pattern': candle_pattern,
             'rsi_value': rsi_value,
+            'rsi_values': rsi_values,
         }
 
     def _detect_reversal_candle(
@@ -760,12 +800,15 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
 
     def _score_trend_context(self, prices: List[float]) -> Dict[str, Any]:
         """
-        Score trend context (-1.0 – 1.5).
+        Score trend context (-2.0 – 1.5).
 
         Price above SMA 200, SMA 200 rising:  1.5 (uptrend)
         Price above SMA 200, SMA 200 flat:    1.0
         Price near SMA 200 (±2%):             0.5
-        Price below SMA 200, SMA 200 falling: -1.0 (penalty)
+        Price below SMA 200, SMA 200 falling:
+          - Steep decline (slope < -1%):      -2.0
+          - Moderate decline (-1% to -0.5%):  -1.5
+          - Mild decline (> -0.5%):           -1.0
         """
         sma_200 = sum(prices[-SMA_LONG:]) / SMA_LONG if len(prices) >= SMA_LONG else sum(prices) / len(prices)
         current = prices[-1]
@@ -790,7 +833,18 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             return {'score': 0.5, 'status': 'near_sma200', 'reason': f'Near SMA 200 ({distance_to_sma:+.1f}%)', 'sma_200': sma_200}
         else:
             if sma_direction == 'falling':
-                return {'score': -1.0, 'status': 'downtrend', 'reason': 'Downtrend: below falling SMA 200', 'sma_200': sma_200}
+                # E.2: Gradient penalty based on SMA200 slope steepness
+                if len(prices) >= SMA_LONG + 20:
+                    sma_slope_pct = (sma_200 - sma_200_prev) / sma_200_prev * 100
+                else:
+                    sma_slope_pct = 0.0
+
+                if sma_slope_pct < -1.0:
+                    return {'score': -2.0, 'status': 'downtrend', 'reason': f'Strong downtrend: SMA200 slope {sma_slope_pct:.1f}%', 'sma_200': sma_200}
+                elif sma_slope_pct < -0.5:
+                    return {'score': -1.5, 'status': 'downtrend', 'reason': f'Downtrend: SMA200 slope {sma_slope_pct:.1f}%', 'sma_200': sma_200}
+                else:
+                    return {'score': -1.0, 'status': 'downtrend', 'reason': f'Mild downtrend: SMA200 slope {sma_slope_pct:.1f}%', 'sma_200': sma_200}
             else:
                 return {'score': -0.5, 'status': 'below_sma200', 'reason': f'Below SMA 200 ({distance_to_sma:+.1f}%)', 'sma_200': sma_200}
 

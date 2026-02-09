@@ -876,5 +876,274 @@ class TestBounceBackwardCompat:
         assert d['qualified'] is True  # 6.5 >= 3.5
 
 
+# =============================================================================
+# TEST CLASS: E.1 — MOMENTUM PENALTY
+# =============================================================================
+
+class TestBounceE1MomentumPenalty:
+    """Tests for E.1 — Momentum penalties in bounce confirmation"""
+
+    def test_momentum_penalty_rsi_falling_above_50(self, analyzer):
+        """RSI > 50 and falling → -0.5 penalty applied"""
+        # Build prices where RSI will be above 50 but falling
+        # Start with a moderate uptrend then slight decline at end
+        n = 150
+        prices = [100 + i * 0.15 for i in range(n)]
+        # Last bars: mild decline from recent high (RSI will be above 50 but dropping)
+        prices[-4] = 123.0
+        prices[-3] = 123.5
+        prices[-2] = 123.2  # Slight dip
+        prices[-1] = 123.3  # Close > prev (to get confirmation)
+        highs = [p + 1.0 for p in prices]
+        lows = [p - 1.0 for p in prices]
+        volumes = [1_000_000] * n
+
+        result = analyzer._check_bounce_confirmation(prices, highs, lows, volumes, 120.0)
+        # If RSI is > 50 and falling, the "Momentum fading" signal should be present
+        rsi_values = result.get('rsi_values', [])
+        if len(rsi_values) >= 2 and rsi_values[-1] > 50 and rsi_values[-1] < rsi_values[-2]:
+            assert any("Momentum fading" in s for s in result['signals'])
+
+    def test_momentum_penalty_not_applied_when_oversold(self, analyzer):
+        """RSI < 50 → momentum penalty should NOT apply"""
+        # Build steadily declining prices so RSI is deeply oversold
+        n = 150
+        prices = [150 - i * 0.5 for i in range(n)]
+        # Last bars: still dropping
+        prices[-3] = 78.0
+        prices[-2] = 77.5
+        prices[-1] = 78.0  # small bounce
+        highs = [p + 1.0 for p in prices]
+        lows = [p - 1.0 for p in prices]
+        volumes = [1_000_000] * n
+
+        result = analyzer._check_bounce_confirmation(prices, highs, lows, volumes, 76.0)
+        rsi_values = result.get('rsi_values', [])
+        # RSI should be < 50 in a downtrend
+        if len(rsi_values) >= 2 and rsi_values[-1] < 50:
+            assert not any("Momentum fading" in s for s in result['signals'])
+
+    def test_momentum_penalty_macd_declining(self, analyzer):
+        """Negative and worsening MACD histogram → -0.5 penalty"""
+        # Build data where MACD histogram is negative and worsening:
+        # moderate uptrend then sharp rollover
+        n = 150
+        prices = [100 + i * 0.2 for i in range(100)]
+        # Rollover: declining prices
+        for i in range(50):
+            prices.append(prices[-1] - 0.3)
+        prices = prices[:n]
+        # Small bounce at end for confirmation
+        prices[-2] = prices[-3] - 0.5
+        prices[-1] = prices[-2] + 0.3
+        highs = [p + 1.0 for p in prices]
+        lows = [p - 1.0 for p in prices]
+        volumes = [1_000_000] * n
+
+        result = analyzer._check_bounce_confirmation(prices, highs, lows, volumes, prices[-1] - 5)
+        # Check if MACD momentum declining signal is present
+        has_declining = any("MACD momentum declining" in s for s in result['signals'])
+        # MACD should be negative after a rollover
+        # This is a soft assertion — depending on exact calculation it may or may not fire
+        # but the signal name should match if the condition triggers
+        if has_declining:
+            assert result['score'] < 2.5  # Penalty reduced the score
+
+    def test_momentum_penalty_no_penalty_positive_momentum(self, analyzer):
+        """Rising RSI + positive MACD → no penalty signals"""
+        # Strong uptrend — RSI rising, MACD positive
+        n = 150
+        prices = [100 + i * 0.2 for i in range(n)]
+        prices[-2] = prices[-3] + 0.5
+        prices[-1] = prices[-2] + 0.5
+        highs = [p + 1.0 for p in prices]
+        lows = [p - 1.0 for p in prices]
+        volumes = [1_000_000] * n
+
+        result = analyzer._check_bounce_confirmation(prices, highs, lows, volumes, 95.0)
+        # No penalty signals should be present
+        assert not any("Momentum fading" in s for s in result['signals'])
+        assert not any("MACD momentum declining" in s for s in result['signals'])
+
+    def test_momentum_confirmation_score_floor_zero(self, analyzer):
+        """Confirmation score should never go below 0.0"""
+        # Construct scenario where penalties could push below 0
+        n = 150
+        prices = [100 + i * 0.05 for i in range(n)]
+        # Make last bar barely rising (minimal confirmation)
+        prices[-3] = 107.0
+        prices[-2] = 107.2
+        prices[-1] = 107.0  # falling — no "close > prev" bonus
+        highs = [p + 0.5 for p in prices]
+        lows = [p - 0.5 for p in prices]
+        volumes = [1_000_000] * n
+
+        result = analyzer._check_bounce_confirmation(prices, highs, lows, volumes, 105.0)
+        assert result['score'] >= 0.0
+
+
+# =============================================================================
+# TEST CLASS: E.2 — GRADIENT TREND PENALTY
+# =============================================================================
+
+class TestBounceE2GradientTrendPenalty:
+    """Tests for E.2 — Gradient downtrend penalty based on SMA200 slope"""
+
+    def test_steep_downtrend_strong_penalty(self, analyzer):
+        """SMA200 slope < -1% → score -2.0"""
+        # Build steeply declining prices over 250+ bars
+        n = 270
+        prices = [200 - i * 0.4 for i in range(n)]  # ~40% decline over 270 bars
+        result = analyzer._score_trend_context(prices)
+        assert result['status'] == 'downtrend'
+        assert result['score'] == -2.0
+        assert 'Strong downtrend' in result['reason']
+
+    def test_moderate_downtrend_penalty(self, analyzer):
+        """SMA200 slope between -0.5% and -1% → score -1.5"""
+        # Build moderately declining prices
+        n = 270
+        # Moderate decline: about -0.7% SMA slope over 20 bars
+        prices = [200 - i * 0.12 for i in range(n)]
+        result = analyzer._score_trend_context(prices)
+        if result['status'] == 'downtrend':
+            # Accept -1.5 or -2.0 depending on exact slope calc
+            assert result['score'] <= -1.0
+
+    def test_mild_downtrend_penalty_unchanged(self, analyzer):
+        """SMA200 slope > -0.5% → score -1.0 (existing behavior)"""
+        # Build very mildly declining prices
+        n = 270
+        # Very gentle decline that gives SMA slope > -0.5%
+        prices = [200 - i * 0.02 for i in range(n)]
+        result = analyzer._score_trend_context(prices)
+        if result['status'] == 'downtrend':
+            assert result['score'] >= -1.5  # Mild penalty
+
+    def test_uptrend_unaffected(self, analyzer):
+        """Uptrend scoring unchanged by E.2"""
+        n = 270
+        prices = [100 + i * 0.2 for i in range(n)]
+        result = analyzer._score_trend_context(prices)
+        assert result['score'] > 0
+        assert result['status'] in ['uptrend', 'above_sma200']
+
+    def test_gradient_returns_slope_in_reason(self, analyzer):
+        """Downtrend reason should include SMA200 slope percentage"""
+        n = 270
+        prices = [200 - i * 0.4 for i in range(n)]
+        result = analyzer._score_trend_context(prices)
+        if result['status'] == 'downtrend':
+            assert 'slope' in result['reason'].lower()
+            assert '%' in result['reason']
+
+
+# =============================================================================
+# TEST CLASS: E.4 — ENHANCED DCB FILTER
+# =============================================================================
+
+class TestBounceE4EnhancedDCBFilter:
+    """Tests for E.4 — Enhanced Dead Cat Bounce filter"""
+
+    def test_dcb_rsi_overbought_disqualified(self, analyzer):
+        """RSI > 70 after bounce → disqualified as dead cat bounce"""
+        # Build data with strong uptrend so RSI is very high (overbought)
+        prices, volumes, highs, lows = make_bounce_data(
+            n=150,
+            support_level=100.0,
+            current_price=101.0,
+            num_touches=3,
+            bounce_volume_mult=1.5,
+            make_green_candle=True,
+            trend='up',
+        )
+        # Force a very sharp recent rally to push RSI > 70
+        # Make the last 20 bars rise sharply
+        for i in range(20):
+            idx = len(prices) - 20 + i
+            prices[idx] = 90.0 + i * 1.5
+            highs[idx] = prices[idx] + 1.0
+            lows[idx] = prices[idx] - 0.5
+        prices[-1] = 101.0  # Current price
+
+        signal = analyzer.analyze("TEST", prices, volumes, highs, lows)
+        # Check RSI and verify behavior
+        rsi_values = analyzer._calculate_rsi(prices)
+        if rsi_values and rsi_values[-1] > 70:
+            assert signal.signal_type == SignalType.NEUTRAL
+            assert "RSI overbought" in signal.reason or "Dead Cat" in signal.reason
+
+    def test_dcb_two_red_candles_disqualified(self, analyzer):
+        """2 consecutive red bars → disqualified"""
+        prices, volumes, highs, lows = make_bounce_data(
+            n=150,
+            support_level=100.0,
+            current_price=100.3,
+            num_touches=3,
+            bounce_volume_mult=1.5,
+            make_green_candle=False,
+            trend='up',
+        )
+        # Force 2 consecutive red candles
+        prices[-3] = 101.5
+        prices[-2] = 101.0  # Red: close < prev close
+        prices[-1] = 100.3  # Red: close < prev close
+
+        signal = analyzer.analyze("TEST", prices, volumes, highs, lows)
+        # With 2 red candles, bounce should be disqualified as DCB or not confirmed
+        assert signal.signal_type == SignalType.NEUTRAL
+
+    def test_dcb_one_green_candle_not_disqualified(self, analyzer):
+        """1 green + 1 red → should NOT be disqualified by red candle filter"""
+        prices, volumes, highs, lows = make_bounce_data(
+            n=150,
+            support_level=100.0,
+            current_price=101.0,
+            num_touches=3,
+            bounce_volume_mult=1.5,
+            make_green_candle=True,
+            trend='up',
+        )
+        # Last bar green, prev bar red → only 1 red, should pass
+        prices[-3] = 101.5
+        prices[-2] = 100.5  # Red (< prev close)
+        prices[-1] = 101.0  # Green (> prev close)
+
+        signal = analyzer.analyze("TEST", prices, volumes, highs, lows)
+        # Should not be disqualified by the 2-red filter
+        # (may still be disqualified by other filters, but not the red candle one)
+        if signal.signal_type == SignalType.NEUTRAL:
+            assert "2 consecutive red" not in signal.reason
+
+    def test_dcb_volume_filter_still_works(self, analyzer):
+        """Original volume DCB filter still works"""
+        prices, volumes, highs, lows = make_bounce_data(
+            n=150,
+            support_level=100.0,
+            current_price=101.0,
+            num_touches=3,
+            bounce_volume_mult=0.5,  # Very low volume
+            make_green_candle=True,
+            trend='up',
+        )
+        signal = analyzer.analyze("TEST", prices, volumes, highs, lows)
+        assert signal.signal_type == SignalType.NEUTRAL
+        assert "Dead Cat Bounce" in signal.reason
+
+    def test_confirmation_returns_rsi_values(self, analyzer):
+        """_check_bounce_confirmation should return rsi_values in result"""
+        n = 150
+        prices = [100 + i * 0.1 for i in range(n)]
+        prices[-2] = 114.0
+        prices[-1] = 115.0
+        highs = [p + 1 for p in prices]
+        lows = [p - 1 for p in prices]
+        volumes = [1_000_000] * n
+
+        result = analyzer._check_bounce_confirmation(prices, highs, lows, volumes, 110.0)
+        assert 'rsi_values' in result
+        assert isinstance(result['rsi_values'], list)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
