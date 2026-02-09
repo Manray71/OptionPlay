@@ -402,6 +402,25 @@ class OptionPlayServer(
             config.exclude_earnings_within_days = exclude_earnings_within_days
         return MultiStrategyScanner(config)
 
+    @staticmethod
+    def _has_incomplete_ohlcv(data: Tuple) -> bool:
+        """Check if data has synthetic/missing OHLCV (close-only from options_prices)."""
+        prices, volumes, highs, lows, _opens = data
+        if not prices:
+            return True
+
+        # Check: All volumes == 0
+        all_zero_volume = all(v == 0 for v in volumes)
+
+        # Check: Highs == Close for recent bars (synthetic OHLCV)
+        sample = min(20, len(prices))
+        identical_highs = all(
+            abs(highs[-i] - prices[-i]) < 0.001
+            for i in range(1, sample + 1)
+        )
+
+        return all_zero_volume or identical_highs
+
     async def _fetch_historical_cached(
         self,
         symbol: str,
@@ -411,8 +430,9 @@ class OptionPlayServer(
 
         Priority:
         1. In-memory cache (fastest)
-        2. Local database (if enabled and data fresh)
+        2. Local database (if enabled, data fresh, and has real OHLCV)
         3. API providers (Tradier, Marketdata.app)
+        4. Graceful degradation: incomplete local data if API fails
         """
         if days is None:
             days = self._config.settings.performance.historical_days
@@ -425,6 +445,7 @@ class OptionPlayServer(
             return cache_result.data
 
         # 2. Try local database (much faster than API)
+        local_data = None
         if self._local_db_enabled and self._local_db_provider:
             try:
                 local_data = await self._local_db_provider.get_historical_for_scanner(
@@ -434,9 +455,14 @@ class OptionPlayServer(
                     # Check if data is fresh enough
                     max_age = self._config.settings.data_sources.local_database.max_data_age_days
                     if self._local_db_provider.is_data_fresh(symbol, max_age):
-                        logger.debug(f"LocalDB hit for {symbol} ({days}d)")
-                        self._historical_cache.set(symbol, local_data, days=days)
-                        return local_data
+                        if not self._has_incomplete_ohlcv(local_data):
+                            # Real OHLCV data — use directly
+                            logger.debug(f"LocalDB hit for {symbol} ({days}d, real OHLCV)")
+                            self._historical_cache.set(symbol, local_data, days=days)
+                            return local_data
+                        else:
+                            logger.debug(f"LocalDB {symbol}: incomplete OHLCV, enriching via API")
+                            # Fall through to API
                     else:
                         logger.debug(f"LocalDB data for {symbol} is stale, using API")
             except Exception as e:
@@ -468,11 +494,27 @@ class OptionPlayServer(
 
             if data:
                 self._historical_cache.set(symbol, data, days=days)
+                # Persist OHLCV to local DB for future scans
+                if self._local_db_enabled and self._local_db_provider:
+                    try:
+                        await self._local_db_provider.save_daily_prices_from_tuple(symbol, data)
+                    except Exception as e:
+                        logger.debug(f"Failed to persist OHLCV for {symbol}: {e}")
+                return data
+            elif local_data:
+                # API failed — graceful degradation with incomplete local data
+                logger.debug(f"API failed for {symbol}, using incomplete local data")
+                self._historical_cache.set(symbol, local_data, days=days)
+                return local_data
 
-            return data
+            return None
 
         except (ConnectionError, TimeoutError, ValueError) as e:
             logger.warning(f"Failed to fetch historical data for {symbol}: {e}")
+            # Graceful degradation: return incomplete local data if available
+            if local_data:
+                logger.debug(f"Using incomplete local data for {symbol} after API error")
+                return local_data
             return None
 
     async def _apply_earnings_prefilter(

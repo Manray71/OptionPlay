@@ -1,6 +1,6 @@
-version: 3.2.0
-date: '2026-02-09'
-trained: '2026-02-09'
+version: 3.1.0
+date: '2026-02-08'
+trained: '2026-02-08'
 defaults:
   min_stability: 70
 strategies:
@@ -45,34 +45,80 @@ strategies:
         weights:
           trend_strength: 3.0
           volume: 2.0
-        sector_factor: 0.973
+        sector_factor: !!python/object/apply:numpy._core.multiarray.scalar
+        - &id001 !!python/object/apply:numpy.dtype
+          args:
+          - f8
+          - false
+          - true
+          state: !!python/tuple
+          - 3
+          - <
+          - null
+          - null
+          - null
+          - -1
+          - -1
+          - 0
+        - !!binary |
+          aJHtfD817j8=
       Energy:
         weights:
           support: 3.0
-        sector_factor: 0.918
+        sector_factor: !!python/object/apply:numpy._core.multiarray.scalar
+        - *id001
+        - !!binary |
+          eekmMQis8D8=
       Consumer Defensive:
-        sector_factor: 1.012
+        sector_factor: !!python/object/apply:numpy._core.multiarray.scalar
+        - *id001
+        - !!binary |
+          arx0kxgE8D8=
       Healthcare:
-        sector_factor: 1.052
+        sector_factor: !!python/object/apply:numpy._core.multiarray.scalar
+        - *id001
+        - !!binary |
+          IbByaJHt8D8=
       Communication Services:
-        sector_factor: 0.927
+        sector_factor: !!python/object/apply:numpy._core.multiarray.scalar
+        - *id001
+        - !!binary |
+          hetRuB6F6z8=
       danger:Technology:
         weights:
           rsi: 4.0
           support: 3.5
           trend_strength: 3.5
       Basic Materials:
-        sector_factor: 1.133
+        sector_factor: !!python/object/apply:numpy._core.multiarray.scalar
+        - *id001
+        - !!binary |
+          0SLb+X5q8D8=
       Consumer Cyclical:
-        sector_factor: 0.923
+        sector_factor: !!python/object/apply:numpy._core.multiarray.scalar
+        - *id001
+        - !!binary |
+          XI/C9Shc7z8=
       Financial Services:
-        sector_factor: 1.019
+        sector_factor: !!python/object/apply:numpy._core.multiarray.scalar
+        - *id001
+        - !!binary |
+          VOOlm8Qg8D8=
       Industrials:
-        sector_factor: 0.927
-      Real Estate:
-        sector_factor: 0.647
+        sector_factor: !!python/object/apply:numpy._core.multiarray.scalar
+        - *id001
+        - !!binary |
+          dZMYBFYO8T8=
+      Unknown:
+        sector_factor: !!python/object/apply:numpy._core.multiarray.scalar
+        - *id001
+        - !!binary |
+          TmIQWDm08D8=
       Utilities:
-        sector_factor: 1.003
+        sector_factor: !!python/object/apply:numpy._core.multiarray.scalar
+        - *id001
+        - !!binary |
+          UrgehetR8D8=
   bounce:
     weights:
       support: 1.05
@@ -112,32 +158,20 @@ strategies:
           stoch: 1.25
     sectors:
       Technology:
-        sector_factor: 0.976
+        sector_factor: 0.874
         weights:
           support: 3.5
       Financial Services:
-        sector_factor: 1.029
+        sector_factor: 0.969
         weights:
           support: 3.5
           volume: 2.5
       Utilities:
-        sector_factor: 1.038
+        sector_factor: 1.089
       Industrials:
-        sector_factor: 1.092
+        sector_factor: 1.042
       Communication Services:
-        sector_factor: 0.971
-      Basic Materials:
-        sector_factor: 1.092
-      Consumer Defensive:
-        sector_factor: 1.092
-      Consumer Cyclical:
-        sector_factor: 0.977
-      Healthcare:
-        sector_factor: 1.015
-      Energy:
-        sector_factor: 0.936
-      Real Estate:
-        sector_factor: 0.983
+        sector_factor: 0.808
   ath_breakout:
     weights:
       ath: 1.03
@@ -173,30 +207,22 @@ strategies:
           ath: 0.8
     sectors:
       Technology:
-        sector_factor: 0.935
+        sector_factor: 0.78
         weights:
           volume: 2.5
           momentum: 2.5
       Consumer Cyclical:
-        sector_factor: 0.948
+        sector_factor: 0.758
       Industrials:
-        sector_factor: 1.034
+        sector_factor: 0.76
       Real Estate:
-        sector_factor: 1.125
+        sector_factor: 0.796
       Financial Services:
-        sector_factor: 1.020
+        sector_factor: 1.014
       Consumer Defensive:
-        sector_factor: 1.080
-      Utilities:
-        sector_factor: 1.045
-      Basic Materials:
-        sector_factor: 1.125
-      Communication Services:
-        sector_factor: 1.080
-      Energy:
-        sector_factor: 0.985
-      Healthcare:
         sector_factor: 0.928
+      Utilities:
+        sector_factor: 0.939
   earnings_dip:
     weights:
       dip: 3.0
@@ -221,29 +247,7 @@ strategies:
         min_stability: 70
       high:
         min_stability: 80
-    sectors:
-      Technology:
-        sector_factor: 0.947
-      Consumer Defensive:
-        sector_factor: 1.119
-      Energy:
-        sector_factor: 1.071
-      Basic Materials:
-        sector_factor: 1.025
-      Communication Services:
-        sector_factor: 1.025
-      Financial Services:
-        sector_factor: 1.025
-      Consumer Cyclical:
-        sector_factor: 1.022
-      Utilities:
-        sector_factor: 1.009
-      Industrials:
-        sector_factor: 0.948
-      Healthcare:
-        sector_factor: 0.906
-      Real Estate:
-        sector_factor: 1.154
+    sectors: {}
   trend_continuation:
     weights:
       sma_alignment: 0.75
@@ -275,25 +279,23 @@ strategies:
         enabled: false
     sectors:
       Basic Materials:
-        sector_factor: 1.014
+        sector_factor: 0.843
       Communication Services:
-        sector_factor: 0.913
+        sector_factor: 0.955
       Consumer Cyclical:
-        sector_factor: 1.014
+        sector_factor: 0.918
       Consumer Defensive:
-        sector_factor: 1.005
+        sector_factor: 0.892
       Financial Services:
-        sector_factor: 1.034
+        sector_factor: 1.03
       Healthcare:
-        sector_factor: 0.984
+        sector_factor: 0.925
       Industrials:
-        sector_factor: 1.002
+        sector_factor: 0.936
       Technology:
-        sector_factor: 0.972
+        sector_factor: 1.049
       Utilities:
-        sector_factor: 1.084
-      Energy:
-        sector_factor: 0.968
+        sector_factor: 0.888
 stability_thresholds:
   by_regime:
     low: 70

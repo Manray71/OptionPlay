@@ -1,8 +1,8 @@
 # OptionPlay — Stabilisierungs-Roadmap
 
 **Erstellt:** 2026-02-04
-**Aktualisiert:** 2026-02-06 (nach Phase 6 + Code Review)
-**Quelle:** Code Audit v4.0.0 + Code Review 2026-02-06
+**Aktualisiert:** 2026-02-09 (nach Strategy Sessions + Retraining)
+**Quelle:** Code Audit v4.0.0 + Code Review 2026-02-06 + Retraining 2026-02-09
 **Ziel:** Projekt von "funktional, aber fragil" zu "robust und wartbar" bringen — als Voraussetzung fuer spaeteren Service-Betrieb.
 **Scope:** Keine neuen Features, kein Service-Umbau. Nur: aufraumen, absichern, konsolidieren.
 
@@ -20,6 +20,8 @@
 | **5** | Backtesting-Architektur | Duplikation, Models extrahieren, Sub-Packages | ✅ |
 | **6** | Backtesting-Monolithen | 4 Monolithen → 18 Module (Facade-Pattern) | ✅ |
 | **7** | Verbleibende Monolithen + Weighting | 5x >1000 LOC aufbrechen, CIRC-01, WEIGHT-01 | ⬜ NEU |
+| **S1-S5** | Strategy Refactoring | 5 Analyzer refactored/neu, Integration | ✅ |
+| **S6** | ML-Retraining | Walk-Forward, Component Weights, Sector Rotation | ✅ |
 
 ---
 
@@ -492,6 +494,82 @@ Reihenfolge nach Impact:
 
 ---
 
+## Strategy Sessions — Refactoring & Retraining (2026-02)
+
+### Sessions S1-S5: Strategy Refactoring ✅ ABGESCHLOSSEN
+
+| Session | Strategie | Tests | Aenderungen |
+|---------|-----------|-------|-------------|
+| S1 | Support Bounce (Refactor) | 65 | 4-Step-Pipeline, Candlestick-Patterns |
+| S2 | ATH Breakout (Refactor) | 79 | Konsolidierung + Close-Bestaetigung |
+| S3 | Earnings Dip (Refactor) | 77 | Stabilisierung Pflicht, kein Tag-0-Signal |
+| S4 | Trend Continuation (NEU) | 98 | SMA-Alignment, VIX-Gate bei >25 |
+| S5 | Integration & Backtesting | — | Alle 5 Strategien im Ensemble-Scanner |
+
+### Session S6: ML-Retraining ✅ ABGESCHLOSSEN (2026-02-09)
+
+**Ziel:** Alle ML-Modelle mit echten OHLCV-Daten und echten Options-Chains retrainieren.
+
+**Voraussetzungen (erledigt):**
+- 442k echte OHLCV-Bars via Tradier Backfill in `daily_prices`
+- 19.3M echte Optionspreise in `options_prices`
+- Sync-Script `daily_prices` → `price_data` fuer Training-Pipeline
+
+**Training: Full Walk-Forward (280 Jobs)**
+- 18/6/6 Monate Rolling Train/Test/Step, 7 Epochen (2020-11 bis 2025-11)
+- 5 Strategien × 8 Score-Schwellen (3.5-7.0) = 280 Jobs
+- 630 Symbole, echte Options-Chains + simulierter Fallback
+- Laufzeit: 45.7 Minuten auf 12 CPU-Cores
+
+**Ergebnisse (OOS Walk-Forward):**
+
+| Strategie | Min Score | OOS Trades | OOS WR | IS WR | Degradation | Overfit |
+|-----------|-----------|------------|--------|-------|-------------|---------|
+| Pullback | 4.5 | 896 | 88.3% | 85.4% | -2.9% | NONE |
+| Bounce | 6.0 | 1,072 | 91.6% | 88.6% | -2.9% | NONE |
+| ATH Breakout | 6.0 | 502 | 88.9% | 85.9% | -3.0% | NONE |
+| Earnings Dip | 5.0 | 583 | 86.7% | 85.0% | -1.6% | NONE |
+| Trend Continuation | 5.5 | 1,059 | 87.7% | 86.0% | -1.7% | NONE |
+
+**Gesamt:** 4,112 OOS-Trades, 89.1% Gesamt-Win-Rate, 1,345 Real-Option-Entries (33%)
+
+**VIX-Regime-Performance (alle Strategien):**
+
+| Regime | Trades | Win Rate | Fazit |
+|--------|--------|----------|-------|
+| Normal (VIX <18) | 2,472 | 92-95% | Kernzone, hochprofitabel |
+| Elevated (18-25) | 1,208 | 82-90% | Profitabel, leicht reduziert |
+| High (25-35) | 401 | 70-85% | Marginal, strategie-abhaengig |
+| Extreme (>35) | 31 | 0-67% | Unprofitabel, VIX-Gate kritisch |
+
+**Sector Rotation (12 Sektoren × 5 Strategien):**
+
+| Sektor | Trades | Factor | Beste Strategie |
+|--------|--------|--------|-----------------|
+| Basic Materials | 72 | 1.076 | Pullback (100%) |
+| Financial Services | 661 | 1.026 | Bounce (94.2%) |
+| Technology | 802 | 0.970 | Bounce (89.4%) |
+| Healthcare | 451 | 1.006 | Bounce (92.9%) |
+| Utilities | 193 | 1.035 | Bounce (95.1%) |
+| Real Estate | 39 | 0.892 | ATH Breakout (100%) |
+
+**Gespeicherte Modell-Dateien:**
+
+| Datei | Inhalt |
+|-------|--------|
+| `~/.optionplay/models/component_weights.json` | ML-Gewichte pro Scoring-Komponente |
+| `~/.optionplay/models/trained_models.json` | Optimale Score-Schwellen + Regime-Adjustments |
+| `~/.optionplay/models/SECTOR_CLUSTER_WEIGHTS.json` | Sektor-Faktoren (12 × 5 Strategien) |
+| `~/.optionplay/models/wf_training_results_detailed.json` | Vollstaendige Ergebnisse mit Threshold- & Regime-Analyse |
+| `config/scoring_weights.yaml` | Aktualisiert mit trainierten sector_factors |
+
+**Bugs behoben waehrend Training:**
+1. Component-Score-Extraktion: Nested dicts/bools in `score_breakdown` korrekt navigieren
+2. Simulated Fallback: Immer auf simulierte Spreads zurueckfallen wenn real nicht verfuegbar
+3. numpy-Serialisierung: `float()` Konvertierung vor YAML-Export
+
+---
+
 ## Abhaengigkeitsgraph
 
 ```
@@ -542,6 +620,18 @@ Phase 7 (Weiterentwicklung) ⬜
     ├── 7.2 Verbleibende >1000 LOC aufbrechen ⬜
     ├── 7.3 Mixin → Composition (DEBT-004) ⬜
     └── 7.4 ServerState integrieren (STATE-01) ⬜
+            │
+Strategy Sessions (2026-02) ✅
+    ├── S1 Bounce Refactor ✅
+    ├── S2 ATH Breakout Refactor ✅
+    ├── S3 Earnings Dip Refactor ✅
+    ├── S4 Trend Continuation (NEU) ✅
+    ├── S5 Integration & Backtesting ✅
+    └── S6 ML-Retraining ✅
+        ├── Component Weights (Walk-Forward, 7 Epochen) ✅
+        ├── Strategy Thresholds (5 Strategien × 8 Schwellen) ✅
+        ├── Sector Rotation (12 Sektoren × 5 Strategien) ✅
+        └── Regime Performance (4 VIX-Regimes) ✅
 ```
 
 ---

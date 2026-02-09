@@ -63,6 +63,8 @@ class LocalDBProvider(DataProvider):
 
         if not self.db_path.exists():
             logger.warning(f"Database not found: {self.db_path}")
+        else:
+            self._ensure_daily_prices_table()
 
     # =========================================================================
     # DataProvider Interface Implementation
@@ -292,7 +294,19 @@ class LocalDBProvider(DataProvider):
     def _get_historical_for_scanner_sync(
         self, symbol: str, days: int
     ) -> Optional[Tuple[List[float], List[int], List[float], List[float], List[float]]]:
-        """Sync scanner data query. Runs in thread pool."""
+        """Sync scanner data query. Runs in thread pool.
+
+        Priority:
+        1. daily_prices table (real OHLCV from API)
+        2. options_prices table (close only, fake OHLCV fallback)
+        """
+        # 1. Try daily_prices first (has real OHLCV data)
+        daily_data = self._query_daily_prices_sync(symbol, days)
+        if daily_data and len(daily_data[0]) >= 50:
+            logger.debug(f"LocalDB: Loaded {len(daily_data[0])} real OHLCV bars for {symbol}")
+            return daily_data
+
+        # 2. Fallback: options_prices (close only)
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
@@ -324,7 +338,7 @@ class LocalDBProvider(DataProvider):
                 lows = prices.copy()
                 opens = prices.copy()
 
-                logger.debug(f"LocalDB: Loaded {len(prices)} prices for {symbol}")
+                logger.debug(f"LocalDB: Loaded {len(prices)} close-only prices for {symbol} (no OHLCV)")
                 return prices, volumes, highs, lows, opens
 
         except Exception as e:
@@ -360,6 +374,194 @@ class LocalDBProvider(DataProvider):
         return await self._run_sync(
             self._get_historical_for_scanner_sync, symbol.upper(), days
         )
+
+    # =========================================================================
+    # Daily Prices Table (OHLCV enrichment)
+    # =========================================================================
+
+    def _ensure_daily_prices_table(self):
+        """Create daily_prices table if it doesn't exist."""
+        try:
+            with self._get_connection() as conn:
+                conn.execute("""
+                    CREATE TABLE IF NOT EXISTS daily_prices (
+                        symbol TEXT NOT NULL,
+                        quote_date TEXT NOT NULL,
+                        open REAL NOT NULL,
+                        high REAL NOT NULL,
+                        low REAL NOT NULL,
+                        close REAL NOT NULL,
+                        volume INTEGER NOT NULL DEFAULT 0,
+                        source TEXT DEFAULT 'tradier',
+                        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                        PRIMARY KEY (symbol, quote_date)
+                    )
+                """)
+                conn.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_daily_prices_symbol
+                    ON daily_prices(symbol)
+                """)
+                conn.commit()
+        except Exception as e:
+            logger.warning(f"Failed to create daily_prices table: {e}")
+
+    def _save_daily_prices_sync(
+        self, symbol: str, bars: List[HistoricalBar]
+    ) -> int:
+        """Save OHLCV bars to daily_prices table. Returns count of saved rows."""
+        if not bars:
+            return 0
+
+        symbol = symbol.upper()
+        saved = 0
+
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                for bar in bars:
+                    try:
+                        cursor.execute("""
+                            INSERT OR REPLACE INTO daily_prices
+                                (symbol, quote_date, open, high, low, close, volume, source)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        """, (
+                            symbol,
+                            bar.date.isoformat() if isinstance(bar.date, date) else str(bar.date),
+                            bar.open,
+                            bar.high,
+                            bar.low,
+                            bar.close,
+                            bar.volume,
+                            bar.source or 'tradier',
+                        ))
+                        saved += 1
+                    except sqlite3.Error as e:
+                        logger.warning(f"Error saving daily price for {symbol} {bar.date}: {e}")
+                conn.commit()
+        except Exception as e:
+            logger.error(f"Failed to save daily prices for {symbol}: {e}")
+
+        logger.debug(f"Saved {saved} daily prices for {symbol}")
+        return saved
+
+    async def save_daily_prices(
+        self, symbol: str, bars: List[HistoricalBar]
+    ) -> int:
+        """Save OHLCV bars to daily_prices table (async)."""
+        return await self._run_sync(self._save_daily_prices_sync, symbol, bars)
+
+    def _save_daily_prices_from_tuple_sync(
+        self, symbol: str, data: Tuple[List[float], List[int], List[float], List[float], List[float]]
+    ) -> int:
+        """Save scanner-format tuple data to daily_prices. Returns count of saved rows."""
+        prices, volumes, highs, lows, opens = data
+        if not prices:
+            return 0
+
+        symbol = symbol.upper()
+        saved = 0
+
+        # We need dates — estimate from today backwards (trading days)
+        today = date.today()
+        num_bars = len(prices)
+
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+
+                # Try to get actual dates from options_prices for this symbol
+                cursor.execute("""
+                    SELECT DISTINCT quote_date
+                    FROM options_prices
+                    WHERE underlying = ?
+                      AND underlying_price IS NOT NULL
+                    ORDER BY quote_date DESC
+                    LIMIT ?
+                """, (symbol, num_bars))
+                date_rows = cursor.fetchall()
+
+                if date_rows and len(date_rows) >= num_bars:
+                    # Use actual dates from options_prices (reversed to oldest-first)
+                    dates = [row[0] for row in reversed(date_rows)][:num_bars]
+                else:
+                    # Fallback: estimate trading dates backwards from today
+                    dates = []
+                    current = today
+                    while len(dates) < num_bars:
+                        if current.weekday() < 5:  # Mon-Fri
+                            dates.append(current.isoformat())
+                        current -= timedelta(days=1)
+                    dates.reverse()
+
+                for i in range(num_bars):
+                    try:
+                        quote_date = dates[i] if isinstance(dates[i], str) else dates[i]
+                        cursor.execute("""
+                            INSERT OR REPLACE INTO daily_prices
+                                (symbol, quote_date, open, high, low, close, volume, source)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        """, (
+                            symbol,
+                            quote_date,
+                            opens[i],
+                            highs[i],
+                            lows[i],
+                            prices[i],
+                            volumes[i],
+                            'api',
+                        ))
+                        saved += 1
+                    except (sqlite3.Error, IndexError) as e:
+                        logger.warning(f"Error saving daily price tuple for {symbol} idx {i}: {e}")
+
+                conn.commit()
+        except Exception as e:
+            logger.error(f"Failed to save daily prices from tuple for {symbol}: {e}")
+
+        logger.debug(f"Saved {saved} daily prices (from tuple) for {symbol}")
+        return saved
+
+    async def save_daily_prices_from_tuple(
+        self,
+        symbol: str,
+        data: Tuple[List[float], List[int], List[float], List[float], List[float]]
+    ) -> int:
+        """Save scanner-format tuple data to daily_prices table (async)."""
+        return await self._run_sync(self._save_daily_prices_from_tuple_sync, symbol, data)
+
+    def _query_daily_prices_sync(
+        self, symbol: str, days: int
+    ) -> Optional[Tuple[List[float], List[int], List[float], List[float], List[float]]]:
+        """Query daily_prices table for OHLCV data in scanner format."""
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT quote_date, open, high, low, close, volume
+                    FROM daily_prices
+                    WHERE symbol = ?
+                    ORDER BY quote_date DESC
+                    LIMIT ?
+                """, (symbol.upper(), days))
+
+                rows = cursor.fetchall()
+                if not rows:
+                    return None
+
+                # Reverse to oldest-first
+                rows = list(reversed(rows))
+
+                prices = [float(row[4]) for row in rows]  # close
+                volumes = [int(row[5]) for row in rows]
+                highs = [float(row[2]) for row in rows]
+                lows = [float(row[3]) for row in rows]
+                opens = [float(row[1]) for row in rows]
+
+                return prices, volumes, highs, lows, opens
+
+        except Exception as e:
+            logger.debug(f"daily_prices query failed for {symbol}: {e}")
+            return None
 
     # =========================================================================
     # Local DB Specific Methods

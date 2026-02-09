@@ -164,7 +164,7 @@ class FastBacktester:
 
     def _init_analyzers(self):
         """Initialize analyzers"""
-        from src.config.config_loader import PullbackScoringConfig
+        from src.config.models import PullbackScoringConfig
         from src.analyzers.pullback import PullbackAnalyzer
         from src.analyzers.bounce import BounceAnalyzer, BounceConfig
         from src.analyzers.ath_breakout import ATHBreakoutAnalyzer, ATHBreakoutConfig

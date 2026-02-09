@@ -31,8 +31,8 @@
 
 OptionPlay ist ein **MCP-Server (Model Context Protocol)** für Options-Trading-Analyse, spezialisiert auf **Bull-Put-Spreads**. Das System kombiniert:
 
-- **4 Strategien:** Pullback, Bounce, ATH-Breakout, Earnings-Dip
-- **5 VIX-Regime:** Low (<15), Normal (15–20), Danger Zone (20–25), Elevated (25–30), High (>30)
+- **5 Strategien:** Pullback, Bounce, ATH-Breakout, Earnings-Dip, Trend-Continuation
+- **4 VIX-Regime:** Normal (<18), Elevated (18–25), High (25–35), Extreme (>35)
 - **53 MCP-Tools + 55 Aliase** = 108 Endpoints
 - **Backtesting-Engine** mit Walk-Forward-Training, Regime-Optimierung und ML-Gewichtsoptimierung
 - **IBKR-Integration** (Interactive Brokers TWS) für Live-Portfolio-Monitoring
@@ -44,7 +44,7 @@ OptionPlay ist ein **MCP-Server (Model Context Protocol)** für Options-Trading-
 | **Daily Picks** | Top-5 Trades pro Tag basierend auf Score, Stability und VIX |
 | **Trade Validator** | GO/NO-GO Entscheidung anhand PLAYBOOK-Regeln |
 | **Position Monitor** | HOLD/CLOSE/ROLL/ALERT für offene Positionen |
-| **Multi-Strategy Scan** | Paralleler Scan aller 4 Strategien über Watchlist |
+| **Multi-Strategy Scan** | Paralleler Scan aller 5 Strategien über Watchlist |
 | **Regime Model** | VIX-basierte Parameter-Anpassung (trained via Walk-Forward) |
 | **Ensemble Selector** | Meta-Learner + Rotation für Strategy-Auswahl pro Symbol |
 
@@ -130,7 +130,7 @@ src/                                    88.186 LOC | 155 Module
 ├── vix_strategy.py                     (739 LOC — VIX-Strategie-Logik)
 ├── watchlist_loader.py                 (277 LOC — Watchlist-Management)
 │
-├── analyzers/                          4 Strategie-Analyzer + Utilities
+├── analyzers/                          5 Strategie-Analyzer + Utilities
 │   ├── pullback.py                     Pullback-Analyse
 │   ├── bounce.py                       Support-Bounce-Analyse
 │   ├── ath_breakout.py                 All-Time-High Breakout

@@ -4,7 +4,7 @@ Session-Kontext für Claude Code. Enthält DB-Schema, API-Beispiele und Code-Kon
 Für alle Trading-Regeln → siehe `docs/PLAYBOOK.md`
 
 **Version:** 4.0.0
-**Zuletzt aktualisiert:** 2026-02-08
+**Zuletzt aktualisiert:** 2026-02-09
 **Test-Coverage:** 80%+ (6,762 Tests)
 **Codebase:** 216 Module | 88,317 LOC (src/) | 143 Testdateien
 
@@ -20,11 +20,13 @@ Für alle Trading-Regeln → siehe `docs/PLAYBOOK.md`
 |---------|------------|--------------|
 | `options_prices` | 19.3 Mio | Historische Optionspreise (Bid/Ask/Mid/Last) |
 | `options_greeks` | 19.6 Mio | Greeks (Delta, Gamma, Theta, Vega, IV) |
+| `daily_prices` | 442k | Echte OHLCV-Bars via Tradier (354 Symbole × ~1280 Bars) |
+| `price_data` | 630 | Komprimierte Preisdaten pro Symbol (via PriceStorage) |
 | `earnings_history` | ~8,500 | Earnings-Daten mit EPS (343 Symbole) |
 | `symbol_fundamentals` | 357 | Fundamentaldaten + Stability Scores |
 | `vix_data` | 1,385 | VIX-Tageswerte |
 
-**Zeiträume:** Options + Greeks: 2021-01 bis 2026-01 | VIX: 2020-07 bis 2026-01
+**Zeiträume:** Options + Greeks: 2021-01 bis 2026-01 | VIX: 2020-07 bis 2026-01 | OHLCV: 2021-01 bis 2026-01
 
 ### Zweite DB: `~/.optionplay/outcomes.db`
 
@@ -206,7 +208,22 @@ python scripts/populate_fundamentals.py      # Fundamentals + Stability
 python scripts/collect_earnings_eps.py       # EPS-Daten
 python scripts/calculate_derived_metrics.py  # IV Rank, Correlation, HV
 python scripts/daily_data_fetcher.py         # VIX täglich (Cronjob)
+python scripts/sync_daily_to_price_data.py   # OHLCV: daily_prices → price_data
 ```
+
+### ML-Training Scripts
+
+```bash
+python scripts/full_walkforward_train.py     # Full Walk-Forward (280 Jobs, ~45 Min)
+python scripts/fast_weight_train.py          # Schnelles Component-Weight-Training
+python scripts/fast_strategy_train.py        # Schnelles Strategy-Training
+```
+
+**Trainings-Output:** `~/.optionplay/models/`
+- `component_weights.json` — ML-Gewichte pro Scoring-Komponente
+- `trained_models.json` — Score-Schwellen + Regime-Adjustments
+- `SECTOR_CLUSTER_WEIGHTS.json` — Sektor-Faktoren (12 × 5)
+- `wf_training_results_detailed.json` — Detaillierte Walk-Forward-Ergebnisse
 
 ---
 
@@ -216,7 +233,7 @@ python scripts/daily_data_fetcher.py         # VIX täglich (Cronjob)
 |-------|--------|
 | `docs/PLAYBOOK.md` | **DAS Regelwerk** — Entry, Exit, Sizing, VIX, Disziplin |
 | `docs/ARCHITECTURE.md` | System-Architektur |
-| `docs/ROADMAP.md` | Stabilisierungs-Roadmap (Phase 1 ✅, Phase 4 ✅, Phase 6 ✅) |
+| `docs/ROADMAP.md` | Stabilisierungs-Roadmap (Phase 1-6 ✅, S1-S6 ✅) |
 | `docs/PROJECT_REVIEW.md` | Vollständige Projektdokumentation mit Code-Review |
 | `CLAUDE.md` | Diese Datei — DB, API, Code |
 | `SKILL.md` | MCP-Tool-Referenz (53 Tools + 55 Aliases) |
@@ -227,20 +244,27 @@ python scripts/daily_data_fetcher.py         # VIX täglich (Cronjob)
 
 ### Trading-Strategien (5 Analyzer)
 
-| Strategie | Datei | Max Score | Min Score | Besonderheit |
-|-----------|-------|-----------|-----------|--------------|
-| **Pullback** | `analyzers/pullback.py` | 26.0 (raw) | 4.0 | Pullback im Aufwärtstrend (bestehend) |
-| **Bounce** | `analyzers/bounce.py` | 10.0 | 3.5 | Support Bounce, 4-Step-Pipeline (Session 1) |
-| **ATH Breakout** | `analyzers/ath_breakout.py` | 9.0 | 4.0 | Konsolidierung + Close-Bestätigung (Session 2) |
-| **Earnings Dip** | `analyzers/earnings_dip.py` | 9.5 | 3.5 | Stabilisierung Pflicht, kein Tag-0-Signal (Session 3) |
-| **Trend Continuation** | `analyzers/trend_continuation.py` | 10.5 | 5.0 | NEU — SMA-Alignment, VIX-Gate bei >25 (Session 4) |
+| Strategie | Datei | Max Score | Min Score | WF Threshold | OOS WR |
+|-----------|-------|-----------|-----------|-------------|--------|
+| **Pullback** | `analyzers/pullback.py` | 26.0 (raw) | 4.0 | 4.5 | 88.3% |
+| **Bounce** | `analyzers/bounce.py` | 10.0 | 3.5 | 6.0 | 91.6% |
+| **ATH Breakout** | `analyzers/ath_breakout.py` | 9.0 | 4.0 | 6.0 | 88.9% |
+| **Earnings Dip** | `analyzers/earnings_dip.py` | 9.5 | 3.5 | 5.0 | 86.7% |
+| **Trend Continuation** | `analyzers/trend_continuation.py` | 10.5 | 5.0 | 5.5 | 87.7% |
+
+- **Min Score**: Analyzer-Schwelle fuer Signal-Generierung
+- **WF Threshold**: Walk-Forward-trainierte optimale Schwelle (2026-02-09)
+- **OOS WR**: Out-of-Sample Win Rate ueber 7 Epochen (4,112 Trades)
 
 Alle Scores werden via `score_normalization.py` auf 0-10 Skala normalisiert.
 
 ### Scoring-System (3 Stufen)
 
 1. **Komponenten-Scoring**: Jeder Analyzer vergibt Punkte pro Indikator (`config/scoring_weights.yaml`)
-2. **ML-Weights**: `FeatureScoringMixin` wendet trainierte Gewichte an (`~/.optionplay/models/weights_*.json`)
+2. **ML-Weights**: `FeatureScoringMixin` wendet trainierte Gewichte an (`~/.optionplay/models/component_weights.json`)
+   - Walk-Forward-trainiert (18/6/6 Monate, 7 Epochen, 2020-2025)
+   - Sector-Factors pro Strategie × Sektor (12 Sektoren)
+   - VIX-Regime-Adjustments (normal, elevated, high, extreme)
 3. **Ranking**: `recommendation_engine.py` kombiniert Signal (70%) + Stability (30%) × Speed-Multiplier
 
 ### Bekannte kritische Issues
@@ -291,6 +315,6 @@ src/backtesting/                    44 Module | 17,611 LOC
 | 3 | Earnings Dip (Refactor) | 77 | ✅ |
 | 4 | Trend Continuation (NEU) | 98 | ✅ |
 | 5 | Integration & Backtesting | — | ✅ |
-| 6 | Retraining (ML-Weights, Ensemble) | — | ⬜ Nächste Phase |
+| 6 | Retraining (ML-Weights, Sector Rotation) | — | ✅ (Walk-Forward, 4112 OOS-Trades, 89.1% WR) |
 
 *Alle Trading-Regeln, VIX-Regime, Stability-Schwellen, Watchlist und Blacklist stehen ausschließlich in PLAYBOOK.md.*

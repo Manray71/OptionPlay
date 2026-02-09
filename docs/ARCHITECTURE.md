@@ -337,7 +337,7 @@ Siehe `docs/REDUKTIONSSTRATEGIE.md` für den vollständigen Plan.
 │  ─ Normalisierung auf 0-10 via score_normalization.py    │
 ├──────────────────────────────────────────────────────────┤
 │  Stufe 2: ML-Trained Weights (FeatureScoringMixin)       │
-│  ─ Gewichte aus ~/.optionplay/models/weights_*.json      │
+│  ─ Gewichte aus ~/.optionplay/models/component_weights.json │
 │  ─ Per Strategie + VIX-Regime unterschiedlich             │
 │  ─ Training via MLWeightOptimizer (Walk-Forward)          │
 │  ─ Features: VWAP, Market Context, Sector Speed, Gap     │
@@ -353,7 +353,7 @@ Siehe `docs/REDUKTIONSSTRATEGIE.md` für den vollständigen Plan.
 
 | Anpassung | Ort | Aufwand |
 |-----------|-----|---------|
-| ML-Weights editieren | `~/.optionplay/models/weights_*.json` | Gering |
+| ML-Weights editieren | `~/.optionplay/models/component_weights.json` | Gering |
 | Stability/Speed-Gewichtung | Config-Dict in recommendation_engine | Gering |
 | Strategie-Parameter (RSI etc.) | `constants/strategy_parameters.py` | Gering |
 | Komponenten-Punktzahlen | Analyzer-Code + score_normalization.py | Mittel |

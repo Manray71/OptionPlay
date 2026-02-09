@@ -129,7 +129,7 @@ class MockLocalDBProvider:
         return self._available
 
     async def get_historical_for_scanner(self, symbol, days=90):
-        return ([100.0] * days, [1000000] * days, [101.0] * days, [99.0] * days)
+        return ([100.0] * days, [1000000] * days, [101.0] * days, [99.0] * days, [99.5] * days)
 
     def is_data_fresh(self, symbol, max_age_days):
         return True
@@ -416,7 +416,7 @@ class TestHistoricalCache:
             result = await server._fetch_historical_cached("AAPL")
 
             assert result is not None
-            assert len(result) == 4
+            assert len(result) == 5
 
     @pytest.mark.asyncio
     async def test_fetch_historical_local_db_stale_falls_back_to_api(self, mock_api_key, mock_container):
@@ -429,14 +429,15 @@ class TestHistoricalCache:
 
         # Local DB has stale data
         mock_db = MagicMock()
-        mock_db.get_historical_for_scanner = AsyncMock(return_value=([100.0], [1000], [101.0], [99.0]))
+        mock_db.get_historical_for_scanner = AsyncMock(return_value=([100.0], [1000], [101.0], [99.0], [99.5]))
         mock_db.is_data_fresh.return_value = False  # Data is stale
+        mock_db.save_daily_prices_from_tuple = AsyncMock(return_value=0)
         server._local_db_enabled = True
         server._local_db_provider = mock_db
 
         # API fallback
         mock_provider = AsyncMock()
-        api_data = ([150.0] * 90, [2000000] * 90, [151.0] * 90, [149.0] * 90)
+        api_data = ([150.0] * 90, [2000000] * 90, [151.0] * 90, [149.0] * 90, [149.5] * 90)
         mock_provider.get_historical_for_scanner = AsyncMock(return_value=api_data)
 
         server._ensure_connected = AsyncMock(return_value=mock_provider)

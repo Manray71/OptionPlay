@@ -5,9 +5,9 @@ description: "MCP-Server für Options-Trading mit Bull-Put-Spread Strategien. 3 
 
 # OptionPlay - Trading Assistant MCP Server v4.0.0
 
-Bull-Put-Spread Trading-Assistent mit 3 klar definierten Jobs.
+Bull-Put-Spread Trading-Assistent mit 3 klar definierten Jobs und 5 ML-trainierten Strategien.
 
-**Version:** 4.0.0 | **Test-Coverage:** 80%+ | **Tests:** 6,762
+**Version:** 4.0.0 | **Test-Coverage:** 80%+ | **Tests:** 6,762 | **ML-Training:** 2026-02-09 (Walk-Forward)
 
 **Alle Trading-Regeln → `docs/PLAYBOOK.md`**
 **DB-Schema & Code → `CLAUDE.md`**
@@ -196,9 +196,9 @@ Output pro Position:
 
 | Quelle | Daten | Status |
 |--------|-------|--------|
-| Tradier | Historical, Options, Quotes | Primär |
-| Marketdata.app | Quotes, Options, VIX | Sekundär |
-| Local SQLite DB | Historical Options, Greeks, VIX | Offline-Cache (~8.6 GB) |
+| Tradier | Historical, Options, Quotes, OHLCV | Primaer |
+| Marketdata.app | Quotes, Options, VIX | Sekundaer |
+| Local SQLite DB | Options (19.3M), Greeks (19.6M), OHLCV (442k), VIX | Offline-Cache (~8.6 GB) |
 | Yahoo Finance | VIX, Earnings | Fallback |
 | IBKR (optional) | Live Data, Portfolio, News | Premium |
 
@@ -213,6 +213,7 @@ Output pro Position:
 ├── config/
 │   ├── settings.yaml          # Technische Parameter
 │   ├── strategies.yaml        # VIX-basierte Profile
+│   ├── scoring_weights.yaml   # Scoring-Gewichte + Sector-Factors (WF-trained)
 │   └── watchlists.yaml        # Watchlist (275 Symbole)
 ├── docs/
 │   ├── PLAYBOOK.md            # DAS Regelwerk (Entry, Exit, VIX, Disziplin)
@@ -248,19 +249,28 @@ Jede der 5 Strategien vergibt Punkte pro technischem Indikator:
 | Strategie | Max Punkte | Kern-Komponenten |
 |-----------|-----------|-----------------|
 | Pullback | 26.0 | RSI, RSI-Div, Support, Fib, MA, Trend, Volume, MACD, Stoch, Keltner, VWAP, Market, Sector, Gap |
-| Bounce | 10.0 | Support-Qualität, Proximity, Confirmation, Volume, Trend |
-| ATH Breakout | 9.0 | Konsolidierung, Breakout-Stärke, Volumen, Momentum |
-| Earnings Dip | 9.5 | Drop, Stabilization, Fundamental, Overreaction, BPS |
+| Bounce | 27.0 | Support, RSI, RSI-Div, Candlestick, Volume, Trend, MACD, Stoch, Keltner, VWAP, Market, Sector, Gap |
+| ATH Breakout | 23.0 | ATH, Volume, Trend, RSI, RS, Momentum, MACD, Keltner, VWAP, Market, Sector, Gap |
+| Earnings Dip | 21.0 | Dip, Gap, RSI, Stabilization, Volume, Trend, MACD, Stoch, Keltner, VWAP, Market, Sector |
 | Trend Continuation | 10.5 | SMA-Alignment, Stability, Buffer, Momentum, Volatility |
 
 Normalisierung auf 0-10 Skala via `score_normalization.py`.
 
-### Stufe 2: ML-Trained Weights
+### Stufe 2: ML-Trained Weights (Walk-Forward, 2026-02-09)
 
-`FeatureScoringMixin` wendet trainierte Gewichte an (JSON in `~/.optionplay/models/`):
-- Per Strategie und VIX-Regime unterschiedlich
-- Training via `MLWeightOptimizer` (Walk-Forward-Validierung)
-- VWAP/Market/Sector/Gap-Scores basieren auf backtesteten Win-Rates
+`FeatureScoringMixin` wendet trainierte Gewichte an (`~/.optionplay/models/`):
+
+| Strategie | WF Threshold | OOS WR | OOS Trades | Degradation |
+|-----------|-------------|--------|------------|-------------|
+| Pullback | 4.5 | 88.3% | 896 | -2.9% |
+| Bounce | 6.0 | 91.6% | 1,072 | -2.9% |
+| ATH Breakout | 6.0 | 88.9% | 502 | -3.0% |
+| Earnings Dip | 5.0 | 86.7% | 583 | -1.6% |
+| Trend Cont. | 5.5 | 87.7% | 1,059 | -1.7% |
+
+**Training:** 18/6/6 Monate Rolling, 7 Epochen (2020-2025), 630 Symbole, echte Options-Chains
+**Sector-Rotation:** 12 Sektoren mit trainierten sector_factors (0.647-1.154)
+**VIX-Regime:** 4 Regimes (normal 92-95% WR, elevated 82-90%, high 70-85%, extreme unprofitabel)
 
 ### Stufe 3: Ranking (Daily Picks)
 
@@ -276,11 +286,13 @@ final = base * speed_multiplier
 
 | Was | Wo | Aufwand |
 |-----|----|---------|
-| ML-Weights anpassen | `~/.optionplay/models/weights_*.json` | Gering |
+| ML-Weights anpassen | `~/.optionplay/models/component_weights.json` | Gering |
+| Sector-Factors | `config/scoring_weights.yaml` (sectors) | Gering |
+| Score-Schwellen | `~/.optionplay/models/trained_models.json` | Gering |
 | Stability/Speed-Gewichtung | Config-Dict in recommendation_engine | Gering |
 | RSI/MACD-Schwellen | `constants/strategy_parameters.py` | Gering |
-| Komponenten-Punktzahlen | Analyzer-Code + score_normalization | Mittel |
-| ML-Weights Retraining | `MLWeightOptimizer.train()` Pipeline | Hoch |
+| Komponenten-Punktzahlen | `config/scoring_weights.yaml` (weights) | Mittel |
+| Full WF Retraining | `scripts/full_walkforward_train.py` (~45 Min) | Hoch |
 
 ---
 

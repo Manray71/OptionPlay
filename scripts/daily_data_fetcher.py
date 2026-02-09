@@ -37,7 +37,9 @@ Created: 2026-02-01
 """
 
 import argparse
+import asyncio
 import logging
+import os
 import sqlite3
 import sys
 from datetime import date, datetime, timedelta
@@ -448,6 +450,100 @@ def _fetch_yahoo_earnings_date(symbol: str) -> Optional[date]:
     return None
 
 
+async def fetch_daily_prices(
+    logger: logging.Logger,
+    dry_run: bool = False,
+    backfill_days: int = 5
+) -> int:
+    """
+    Fetch OHLCV daily prices for all watchlist symbols from Tradier.
+
+    Stores data in the daily_prices table for use by LocalDBProvider.
+
+    Args:
+        logger: Logger instance
+        dry_run: If True, only show what would be done
+        backfill_days: Number of days to fetch
+
+    Returns:
+        Number of symbols with data saved
+    """
+    tradier_key = os.environ.get("TRADIER_API_KEY")
+    if not tradier_key:
+        logger.warning("No TRADIER_API_KEY — skipping OHLCV fetch")
+        return 0
+
+    logger.info(f"Fetching OHLCV daily prices (last {backfill_days} days)...")
+
+    if dry_run:
+        logger.info("[DRY RUN] Would fetch OHLCV daily prices")
+        return 0
+
+    try:
+        from src.data_providers.tradier import TradierProvider
+        from src.data_providers.local_db import LocalDBProvider
+        from src.config.watchlist_loader import WatchlistLoader
+
+        local_db = LocalDBProvider()
+        loader = WatchlistLoader()
+        symbols = loader.get_all_symbols()
+
+        if not symbols:
+            logger.warning("No symbols in watchlist")
+            return 0
+
+        logger.info(f"Fetching OHLCV for {len(symbols)} symbols")
+        saved_count = 0
+        errors = 0
+
+        tradier = TradierProvider(api_key=tradier_key, environment="production")
+        try:
+            connected = await tradier.connect()
+            if not connected:
+                logger.error("Failed to connect to Tradier API")
+                return 0
+
+            for i, symbol in enumerate(symbols, 1):
+                try:
+                    bars = await tradier.get_historical(symbol, days=backfill_days)
+                    if bars:
+                        count = await local_db.save_daily_prices(symbol, bars)
+                        if count > 0:
+                            saved_count += 1
+                            logger.debug(
+                                f"  [{i}/{len(symbols)}] {symbol}: "
+                                f"{count} bars saved"
+                            )
+                    else:
+                        logger.debug(
+                            f"  [{i}/{len(symbols)}] {symbol}: No data from Tradier"
+                        )
+
+                    # Rate limit: ~2 requests per second
+                    if i < len(symbols):
+                        await asyncio.sleep(0.5)
+
+                except Exception as e:
+                    errors += 1
+                    logger.debug(f"  [{i}/{len(symbols)}] {symbol}: Error - {e}")
+
+        finally:
+            await tradier.disconnect()
+
+        logger.info(
+            f"OHLCV fetch: {saved_count} symbols saved, "
+            f"{errors} errors, {len(symbols)} checked"
+        )
+        return saved_count
+
+    except ImportError as e:
+        logger.error(f"Import error fetching daily prices: {e}")
+        return 0
+    except Exception as e:
+        logger.error(f"Error fetching daily prices: {e}")
+        return 0
+
+
 def print_status(conn: sqlite3.Connection, logger: logging.Logger):
     """Print current data status."""
     # VIX status
@@ -530,6 +626,11 @@ Examples:
         action='store_true',
         help='Fetch future earnings dates for all watchlist symbols'
     )
+    parser.add_argument(
+        '--update-prices', '-p',
+        action='store_true',
+        help='Fetch OHLCV daily prices for all watchlist symbols'
+    )
 
     args = parser.parse_args()
 
@@ -570,6 +671,11 @@ Examples:
             count = fetch_missing_vix(conn, logger, args.dry_run)
             total_updates += count
             logger.info(f"VIX update: {count} new records")
+
+        # Daily OHLCV update
+        if args.update_prices or (not args.vix_only and not args.backfill):
+            count = asyncio.run(fetch_daily_prices(logger, args.dry_run))
+            total_updates += count
 
         # Future earnings update (daily or forced)
         if args.update_earnings:
