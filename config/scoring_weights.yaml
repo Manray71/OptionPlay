@@ -184,15 +184,15 @@ strategies:
       Real Estate:
         sector_factor: 1.125
       Financial Services:
-        sector_factor: 1.020
+        sector_factor: 1.02
       Consumer Defensive:
-        sector_factor: 1.080
+        sector_factor: 1.08
       Utilities:
         sector_factor: 1.045
       Basic Materials:
         sector_factor: 1.125
       Communication Services:
-        sector_factor: 1.080
+        sector_factor: 1.08
       Energy:
         sector_factor: 0.985
       Healthcare:
@@ -305,53 +305,42 @@ stability_thresholds:
   by_strategy:
     pullback:
       by_regime:
-        low: 80
-        normal: 80
-        danger: 90
-        elevated: 85
-        high: 80
-        extreme: 80
-      by_sector:
-        Technology: -20
-        Healthcare: 0
-        Consumer Defensive: -40
-        Financial Services: -40
+        normal: 0
+        elevated: 0
+        high: 0
+        extreme: 0
+      by_sector: {}
     bounce:
       by_regime:
-        low: 90
-        normal: 90
-        danger: 90
-        elevated: 90
-        high: 90
-        extreme: 65
-      by_sector:
-        Technology: -5
-        Financial Services: -5
+        normal: 0
+        elevated: 0
+        high: 0
+        extreme: 0
+      by_sector: {}
     ath_breakout:
       by_regime:
-        low: 90
-        normal: 90
-        danger: 90
-        elevated: 90
-        high: 90
-        extreme: 60
-      by_sector:
-        Technology: -35
-        Financial Services: -35
-        Consumer Cyclical: -25
+        normal: 0
+        elevated: 0
+        high: 0
+        extreme: 0
+      by_sector: {}
     earnings_dip:
       by_regime:
-        low: 60
-        normal: 65
-        danger: 70
-        elevated: 75
-        high: 80
-      by_sector: {}
+        normal: 0
+        elevated: 0
+        high: 70
+        extreme: 0
+      by_sector:
+        Technology: 65
+        Healthcare: 70
+        Industrials: 70
     trend_continuation:
       by_regime:
-        low: 50
-        normal: 50
-        elevated: 65
+        normal: 0
+        elevated: 60
+        high: 0
+        extreme: 0
+      by_sector: {}
 sector_momentum:
   enabled: true
   cache_ttl_hours: 4
