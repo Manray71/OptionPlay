@@ -1,6 +1,6 @@
 ---
 name: optionplay
-description: "MCP-Server für Options-Trading mit Bull-Put-Spread Strategien. 3 Jobs: Daily Picks, Trade Validator, Position Manager. Verwendet Tradier + Marketdata.app API + optionale IBKR-Bridge. 80%+ Test-Coverage, 54 Tools + 56 Aliases. Trigger: 'Options-Analyse', 'Pullback-Scan', 'Trend-Scan', 'Bull-Put-Spread', 'VIX-Strategie', 'Earnings-Check', 'Options-Chain', 'Max Pain', 'IV-Rank', 'Spread-Kandidaten', 'was sagt der Markt', 'Trading-Setup', 'Daily Picks', 'Zeig mir die heutigen Picks', 'Wie stehen meine Positionen', 'Kann ich X traden'."
+description: "MCP-Server für Options-Trading mit Bull-Put-Spread Strategien. 3 Jobs: Daily Picks, Trade Validator, Position Manager. Verwendet Tradier + Marketdata.app API + optionale IBKR-Bridge. 80%+ Test-Coverage, 53 Tools + 55 Aliases. Trigger: 'Options-Analyse', 'Pullback-Scan', 'Trend-Scan', 'Bull-Put-Spread', 'VIX-Strategie', 'Earnings-Check', 'Options-Chain', 'Max Pain', 'IV-Rank', 'Spread-Kandidaten', 'was sagt der Markt', 'Trading-Setup', 'Daily Picks', 'Zeig mir die heutigen Picks', 'Wie stehen meine Positionen', 'Kann ich X traden'."
 ---
 
 # OptionPlay - Trading Assistant MCP Server v4.0.0
@@ -111,7 +111,7 @@ Output pro Position:
 
 | Tool | Alias | Beschreibung |
 |------|-------|-------------|
-| `optionplay_daily_picks` | `daily` / `picks` | **Top-Empfehlungen mit Strikes** |
+| `optionplay_daily_picks` | `daily` / `picks` / `recommendations` | **Top-Empfehlungen mit Strikes** |
 | `optionplay_scan_multi` | `multi` | Multi-Strategie-Scan |
 | `optionplay_scan` | `scan` | Pullback-Kandidaten |
 | `optionplay_scan_bounce` | `bounce` | Support-Bounce-Kandidaten |
@@ -232,7 +232,7 @@ Output pro Position:
 | Test-Coverage | 80%+ |
 | Tests | 6,762 (143 Testdateien) |
 | Module (src/) | 216 Python-Dateien, 88,317 LOC |
-| Tools | 54 + 56 Aliases = 110 Endpoints |
+| Tools | 53 + 55 Aliases = 108 Endpoints |
 | Thread-Safety | ✅ (10+ Module mit Locks) |
 | Async-SQLite | ✅ (asyncio.to_thread) |
 
