@@ -1106,8 +1106,8 @@ class TestVIXHistoryCache:
 class TestProfileDeltaRanges:
     """Tests for profile delta ranges"""
 
-    def test_danger_zone_has_narrower_range(self):
-        """Danger zone should have narrower delta range"""
+    def test_danger_zone_uses_standard_delta_range(self):
+        """Danger zone should use same delta range as standard (PLAYBOOK §2: Delta ist heilig)"""
         selector = VIXStrategySelector()
 
         standard = selector.PROFILES['standard']
@@ -1116,8 +1116,8 @@ class TestProfileDeltaRanges:
         standard_range = standard['delta_range']
         danger_range = danger['delta_range']
 
-        # Danger zone range should be different (narrower)
-        assert danger_range != standard_range
+        # Delta ist heilig — same range across all regimes
+        assert danger_range == standard_range
 
     def test_all_profiles_have_delta_range(self):
         """All profiles should have delta_range"""

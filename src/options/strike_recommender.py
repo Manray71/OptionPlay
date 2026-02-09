@@ -171,7 +171,8 @@ class StrikeRecommender(StrikeMetricsMixin):
         "long_delta_min": SPREAD_LONG_DELTA_MIN,         # -0.03
         "long_delta_max": SPREAD_LONG_DELTA_MAX,         # -0.07
 
-        # OTM requirements
+        # OTM requirements (quality scoring only — does NOT override delta-based selection)
+        # Used as: sanity-check for support-based fallback, quality score factor
         "min_otm_pct": 8.0,    # At least 8% below spot
         "target_otm_pct": 12.0, # Ideal: 12% below spot
         "max_otm_pct": 25.0,   # Not further than 25%
@@ -333,6 +334,7 @@ class StrikeRecommender(StrikeMetricsMixin):
 
         if long_strike is None and not options_data:
             # Fallback: width-based calculation (NO options data available at all)
+            selection_method = "fallback"
             logger.warning(
                 f"No delta-based long strike found for {symbol} — "
                 f"falling back to price-based width estimate. "
@@ -369,7 +371,8 @@ class StrikeRecommender(StrikeMetricsMixin):
         # 6. Evaluate quality
         quality, confidence, warnings = self._evaluate_quality(
             short_strike, long_strike, current_price,
-            support_used, metrics, iv_rank
+            support_used, metrics, iv_rank,
+            selection_method=selection_method,
         )
 
         # Append liquidity warnings from _calculate_metrics

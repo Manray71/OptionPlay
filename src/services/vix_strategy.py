@@ -170,8 +170,9 @@ class VIXStrategySelector:
         'danger_zone': {
             # VIX 20-25: "Danger Zone" with only 78.9% Win Rate
             # Stricter requirements, reduced position sizes
+            # Delta ist heilig (PLAYBOOK §2) — no regime override
             'delta_target': DELTA_TARGET,
-            'delta_range': (-0.22, -0.15),  # Narrower delta range (regime override)
+            'delta_range': (DELTA_MAX, DELTA_MIN),  # PLAYBOOK ±0.03 (same as all regimes)
             'min_score': 7,                  # Higher quality required!
             'earnings_buffer_days': EARNINGS_MIN_DAYS,
             'dte_min': DTE_MIN,

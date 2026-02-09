@@ -250,6 +250,7 @@ class StrikeMetricsMixin:
         support: Optional[object],
         metrics: Dict,
         iv_rank: Optional[float],
+        selection_method: str = "delta",
     ) -> tuple:
         """
         Evaluates the quality of the recommendation.
@@ -335,6 +336,17 @@ class StrikeMetricsMixin:
             quality = StrikeQuality.ACCEPTABLE
         else:
             quality = StrikeQuality.POOR
+
+        # Cap quality at ACCEPTABLE when delta was not validated (PLAYBOOK §2)
+        if selection_method != "delta" and quality in (
+            StrikeQuality.EXCELLENT,
+            StrikeQuality.GOOD,
+        ):
+            quality = StrikeQuality.ACCEPTABLE
+            warnings.append(
+                "Keine Options-Daten — Delta nicht validiert. "
+                "Strikes sind Schätzungen."
+            )
 
         return quality, score, warnings
 
