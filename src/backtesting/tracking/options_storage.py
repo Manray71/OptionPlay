@@ -113,7 +113,7 @@ class OptionsStorage:
                 ORDER BY trade_date
             """, params)
 
-            return [self._row_to_option_bar(row) for row in cursor.fetchall()]
+            return [self._row_to_option_bar(row) for row in cursor]
 
     def get_options_for_underlying(
         self,
@@ -157,7 +157,7 @@ class OptionsStorage:
                 ORDER BY trade_date, strike
             """, params)
 
-            return [self._row_to_option_bar(row) for row in cursor.fetchall()]
+            return [self._row_to_option_bar(row) for row in cursor]
 
     def get_option_at_date(
         self,

@@ -345,12 +345,12 @@ class CacheManager:
 
     # Standard Cache Policies
     DEFAULT_POLICIES = {
-        "historical": CachePolicy(ttl_seconds=900, max_entries=500, priority=CachePriority.HIGH),
-        "quotes": CachePolicy(ttl_seconds=60, max_entries=1000, priority=CachePriority.NORMAL),
-        "scans": CachePolicy(ttl_seconds=1800, max_entries=100, priority=CachePriority.NORMAL),
+        "historical": CachePolicy(ttl_seconds=900, max_entries=2000, priority=CachePriority.HIGH),
+        "quotes": CachePolicy(ttl_seconds=60, max_entries=2000, priority=CachePriority.NORMAL),
+        "scans": CachePolicy(ttl_seconds=1800, max_entries=200, priority=CachePriority.NORMAL),
         "earnings": CachePolicy(ttl_seconds=2_592_000, max_entries=5000, priority=CachePriority.HIGH),  # 30 Tage
-        "iv": CachePolicy(ttl_seconds=300, max_entries=500, priority=CachePriority.NORMAL),
-        "options": CachePolicy(ttl_seconds=120, max_entries=200, priority=CachePriority.LOW),
+        "iv": CachePolicy(ttl_seconds=300, max_entries=2000, priority=CachePriority.NORMAL),
+        "options": CachePolicy(ttl_seconds=120, max_entries=500, priority=CachePriority.LOW),
     }
 
     # Cache Dependencies für koordinierte Invalidierung
@@ -390,6 +390,8 @@ class CacheManager:
         # Background refresh tracking
         self._refresh_in_progress: Set[str] = set()
         self._refresh_lock = threading.Lock()
+        self._refresh_failures: Dict[str, int] = {}
+        self._refresh_circuit_open: Dict[str, float] = {}  # key → circuit-open-until timestamp
 
         logger.info(f"CacheManager initialized with {len(self._caches)} caches")
 
@@ -505,7 +507,12 @@ class CacheManager:
         # Proaktiver Refresh wenn nötig
         if value is not None and cache.should_refresh(key):
             refresh_key = f"{cache_name}:{key}"
+            now = datetime.now().timestamp()
             with self._refresh_lock:
+                # Circuit breaker: skip if circuit is open
+                circuit_until = self._refresh_circuit_open.get(refresh_key, 0)
+                if now < circuit_until:
+                    return value
                 if refresh_key not in self._refresh_in_progress:
                     self._refresh_in_progress.add(refresh_key)
                     asyncio.create_task(
@@ -514,6 +521,10 @@ class CacheManager:
 
         return value
 
+    _REFRESH_MAX_RETRIES = 3
+    _REFRESH_CIRCUIT_OPEN_SECONDS = 60
+    _REFRESH_TIMEOUT_SECONDS = 30
+
     async def _background_refresh(
         self,
         cache_name: str,
@@ -521,14 +532,33 @@ class CacheManager:
         refresh_func: Callable[[], Coroutine[Any, Any, Any]],
         refresh_key: str
     ) -> None:
-        """Background-Refresh Task."""
+        """Background-Refresh Task with circuit breaker."""
         try:
             logger.debug(f"Background refresh for {cache_name}:{key}")
-            new_value = await refresh_func()
+            new_value = await asyncio.wait_for(
+                refresh_func(), timeout=self._REFRESH_TIMEOUT_SECONDS
+            )
             if new_value is not None:
                 self.set(cache_name, key, new_value)
+            # Reset failure count on success
+            self._refresh_failures.pop(refresh_key, None)
         except Exception as e:
-            logger.warning(f"Background refresh failed for {cache_name}:{key}: {e}")
+            failures = self._refresh_failures.get(refresh_key, 0) + 1
+            self._refresh_failures[refresh_key] = failures
+            if failures >= self._REFRESH_MAX_RETRIES:
+                self._refresh_circuit_open[refresh_key] = (
+                    datetime.now().timestamp() + self._REFRESH_CIRCUIT_OPEN_SECONDS
+                )
+                logger.warning(
+                    f"Background refresh circuit open for {cache_name}:{key} "
+                    f"after {failures} failures (pausing {self._REFRESH_CIRCUIT_OPEN_SECONDS}s): {e}"
+                )
+                self._refresh_failures.pop(refresh_key, None)
+            else:
+                logger.warning(
+                    f"Background refresh failed for {cache_name}:{key} "
+                    f"(attempt {failures}/{self._REFRESH_MAX_RETRIES}): {e}"
+                )
         finally:
             with self._refresh_lock:
                 self._refresh_in_progress.discard(refresh_key)

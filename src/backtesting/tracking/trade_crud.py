@@ -337,7 +337,7 @@ class TradeCRUD:
                 LIMIT ?
             """, params + [limit])
 
-            return [self._row_to_trade(row) for row in cursor.fetchall()]
+            return [self._row_to_trade(row) for row in cursor]
 
     def delete_trade(self, trade_id: int) -> bool:
         """

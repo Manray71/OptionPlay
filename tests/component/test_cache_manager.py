@@ -635,7 +635,7 @@ class TestCacheManagerInitialization:
         # Check historical cache policy
         historical = manager.get_cache("historical")
         assert historical._policy.ttl_seconds == 900
-        assert historical._policy.max_entries == 500
+        assert historical._policy.max_entries == 2000
         assert historical._policy.priority == CachePriority.HIGH
 
     def test_custom_policies(self):

@@ -96,6 +96,7 @@ class TradeTracker:
             db_path = str(db_dir / "trades.db")
 
         self.db_path = db_path
+        self._conn: Optional[sqlite3.Connection] = None
         self._init_db()
 
         # Initialize sub-modules with shared connection factory
@@ -105,19 +106,31 @@ class TradeTracker:
         self._options_storage = OptionsStorage(self._get_connection)
         self._trade_analysis = TradeAnalysis(self._get_connection, self._trade_crud)
 
+    def _ensure_connection(self) -> sqlite3.Connection:
+        """Erstellt oder gibt bestehende Connection zurück (mit WAL-Mode)."""
+        if self._conn is None:
+            self._conn = sqlite3.connect(self.db_path)
+            self._conn.row_factory = sqlite3.Row
+            self._conn.execute("PRAGMA journal_mode=WAL")
+            self._conn.execute("PRAGMA synchronous=NORMAL")
+        return self._conn
+
     @contextmanager
     def _get_connection(self):
-        """Context Manager für Datenbankverbindung"""
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
+        """Context Manager für Datenbankverbindung (wiederverwendet Connection)."""
+        conn = self._ensure_connection()
         try:
             yield conn
             conn.commit()
         except Exception:
             conn.rollback()
             raise
-        finally:
-            conn.close()
+
+    def close(self):
+        """Schließt die DB-Connection."""
+        if self._conn is not None:
+            self._conn.close()
+            self._conn = None
 
     def _init_db(self):
         """Initialisiert die Datenbank mit Schema"""

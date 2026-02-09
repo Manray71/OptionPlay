@@ -84,9 +84,7 @@ class OptionsDatabase:
             moneyness_max,
         ))
 
-        results = []
-        for row in cursor.fetchall():
-            results.append(OptionQuote(
+        return [OptionQuote(
                 occ_symbol=row['occ_symbol'],
                 underlying=row['underlying'],
                 expiration=date.fromisoformat(row['expiration']),
@@ -102,9 +100,7 @@ class OptionsDatabase:
                 underlying_price=row['underlying_price'],
                 dte=row['dte'],
                 moneyness=row['moneyness'],
-            ))
-
-        return results
+            ) for row in cursor]
 
     def get_underlying_prices(
         self,
@@ -136,7 +132,7 @@ class OptionsDatabase:
 
         return {
             date.fromisoformat(row['quote_date']): row['underlying_price']
-            for row in cursor.fetchall()
+            for row in cursor
         }
 
     def get_available_dates(
