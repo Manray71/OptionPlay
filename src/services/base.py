@@ -164,10 +164,10 @@ class BaseService(ABC):
                     return await provider.get_quote(symbol)
     """
     
-    def __init__(self, context: ServiceContext):
+    def __init__(self, context: ServiceContext) -> None:
         """
         Initialisiert den Service mit SharedContext.
-        
+
         Args:
             context: Shared ServiceContext mit Provider, Cache, etc.
         """

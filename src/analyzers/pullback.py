@@ -14,81 +14,42 @@ from .context import AnalysisContext
 from .pullback_scoring import PullbackScoringMixin
 from .score_normalization import normalize_score, get_signal_strength, STRATEGY_SCORE_CONFIGS
 
-try:
-    from ..models.base import TradeSignal, SignalType, SignalStrength
-    from ..models.indicators import MACDResult, StochasticResult, TechnicalIndicators, KeltnerChannelResult, RSIDivergenceResult
-    from ..models.candidates import PullbackCandidate, ScoreBreakdown
-    from ..config import PullbackScoringConfig
-except ImportError:
-    from models.base import TradeSignal, SignalType, SignalStrength
-    from models.indicators import MACDResult, StochasticResult, TechnicalIndicators, KeltnerChannelResult, RSIDivergenceResult
-    from models.candidates import PullbackCandidate, ScoreBreakdown
-    from config import PullbackScoringConfig
+from ..models.base import TradeSignal, SignalType, SignalStrength
+from ..models.indicators import MACDResult, StochasticResult, TechnicalIndicators, KeltnerChannelResult, RSIDivergenceResult
+from ..models.candidates import PullbackCandidate, ScoreBreakdown
+from ..config import PullbackScoringConfig
 
 # Import shared indicators
-try:
-    from ..indicators.momentum import calculate_rsi_divergence, calculate_macd, calculate_stochastic
-    from ..indicators.trend import calculate_ema
-except ImportError:
-    from indicators.momentum import calculate_rsi_divergence, calculate_macd, calculate_stochastic
-    from indicators.trend import calculate_ema
+from ..indicators.momentum import calculate_rsi_divergence, calculate_macd, calculate_stochastic
+from ..indicators.trend import calculate_ema
 
 # Import central constants (with alias to avoid naming conflicts)
-try:
-    from ..constants import (
-        MACD_FAST as _MACD_FAST,
-        MACD_SLOW as _MACD_SLOW,
-        MACD_SIGNAL as _MACD_SIGNAL,
-        STOCH_K_PERIOD as _STOCH_K,
-        STOCH_D_PERIOD as _STOCH_D,
-        STOCH_SMOOTH as _STOCH_SMOOTH,
-        STOCH_OVERSOLD as _STOCH_OVERSOLD,
-        STOCH_OVERBOUGHT as _STOCH_OVERBOUGHT,
-        RSI_PERIOD, RSI_OVERSOLD, RSI_OVERBOUGHT,
-        SMA_SHORT, SMA_MEDIUM, SMA_LONG,
-        FIB_LEVELS, FIB_LOOKBACK_DAYS,
-        SUPPORT_LOOKBACK_DAYS, SUPPORT_WINDOW, SUPPORT_MAX_LEVELS, SUPPORT_TOLERANCE_PCT,
-        VOLUME_AVG_PERIOD, VOLUME_SPIKE_MULTIPLIER,
-        KELTNER_ATR_MULTIPLIER, KELTNER_LOWER_THRESHOLD, KELTNER_NEUTRAL_LOW,
-        DIVERGENCE_SWING_WINDOW, DIVERGENCE_MIN_BARS, DIVERGENCE_MAX_BARS,
-        VWAP_PERIOD, VWAP_STRONG_ABOVE, VWAP_ABOVE, VWAP_BELOW, VWAP_STRONG_BELOW,
-        GAP_LOOKBACK_DAYS, GAP_SIZE_LARGE, GAP_SIZE_MEDIUM, GAP_SIZE_SMALL_NEG, GAP_SIZE_LARGE_NEG,
-        PRICE_TOLERANCE,
-    )
-except ImportError:
-    # Fallback for direct execution
-    from constants import (
-        MACD_FAST as _MACD_FAST,
-        MACD_SLOW as _MACD_SLOW,
-        MACD_SIGNAL as _MACD_SIGNAL,
-        STOCH_K_PERIOD as _STOCH_K,
-        STOCH_D_PERIOD as _STOCH_D,
-        STOCH_SMOOTH as _STOCH_SMOOTH,
-        STOCH_OVERSOLD as _STOCH_OVERSOLD,
-        STOCH_OVERBOUGHT as _STOCH_OVERBOUGHT,
-        RSI_PERIOD, RSI_OVERSOLD, RSI_OVERBOUGHT,
-        SMA_SHORT, SMA_MEDIUM, SMA_LONG,
-        FIB_LEVELS, FIB_LOOKBACK_DAYS,
-        SUPPORT_LOOKBACK_DAYS, SUPPORT_WINDOW, SUPPORT_MAX_LEVELS, SUPPORT_TOLERANCE_PCT,
-        VOLUME_AVG_PERIOD, VOLUME_SPIKE_MULTIPLIER,
-        KELTNER_ATR_MULTIPLIER, KELTNER_LOWER_THRESHOLD, KELTNER_NEUTRAL_LOW,
-        DIVERGENCE_SWING_WINDOW, DIVERGENCE_MIN_BARS, DIVERGENCE_MAX_BARS,
-        VWAP_PERIOD, VWAP_STRONG_ABOVE, VWAP_ABOVE, VWAP_BELOW, VWAP_STRONG_BELOW,
-        GAP_LOOKBACK_DAYS, GAP_SIZE_LARGE, GAP_SIZE_MEDIUM, GAP_SIZE_SMALL_NEG, GAP_SIZE_LARGE_NEG,
-        PRICE_TOLERANCE,
-    )
+from ..constants import (
+    MACD_FAST as _MACD_FAST,
+    MACD_SLOW as _MACD_SLOW,
+    MACD_SIGNAL as _MACD_SIGNAL,
+    STOCH_K_PERIOD as _STOCH_K,
+    STOCH_D_PERIOD as _STOCH_D,
+    STOCH_SMOOTH as _STOCH_SMOOTH,
+    STOCH_OVERSOLD as _STOCH_OVERSOLD,
+    STOCH_OVERBOUGHT as _STOCH_OVERBOUGHT,
+    RSI_PERIOD, RSI_OVERSOLD, RSI_OVERBOUGHT,
+    SMA_SHORT, SMA_MEDIUM, SMA_LONG,
+    FIB_LEVELS, FIB_LOOKBACK_DAYS,
+    SUPPORT_LOOKBACK_DAYS, SUPPORT_WINDOW, SUPPORT_MAX_LEVELS, SUPPORT_TOLERANCE_PCT,
+    VOLUME_AVG_PERIOD, VOLUME_SPIKE_MULTIPLIER,
+    KELTNER_ATR_MULTIPLIER, KELTNER_LOWER_THRESHOLD, KELTNER_NEUTRAL_LOW,
+    DIVERGENCE_SWING_WINDOW, DIVERGENCE_MIN_BARS, DIVERGENCE_MAX_BARS,
+    VWAP_PERIOD, VWAP_STRONG_ABOVE, VWAP_ABOVE, VWAP_BELOW, VWAP_STRONG_BELOW,
+    GAP_LOOKBACK_DAYS, GAP_SIZE_LARGE, GAP_SIZE_MEDIUM, GAP_SIZE_SMALL_NEG, GAP_SIZE_LARGE_NEG,
+    PRICE_TOLERANCE,
+)
 
 # Import optimized support/resistance functions
-try:
-    from ..indicators.support_resistance import (
-        find_support_levels as find_support_optimized,
-        find_resistance_levels as find_resistance_optimized,
-    )
-except ImportError:
-    from indicators.support_resistance import (
-        find_support_levels as find_support_optimized,
-        find_resistance_levels as find_resistance_optimized,
-    )
+from ..indicators.support_resistance import (
+    find_support_levels as find_support_optimized,
+    find_resistance_levels as find_resistance_optimized,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -150,7 +111,7 @@ class PullbackAnalyzer(PullbackScoringMixin, BaseAnalyzer):
     STOCH_OVERSOLD = _STOCH_OVERSOLD   # 20
     STOCH_OVERBOUGHT = _STOCH_OVERBOUGHT  # 80
 
-    def __init__(self, config: PullbackScoringConfig):
+    def __init__(self, config: PullbackScoringConfig) -> None:
         self.config = config
 
     @property

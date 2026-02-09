@@ -183,7 +183,7 @@ class RegimeModel:
         regimes: Optional[Dict[str, RegimeConfig]] = None,
         model_id: Optional[str] = None,
         use_trained_model: bool = True,
-    ):
+    ) -> None:
         """
         Initialize model.
 

@@ -26,7 +26,7 @@ class TradeAnalysis:
     Receives _get_connection and a reference to TradeCRUD for query_trades.
     """
 
-    def __init__(self, get_connection, trade_crud):
+    def __init__(self, get_connection, trade_crud) -> None:
         """
         Args:
             get_connection: Context manager yielding a sqlite3.Connection

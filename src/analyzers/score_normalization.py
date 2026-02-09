@@ -206,7 +206,7 @@ class ScoreNormalizer:
     with optional custom configurations.
     """
 
-    def __init__(self, custom_configs: Optional[Dict[str, StrategyScoreConfig]] = None):
+    def __init__(self, custom_configs: Optional[Dict[str, StrategyScoreConfig]] = None) -> None:
         """
         Initialize with optional custom configurations.
 

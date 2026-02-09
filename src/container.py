@@ -90,7 +90,7 @@ class ServiceContainer:
     # Internal state
     _initialized: bool = field(default=False, repr=False)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate container after initialization."""
         if self.config is not None:
             self._initialized = True

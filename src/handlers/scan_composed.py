@@ -183,7 +183,7 @@ class ScanHandler(BaseHandler):
 
             self._logger.debug(f"Pre-fetched {len(prefetch_cache)}/{len(symbols)} symbols")
 
-            async def data_fetcher(symbol: str):
+            async def data_fetcher(symbol: str) -> Optional[tuple]:
                 if symbol in prefetch_cache:
                     return prefetch_cache[symbol]
                 return await self._fetch_historical_cached(symbol, days=historical_days)
@@ -276,7 +276,7 @@ class ScanHandler(BaseHandler):
         from ..scanner.multi_strategy_scanner import ScanMode
         from ..utils.markdown_builder import truncate
 
-        def format_row(signal):
+        def format_row(signal: Any) -> list[str]:
             return [
                 signal.symbol,
                 f"{signal.score:.1f}",
@@ -325,7 +325,7 @@ class ScanHandler(BaseHandler):
         from ..scanner.multi_strategy_scanner import ScanMode
         from ..utils.markdown_builder import truncate
 
-        def format_row(signal):
+        def format_row(signal: Any) -> list[str]:
             return [
                 signal.symbol,
                 f"{signal.score:.1f}",
@@ -365,7 +365,7 @@ class ScanHandler(BaseHandler):
         from ..scanner.multi_strategy_scanner import ScanMode
         from ..utils.markdown_builder import truncate
 
-        def format_row(signal):
+        def format_row(signal: Any) -> list[str]:
             return [
                 signal.symbol,
                 f"{signal.score:.1f}",
@@ -406,7 +406,7 @@ class ScanHandler(BaseHandler):
         from ..scanner.multi_strategy_scanner import ScanMode
         from ..utils.markdown_builder import truncate
 
-        def format_row(signal):
+        def format_row(signal: Any) -> list[str]:
             return [
                 signal.symbol,
                 f"{signal.score:.1f}",
@@ -446,7 +446,7 @@ class ScanHandler(BaseHandler):
         from ..scanner.multi_strategy_scanner import ScanMode
         from ..utils.markdown_builder import truncate
 
-        def format_row(signal):
+        def format_row(signal: Any) -> list[str]:
             return [
                 signal.symbol,
                 f"{signal.score:.1f}",
@@ -497,7 +497,7 @@ class ScanHandler(BaseHandler):
             "trend_continuation": "[TC]",
         }
 
-        def format_row(signal):
+        def format_row(signal: Any) -> list[str]:
             icon = strategy_icons.get(signal.strategy, "[?]")
             return [
                 signal.symbol,
@@ -643,12 +643,12 @@ class ScanHandler(BaseHandler):
             batch = symbols[i:i + prefetch_batch_size]
             await prefetch_batch(batch)
 
-        async def data_fetcher(symbol: str):
+        async def data_fetcher(symbol: str) -> Optional[tuple]:
             if symbol in prefetch_cache:
                 return prefetch_cache[symbol]
             return await self._fetch_historical_cached(symbol, days=historical_days)
 
-        async def options_fetcher(symbol: str):
+        async def options_fetcher(symbol: str) -> list[Any]:
             try:
                 return await self._get_options_chain_with_fallback(
                     symbol, dte_min=60, dte_max=90, right="P"

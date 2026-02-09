@@ -21,9 +21,7 @@ from pathlib import Path
 from datetime import date, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch, PropertyMock
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-
-from data_providers.tradier import (
+from src.data_providers.tradier import (
     TradierProvider,
     TradierConfig,
     TradierEnvironment,
@@ -34,7 +32,7 @@ from data_providers.tradier import (
     fetch_option_chain,
     fetch_quote,
 )
-from data_providers.interface import (
+from src.data_providers.interface import (
     PriceQuote,
     OptionQuote,
     HistoricalBar,
@@ -1748,7 +1746,7 @@ class TestGlobalProvider:
     def test_get_tradier_provider_requires_api_key(self):
         """get_tradier_provider should require API key on first call"""
         # Reset global state
-        import data_providers.tradier as tradier_module
+        import src.data_providers.tradier as tradier_module
         tradier_module._default_provider = None
 
         with pytest.raises(ValueError, match="API Key erforderlich"):
@@ -1756,7 +1754,7 @@ class TestGlobalProvider:
 
     def test_get_tradier_provider_with_api_key(self):
         """get_tradier_provider should return provider with API key"""
-        import data_providers.tradier as tradier_module
+        import src.data_providers.tradier as tradier_module
         tradier_module._default_provider = None
 
         provider = get_tradier_provider(api_key="test_key")
@@ -1769,7 +1767,7 @@ class TestGlobalProvider:
 
     def test_get_tradier_provider_returns_same_instance(self):
         """get_tradier_provider should return same instance on subsequent calls"""
-        import data_providers.tradier as tradier_module
+        import src.data_providers.tradier as tradier_module
         tradier_module._default_provider = None
 
         provider1 = get_tradier_provider(api_key="test_key")

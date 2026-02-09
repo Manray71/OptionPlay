@@ -8,14 +8,12 @@ from pathlib import Path
 from datetime import date, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-
-from data_providers.marketdata import (
+from src.data_providers.marketdata import (
     MarketDataProvider,
     MarketDataConfig,
     get_marketdata_provider
 )
-from data_providers.interface import DataQuality
+from src.data_providers.interface import DataQuality
 
 
 # =============================================================================
@@ -292,7 +290,7 @@ class TestIntegration:
         """get_historical_for_scanner sollte Tuple zurückgeben"""
         with patch.object(provider, 'get_historical', new_callable=AsyncMock) as mock:
             # Erstelle Mock-Bars
-            from data_providers.interface import HistoricalBar
+            from src.data_providers.interface import HistoricalBar
             from datetime import timedelta
             base_date = date(2024, 1, 1)
             mock_bars = [
@@ -344,7 +342,7 @@ class TestFactoryFunctions:
     def test_get_marketdata_provider_requires_key(self):
         """get_marketdata_provider sollte ohne Key Fehler werfen"""
         # Reset global provider
-        import data_providers.marketdata as md
+        import src.data_providers.marketdata as md
         md._default_provider = None
         
         with pytest.raises(ValueError):
@@ -352,7 +350,7 @@ class TestFactoryFunctions:
     
     def test_get_marketdata_provider_with_key(self):
         """get_marketdata_provider sollte mit Key Provider zurückgeben"""
-        import data_providers.marketdata as md
+        import src.data_providers.marketdata as md
         md._default_provider = None
         
         provider = get_marketdata_provider(api_key="test_key")

@@ -120,7 +120,7 @@ class EarningsInfo:
             return True
         return self.days_to_earnings >= min_days
     
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> Dict[str, Any]:
         return {
             'symbol': self.symbol,
             'earnings_date': self.earnings_date,
@@ -337,13 +337,13 @@ class EarningsCache:
         )
     
     def set(
-        self, 
-        symbol: str, 
+        self,
+        symbol: str,
         earnings_date: Optional[str],
         days_to_earnings: Optional[int] = None,
         source: EarningsSource = EarningsSource.UNKNOWN,
         confirmed: bool = False
-    ):
+    ) -> None:
         """
         Speichert Earnings-Info im Cache.
         
@@ -379,7 +379,7 @@ class EarningsCache:
         """
         return {symbol: self.get(symbol) for symbol in symbols}
     
-    def set_many(self, entries: List[Tuple[str, Optional[str], EarningsSource]]):
+    def set_many(self, entries: List[Tuple[str, Optional[str], EarningsSource]]) -> None:
         """
         Speichert mehrere Earnings-Einträge.
         
@@ -400,14 +400,14 @@ class EarningsCache:
         
         self._save_cache()
     
-    def invalidate(self, symbol: str):
+    def invalidate(self, symbol: str) -> None:
         """Entfernt Symbol aus Cache"""
         symbol = symbol.upper()
         if symbol in self._cache:
             del self._cache[symbol]
             self._save_cache()
-    
-    def invalidate_all(self):
+
+    def invalidate_all(self) -> None:
         """Leert den gesamten Cache"""
         self._cache = {}
         self._save_cache()
@@ -430,7 +430,7 @@ class EarningsCache:
                 missing.append(symbol)
         return missing
     
-    def stats(self) -> Dict:
+    def stats(self) -> Dict[str, Any]:
         """Cache-Statistiken"""
         total = len(self._cache)
         fresh = sum(1 for e in self._cache.values() if self._is_fresh(e))

@@ -36,10 +36,7 @@ from .interface import (
     HistoricalBar
 )
 
-try:
-    from ..cache import EarningsInfo, EarningsSource
-except ImportError:
-    from cache import EarningsInfo, EarningsSource
+from ..cache import EarningsInfo, EarningsSource
 
 
 # =============================================================================
@@ -163,10 +160,7 @@ def build_occ_symbol(
 
     return f"{underlying}{expiry_str}{opt_type}{strike_str}"
 
-try:
-    from ..cache import IVData, IVSource, IVCache, get_iv_cache
-except ImportError:
-    from cache import IVData, IVSource, IVCache, get_iv_cache
+from ..cache import IVData, IVSource, IVCache, get_iv_cache
 
 logger = logging.getLogger(__name__)
 
@@ -243,7 +237,7 @@ class TradierProvider(DataProvider):
         environment: TradierEnvironment = TradierEnvironment.PRODUCTION,
         iv_cache: Optional[IVCache] = None,
         config: Optional[TradierConfig] = None
-    ):
+    ) -> None:
         self.config = config or TradierConfig(
             api_key=api_key,
             environment=environment
@@ -982,7 +976,7 @@ class TradierProvider(DataProvider):
                 req.add_header('Accept', 'application/json')
 
                 # Run synchronous urllib in thread pool
-                def do_request():
+                def do_request() -> Any:
                     with urllib.request.urlopen(req, timeout=self.config.timeout_seconds) as response:
                         return json.loads(response.read().decode())
 

@@ -219,7 +219,7 @@ class BacktestResult:
     # Outcome-Verteilung
     outcome_distribution: Dict[str, int] = field(default_factory=dict)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Berechnet Metriken aus Trades"""
         if self.trades:
             self._calculate_metrics()
@@ -418,7 +418,7 @@ class BacktestEngine(MetricsCalcMixin, EntryExitMixin):
     - EntryExitMixin: entry/exit signals, position open/close
     """
 
-    def __init__(self, config: BacktestConfig):
+    def __init__(self, config: BacktestConfig) -> None:
         """
         Initialisiert die Backtest-Engine.
 

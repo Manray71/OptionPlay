@@ -32,7 +32,7 @@ class IBKRPortfolio:
         positions = await portfolio.get_portfolio()
     """
 
-    def __init__(self, connection: IBKRConnection):
+    def __init__(self, connection: IBKRConnection) -> None:
         self._conn = connection
 
     async def get_portfolio(self) -> List[Dict[str, Any]]:

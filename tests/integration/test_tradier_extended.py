@@ -10,9 +10,7 @@ from datetime import date, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch, PropertyMock
 import aiohttp
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-
-from data_providers.tradier import (
+from src.data_providers.tradier import (
     TradierProvider,
     TradierConfig,
     TradierEnvironment,
@@ -21,7 +19,7 @@ from data_providers.tradier import (
     build_occ_symbol,
     get_tradier_provider,
 )
-from data_providers.interface import (
+from src.data_providers.interface import (
     PriceQuote,
     OptionQuote,
     HistoricalBar,

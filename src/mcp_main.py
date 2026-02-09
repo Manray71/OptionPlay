@@ -241,7 +241,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
 # MAIN
 # =============================================================================
 
-async def main():
+async def main() -> None:
     """Run the MCP server."""
     async with stdio_server() as (read_stream, write_stream):
         await app.run(

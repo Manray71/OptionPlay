@@ -28,63 +28,36 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Dict, Optional, Any, Callable
 
-# Relative imports
-try:
-    from ..scanner.multi_strategy_scanner import (
-        MultiStrategyScanner,
-        ScanConfig,
-        ScanResult,
-        ScanMode,
-    )
-    from ..vix_strategy import (
-        VIXStrategySelector,
-        MarketRegime,
-        StrategyRecommendation,
-    )
-    from ..strike_recommender import StrikeRecommender
-    from ..models.base import TradeSignal
-    from ..cache.symbol_fundamentals import get_fundamentals_manager
-    from ..constants.trading_rules import (
-        ENTRY_STABILITY_MIN,
-        ENTRY_VIX_MAX_NEW_TRADES,
-        SIZING_MAX_PER_SECTOR,
-        get_regime_rules,
-    )
-    from .signal_filter import (
-        apply_blacklist_filter,
-        apply_stability_filter,
-        apply_sector_diversification,
-    )
-    from .pick_formatter import (
-        format_picks_markdown as _format_picks_markdown,
-        format_single_pick as _format_single_pick,
-    )
-    from .recommendation_ranking import RecommendationRankingMixin
-except ImportError:
-    from scanner.multi_strategy_scanner import (  # type: ignore[no-redef]
-        MultiStrategyScanner,
-        ScanConfig,
-        ScanResult,
-        ScanMode,
-    )
-    from vix_strategy import (  # type: ignore[no-redef]
-        VIXStrategySelector,
-        MarketRegime,
-        StrategyRecommendation,
-    )
-    from strike_recommender import StrikeRecommender  # type: ignore[no-redef]
-    from models.base import TradeSignal  # type: ignore[no-redef]
-    from cache.symbol_fundamentals import get_fundamentals_manager  # type: ignore[no-redef]
-    from services.signal_filter import (  # type: ignore[no-redef]
-        apply_blacklist_filter,
-        apply_stability_filter,
-        apply_sector_diversification,
-    )
-    from services.pick_formatter import (  # type: ignore[no-redef]
-        format_picks_markdown as _format_picks_markdown,
-        format_single_pick as _format_single_pick,
-    )
-    from services.recommendation_ranking import RecommendationRankingMixin  # type: ignore[no-redef]
+from ..scanner.multi_strategy_scanner import (
+    MultiStrategyScanner,
+    ScanConfig,
+    ScanResult,
+    ScanMode,
+)
+from ..vix_strategy import (
+    VIXStrategySelector,
+    MarketRegime,
+    StrategyRecommendation,
+)
+from ..strike_recommender import StrikeRecommender
+from ..models.base import TradeSignal
+from ..cache.symbol_fundamentals import get_fundamentals_manager
+from ..constants.trading_rules import (
+    ENTRY_STABILITY_MIN,
+    ENTRY_VIX_MAX_NEW_TRADES,
+    SIZING_MAX_PER_SECTOR,
+    get_regime_rules,
+)
+from .signal_filter import (
+    apply_blacklist_filter,
+    apply_stability_filter,
+    apply_sector_diversification,
+)
+from .pick_formatter import (
+    format_picks_markdown as _format_picks_markdown,
+    format_single_pick as _format_single_pick,
+)
+from .recommendation_ranking import RecommendationRankingMixin
 
 logger = logging.getLogger(__name__)
 
@@ -288,7 +261,7 @@ class DailyRecommendationEngine(RecommendationRankingMixin):
         vix_selector: Optional[VIXStrategySelector] = None,
         strike_recommender: Optional[StrikeRecommender] = None,
         config: Optional[dict[str, Any]] = None,
-    ):
+    ) -> None:
         """
         Initialisiert die Recommendation Engine.
 

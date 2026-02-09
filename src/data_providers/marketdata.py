@@ -34,24 +34,14 @@ from datetime import datetime, date, timedelta
 from typing import List, Optional, Dict, Any, Tuple
 from enum import Enum
 
-try:
-    from .interface import (
-        DataProvider,
-        DataQuality,
-        PriceQuote,
-        OptionQuote,
-        HistoricalBar
-    )
-    from ..cache import EarningsInfo, EarningsSource, IVData, IVSource, IVCache, get_iv_cache
-except ImportError:
-    from data_providers.interface import (
-        DataProvider,
-        DataQuality,
-        PriceQuote,
-        OptionQuote,
-        HistoricalBar
-    )
-    from cache import EarningsInfo, EarningsSource, IVData, IVSource, IVCache, get_iv_cache
+from .interface import (
+    DataProvider,
+    DataQuality,
+    PriceQuote,
+    OptionQuote,
+    HistoricalBar
+)
+from ..cache import EarningsInfo, EarningsSource, IVData, IVSource, IVCache, get_iv_cache
 
 logger = logging.getLogger(__name__)
 
@@ -114,7 +104,7 @@ class MarketDataProvider(DataProvider):
         api_key: str,
         iv_cache: Optional[IVCache] = None,
         config: Optional[MarketDataConfig] = None
-    ):
+    ) -> None:
         self.config = config or MarketDataConfig(api_key=api_key)
         # Note: Using urllib.request for HTTP calls (Python 3.14 compatible)
         self._connected = False
@@ -896,7 +886,7 @@ async def fetch_historical(
         return await provider.get_historical(symbol, days)
 
 
-async def create_scanner_data_fetcher(api_key: str):
+async def create_scanner_data_fetcher(api_key: str) -> Tuple[Any, MarketDataProvider]:
     """
     Erstellt einen Data Fetcher für den MultiStrategyScanner.
     

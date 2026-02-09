@@ -4,7 +4,7 @@
 
 import asyncio
 import logging
-from typing import List, Dict, Optional, Type
+from typing import Any, List, Dict, Optional, Tuple, Type
 from datetime import datetime
 
 try:
@@ -29,7 +29,7 @@ class MarketScanner:
         results = await scanner.scan(symbols, data_provider)
     """
     
-    def __init__(self):
+    def __init__(self) -> None:
         self._analyzers: List[BaseAnalyzer] = []
         self._last_scan: Optional[datetime] = None
     
@@ -122,7 +122,7 @@ class MarketScanner:
         # Phase 1: Fetch all data in parallel
         semaphore = asyncio.Semaphore(max_concurrent)
 
-        async def fetch_data(symbol: str):
+        async def fetch_data(symbol: str) -> Tuple[str, Optional[Any]]:
             async with semaphore:
                 try:
                     return (symbol, await data_fetcher(symbol))

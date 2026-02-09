@@ -19,7 +19,7 @@ import nest_asyncio
 nest_asyncio.apply()
 
 from datetime import datetime
-from typing import Optional, Dict
+from typing import Any, Optional, Dict
 
 logger = logging.getLogger(__name__)
 
@@ -112,7 +112,7 @@ class IBKRConnection:
     TWS_LIVE_PORT = 7496
     GATEWAY_PORT = 4001
 
-    def __init__(self, host: str = "127.0.0.1", port: int = 7497):
+    def __init__(self, host: str = "127.0.0.1", port: int = 7497) -> None:
         self.host = host
         self.port = port
         self._ib = None
@@ -121,7 +121,7 @@ class IBKRConnection:
         self._check_interval = 60  # seconds
 
     @property
-    def ib(self):
+    def ib(self) -> Any:
         """Access to the underlying ib_insync IB instance."""
         return self._ib
 
@@ -205,7 +205,7 @@ class IBKRConnection:
             self._connected = False
             return False
 
-    async def disconnect(self):
+    async def disconnect(self) -> None:
         """Disconnects."""
         if self._ib:
             self._ib.disconnect()

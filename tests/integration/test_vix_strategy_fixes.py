@@ -6,9 +6,7 @@ import pytest
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-
-from vix_strategy import (
+from src.vix_strategy import (
     VIXStrategySelector,
     MarketRegime,
     VIXThresholds,

@@ -37,7 +37,7 @@ class MetaLearner:
         history_window_days: int = 90,
         min_samples_per_strategy: int = 10,
         decay_factor: float = 0.95,
-    ):
+    ) -> None:
         self.history_window = history_window_days
         self.min_samples = min_samples_per_strategy
         self.decay_factor = decay_factor
@@ -127,7 +127,7 @@ class MetaLearner:
         pnl_percent: float,
         signal_date: date,
         regime: Optional[str] = None,
-    ):
+    ) -> None:
         """Update performance tracking with new trade result"""
         # Update symbol performance
         if symbol not in self._symbol_performance:
@@ -206,7 +206,7 @@ class MetaLearner:
             "preference_weights": perf.get_preference_weights(),
         }
 
-    def save(self, filepath: str):
+    def save(self, filepath: str) -> None:
         """Save meta-learner state"""
         filepath = Path(filepath).expanduser()
         filepath.parent.mkdir(parents=True, exist_ok=True)

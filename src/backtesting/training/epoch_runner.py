@@ -26,7 +26,7 @@ class EpochRunner:
 
     ALL_STRATEGIES = ["pullback", "bounce", "ath_breakout", "earnings_dip", "trend_continuation"]
 
-    def __init__(self, config: RegimeTrainingConfig):
+    def __init__(self, config: RegimeTrainingConfig) -> None:
         self.config = config
         self._performance = PerformanceAnalyzer()
 

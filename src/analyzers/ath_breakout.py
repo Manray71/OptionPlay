@@ -24,52 +24,29 @@ import numpy as np
 from .base import BaseAnalyzer
 from .context import AnalysisContext
 
-try:
-    from ..models.base import TradeSignal, SignalType, SignalStrength
-    from ..models.strategy_breakdowns import ATHBreakoutScoreBreakdown
-except ImportError:
-    from models.base import TradeSignal, SignalType, SignalStrength
-    from models.strategy_breakdowns import ATHBreakoutScoreBreakdown
+from ..models.base import TradeSignal, SignalType, SignalStrength
+from ..models.strategy_breakdowns import ATHBreakoutScoreBreakdown
 
 logger = logging.getLogger(__name__)
 
 # Import S/R analysis
-try:
-    from ..indicators.support_resistance import get_nearest_sr_levels
-except ImportError:
-    from indicators.support_resistance import get_nearest_sr_levels
+from ..indicators.support_resistance import get_nearest_sr_levels
 
 # Import shared indicators
-try:
-    from ..indicators.momentum import calculate_macd
-except ImportError:
-    from indicators.momentum import calculate_macd
+from ..indicators.momentum import calculate_macd
 
 # Import Feature Scoring Mixin
-try:
-    from .feature_scoring_mixin import FeatureScoringMixin
-except ImportError:
-    from analyzers.feature_scoring_mixin import FeatureScoringMixin
+from .feature_scoring_mixin import FeatureScoringMixin
 
 # Import central constants
-try:
-    from ..constants import (
-        RSI_PERIOD,
-        MACD_FAST, MACD_SLOW, MACD_SIGNAL,
-        SMA_SHORT, SMA_MEDIUM, SMA_LONG,
-        VOLUME_AVG_PERIOD,
-        SR_LOOKBACK_DAYS_EXTENDED,
-        ATH_LOOKBACK_DAYS,
-    )
-except ImportError:
-    from constants import (
-        RSI_PERIOD,
-        MACD_FAST, MACD_SLOW, MACD_SIGNAL,
-        SMA_SHORT, SMA_MEDIUM, SMA_LONG,
-        VOLUME_AVG_PERIOD,
-        SR_LOOKBACK_DAYS_EXTENDED,
-        ATH_LOOKBACK_DAYS,
-    )
+from ..constants import (
+    RSI_PERIOD,
+    MACD_FAST, MACD_SLOW, MACD_SIGNAL,
+    SMA_SHORT, SMA_MEDIUM, SMA_LONG,
+    VOLUME_AVG_PERIOD,
+    SR_LOOKBACK_DAYS_EXTENDED,
+    ATH_LOOKBACK_DAYS,
+)
 
 
 # =============================================================================
@@ -219,7 +196,7 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         config: Optional[ATHBreakoutConfig] = None,
         scoring_config=None,  # Accepted for backward compat, ignored
         **kwargs
-    ):
+    ) -> None:
         self.config = config or ATHBreakoutConfig()
         # Accept scoring_config for backward compat but ignore it
         self.scoring_config = scoring_config

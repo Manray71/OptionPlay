@@ -16,20 +16,12 @@ from typing import Any, Dict, List, Optional
 logger = logging.getLogger(__name__)
 
 # Relative imports
-try:
-    from ..models.base import TradeSignal
-    from ..cache.symbol_fundamentals import SymbolFundamentals
-    from ..constants.trading_rules import (
-        is_blacklisted,
-        get_adjusted_stability_min,
-    )
-except ImportError:
-    from models.base import TradeSignal  # type: ignore[no-redef]
-    from cache.symbol_fundamentals import SymbolFundamentals  # type: ignore[no-redef]
-    from constants.trading_rules import (  # type: ignore[no-redef]
-        is_blacklisted,
-        get_adjusted_stability_min,
-    )
+from ..models.base import TradeSignal
+from ..cache.symbol_fundamentals import SymbolFundamentals
+from ..constants.trading_rules import (
+    is_blacklisted,
+    get_adjusted_stability_min,
+)
 
 
 def check_symbol_stability(

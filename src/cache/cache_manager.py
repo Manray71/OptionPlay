@@ -133,7 +133,7 @@ class BaseCache:
     - Statistiken via CacheMetrics
     """
 
-    def __init__(self, policy: CachePolicy, name: str):
+    def __init__(self, policy: CachePolicy, name: str) -> None:
         """
         Initialisiert Cache mit Policy.
 
@@ -364,7 +364,7 @@ class CacheManager:
         self,
         policies: Optional[Dict[str, CachePolicy]] = None,
         dependencies: Optional[Dict[str, List[str]]] = None
-    ):
+    ) -> None:
         """
         Initialisiert CacheManager.
 

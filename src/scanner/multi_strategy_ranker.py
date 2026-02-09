@@ -88,7 +88,7 @@ class NormalizedScore:
     win_rate: float
     avg_pnl: float
 
-    def __lt__(self, other):
+    def __lt__(self, other) -> bool:
         return self.expected_value < other.expected_value
 
 
@@ -155,7 +155,7 @@ class MultiStrategyRanker:
     ```
     """
 
-    def __init__(self, metrics: Optional[Dict] = None):
+    def __init__(self, metrics: Optional[Dict] = None) -> None:
         """
         Args:
             metrics: Optionale Custom-Metriken, sonst werden Backtest-Ergebnisse verwendet

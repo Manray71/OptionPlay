@@ -16,23 +16,13 @@ import logging
 from collections import Counter
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-# Relative imports ----------------------------------------------------------
-try:
-    from ..vix_strategy import MarketRegime
-    from ..models.base import TradeSignal
-    from ..constants.trading_rules import (
-        SPREAD_DTE_MIN,
-        SPREAD_DTE_MAX,
-        LIQUIDITY_MIN_QUALITY_DAILY_PICKS,
-    )
-except ImportError:
-    from vix_strategy import MarketRegime  # type: ignore[no-redef]
-    from models.base import TradeSignal  # type: ignore[no-redef]
-    from constants.trading_rules import (  # type: ignore[no-redef]
-        SPREAD_DTE_MIN,
-        SPREAD_DTE_MAX,
-        LIQUIDITY_MIN_QUALITY_DAILY_PICKS,
-    )
+from ..vix_strategy import MarketRegime
+from ..models.base import TradeSignal
+from ..constants.trading_rules import (
+    SPREAD_DTE_MIN,
+    SPREAD_DTE_MAX,
+    LIQUIDITY_MIN_QUALITY_DAILY_PICKS,
+)
 
 logger = logging.getLogger(__name__)
 

@@ -33,7 +33,7 @@ class StrategyRotationEngine:
         performance_threshold: float = 0.40,
         min_trades_for_rotation: int = 10,
         initial_preferences: Optional[Dict[str, float]] = None,
-    ):
+    ) -> None:
         self.rotation_window = rotation_window_days
         self.performance_threshold = performance_threshold
         self.min_trades = min_trades_for_rotation
@@ -51,7 +51,7 @@ class StrategyRotationEngine:
         strategy: str,
         outcome: bool,
         trade_date: date,
-    ):
+    ) -> None:
         """Record a trade result for rotation tracking"""
         # Update win rates
         self._state.recent_win_rates[strategy].append(1.0 if outcome else 0.0)

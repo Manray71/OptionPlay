@@ -63,7 +63,7 @@ class EnsembleSelector:
         method: SelectionMethod = SelectionMethod.META_LEARNER,
         enable_rotation: bool = True,
         min_score_threshold: float = 4.0,
-    ):
+    ) -> None:
         self.method = method
         self.enable_rotation = enable_rotation
         self.min_score_threshold = min_score_threshold
@@ -179,7 +179,7 @@ class EnsembleSelector:
         pnl_percent: float,
         signal_date: date,
         regime: Optional[str] = None,
-    ):
+    ) -> None:
         """
         Update selector with trade result.
 
@@ -465,7 +465,7 @@ class EnsembleSelector:
         except Exception as e:
             logger.warning(f"Could not seed rotation from granular model: {e}")
 
-    def save(self, filepath: str):
+    def save(self, filepath: str) -> None:
         """Save ensemble selector state"""
         filepath = Path(filepath).expanduser()
         filepath.parent.mkdir(parents=True, exist_ok=True)

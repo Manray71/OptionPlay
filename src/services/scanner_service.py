@@ -75,10 +75,10 @@ class ScannerService(BaseService):
         _vix_service: VIX Service für Strategie-Parameter
     """
     
-    def __init__(self, context: ServiceContext, vix_service: Optional[VIXService] = None):
+    def __init__(self, context: ServiceContext, vix_service: Optional[VIXService] = None) -> None:
         """
         Initialisiert den Scanner Service.
-        
+
         Args:
             context: Shared ServiceContext
             vix_service: Optional VIX Service (wird erstellt wenn nicht übergeben)

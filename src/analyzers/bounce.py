@@ -24,48 +24,26 @@ import numpy as np
 from .base import BaseAnalyzer
 from .context import AnalysisContext
 
-try:
-    from ..models.base import TradeSignal, SignalType, SignalStrength
-    from ..models.strategy_breakdowns import BounceScoreBreakdown
-except ImportError:
-    from models.base import TradeSignal, SignalType, SignalStrength
-    from models.strategy_breakdowns import BounceScoreBreakdown
+from ..models.base import TradeSignal, SignalType, SignalStrength
+from ..models.strategy_breakdowns import BounceScoreBreakdown
 
 # Import shared indicators
-try:
-    from ..indicators.momentum import calculate_macd
-    from ..indicators.support_resistance import find_support_levels as find_support_optimized
-    from ..indicators.support_resistance import get_nearest_sr_levels
-except ImportError:
-    from indicators.momentum import calculate_macd
-    from indicators.support_resistance import find_support_levels as find_support_optimized
-    from indicators.support_resistance import get_nearest_sr_levels
+from ..indicators.momentum import calculate_macd
+from ..indicators.support_resistance import find_support_levels as find_support_optimized
+from ..indicators.support_resistance import get_nearest_sr_levels
 
 # Import Feature Scoring Mixin
-try:
-    from .feature_scoring_mixin import FeatureScoringMixin
-except ImportError:
-    from analyzers.feature_scoring_mixin import FeatureScoringMixin
+from .feature_scoring_mixin import FeatureScoringMixin
 
 # Import central constants
-try:
-    from ..constants import (
-        RSI_PERIOD,
-        MACD_FAST, MACD_SLOW, MACD_SIGNAL,
-        SMA_LONG,
-        VOLUME_AVG_PERIOD,
-        SR_LOOKBACK_DAYS_EXTENDED,
-        BOUNCE_MIN_TOUCHES,
-    )
-except ImportError:
-    from constants import (
-        RSI_PERIOD,
-        MACD_FAST, MACD_SLOW, MACD_SIGNAL,
-        SMA_LONG,
-        VOLUME_AVG_PERIOD,
-        SR_LOOKBACK_DAYS_EXTENDED,
-        BOUNCE_MIN_TOUCHES,
-    )
+from ..constants import (
+    RSI_PERIOD,
+    MACD_FAST, MACD_SLOW, MACD_SIGNAL,
+    SMA_LONG,
+    VOLUME_AVG_PERIOD,
+    SR_LOOKBACK_DAYS_EXTENDED,
+    BOUNCE_MIN_TOUCHES,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -212,7 +190,7 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             print(f"Bounce Signal: {signal.score}/10")
     """
 
-    def __init__(self, config: Optional[BounceConfig] = None, **kwargs):
+    def __init__(self, config: Optional[BounceConfig] = None, **kwargs) -> None:
         # Accept scoring_config for backward compat but ignore it
         self.config = config or BounceConfig()
 

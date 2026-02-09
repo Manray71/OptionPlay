@@ -131,7 +131,7 @@ class SecureConfig:
         env_file: Optional[Path] = None,
         use_keyring: bool = False,
         keyring_service: str = "optionplay"
-    ):
+    ) -> None:
         """
         Initialisiert SecureConfig.
         

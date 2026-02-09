@@ -20,7 +20,7 @@ DB_PATH = Path.home() / ".optionplay" / "trades.db"
 class OptionsDatabase:
     """Zugriff auf die historischen Options-Daten"""
 
-    def __init__(self, db_path: Path = DB_PATH):
+    def __init__(self, db_path: Path = DB_PATH) -> None:
         self.db_path = db_path
         self._conn = None
 
@@ -31,7 +31,7 @@ class OptionsDatabase:
             self._conn.row_factory = sqlite3.Row
         return self._conn
 
-    def close(self):
+    def close(self) -> None:
         """Verbindung schließen"""
         if self._conn:
             self._conn.close()

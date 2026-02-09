@@ -259,7 +259,7 @@ class DataProviderRegistry:
     Ermöglicht Fallback-Logik.
     """
     
-    def __init__(self):
+    def __init__(self) -> None:
         self._providers: Dict[str, DataProvider] = {}
         self._primary: Optional[str] = None
         self._fallbacks: Dict[str, List[str]] = {
@@ -301,7 +301,7 @@ class DataFetcher:
     High-Level Data Fetcher mit Fallback.
     """
     
-    def __init__(self, registry: DataProviderRegistry):
+    def __init__(self, registry: DataProviderRegistry) -> None:
         self.registry = registry
         self._cache: Dict[str, Any] = {}
         

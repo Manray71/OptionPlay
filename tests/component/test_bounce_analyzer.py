@@ -15,12 +15,10 @@ import pytest
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-
-from analyzers.bounce import BounceAnalyzer, BounceConfig, BOUNCE_MIN_SCORE, BOUNCE_MAX_SCORE
-from analyzers.context import AnalysisContext
-from models.base import SignalType, SignalStrength, TradeSignal
-from models.strategy_breakdowns import BounceScoreBreakdown
+from src.analyzers.bounce import BounceAnalyzer, BounceConfig, BOUNCE_MIN_SCORE, BOUNCE_MAX_SCORE
+from src.analyzers.context import AnalysisContext
+from src.models.base import SignalType, SignalStrength, TradeSignal
+from src.models.strategy_breakdowns import BounceScoreBreakdown
 
 
 # =============================================================================

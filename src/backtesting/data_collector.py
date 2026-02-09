@@ -97,7 +97,7 @@ class DataCollector:
         result = await collector.collect(provider)
     """
 
-    def __init__(self, config: Optional[CollectionConfig] = None):
+    def __init__(self, config: Optional[CollectionConfig] = None) -> None:
         self.config = config or CollectionConfig()
         self._tracker: Optional[TradeTracker] = None
 

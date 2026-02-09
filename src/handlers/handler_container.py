@@ -61,7 +61,7 @@ class ServerContext:
         vix_selector: "VIXStrategySelector",
         deduplicator: "RequestDeduplicator",
         container: Optional["ServiceContainer"] = None,
-    ):
+    ) -> None:
         self.config = config
         self.provider = provider
         self.tradier_provider = tradier_provider
@@ -102,7 +102,7 @@ class BaseHandler:
     Provides access to the shared ServerContext.
     """
 
-    def __init__(self, context: ServerContext):
+    def __init__(self, context: ServerContext) -> None:
         self._ctx = context
         self._logger = logging.getLogger(self.__class__.__name__)
 
@@ -127,7 +127,7 @@ class HandlerContainer:
     This improves startup performance and allows flexible configuration.
     """
 
-    def __init__(self, context: ServerContext):
+    def __init__(self, context: ServerContext) -> None:
         self._context = context
 
         # Lazy-initialized handlers

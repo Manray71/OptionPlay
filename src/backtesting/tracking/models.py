@@ -211,7 +211,7 @@ class SymbolPriceData:
     last_date: Optional[date] = None
     bar_count: int = 0
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.bars:
             self.first_date = min(b.date for b in self.bars)
             self.last_date = max(b.date for b in self.bars)

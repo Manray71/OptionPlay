@@ -223,7 +223,7 @@ class ReliabilityScorer:
         config: Optional[ScorerConfig] = None,
         training_result: Optional[TrainingResult] = None,
         validation_result: Optional[SignalValidationResult] = None,
-    ):
+    ) -> None:
         """
         Initialisiert den Scorer.
 
@@ -481,7 +481,7 @@ class ReliabilityScorer:
             results.append((candidate, result))
 
         # Sortiere: should_trade first, dann nach Grade, dann nach Score
-        def sort_key(item):
+        def sort_key(item) -> Tuple[bool, int, float]:
             _, result = item
             return (
                 not result.should_trade,  # True trades first

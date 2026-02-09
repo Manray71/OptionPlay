@@ -168,7 +168,7 @@ class OptionsSimulator:
     - Slippage und Bid-Ask
     """
 
-    def __init__(self, config: Optional[SimulatorConfig] = None):
+    def __init__(self, config: Optional[SimulatorConfig] = None) -> None:
         self.config = config or SimulatorConfig()
         self.pricer = OptionPricer(risk_free_rate=self.config.risk_free_rate)
 

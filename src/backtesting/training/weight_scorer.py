@@ -21,7 +21,7 @@ class WeightedScorer:
         weighted_score = scorer.score(score_breakdown, strategy="pullback")
     """
 
-    def __init__(self, optimization_result=None):
+    def __init__(self, optimization_result=None) -> None:
         """
         Initialize scorer.
 

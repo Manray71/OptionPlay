@@ -197,7 +197,7 @@ class PDFReportGenerator:
     Generates PDF reports from scan data using Jinja2 and WeasyPrint.
     """
 
-    def __init__(self, output_dir: str = "reports"):
+    def __init__(self, output_dir: str = "reports") -> None:
         # Use absolute path to ensure write access in sandboxed environments
         if not os.path.isabs(output_dir):
             base_dir = os.environ.get("OPTIONPLAY_HOME", "/Users/larschristiansen/OptionPlay")

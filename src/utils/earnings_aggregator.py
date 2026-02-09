@@ -118,7 +118,7 @@ class EarningsAggregator:
     # Allow 1-day tolerance for date matching (AM vs PM earnings)
     DATE_TOLERANCE_DAYS = 1
     
-    def __init__(self):
+    def __init__(self) -> None:
         pass
     
     def aggregate(

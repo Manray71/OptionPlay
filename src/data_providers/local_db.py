@@ -49,7 +49,7 @@ class LocalDBProvider(DataProvider):
     Implements the DataProvider interface for seamless integration.
     """
 
-    def __init__(self, db_path: Optional[Path] = None):
+    def __init__(self, db_path: Optional[Path] = None) -> None:
         """
         Initialize the local database provider.
 

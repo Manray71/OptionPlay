@@ -31,30 +31,17 @@ from dataclasses import dataclass, field
 from typing import List, Dict, Optional
 from enum import Enum
 
-try:
-    from .constants.trading_rules import (
-        SPREAD_SHORT_DELTA_TARGET,
-        SPREAD_SHORT_DELTA_MIN,
-        SPREAD_SHORT_DELTA_MAX,
-        SPREAD_LONG_DELTA_TARGET,
-        SPREAD_LONG_DELTA_MIN,
-        SPREAD_LONG_DELTA_MAX,
-        SPREAD_MIN_CREDIT_PCT,
-        ENTRY_OPEN_INTEREST_MIN,
-        LIQUIDITY_OI_EXCELLENT,
-    )
-except ImportError:
-    from constants.trading_rules import (
-        SPREAD_SHORT_DELTA_TARGET,
-        SPREAD_SHORT_DELTA_MIN,
-        SPREAD_SHORT_DELTA_MAX,
-        SPREAD_LONG_DELTA_TARGET,
-        SPREAD_LONG_DELTA_MIN,
-        SPREAD_LONG_DELTA_MAX,
-        SPREAD_MIN_CREDIT_PCT,
-        ENTRY_OPEN_INTEREST_MIN,
-        LIQUIDITY_OI_EXCELLENT,
-    )
+from .constants.trading_rules import (
+    SPREAD_SHORT_DELTA_TARGET,
+    SPREAD_SHORT_DELTA_MIN,
+    SPREAD_SHORT_DELTA_MAX,
+    SPREAD_LONG_DELTA_TARGET,
+    SPREAD_LONG_DELTA_MIN,
+    SPREAD_LONG_DELTA_MAX,
+    SPREAD_MIN_CREDIT_PCT,
+    ENTRY_OPEN_INTEREST_MIN,
+    LIQUIDITY_OI_EXCELLENT,
+)
 
 # ConfigLoader from config package
 try:
@@ -69,11 +56,7 @@ try:
 except ImportError:
     MarketRegime = None  # VIX regime features disabled
 
-# Mixin with _calculate_metrics() and _evaluate_quality()
-try:
-    from .strike_recommender_calc import StrikeMetricsMixin
-except ImportError:
-    from strike_recommender_calc import StrikeMetricsMixin  # type: ignore[no-redef]
+from .strike_recommender_calc import StrikeMetricsMixin
 
 logger = logging.getLogger(__name__)
 
@@ -205,7 +188,7 @@ class StrikeRecommender(StrikeMetricsMixin):
         "target_credit_pct": 30,  # Ideal: 30%
     }
     
-    def __init__(self, config: Optional[Dict] = None, use_config_loader: bool = True):
+    def __init__(self, config: Optional[Dict] = None, use_config_loader: bool = True) -> None:
         """
         Initializes the Strike Recommender
 

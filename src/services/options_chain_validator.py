@@ -132,7 +132,7 @@ class OptionsChainValidator:
     8. Liquiditäts-Check (OI, Bid-Ask)
     """
 
-    def __init__(self, options_provider: Any, ibkr_bridge: Any = None):
+    def __init__(self, options_provider: Any, ibkr_bridge: Any = None) -> None:
         """
         Args:
             options_provider: Provider mit get_option_chain() und get_expirations()

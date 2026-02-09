@@ -370,7 +370,7 @@ class EventCalendar:
             print("S/R Levels nicht zuverlässig wegen:", result.blocking_events)
     """
 
-    def __init__(self, include_macro_events: bool = True):
+    def __init__(self, include_macro_events: bool = True) -> None:
         self._events: List[MarketEvent] = []
         self._symbols_with_earnings: set = set()
 

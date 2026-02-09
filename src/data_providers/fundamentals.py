@@ -303,7 +303,7 @@ def get_fundamentals_for_symbols(
     return result
 
 
-def clear_fundamentals_cache():
+def clear_fundamentals_cache() -> None:
     """Leert den Fundamentals-Cache."""
     global _fundamentals_cache
     _fundamentals_cache = {}

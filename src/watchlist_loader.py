@@ -30,10 +30,10 @@ class WatchlistLoader:
                         symbols: [AAPL, MSFT, ...]
     """
     
-    def __init__(self, config_path: Optional[Path] = None):
+    def __init__(self, config_path: Optional[Path] = None) -> None:
         """
         Initialisiert den Loader
-        
+
         Args:
             config_path: Pfad zur watchlists.yaml (default: ~/OptionPlay/config/)
         """

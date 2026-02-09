@@ -18,80 +18,47 @@ from typing import List, Dict, Optional, Callable, Tuple, Any
 from datetime import datetime, date
 from enum import Enum
 
+from ..analyzers.base import BaseAnalyzer
+from ..analyzers.context import AnalysisContext
+from ..analyzers.pullback import PullbackAnalyzer
+from ..analyzers.ath_breakout import ATHBreakoutAnalyzer, ATHBreakoutConfig
+from ..analyzers.bounce import BounceAnalyzer, BounceConfig
+from ..analyzers.earnings_dip import EarningsDipAnalyzer, EarningsDipConfig
+from ..analyzers.trend_continuation import TrendContinuationAnalyzer, TrendContinuationConfig
+from ..analyzers.pool import AnalyzerPool, PoolConfig, get_analyzer_pool
+from ..models.base import TradeSignal, SignalType, SignalStrength
+from ..config import PullbackScoringConfig
+from ..config.liquidity_blacklist import is_illiquid, filter_liquid_symbols
+from ..constants.trading_rules import ENTRY_STABILITY_MIN, ENTRY_PRICE_MIN, ENTRY_PRICE_MAX
+
+# Optional dependencies — these may not be available in all environments
 try:
-    from ..analyzers.base import BaseAnalyzer
-    from ..analyzers.context import AnalysisContext
-    from ..analyzers.pullback import PullbackAnalyzer
-    from ..analyzers.ath_breakout import ATHBreakoutAnalyzer, ATHBreakoutConfig
-    from ..analyzers.bounce import BounceAnalyzer, BounceConfig
-    from ..analyzers.earnings_dip import EarningsDipAnalyzer, EarningsDipConfig
-    from ..analyzers.trend_continuation import TrendContinuationAnalyzer, TrendContinuationConfig
-    from ..analyzers.pool import AnalyzerPool, PoolConfig, get_analyzer_pool
-    from ..models.base import TradeSignal, SignalType, SignalStrength
-    from ..config import PullbackScoringConfig
-    from ..config.liquidity_blacklist import is_illiquid, filter_liquid_symbols
     from ..backtesting import ReliabilityScorer, ScorerConfig
+except ImportError:
+    ReliabilityScorer = None
+    ScorerConfig = None
+
+try:
     from ..backtesting import (
         calculate_symbol_stability,
         get_symbol_stability_score,
         OUTCOME_DB_PATH,
     )
+except ImportError:
+    calculate_symbol_stability = None
+    get_symbol_stability_score = None
+    OUTCOME_DB_PATH = None
+
+try:
     from ..cache.symbol_fundamentals import (
         SymbolFundamentalsManager,
         get_fundamentals_manager,
         SymbolFundamentals,
     )
-    from ..constants.trading_rules import ENTRY_STABILITY_MIN, ENTRY_PRICE_MIN, ENTRY_PRICE_MAX
 except ImportError:
-    from analyzers.base import BaseAnalyzer
-    from analyzers.context import AnalysisContext
-    from analyzers.pullback import PullbackAnalyzer
-    from analyzers.ath_breakout import ATHBreakoutAnalyzer, ATHBreakoutConfig
-    from analyzers.bounce import BounceAnalyzer, BounceConfig
-    from analyzers.earnings_dip import EarningsDipAnalyzer, EarningsDipConfig
-    from analyzers.trend_continuation import TrendContinuationAnalyzer, TrendContinuationConfig
-    from analyzers.pool import AnalyzerPool, PoolConfig, get_analyzer_pool
-    from models.base import TradeSignal, SignalType, SignalStrength
-    from config import PullbackScoringConfig
-    try:
-        from config.liquidity_blacklist import is_illiquid, filter_liquid_symbols
-    except ImportError:
-        # Fallback wenn Blacklist nicht verfügbar
-        def is_illiquid(symbol: str) -> bool:
-            return False
-        def filter_liquid_symbols(symbols: list) -> list:
-            return symbols
-    try:
-        from backtesting.reliability import ReliabilityScorer, ScorerConfig
-    except ImportError:
-        ReliabilityScorer = None
-        ScorerConfig = None
-    try:
-        from backtesting.real_options_backtester import (
-            calculate_symbol_stability,
-            get_symbol_stability_score,
-            OUTCOME_DB_PATH,
-        )
-    except ImportError:
-        calculate_symbol_stability = None
-        get_symbol_stability_score = None
-        OUTCOME_DB_PATH = None
-    try:
-        from cache.symbol_fundamentals import (
-            SymbolFundamentalsManager,
-            get_fundamentals_manager,
-            SymbolFundamentals,
-        )
-    except ImportError:
-        SymbolFundamentalsManager = None
-        get_fundamentals_manager = None
-        SymbolFundamentals = None
-    try:
-        from constants.trading_rules import ENTRY_STABILITY_MIN, ENTRY_PRICE_MIN, ENTRY_PRICE_MAX
-    except ImportError:
-        ENTRY_STABILITY_MIN = 70.0
-        ENTRY_PRICE_MIN = 20.0
-        ENTRY_PRICE_MAX = 1500.0
+    SymbolFundamentalsManager = None
+    get_fundamentals_manager = None
+    SymbolFundamentals = None
 
 logger = logging.getLogger(__name__)
 
@@ -332,7 +299,7 @@ class MultiStrategyScanner:
         config: Optional[ScanConfig] = None,
         analyzer_pool: Optional[AnalyzerPool] = None,
         reliability_scorer: Optional['ReliabilityScorer'] = None
-    ):
+    ) -> None:
         self.config = config or ScanConfig()
         self._analyzers: Dict[str, BaseAnalyzer] = {}
         self._earnings_cache: Dict[str, Optional[date]] = {}

@@ -37,7 +37,7 @@ class IBKRMarketData:
         vix = await market.get_vix()
     """
 
-    def __init__(self, connection: IBKRConnection):
+    def __init__(self, connection: IBKRConnection) -> None:
         self._conn = connection
 
     # =========================================================================
@@ -49,7 +49,7 @@ class IBKRMarketData:
         symbols: List[str],
         days: int = 5,
         max_per_symbol: int = 5
-    ) -> List[Any]:
+    ) -> List["IBKRNews"]:
         """
         Fetches news headlines for symbols.
 
@@ -242,7 +242,7 @@ class IBKRMarketData:
         self,
         symbols: List[str],
         expiry: Optional[str] = None
-    ) -> List[Any]:
+    ) -> List["MaxPainData"]:
         """
         Calculates Max Pain for symbols.
 
@@ -780,7 +780,7 @@ class IBKRMarketData:
         dte_min: int = 60,
         dte_max: int = 90,
         right: str = "P",
-    ) -> list:
+    ) -> List[Any]:
         """
         Fetch full options chain from IBKR/TWS with Greeks.
 

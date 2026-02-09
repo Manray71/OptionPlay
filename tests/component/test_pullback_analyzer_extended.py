@@ -8,14 +8,12 @@ import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-
-from analyzers.pullback import PullbackAnalyzer
-from analyzers.context import AnalysisContext
-from models.base import TradeSignal, SignalType, SignalStrength
-from models.indicators import MACDResult, StochasticResult, TechnicalIndicators, KeltnerChannelResult
-from models.candidates import PullbackCandidate, ScoreBreakdown
-from config import PullbackScoringConfig
+from src.analyzers.pullback import PullbackAnalyzer
+from src.analyzers.context import AnalysisContext
+from src.models.base import TradeSignal, SignalType, SignalStrength
+from src.models.indicators import MACDResult, StochasticResult, TechnicalIndicators, KeltnerChannelResult
+from src.models.candidates import PullbackCandidate, ScoreBreakdown
+from src.config import PullbackScoringConfig
 
 
 # =============================================================================

@@ -14,9 +14,7 @@ import sys
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-
-from strike_recommender import (
+from src.strike_recommender import (
     StrikeRecommender,
     StrikeRecommendation,
     StrikeQuality,
@@ -97,7 +95,7 @@ class TestStrikeRecommenderInitialization:
 
     def test_config_loader_not_available_graceful_fallback(self):
         """Test: When ConfigLoader not available, gracefully fallback to defaults."""
-        import strike_recommender
+        import src.strike_recommender as strike_recommender
         original = strike_recommender._CONFIG_AVAILABLE
 
         try:
@@ -111,7 +109,7 @@ class TestStrikeRecommenderInitialization:
 
     def test_config_loader_exception_handled(self):
         """Test: ConfigLoader exceptions are handled gracefully."""
-        import strike_recommender
+        import src.strike_recommender as strike_recommender
         original_available = strike_recommender._CONFIG_AVAILABLE
 
         # Mock a ConfigLoader that raises an exception

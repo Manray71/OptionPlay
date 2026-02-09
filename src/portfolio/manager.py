@@ -299,10 +299,10 @@ class PortfolioManager:
     
     DEFAULT_FILE = Path.home() / ".optionplay" / "portfolio.json"
     
-    def __init__(self, filepath: Optional[Path] = None):
+    def __init__(self, filepath: Optional[Path] = None) -> None:
         """
         Initialize portfolio manager.
-        
+
         Args:
             filepath: Path to portfolio JSON file (optional)
         """
@@ -687,10 +687,10 @@ class PortfolioManager:
 
         return position
     
-    def delete_position(self, position_id: str):
+    def delete_position(self, position_id: str) -> None:
         """
         Delete a position (use with caution).
-        
+
         Args:
             position_id: Position ID
         """
@@ -706,7 +706,7 @@ class PortfolioManager:
         
         logger.info(f"Deleted position: {position_id} - {position.symbol}")
     
-    def update_notes(self, position_id: str, notes: str):
+    def update_notes(self, position_id: str, notes: str) -> None:
         """Update position notes."""
         if position_id not in self._positions:
             raise ValueError(f"Position not found: {position_id}")
@@ -714,7 +714,7 @@ class PortfolioManager:
         self._positions[position_id].notes = notes
         self._save()
     
-    def add_tag(self, position_id: str, tag: str):
+    def add_tag(self, position_id: str, tag: str) -> None:
         """Add tag to position."""
         if position_id not in self._positions:
             raise ValueError(f"Position not found: {position_id}")
@@ -872,7 +872,7 @@ def get_portfolio_manager() -> PortfolioManager:
     return _default_portfolio
 
 
-def reset_portfolio_manager():
+def reset_portfolio_manager() -> None:
     """Reset global portfolio manager (for testing)."""
     global _default_portfolio
     _default_portfolio = None

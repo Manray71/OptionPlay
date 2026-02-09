@@ -21,16 +21,14 @@ import sys
 from pathlib import Path
 from datetime import date, timedelta
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-
-from analyzers.earnings_dip import (
+from src.analyzers.earnings_dip import (
     EarningsDipAnalyzer,
     EarningsDipConfig,
     GapInfo,
     EDIP_MIN_SCORE,
     EDIP_MAX_SCORE,
 )
-from models.base import SignalType, SignalStrength
+from src.models.base import SignalType, SignalStrength
 
 
 # =============================================================================

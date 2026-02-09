@@ -813,7 +813,7 @@ class FormatterRegistry:
         output = formatters.scan_result.format(result, recommendation, vix)
     """
     
-    def __init__(self):
+    def __init__(self) -> None:
         self.scan_result = ScanResultFormatter()
         self.legacy_scan = LegacyScanResultFormatter()
         self.quote = QuoteFormatter()

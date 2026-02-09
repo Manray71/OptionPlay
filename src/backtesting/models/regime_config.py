@@ -96,7 +96,7 @@ class RegimeConfig:
     sample_size: int = 0
     confidence_level: str = "unknown"       # "high", "medium", "low"
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate configuration after initialization"""
         if self.vix_lower >= self.vix_upper:
             raise ValueError(
@@ -622,7 +622,7 @@ class TrainedModelLoader:
     DEFAULT_MODEL_PATH = "~/.optionplay/models/GRANULAR_TRAINED_MODEL.json"
     ENHANCED_MODEL_PATH = "~/.optionplay/models/ENHANCED_FINAL_CONFIG.json"
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._loaded = False
         self._model_data: Dict[str, Any] = {}
         self._regime_configs: Dict[str, TrainedRegimeConfig] = {}

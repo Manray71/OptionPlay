@@ -23,18 +23,11 @@ import math
 from .base import BaseAnalyzer
 from .context import AnalysisContext
 
-try:
-    from ..models.base import TradeSignal, SignalType, SignalStrength
-    from ..models.strategy_breakdowns import TrendContinuationScoreBreakdown
-except ImportError:
-    from models.base import TradeSignal, SignalType, SignalStrength
-    from models.strategy_breakdowns import TrendContinuationScoreBreakdown
+from ..models.base import TradeSignal, SignalType, SignalStrength
+from ..models.strategy_breakdowns import TrendContinuationScoreBreakdown
 
 # Import Feature Scoring Mixin
-try:
-    from .feature_scoring_mixin import FeatureScoringMixin
-except ImportError:
-    from analyzers.feature_scoring_mixin import FeatureScoringMixin
+from .feature_scoring_mixin import FeatureScoringMixin
 
 logger = logging.getLogger(__name__)
 
@@ -126,7 +119,7 @@ class TrendContinuationAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         → Build signal text
     """
 
-    def __init__(self, config: Optional[TrendContinuationConfig] = None, **kwargs):
+    def __init__(self, config: Optional[TrendContinuationConfig] = None, **kwargs) -> None:
         self.config = config or TrendContinuationConfig()
 
     @property

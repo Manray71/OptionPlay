@@ -44,7 +44,7 @@ def format_trade_stats(stats: TradeStats) -> str:
     return "\n".join(lines)
 
 
-def create_tracker(db_path: Optional[str] = None):
+def create_tracker(db_path: Optional[str] = None) -> "TradeTracker":
     """
     Factory-Funktion für TradeTracker.
 

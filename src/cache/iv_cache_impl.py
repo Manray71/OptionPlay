@@ -9,7 +9,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional, Dict, List, Tuple
+from typing import Any, Optional, Dict, List, Tuple
 from enum import Enum
 
 logger = logging.getLogger(__name__)
@@ -76,7 +76,7 @@ class IVData:
         else:
             return "low"
     
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> Dict[str, Any]:
         return {
             'symbol': self.symbol,
             'current_iv': round(self.current_iv * 100, 1) if self.current_iv else None,
@@ -345,11 +345,11 @@ class IVCache:
         )
     
     def update_history(
-        self, 
-        symbol: str, 
+        self,
+        symbol: str,
         iv_history: List[float],
         source: IVSource = IVSource.UNKNOWN
-    ):
+    ) -> None:
         """
         Aktualisiert die komplette IV-History für ein Symbol.
         
@@ -379,7 +379,7 @@ class IVCache:
         self._save_cache()
         logger.debug(f"Updated IV history for {symbol}: {len(valid_history)} points")
     
-    def add_iv_point(self, symbol: str, iv_value: float, source: IVSource = IVSource.UNKNOWN):
+    def add_iv_point(self, symbol: str, iv_value: float, source: IVSource = IVSource.UNKNOWN) -> None:
         """
         Fügt einen neuen IV-Wert zur History hinzu.
         
@@ -492,14 +492,14 @@ class IVCache:
         """Gibt Liste der Symbole zurück, deren Cache abgelaufen ist"""
         return [s.upper() for s in symbols if not self.is_fresh(s)]
     
-    def invalidate(self, symbol: str):
+    def invalidate(self, symbol: str) -> None:
         """Entfernt Symbol aus Cache"""
         symbol = symbol.upper()
         if symbol in self._cache:
             del self._cache[symbol]
             self._save_cache()
-    
-    def stats(self) -> Dict:
+
+    def stats(self) -> Dict[str, Any]:
         """Cache-Statistiken"""
         total = len(self._cache)
         fresh = sum(1 for e in self._cache.values() if self._is_fresh(e))
@@ -543,7 +543,7 @@ class IVFetcher:
         iv_data = fetcher.fetch_and_calculate("AAPL")
     """
     
-    def __init__(self, cache: Optional[IVCache] = None):
+    def __init__(self, cache: Optional[IVCache] = None) -> None:
         self.cache = cache or IVCache()
     
     def get_iv_rank(self, symbol: str, current_iv: float) -> IVData:

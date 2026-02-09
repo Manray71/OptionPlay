@@ -124,7 +124,7 @@ def get_stock_news(symbol: str, max_items: int = 5) -> List[Dict[str, Any]]:
         return []
 
 
-def clear_news_cache():
+def clear_news_cache() -> None:
     """Leert den News-Cache."""
     global _news_cache
     _news_cache = {}

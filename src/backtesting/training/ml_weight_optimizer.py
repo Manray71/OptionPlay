@@ -415,7 +415,7 @@ class MLWeightOptimizer:
         cv_folds: int = 5,
         min_samples_per_strategy: int = 50,
         enable_regime_weights: bool = True,
-    ):
+    ) -> None:
         self.method = method
         self.cv_folds = cv_folds
         self.min_samples = min_samples_per_strategy

@@ -128,7 +128,7 @@ class AnalyzerPool:
             pool.checkin("pullback", analyzer)
     """
 
-    def __init__(self, config: Optional[PoolConfig] = None):
+    def __init__(self, config: Optional[PoolConfig] = None) -> None:
         """
         Initialisiert den Analyzer Pool.
 

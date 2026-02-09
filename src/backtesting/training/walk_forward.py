@@ -335,7 +335,7 @@ class WalkForwardTrainer(WFResultAggregatorMixin, WFEpochRunnerMixin):
         "severe": float("inf"),  # > 15% Degradation
     }
 
-    def __init__(self, config: TrainingConfig):
+    def __init__(self, config: TrainingConfig) -> None:
         self.config = config
         self._last_result: Optional[TrainingResult] = None
 

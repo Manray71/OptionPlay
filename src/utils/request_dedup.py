@@ -40,7 +40,7 @@ class RequestDeduplicator:
     multiple times in parallel (e.g., during batch operations).
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         # Maps key -> (Future, timestamp)
         self._in_flight: Dict[str, asyncio.Future] = {}
         self._lock = asyncio.Lock()

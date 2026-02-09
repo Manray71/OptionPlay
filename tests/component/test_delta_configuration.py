@@ -32,37 +32,37 @@ class TestDeltaConstantsTradingRules:
 
     def test_short_delta_target(self):
         """PLAYBOOK §2: Short Put Delta Target ist -0.20"""
-        from constants.trading_rules import SPREAD_SHORT_DELTA_TARGET
+        from src.constants.trading_rules import SPREAD_SHORT_DELTA_TARGET
         assert SPREAD_SHORT_DELTA_TARGET == -0.20
 
     def test_short_delta_min(self):
         """PLAYBOOK §2: Short Put Delta Min ist -0.17 (±0.03)"""
-        from constants.trading_rules import SPREAD_SHORT_DELTA_MIN
+        from src.constants.trading_rules import SPREAD_SHORT_DELTA_MIN
         assert SPREAD_SHORT_DELTA_MIN == -0.17
 
     def test_short_delta_max(self):
         """PLAYBOOK §2: Short Put Delta Max ist -0.23 (±0.03)"""
-        from constants.trading_rules import SPREAD_SHORT_DELTA_MAX
+        from src.constants.trading_rules import SPREAD_SHORT_DELTA_MAX
         assert SPREAD_SHORT_DELTA_MAX == -0.23
 
     def test_long_delta_target(self):
         """PLAYBOOK §2: Long Put Delta Target ist -0.05"""
-        from constants.trading_rules import SPREAD_LONG_DELTA_TARGET
+        from src.constants.trading_rules import SPREAD_LONG_DELTA_TARGET
         assert SPREAD_LONG_DELTA_TARGET == -0.05
 
     def test_long_delta_min(self):
         """PLAYBOOK §2: Long Put Delta Min ist -0.03 (±0.02)"""
-        from constants.trading_rules import SPREAD_LONG_DELTA_MIN
+        from src.constants.trading_rules import SPREAD_LONG_DELTA_MIN
         assert SPREAD_LONG_DELTA_MIN == -0.03
 
     def test_long_delta_max(self):
         """PLAYBOOK §2: Long Put Delta Max ist -0.07 (±0.02)"""
-        from constants.trading_rules import SPREAD_LONG_DELTA_MAX
+        from src.constants.trading_rules import SPREAD_LONG_DELTA_MAX
         assert SPREAD_LONG_DELTA_MAX == -0.07
 
     def test_short_delta_range_symmetric(self):
         """Short Delta Range ist symmetrisch um Target (±0.03)"""
-        from constants.trading_rules import (
+        from src.constants.trading_rules import (
             SPREAD_SHORT_DELTA_TARGET,
             SPREAD_SHORT_DELTA_MIN,
             SPREAD_SHORT_DELTA_MAX,
@@ -77,7 +77,7 @@ class TestDeltaConstantsTradingRules:
 
     def test_long_delta_range_symmetric(self):
         """Long Delta Range ist symmetrisch um Target (±0.02)"""
-        from constants.trading_rules import (
+        from src.constants.trading_rules import (
             SPREAD_LONG_DELTA_TARGET,
             SPREAD_LONG_DELTA_MIN,
             SPREAD_LONG_DELTA_MAX,
@@ -92,7 +92,7 @@ class TestDeltaConstantsTradingRules:
 
     def test_all_deltas_are_negative(self):
         """Alle Put-Deltas müssen negativ sein"""
-        from constants.trading_rules import (
+        from src.constants.trading_rules import (
             SPREAD_SHORT_DELTA_TARGET,
             SPREAD_SHORT_DELTA_MIN,
             SPREAD_SHORT_DELTA_MAX,
@@ -112,7 +112,7 @@ class TestDeltaConstantsTradingRules:
 
     def test_short_delta_more_negative_than_long(self):
         """Short Put Delta ist stärker negativ als Long Put Delta"""
-        from constants.trading_rules import (
+        from src.constants.trading_rules import (
             SPREAD_SHORT_DELTA_TARGET,
             SPREAD_LONG_DELTA_TARGET,
         )
@@ -120,7 +120,7 @@ class TestDeltaConstantsTradingRules:
 
     def test_min_less_aggressive_than_max(self):
         """Delta Min ist weniger aggressiv (näher an 0) als Delta Max"""
-        from constants.trading_rules import (
+        from src.constants.trading_rules import (
             SPREAD_SHORT_DELTA_MIN,
             SPREAD_SHORT_DELTA_MAX,
             SPREAD_LONG_DELTA_MIN,
@@ -136,48 +136,48 @@ class TestDeltaConstantsRiskManagement:
 
     def test_delta_target_matches_trading_rules(self):
         """risk_management.DELTA_TARGET muss mit trading_rules übereinstimmen"""
-        from constants.risk_management import DELTA_TARGET
-        from constants.trading_rules import SPREAD_SHORT_DELTA_TARGET
+        from src.constants.risk_management import DELTA_TARGET
+        from src.constants.trading_rules import SPREAD_SHORT_DELTA_TARGET
         assert DELTA_TARGET == SPREAD_SHORT_DELTA_TARGET == -0.20
 
     def test_delta_min_matches_trading_rules(self):
         """risk_management.DELTA_MIN muss mit trading_rules übereinstimmen"""
-        from constants.risk_management import DELTA_MIN
-        from constants.trading_rules import SPREAD_SHORT_DELTA_MIN
+        from src.constants.risk_management import DELTA_MIN
+        from src.constants.trading_rules import SPREAD_SHORT_DELTA_MIN
         assert DELTA_MIN == SPREAD_SHORT_DELTA_MIN == -0.17
 
     def test_delta_max_matches_trading_rules(self):
         """risk_management.DELTA_MAX muss mit trading_rules übereinstimmen"""
-        from constants.risk_management import DELTA_MAX
-        from constants.trading_rules import SPREAD_SHORT_DELTA_MAX
+        from src.constants.risk_management import DELTA_MAX
+        from src.constants.trading_rules import SPREAD_SHORT_DELTA_MAX
         assert DELTA_MAX == SPREAD_SHORT_DELTA_MAX == -0.23
 
     def test_long_delta_target_matches(self):
         """risk_management.DELTA_LONG_TARGET muss übereinstimmen"""
-        from constants.risk_management import DELTA_LONG_TARGET
-        from constants.trading_rules import SPREAD_LONG_DELTA_TARGET
+        from src.constants.risk_management import DELTA_LONG_TARGET
+        from src.constants.trading_rules import SPREAD_LONG_DELTA_TARGET
         assert DELTA_LONG_TARGET == SPREAD_LONG_DELTA_TARGET == -0.05
 
     def test_long_delta_min_matches(self):
         """risk_management.DELTA_LONG_MIN muss übereinstimmen"""
-        from constants.risk_management import DELTA_LONG_MIN
-        from constants.trading_rules import SPREAD_LONG_DELTA_MIN
+        from src.constants.risk_management import DELTA_LONG_MIN
+        from src.constants.trading_rules import SPREAD_LONG_DELTA_MIN
         assert DELTA_LONG_MIN == SPREAD_LONG_DELTA_MIN == -0.03
 
     def test_long_delta_max_matches(self):
         """risk_management.DELTA_LONG_MAX muss übereinstimmen"""
-        from constants.risk_management import DELTA_LONG_MAX
-        from constants.trading_rules import SPREAD_LONG_DELTA_MAX
+        from src.constants.risk_management import DELTA_LONG_MAX
+        from src.constants.trading_rules import SPREAD_LONG_DELTA_MAX
         assert DELTA_LONG_MAX == SPREAD_LONG_DELTA_MAX == -0.07
 
     def test_conservative_equals_min(self):
         """DELTA_CONSERVATIVE muss gleich DELTA_MIN sein"""
-        from constants.risk_management import DELTA_CONSERVATIVE, DELTA_MIN
+        from src.constants.risk_management import DELTA_CONSERVATIVE, DELTA_MIN
         assert DELTA_CONSERVATIVE == DELTA_MIN
 
     def test_aggressive_equals_max(self):
         """DELTA_AGGRESSIVE muss gleich DELTA_MAX sein"""
-        from constants.risk_management import DELTA_AGGRESSIVE, DELTA_MAX
+        from src.constants.risk_management import DELTA_AGGRESSIVE, DELTA_MAX
         assert DELTA_AGGRESSIVE == DELTA_MAX
 
 
@@ -186,13 +186,13 @@ class TestDeltaTradingRulesConvenience:
 
     def test_short_delta_in_convenience_class(self):
         """TradingRules.SHORT_DELTA muss -0.20 sein"""
-        from constants.trading_rules import TradingRules
+        from src.constants.trading_rules import TradingRules
         tr = TradingRules()
         assert tr.SHORT_DELTA == -0.20
 
     def test_long_delta_in_convenience_class(self):
         """TradingRules.LONG_DELTA muss -0.05 sein"""
-        from constants.trading_rules import TradingRules
+        from src.constants.trading_rules import TradingRules
         tr = TradingRules()
         assert tr.LONG_DELTA == -0.05
 
@@ -248,7 +248,7 @@ class TestDeltaStrikeRecommenderDefaults:
 
     @pytest.fixture
     def recommender(self):
-        from strike_recommender import StrikeRecommender
+        from src.strike_recommender import StrikeRecommender
         return StrikeRecommender(use_config_loader=False)
 
     def test_default_short_delta_target(self, recommender):
@@ -311,7 +311,7 @@ class TestDeltaRegressionNoOldValues:
 
     def test_trading_rules_no_030(self):
         """trading_rules.py: Kein Delta-Wert darf 0.30 sein"""
-        from constants.trading_rules import (
+        from src.constants.trading_rules import (
             SPREAD_SHORT_DELTA_TARGET,
             SPREAD_SHORT_DELTA_MIN,
             SPREAD_SHORT_DELTA_MAX,
@@ -321,7 +321,7 @@ class TestDeltaRegressionNoOldValues:
 
     def test_trading_rules_no_010(self):
         """trading_rules.py: Kein Long-Delta-Wert darf 0.10 sein"""
-        from constants.trading_rules import (
+        from src.constants.trading_rules import (
             SPREAD_LONG_DELTA_TARGET,
             SPREAD_LONG_DELTA_MIN,
             SPREAD_LONG_DELTA_MAX,
@@ -331,13 +331,13 @@ class TestDeltaRegressionNoOldValues:
 
     def test_risk_management_no_030(self):
         """risk_management.py: Kein Delta-Wert darf 0.30 sein"""
-        from constants.risk_management import DELTA_TARGET, DELTA_MIN, DELTA_MAX
+        from src.constants.risk_management import DELTA_TARGET, DELTA_MIN, DELTA_MAX
         for name, val in [("DELTA_TARGET", DELTA_TARGET), ("DELTA_MIN", DELTA_MIN), ("DELTA_MAX", DELTA_MAX)]:
             assert abs(val) != 0.30, f"REGRESSION: {name} hat alten Wert 0.30"
 
     def test_risk_management_no_010(self):
         """risk_management.py: Kein Long-Delta-Wert darf 0.10 sein"""
-        from constants.risk_management import DELTA_LONG_TARGET, DELTA_LONG_MIN, DELTA_LONG_MAX
+        from src.constants.risk_management import DELTA_LONG_TARGET, DELTA_LONG_MIN, DELTA_LONG_MAX
         for name, val in [
             ("DELTA_LONG_TARGET", DELTA_LONG_TARGET),
             ("DELTA_LONG_MIN", DELTA_LONG_MIN),
@@ -347,7 +347,7 @@ class TestDeltaRegressionNoOldValues:
 
     def test_strike_recommender_no_030(self):
         """StrikeRecommender: Kein Default-Delta darf 0.30 sein"""
-        from strike_recommender import StrikeRecommender
+        from src.strike_recommender import StrikeRecommender
 
         rec = StrikeRecommender(use_config_loader=False)
         assert abs(rec.config["delta_target"]) != 0.30, "REGRESSION: delta_target ist 0.30"
@@ -356,7 +356,7 @@ class TestDeltaRegressionNoOldValues:
 
     def test_strike_recommender_no_010(self):
         """StrikeRecommender: Kein Long-Delta-Default darf 0.10 sein"""
-        from strike_recommender import StrikeRecommender
+        from src.strike_recommender import StrikeRecommender
 
         rec = StrikeRecommender(use_config_loader=False)
         assert abs(rec.config["long_delta_target"]) != 0.10, "REGRESSION: long_delta_target ist 0.10"
@@ -399,7 +399,7 @@ class TestDeltaRegressionNoOldValues:
 
     def test_convenience_class_no_old_values(self):
         """TradingRules Convenience: Keine alten Werte"""
-        from constants.trading_rules import TradingRules
+        from src.constants.trading_rules import TradingRules
 
         tr = TradingRules()
         assert abs(tr.SHORT_DELTA) != 0.30, "REGRESSION: TradingRules.SHORT_DELTA ist 0.30"
@@ -529,9 +529,9 @@ class TestDeltaRegressionCrossConsistency:
 
     def test_all_short_delta_targets_match(self):
         """Alle Short Delta Targets müssen identisch sein"""
-        from constants.trading_rules import SPREAD_SHORT_DELTA_TARGET
-        from constants.risk_management import DELTA_TARGET
-        from strike_recommender import StrikeRecommender
+        from src.constants.trading_rules import SPREAD_SHORT_DELTA_TARGET
+        from src.constants.risk_management import DELTA_TARGET
+        from src.strike_recommender import StrikeRecommender
 
         rec = StrikeRecommender(use_config_loader=False)
 
@@ -546,9 +546,9 @@ class TestDeltaRegressionCrossConsistency:
 
     def test_all_short_delta_mins_match(self):
         """Alle Short Delta Mins müssen identisch sein"""
-        from constants.trading_rules import SPREAD_SHORT_DELTA_MIN
-        from constants.risk_management import DELTA_MIN
-        from strike_recommender import StrikeRecommender
+        from src.constants.trading_rules import SPREAD_SHORT_DELTA_MIN
+        from src.constants.risk_management import DELTA_MIN
+        from src.strike_recommender import StrikeRecommender
 
         rec = StrikeRecommender(use_config_loader=False)
 
@@ -557,9 +557,9 @@ class TestDeltaRegressionCrossConsistency:
 
     def test_all_short_delta_maxs_match(self):
         """Alle Short Delta Maxs müssen identisch sein"""
-        from constants.trading_rules import SPREAD_SHORT_DELTA_MAX
-        from constants.risk_management import DELTA_MAX
-        from strike_recommender import StrikeRecommender
+        from src.constants.trading_rules import SPREAD_SHORT_DELTA_MAX
+        from src.constants.risk_management import DELTA_MAX
+        from src.strike_recommender import StrikeRecommender
 
         rec = StrikeRecommender(use_config_loader=False)
 
@@ -568,9 +568,9 @@ class TestDeltaRegressionCrossConsistency:
 
     def test_all_long_delta_targets_match(self):
         """Alle Long Delta Targets müssen identisch sein"""
-        from constants.trading_rules import SPREAD_LONG_DELTA_TARGET
-        from constants.risk_management import DELTA_LONG_TARGET
-        from strike_recommender import StrikeRecommender
+        from src.constants.trading_rules import SPREAD_LONG_DELTA_TARGET
+        from src.constants.risk_management import DELTA_LONG_TARGET
+        from src.strike_recommender import StrikeRecommender
 
         rec = StrikeRecommender(use_config_loader=False)
 
@@ -579,9 +579,9 @@ class TestDeltaRegressionCrossConsistency:
 
     def test_all_long_delta_mins_match(self):
         """Alle Long Delta Mins müssen identisch sein"""
-        from constants.trading_rules import SPREAD_LONG_DELTA_MIN
-        from constants.risk_management import DELTA_LONG_MIN
-        from strike_recommender import StrikeRecommender
+        from src.constants.trading_rules import SPREAD_LONG_DELTA_MIN
+        from src.constants.risk_management import DELTA_LONG_MIN
+        from src.strike_recommender import StrikeRecommender
 
         rec = StrikeRecommender(use_config_loader=False)
 
@@ -590,9 +590,9 @@ class TestDeltaRegressionCrossConsistency:
 
     def test_all_long_delta_maxs_match(self):
         """Alle Long Delta Maxs müssen identisch sein"""
-        from constants.trading_rules import SPREAD_LONG_DELTA_MAX
-        from constants.risk_management import DELTA_LONG_MAX
-        from strike_recommender import StrikeRecommender
+        from src.constants.trading_rules import SPREAD_LONG_DELTA_MAX
+        from src.constants.risk_management import DELTA_LONG_MAX
+        from src.strike_recommender import StrikeRecommender
 
         rec = StrikeRecommender(use_config_loader=False)
 
@@ -700,7 +700,7 @@ class TestDeltaStrikeRecommenderIntegration:
 
     @pytest.fixture
     def recommender(self):
-        from strike_recommender import StrikeRecommender
+        from src.strike_recommender import StrikeRecommender
         return StrikeRecommender(use_config_loader=False)
 
     @pytest.fixture
@@ -756,7 +756,7 @@ class TestDeltaStrikeRecommenderIntegration:
 
     def test_custom_config_overrides_delta(self):
         """Explizite Config überschreibt Default-Deltas"""
-        from strike_recommender import StrikeRecommender
+        from src.strike_recommender import StrikeRecommender
 
         custom = {
             "delta_target": -0.15,
@@ -778,8 +778,8 @@ class TestDeltaStrikeRecommenderIntegration:
 
     def test_config_loader_disabled_uses_constants(self):
         """use_config_loader=False verwendet Constants aus trading_rules"""
-        from strike_recommender import StrikeRecommender
-        from constants.trading_rules import (
+        from src.strike_recommender import StrikeRecommender
+        from src.constants.trading_rules import (
             SPREAD_SHORT_DELTA_TARGET,
             SPREAD_SHORT_DELTA_MIN,
             SPREAD_SHORT_DELTA_MAX,
@@ -866,11 +866,11 @@ class TestDeltaEndToEndPipeline:
 
     def test_full_recommendation_pipeline(self):
         """Vollständiger Flow: Constants -> Config -> Recommender -> Recommendation"""
-        from constants.trading_rules import (
+        from src.constants.trading_rules import (
             SPREAD_SHORT_DELTA_TARGET,
             SPREAD_LONG_DELTA_TARGET,
         )
-        from strike_recommender import StrikeRecommender
+        from src.strike_recommender import StrikeRecommender
 
         # 1. Constants korrekt
         assert SPREAD_SHORT_DELTA_TARGET == -0.20
@@ -909,7 +909,7 @@ class TestDeltaEndToEndPipeline:
 
     def test_multiple_recommendations_use_correct_deltas(self):
         """Mehrere Empfehlungen verwenden alle korrekte Deltas"""
-        from strike_recommender import StrikeRecommender
+        from src.strike_recommender import StrikeRecommender
 
         rec = StrikeRecommender(use_config_loader=False)
 
@@ -992,7 +992,7 @@ class TestDeltaParameterized:
         self, delta_target, delta_min, delta_max
     ):
         """StrikeRecommender respektiert benutzerdefinierte Delta-Werte"""
-        from strike_recommender import StrikeRecommender
+        from src.strike_recommender import StrikeRecommender
 
         config = {
             "delta_target": delta_target,
@@ -1018,7 +1018,7 @@ class TestDeltaParameterized:
     )
     def test_default_constants_are_not_bad_values(self, bad_delta, description):
         """Default-Konstanten enthalten keine bekannten fehlerhaften Werte"""
-        from constants.trading_rules import (
+        from src.constants.trading_rules import (
             SPREAD_SHORT_DELTA_TARGET,
             SPREAD_LONG_DELTA_TARGET,
         )
@@ -1041,12 +1041,12 @@ class TestDeltaEdgeCases:
 
     @pytest.fixture
     def recommender(self):
-        from strike_recommender import StrikeRecommender
+        from src.strike_recommender import StrikeRecommender
         return StrikeRecommender(use_config_loader=False)
 
     def test_no_options_in_range_returns_poor(self, recommender):
         """Keine Option im Delta-Range mit options_data -> POOR quality"""
-        from strike_recommender import StrikeQuality
+        from src.strike_recommender import StrikeQuality
         options_data = [
             {"strike": 90.0, "right": "P", "delta": -0.50, "bid": 5.0, "ask": 5.5, "open_interest": 200, "volume": 50},
             {"strike": 80.0, "right": "P", "delta": -0.40, "bid": 3.0, "ask": 3.5, "open_interest": 200, "volume": 50},
@@ -1142,7 +1142,7 @@ class TestDeltaVixStrategy:
 
     def test_strategy_recommendation_has_long_delta_target(self):
         """StrategyRecommendation hat ein long_delta_target Feld"""
-        from vix_strategy import StrategyRecommendation
+        from src.vix_strategy import StrategyRecommendation
         import dataclasses
 
         field_names = [f.name for f in dataclasses.fields(StrategyRecommendation)]
@@ -1152,14 +1152,14 @@ class TestDeltaVixStrategy:
 
     def test_strategy_recommendation_long_delta_value(self):
         """StrategyRecommendation.long_delta_target ist -0.05"""
-        from vix_strategy import get_strategy_for_vix
+        from src.vix_strategy import get_strategy_for_vix
 
         rec = get_strategy_for_vix(18.0)
         assert rec.long_delta_target == -0.05
 
     def test_strategy_recommendation_to_dict_has_long_delta(self):
         """to_dict() enthält long_delta_target"""
-        from vix_strategy import get_strategy_for_vix
+        from src.vix_strategy import get_strategy_for_vix
 
         rec = get_strategy_for_vix(18.0)
         d = rec.to_dict()
@@ -1182,7 +1182,7 @@ class TestDeltaVixStrategy:
     )
     def test_all_profiles_use_correct_short_delta(self, vix, expected_profile):
         """Alle VIX-Profile verwenden Short Delta -0.20"""
-        from vix_strategy import get_strategy_for_vix
+        from src.vix_strategy import get_strategy_for_vix
 
         rec = get_strategy_for_vix(vix)
         assert rec.profile_name == expected_profile
@@ -1204,7 +1204,7 @@ class TestDeltaVixStrategy:
     )
     def test_all_profiles_use_correct_long_delta(self, vix, expected_profile):
         """Alle VIX-Profile verwenden Long Delta -0.05"""
-        from vix_strategy import get_strategy_for_vix
+        from src.vix_strategy import get_strategy_for_vix
 
         rec = get_strategy_for_vix(vix)
         assert rec.long_delta_target == -0.05, (
@@ -1214,7 +1214,7 @@ class TestDeltaVixStrategy:
 
     def test_get_strategy_for_stock_has_long_delta(self):
         """get_strategy_for_stock() Ergebnis enthält long_delta_target"""
-        from vix_strategy import get_strategy_for_stock
+        from src.vix_strategy import get_strategy_for_stock
 
         rec = get_strategy_for_stock(18.0, 150.0)
         assert hasattr(rec, "long_delta_target")
@@ -1222,8 +1222,8 @@ class TestDeltaVixStrategy:
 
     def test_long_delta_comes_from_constant(self):
         """long_delta_target kommt aus DELTA_LONG_TARGET Konstante"""
-        from vix_strategy import get_strategy_for_vix
-        from constants.risk_management import DELTA_LONG_TARGET
+        from src.vix_strategy import get_strategy_for_vix
+        from src.constants.risk_management import DELTA_LONG_TARGET
 
         rec = get_strategy_for_vix(18.0)
         assert rec.long_delta_target == DELTA_LONG_TARGET, (
@@ -1245,23 +1245,23 @@ class TestDeltaConstantsExport:
 
     def test_delta_long_target_importable(self):
         """DELTA_LONG_TARGET ist aus constants importierbar"""
-        from constants import DELTA_LONG_TARGET
+        from src.constants import DELTA_LONG_TARGET
         assert DELTA_LONG_TARGET == -0.05
 
     def test_delta_long_min_importable(self):
         """DELTA_LONG_MIN ist aus constants importierbar"""
-        from constants import DELTA_LONG_MIN
+        from src.constants import DELTA_LONG_MIN
         assert DELTA_LONG_MIN == -0.03
 
     def test_delta_long_max_importable(self):
         """DELTA_LONG_MAX ist aus constants importierbar"""
-        from constants import DELTA_LONG_MAX
+        from src.constants import DELTA_LONG_MAX
         assert DELTA_LONG_MAX == -0.07
 
     def test_exports_match_risk_management(self):
         """Export-Werte stimmen mit risk_management.py überein"""
-        from constants import DELTA_LONG_TARGET, DELTA_LONG_MIN, DELTA_LONG_MAX
-        from constants.risk_management import (
+        from src.constants import DELTA_LONG_TARGET, DELTA_LONG_MIN, DELTA_LONG_MAX
+        from src.constants.risk_management import (
             DELTA_LONG_TARGET as RM_TARGET,
             DELTA_LONG_MIN as RM_MIN,
             DELTA_LONG_MAX as RM_MAX,

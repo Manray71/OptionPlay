@@ -39,7 +39,7 @@ class TradeFeatures:
 class FeatureExtractor:
     """Extract ML features from historical trades"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._regime_boundaries = {
             "low_vol": (0, 15),
             "normal": (15, 20),

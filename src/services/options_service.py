@@ -61,7 +61,7 @@ class OptionsService(BaseService):
         _strike_recommender: StrikeRecommender Instanz
     """
 
-    def __init__(self, context: ServiceContext):
+    def __init__(self, context: ServiceContext) -> None:
         """
         Initialisiert den Options Service.
 

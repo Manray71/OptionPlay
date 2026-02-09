@@ -38,10 +38,7 @@ from .local_db import (
 )
 
 # EarningsInfo, EarningsSource, IVData, IVSource from cache package
-try:
-    from ..cache import EarningsInfo, EarningsSource, IVData, IVSource
-except ImportError:
-    from cache import EarningsInfo, EarningsSource, IVData, IVSource
+from ..cache import EarningsInfo, EarningsSource, IVData, IVSource
 
 __all__ = [
     # Interface-Klassen

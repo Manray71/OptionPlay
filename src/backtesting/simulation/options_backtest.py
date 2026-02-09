@@ -83,7 +83,7 @@ class RealOptionsBacktester:
     3. Speichert Ergebnisse für ML-Training
     """
 
-    def __init__(self, db_path: Path = DB_PATH):
+    def __init__(self, db_path: Path = DB_PATH) -> None:
         self.db = OptionsDatabase(db_path)
         self.spread_finder = SpreadFinder(self.db)
         self.outcome_calc = OutcomeCalculator(self.db)
@@ -291,7 +291,7 @@ class RealOptionsBacktester:
             },
         }
 
-    def close(self):
+    def close(self) -> None:
         """Schließt Datenbankverbindung"""
         self.db.close()
 

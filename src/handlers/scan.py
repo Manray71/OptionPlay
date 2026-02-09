@@ -191,7 +191,7 @@ class ScanHandlerMixin(BaseHandlerMixin):
 
             logger.debug(f"Pre-fetched {len(prefetch_cache)}/{len(symbols)} symbols")
 
-            async def data_fetcher(symbol: str):
+            async def data_fetcher(symbol: str) -> Optional[tuple]:
                 if symbol in prefetch_cache:
                     return prefetch_cache[symbol]
                 return await self._fetch_historical_cached(symbol, days=historical_days)
@@ -286,7 +286,7 @@ class ScanHandlerMixin(BaseHandlerMixin):
         Returns:
             Formatted Markdown with scan results
         """
-        def format_row(signal):
+        def format_row(signal: Any) -> list[str]:
             return [
                 signal.symbol,
                 f"{signal.score:.1f}",
@@ -347,7 +347,7 @@ class ScanHandlerMixin(BaseHandlerMixin):
         Returns:
             Formatted scan results
         """
-        def format_row(signal):
+        def format_row(signal: Any) -> list[str]:
             return [
                 signal.symbol,
                 f"{signal.score:.1f}",
@@ -388,7 +388,7 @@ class ScanHandlerMixin(BaseHandlerMixin):
         Returns:
             Formatted scan results
         """
-        def format_row(signal):
+        def format_row(signal: Any) -> list[str]:
             return [
                 signal.symbol,
                 f"{signal.score:.1f}",
@@ -430,7 +430,7 @@ class ScanHandlerMixin(BaseHandlerMixin):
         Returns:
             Formatted scan results
         """
-        def format_row(signal):
+        def format_row(signal: Any) -> list[str]:
             return [
                 signal.symbol,
                 f"{signal.score:.1f}",
@@ -471,7 +471,7 @@ class ScanHandlerMixin(BaseHandlerMixin):
         Returns:
             Formatted scan results
         """
-        def format_row(signal):
+        def format_row(signal: Any) -> list[str]:
             return [
                 signal.symbol,
                 f"{signal.score:.1f}",
@@ -526,7 +526,7 @@ class ScanHandlerMixin(BaseHandlerMixin):
             "trend_continuation": "[TC]",
         }
 
-        def format_row(signal):
+        def format_row(signal: Any) -> list[str]:
             icon = strategy_icons.get(signal.strategy, "[?]")
             return [
                 signal.symbol,
@@ -679,13 +679,13 @@ class ScanHandlerMixin(BaseHandlerMixin):
 
         logger.debug(f"Pre-fetched {len(prefetch_cache)}/{len(symbols)} symbols")
 
-        async def data_fetcher(symbol: str):
+        async def data_fetcher(symbol: str) -> Optional[tuple]:
             if symbol in prefetch_cache:
                 return prefetch_cache[symbol]
             return await self._fetch_historical_cached(symbol, days=historical_days)
 
         # Options fetcher for liquidity assessment (Tradier -> IBKR fallback)
-        async def options_fetcher(symbol: str):
+        async def options_fetcher(symbol: str) -> list[Any]:
             """Fetch options chain for liquidity check."""
             try:
                 return await self._get_options_chain_with_fallback(

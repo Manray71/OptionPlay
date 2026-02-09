@@ -159,7 +159,7 @@ class BlackScholes:
         risk_free_rate: float = 0.05,
         volatility: float = 0.25,
         dividend_yield: float = 0.0,
-    ):
+    ) -> None:
         self.spot = spot
         self.strike = strike
         self.time_to_expiry = max(time_to_expiry, self.MIN_TIME)
@@ -590,7 +590,7 @@ class BullPutSpread:
     max_loss: float = field(init=False)
     break_even: float = field(init=False)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validierung und Berechnung nach Initialisierung"""
         # Validierung
         if self.short_strike <= self.long_strike:

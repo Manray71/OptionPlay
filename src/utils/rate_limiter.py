@@ -69,7 +69,7 @@ class RateLimiter:
         calls_per_minute: int = 100,
         burst_limit: Optional[int] = None,
         name: str = "default"
-    ):
+    ) -> None:
         self.calls_per_minute = calls_per_minute
         self.calls_per_second = calls_per_minute / 60.0
         self.burst_limit = burst_limit or min(10, calls_per_minute // 10)
@@ -261,7 +261,7 @@ class AdaptiveRateLimiter(RateLimiter):
         backoff_factor: float = 0.5,
         recovery_factor: float = 1.1,
         name: str = "adaptive"
-    ):
+    ) -> None:
         super().__init__(calls_per_minute, name=name)
         
         self.original_rate = calls_per_minute

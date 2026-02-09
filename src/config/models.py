@@ -45,7 +45,7 @@ class TradierConfig:
     retry_delay_seconds: float = 1.0
     rate_limit_per_minute: int = 120
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if not self.api_key:
             self.api_key = os.environ.get("TRADIER_API_KEY", "")
 

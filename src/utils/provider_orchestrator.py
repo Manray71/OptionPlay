@@ -55,7 +55,7 @@ class ProviderConfig:
     daily_limit: Optional[int] = None
     supports: List[DataType] = None
     
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.supports is None:
             self.supports = []
 
@@ -162,7 +162,7 @@ class ProviderOrchestrator:
         DataType.STRIKE_RECOMMENDATION: [ProviderType.IBKR],  # VIX-integriert
     }
     
-    def __init__(self):
+    def __init__(self) -> None:
         self.providers = {k: ProviderConfig(
             name=v.name,
             enabled=v.enabled,
@@ -178,13 +178,13 @@ class ProviderOrchestrator:
         self._tradier_connected = False
         self._last_daily_reset = datetime.now().date()
 
-    def enable_tradier(self, enabled: bool = True):
+    def enable_tradier(self, enabled: bool = True) -> None:
         """Aktiviert/Deaktiviert Tradier Provider."""
         self.providers[ProviderType.TRADIER].enabled = enabled
         self._tradier_connected = enabled
         logger.info(f"Tradier Provider: {'aktiviert' if enabled else 'deaktiviert'}")
 
-    def enable_ibkr(self, connected: bool = True):
+    def enable_ibkr(self, connected: bool = True) -> None:
         """Aktiviert/Deaktiviert IBKR Provider."""
         self.providers[ProviderType.IBKR].enabled = connected
         self._ibkr_connected = connected
@@ -258,12 +258,12 @@ class ProviderOrchestrator:
         return fallbacks
     
     def record_request(
-        self, 
-        provider: ProviderType, 
+        self,
+        provider: ProviderType,
         success: bool = True,
         latency_ms: float = 0,
         error: Optional[str] = None
-    ):
+    ) -> None:
         """Zeichnet eine Anfrage auf."""
         # Daily Reset
         today = datetime.now().date()

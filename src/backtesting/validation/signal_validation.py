@@ -335,7 +335,7 @@ class SignalValidator(ScoreAnalysisMixin):
         bucket_ranges: Optional[List[Tuple[float, float]]] = None,
         min_trades_per_bucket: int = 30,
         confidence_level: float = 0.95
-    ):
+    ) -> None:
         """
         Initialisiert den Validator.
 

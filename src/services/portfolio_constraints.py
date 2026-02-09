@@ -98,7 +98,7 @@ class PortfolioConstraintChecker:
     Verwendet symbol_fundamentals aus der DB für Sektor- und Korrelationsdaten.
     """
 
-    def __init__(self, constraints: Optional[PortfolioConstraints] = None):
+    def __init__(self, constraints: Optional[PortfolioConstraints] = None) -> None:
         """
         Initialisiert den Constraint Checker.
 

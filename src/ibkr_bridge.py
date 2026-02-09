@@ -68,7 +68,7 @@ class IBKRBridge:
         close: Optional[float] = None
         error: Optional[str] = None
 
-    def __init__(self, host: str = "127.0.0.1", port: int = 7497):
+    def __init__(self, host: str = "127.0.0.1", port: int = 7497) -> None:
         # Shared connection instance
         self._connection = IBKRConnection(host=host, port=port)
         # Composed sub-modules
@@ -80,11 +80,11 @@ class IBKRBridge:
     # ------------------------------------------------------------------
 
     @property
-    def host(self):
+    def host(self) -> str:
         return self._connection.host
 
     @property
-    def port(self):
+    def port(self) -> int:
         return self._connection.port
 
     @property
@@ -125,7 +125,7 @@ class IBKRBridge:
     async def _ensure_connected(self) -> bool:
         return await self._connection._ensure_connected()
 
-    async def disconnect(self):
+    async def disconnect(self) -> None:
         return await self._connection.disconnect()
 
     async def get_status(self) -> Dict[str, Any]:

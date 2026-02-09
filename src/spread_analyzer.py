@@ -82,7 +82,7 @@ class BullPutSpreadParams:
     short_iv: Optional[float] = None
     long_delta: Optional[float] = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validation of parameters"""
         if self.short_strike <= self.long_strike:
             raise ValueError("Short Strike must be higher than Long Strike")
@@ -283,7 +283,7 @@ class SpreadAnalyzer:
         "profit_target_aggressive": 80,
     }
 
-    def __init__(self, config: Optional[Dict] = None):
+    def __init__(self, config: Optional[Dict] = None) -> None:
         """
         Initializes the Analyzer.
 

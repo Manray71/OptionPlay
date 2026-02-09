@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 class SpreadFinder:
     """Findet passende Bull-Put-Spreads in den Optionsdaten"""
 
-    def __init__(self, db: OptionsDatabase):
+    def __init__(self, db: OptionsDatabase) -> None:
         self.db = db
 
     def find_spread(
@@ -158,7 +158,7 @@ class SpreadFinder:
 class OutcomeCalculator:
     """Berechnet das Outcome eines Spreads basierend auf Preisverlauf"""
 
-    def __init__(self, db: OptionsDatabase):
+    def __init__(self, db: OptionsDatabase) -> None:
         self.db = db
 
     def calculate_outcome(

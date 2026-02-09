@@ -26,9 +26,7 @@ from datetime import date, datetime, timedelta
 from typing import Tuple, List, Dict, Optional
 from unittest.mock import MagicMock, patch, AsyncMock, PropertyMock
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-
-from scanner.multi_strategy_scanner import (
+from src.scanner.multi_strategy_scanner import (
     MultiStrategyScanner,
     ScanConfig,
     ScanResult,
@@ -37,7 +35,7 @@ from scanner.multi_strategy_scanner import (
     quick_scan,
     _get_default_blacklist_scanner,
 )
-from models.base import TradeSignal, SignalType, SignalStrength
+from src.models.base import TradeSignal, SignalType, SignalStrength
 
 
 # =============================================================================
@@ -480,7 +478,7 @@ class TestAnalyzerRegistration:
 
     def test_register_custom_analyzer(self):
         """Should be able to register custom analyzers"""
-        from analyzers.base import BaseAnalyzer
+        from src.analyzers.base import BaseAnalyzer
 
         class CustomAnalyzer(BaseAnalyzer):
             @property
@@ -599,7 +597,7 @@ class TestSingleSymbolAnalysis:
 
     def test_analyze_with_context(self, scanner):
         """Should accept pre-calculated context"""
-        from analyzers.context import AnalysisContext
+        from src.analyzers.context import AnalysisContext
 
         prices, volumes, highs, lows = create_uptrend_data()
         context = AnalysisContext.from_data("TEST", prices, volumes, highs, lows)

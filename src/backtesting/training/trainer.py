@@ -57,7 +57,7 @@ class RegimeTrainer:
 
     ALL_STRATEGIES = ["pullback", "bounce", "ath_breakout", "earnings_dip", "trend_continuation"]
 
-    def __init__(self, config: RegimeTrainingConfig):
+    def __init__(self, config: RegimeTrainingConfig) -> None:
         """
         Initialize trainer.
 

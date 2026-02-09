@@ -129,7 +129,7 @@ class OptionPlayServer(
         self,
         api_key: Optional[str] = None,
         container: Optional[ServiceContainer] = None
-    ):
+    ) -> None:
         """
         Initialize OptionPlay server.
 
@@ -469,7 +469,7 @@ class OptionPlayServer(
                 logger.debug(f"LocalDB failed for {symbol}: {e}")
 
         # 3. Fall back to API providers
-        async def fetch_historical():
+        async def fetch_historical() -> Optional[Tuple]:
             tradier = await self._ensure_tradier_connected()
             if tradier:
                 try:
@@ -656,7 +656,7 @@ class OptionPlayServer(
                 logger.debug(f"Quote cache HIT: {symbol} (age: {age:.0f}s)")
                 return quote
 
-        async def fetch_quote():
+        async def fetch_quote() -> Optional[Any]:
             if self._tradier_connected and self._tradier_provider:
                 try:
                     q = await self._tradier_provider.get_quote(symbol)
@@ -714,7 +714,7 @@ class OptionPlayServer(
             "ttl_seconds": self._scan_cache_ttl,
         }
 
-    async def disconnect(self):
+    async def disconnect(self) -> None:
         """Disconnect from all data providers."""
         if self._provider and self._connected:
             await self._provider.disconnect()
@@ -854,7 +854,7 @@ class OptionPlayServer(
 # CLI & INTERACTIVE MODE
 # =============================================================================
 
-async def run_interactive():
+async def run_interactive() -> None:
     """Interactive test mode."""
     print("=" * 60)
     print(f"  OPTIONPLAY SERVER v{OptionPlayServer.VERSION} - INTERACTIVE MODE")
@@ -936,7 +936,7 @@ async def run_interactive():
     print("Goodbye!")
 
 
-async def quick_test():
+async def quick_test() -> None:
     """Quick test of functions."""
     print("=" * 60)
     print(f"  OPTIONPLAY v{OptionPlayServer.VERSION} - QUICK TEST")
@@ -956,7 +956,7 @@ async def quick_test():
     print("\n[OK] All tests completed!")
 
 
-def main():
+def main() -> None:
     """Entry point."""
     import argparse
 

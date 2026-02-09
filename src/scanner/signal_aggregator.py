@@ -59,7 +59,7 @@ class SignalAggregator:
     - Findet Konsens zwischen Strategien
     """
     
-    def __init__(self, strategy_weights: Optional[Dict[str, float]] = None):
+    def __init__(self, strategy_weights: Optional[Dict[str, float]] = None) -> None:
         """
         Args:
             strategy_weights: Gewichtung pro Strategie (default: alle gleich)

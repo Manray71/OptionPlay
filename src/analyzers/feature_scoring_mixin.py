@@ -7,36 +7,20 @@ from typing import List, Optional, Tuple, Dict
 import numpy as np
 import logging
 
-try:
-    from ..indicators.volume_profile import (
-        calculate_vwap,
-        get_sector,
-        get_sector_adjustment,
-        get_sector_adjustment_with_reason,
-    )
-    from ..indicators.gap_analysis import analyze_gap
-except ImportError:
-    from indicators.volume_profile import (
-        calculate_vwap,
-        get_sector,
-        get_sector_adjustment,
-        get_sector_adjustment_with_reason,
-    )
-    from indicators.gap_analysis import analyze_gap
+from ..indicators.volume_profile import (
+    calculate_vwap,
+    get_sector,
+    get_sector_adjustment,
+    get_sector_adjustment_with_reason,
+)
+from ..indicators.gap_analysis import analyze_gap
 
 # Import central constants
-try:
-    from ..constants import (
-        VWAP_PERIOD, VWAP_STRONG_ABOVE, VWAP_ABOVE, VWAP_BELOW, VWAP_STRONG_BELOW,
-        SMA_SHORT, SMA_MEDIUM,
-        GAP_SIZE_LARGE, GAP_SIZE_MEDIUM,
-    )
-except ImportError:
-    from constants import (
-        VWAP_PERIOD, VWAP_STRONG_ABOVE, VWAP_ABOVE, VWAP_BELOW, VWAP_STRONG_BELOW,
-        SMA_SHORT, SMA_MEDIUM,
-        GAP_SIZE_LARGE, GAP_SIZE_MEDIUM,
-    )
+from ..constants import (
+    VWAP_PERIOD, VWAP_STRONG_ABOVE, VWAP_ABOVE, VWAP_BELOW, VWAP_STRONG_BELOW,
+    SMA_SHORT, SMA_MEDIUM,
+    GAP_SIZE_LARGE, GAP_SIZE_MEDIUM,
+)
 
 logger = logging.getLogger(__name__)
 

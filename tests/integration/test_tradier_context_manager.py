@@ -8,9 +8,7 @@ import sys
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-
-from data_providers.tradier import TradierProvider, TradierConfig
+from src.data_providers.tradier import TradierProvider, TradierConfig
 
 
 class TestTradierContextManager:

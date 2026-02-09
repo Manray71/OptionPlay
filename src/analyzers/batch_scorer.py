@@ -31,7 +31,7 @@ class BatchScorer:
     performs matrix multiplication per group, and assembles results.
     """
 
-    def __init__(self, resolver: Optional[RecursiveConfigResolver] = None):
+    def __init__(self, resolver: Optional[RecursiveConfigResolver] = None) -> None:
         if resolver is None:
             from ..config.scoring_config import get_scoring_resolver
             resolver = get_scoring_resolver()

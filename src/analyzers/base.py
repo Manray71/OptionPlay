@@ -131,14 +131,14 @@ class BaseAnalyzer(ABC):
         )
     
     @property
-    def config_resolver(self):
+    def config_resolver(self) -> Any:
         """Lazy-init RecursiveConfigResolver for scoring weights."""
         if not hasattr(self, '_config_resolver') or self._config_resolver is None:
             from ..config.scoring_config import get_scoring_resolver
             self._config_resolver = get_scoring_resolver()
         return self._config_resolver
 
-    def get_weights(self, regime: str = "normal", sector: Optional[str] = None):
+    def get_weights(self, regime: str = "normal", sector: Optional[str] = None) -> dict[str, Any]:
         """Get resolved weights for this strategy + regime + sector."""
         return self.config_resolver.resolve(self.strategy_name, regime, sector)
 

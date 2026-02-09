@@ -27,32 +27,18 @@ import numpy as np
 from .base import BaseAnalyzer
 from .context import AnalysisContext
 
-try:
-    from ..models.base import TradeSignal, SignalType, SignalStrength
-    from ..models.strategy_breakdowns import EarningsDipScoreBreakdown
-except ImportError:
-    from models.base import TradeSignal, SignalType, SignalStrength
-    from models.strategy_breakdowns import EarningsDipScoreBreakdown
+from ..models.base import TradeSignal, SignalType, SignalStrength
+from ..models.strategy_breakdowns import EarningsDipScoreBreakdown
 
 # Import Feature Scoring Mixin
-try:
-    from .feature_scoring_mixin import FeatureScoringMixin
-except ImportError:
-    from analyzers.feature_scoring_mixin import FeatureScoringMixin
+from .feature_scoring_mixin import FeatureScoringMixin
 
 # Import central constants
-try:
-    from ..constants import (
-        RSI_PERIOD,
-        SMA_LONG,
-        VOLUME_AVG_PERIOD,
-    )
-except ImportError:
-    from constants import (
-        RSI_PERIOD,
-        SMA_LONG,
-        VOLUME_AVG_PERIOD,
-    )
+from ..constants import (
+    RSI_PERIOD,
+    SMA_LONG,
+    VOLUME_AVG_PERIOD,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -203,7 +189,7 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         config: Optional[EarningsDipConfig] = None,
         scoring_config=None,  # Legacy — accepted but ignored
         **kwargs,
-    ):
+    ) -> None:
         self.config = config or EarningsDipConfig()
         # Legacy compat: store scoring_config reference
         self.scoring_config = scoring_config

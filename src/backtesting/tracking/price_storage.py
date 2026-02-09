@@ -25,7 +25,7 @@ class PriceStorage:
     Receives _get_connection from the parent TradeTracker facade.
     """
 
-    def __init__(self, get_connection):
+    def __init__(self, get_connection) -> None:
         """
         Args:
             get_connection: Context manager yielding a sqlite3.Connection

@@ -64,7 +64,7 @@ class QuoteService(BaseService):
         context: ServiceContext,
         cache_ttl_seconds: int = 60,
         max_cache_size: int = MAX_CACHE_SIZE
-    ):
+    ) -> None:
         """
         Initialisiert den Quote Service.
 

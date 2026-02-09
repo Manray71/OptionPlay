@@ -178,7 +178,7 @@ class PositionSizer:
         account_size: float,
         config: Optional[PositionSizerConfig] = None,
         current_exposure: float = 0.0,
-    ):
+    ) -> None:
         """
         Initialisiert den Position Sizer.
 

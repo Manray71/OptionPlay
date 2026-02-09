@@ -80,7 +80,7 @@ def find_config_dir(config_dir: Optional[str] = None) -> Path:
 class ConfigLoader:
     """Lädt und verwaltet Konfiguration."""
 
-    def __init__(self, config_dir: Optional[str] = None, validate: bool = True):
+    def __init__(self, config_dir: Optional[str] = None, validate: bool = True) -> None:
         """
         Initialize config loader.
 

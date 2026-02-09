@@ -35,7 +35,7 @@ class WatchlistLoader:
     - risk_list: Symbole mit Stability Score < threshold oder unbekannt
     """
 
-    def __init__(self, config_path: Optional[Path] = None, default_list: Optional[str] = None):
+    def __init__(self, config_path: Optional[Path] = None, default_list: Optional[str] = None) -> None:
         if config_path is None:
             possible_paths = [
                 Path.home() / "OptionPlay" / "config" / "watchlists.yaml",

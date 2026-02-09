@@ -61,7 +61,7 @@ class VixCacheManager:
     This manager provides DB-based historical data.
     """
 
-    def __init__(self, db_path: Optional[Path] = None):
+    def __init__(self, db_path: Optional[Path] = None) -> None:
         """
         Initialize VIX Cache Manager.
 
@@ -364,7 +364,7 @@ def get_vix_manager() -> VixCacheManager:
         return _vix_manager
 
 
-def reset_vix_manager():
+def reset_vix_manager() -> None:
     """Reset VIX Cache Manager (for testing)."""
     global _vix_manager
     with _vix_manager_lock:

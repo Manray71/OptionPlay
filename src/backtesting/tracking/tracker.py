@@ -82,7 +82,7 @@ class TradeTracker:
     # Schema Version für Migrations
     SCHEMA_VERSION = 3  # v3: Added options_data table
 
-    def __init__(self, db_path: Optional[str] = None):
+    def __init__(self, db_path: Optional[str] = None) -> None:
         """
         Initialisiert den Trade Tracker.
 
@@ -126,7 +126,7 @@ class TradeTracker:
             conn.rollback()
             raise
 
-    def close(self):
+    def close(self) -> None:
         """Schließt die DB-Connection."""
         if self._conn is not None:
             self._conn.close()

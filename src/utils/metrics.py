@@ -45,7 +45,7 @@ class MetricValue:
 class Metric(ABC):
     """Abstract base class for metrics."""
 
-    def __init__(self, name: str, help_text: str = "", label_names: Optional[List[str]] = None):
+    def __init__(self, name: str, help_text: str = "", label_names: Optional[List[str]] = None) -> None:
         self.name = name
         self.help_text = help_text
         self.label_names = label_names or []
@@ -78,7 +78,7 @@ class Counter(Metric):
         requests.inc(5, labels={"method": "POST"})
     """
 
-    def __init__(self, name: str, help_text: str = "", label_names: Optional[List[str]] = None):
+    def __init__(self, name: str, help_text: str = "", label_names: Optional[List[str]] = None) -> None:
         super().__init__(name, help_text, label_names)
         self._values: Dict[Tuple, float] = defaultdict(float)
 
@@ -131,7 +131,7 @@ class Gauge(Metric):
         active_connections.dec()
     """
 
-    def __init__(self, name: str, help_text: str = "", label_names: Optional[List[str]] = None):
+    def __init__(self, name: str, help_text: str = "", label_names: Optional[List[str]] = None) -> None:
         super().__init__(name, help_text, label_names)
         self._values: Dict[Tuple, float] = defaultdict(float)
 
@@ -201,7 +201,7 @@ class Histogram(Metric):
         help_text: str = "",
         label_names: Optional[List[str]] = None,
         buckets: Optional[Tuple[float, ...]] = None
-    ):
+    ) -> None:
         super().__init__(name, help_text, label_names)
         self.buckets = buckets or self.DEFAULT_BUCKETS
         self._counts: Dict[Tuple, Dict[float, int]] = defaultdict(
@@ -283,7 +283,7 @@ class MetricsRegistry:
         print(registry.to_json())
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._metrics: Dict[str, Metric] = {}
         self._lock = threading.Lock()
         self._start_time = time.time()

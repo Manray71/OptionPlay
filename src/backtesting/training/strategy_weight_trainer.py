@@ -252,7 +252,7 @@ class StrategyWeightTrainer:
     and uses the corresponding objective function and regularization.
     """
 
-    def __init__(self, strategy: str, config: Optional[StrategyTrainingConfig] = None):
+    def __init__(self, strategy: str, config: Optional[StrategyTrainingConfig] = None) -> None:
         self.strategy = strategy
         self.config = config or StrategyTrainingConfig.from_yaml(strategy)
         self.components = STRATEGY_COMPONENTS.get(strategy, [])
@@ -306,7 +306,7 @@ class StrategyWeightTrainer:
         # Optimize using only active (non-constant) components
         initial_weights = self._get_initial_weights(active_components)
 
-        def neg_objective(w):
+        def neg_objective(w) -> float:
             trades_matrix = np.column_stack([X_train, pnl_train, y_train])
             obj = self.objective_fn(
                 trades_matrix, w, active_components, self.config.objective_weights

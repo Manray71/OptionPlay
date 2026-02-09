@@ -8,25 +8,14 @@ from typing import Optional, Dict, Any, List, Tuple
 from enum import Enum
 import logging
 
-# Import central constants
-try:
-    from .constants import (
-        VIX_LOW, VIX_NORMAL, VIX_ELEVATED, VIX_HIGH,
-        DTE_MIN, DTE_MAX, DTE_TARGET,
-        DELTA_TARGET, DELTA_MIN, DELTA_MAX, DELTA_CONSERVATIVE, DELTA_AGGRESSIVE,
-        DELTA_LONG_TARGET,
-        EARNINGS_MIN_DAYS, EARNINGS_MIN_DAYS_STRICT, EARNINGS_SAFE_DAYS,
-        MIN_SCORE_DEFAULT,
-    )
-except ImportError:
-    from constants import (
-        VIX_LOW, VIX_NORMAL, VIX_ELEVATED, VIX_HIGH,
-        DTE_MIN, DTE_MAX, DTE_TARGET,
-        DELTA_TARGET, DELTA_MIN, DELTA_MAX, DELTA_CONSERVATIVE, DELTA_AGGRESSIVE,
-        DELTA_LONG_TARGET,
-        EARNINGS_MIN_DAYS, EARNINGS_MIN_DAYS_STRICT, EARNINGS_SAFE_DAYS,
-        MIN_SCORE_DEFAULT,
-    )
+from .constants import (
+    VIX_LOW, VIX_NORMAL, VIX_ELEVATED, VIX_HIGH,
+    DTE_MIN, DTE_MAX, DTE_TARGET,
+    DELTA_TARGET, DELTA_MIN, DELTA_MAX, DELTA_CONSERVATIVE, DELTA_AGGRESSIVE,
+    DELTA_LONG_TARGET,
+    EARNINGS_MIN_DAYS, EARNINGS_MIN_DAYS_STRICT, EARNINGS_SAFE_DAYS,
+    MIN_SCORE_DEFAULT,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -217,7 +206,7 @@ class VIXStrategySelector:
         'falling_fast': -1.5, # Z-Score < -1.5: Falling fast
     }
 
-    def __init__(self, thresholds: Optional[VIXThresholds] = None):
+    def __init__(self, thresholds: Optional[VIXThresholds] = None) -> None:
         self.thresholds = thresholds or VIXThresholds()
         self._vix_history_cache: Optional[List[float]] = None
         self._cache_timestamp: Optional[float] = None

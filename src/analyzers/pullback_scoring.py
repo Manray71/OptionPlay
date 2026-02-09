@@ -8,78 +8,41 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
-try:
-    from ..models.indicators import (
-        KeltnerChannelResult,
-        MACDResult,
-        RSIDivergenceResult,
-        StochasticResult,
-    )
-except ImportError:
-    from models.indicators import (  # type: ignore[no-redef]
-        KeltnerChannelResult,
-        MACDResult,
-        RSIDivergenceResult,
-        StochasticResult,
-    )
+from ..models.indicators import (
+    KeltnerChannelResult,
+    MACDResult,
+    RSIDivergenceResult,
+    StochasticResult,
+)
 
 # Import shared indicator functions used by scoring/calculation methods
-try:
-    from ..indicators.volatility import calculate_atr_simple, calculate_keltner_channel
-except ImportError:
-    from indicators.volatility import calculate_atr_simple, calculate_keltner_channel  # type: ignore[no-redef]
+from ..indicators.volatility import calculate_atr_simple, calculate_keltner_channel
 
 # Import Volume Profile indicators
-try:
-    from ..indicators.volume_profile import (
-        calculate_vwap,
-        get_sector,
-        get_sector_adjustment,
-    )
-except ImportError:
-    from indicators.volume_profile import (  # type: ignore[no-redef]
-        calculate_vwap,
-        get_sector,
-        get_sector_adjustment,
-    )
+from ..indicators.volume_profile import (
+    calculate_vwap,
+    get_sector,
+    get_sector_adjustment,
+)
 
 # Import Gap Analysis
-try:
-    from ..indicators.gap_analysis import analyze_gap
-except ImportError:
-    from indicators.gap_analysis import analyze_gap  # type: ignore[no-redef]
+from ..indicators.gap_analysis import analyze_gap
 
 # Import central constants
-try:
-    from ..constants import (
-        GAP_LOOKBACK_DAYS,
-        GAP_SIZE_LARGE,
-        GAP_SIZE_MEDIUM,
-        GAP_SIZE_SMALL_NEG,
-        KELTNER_NEUTRAL_LOW,
-        SMA_MEDIUM,
-        SMA_SHORT,
-        VWAP_ABOVE,
-        VWAP_BELOW,
-        VWAP_PERIOD,
-        VWAP_STRONG_ABOVE,
-        VWAP_STRONG_BELOW,
-    )
-except ImportError:
-    from constants import (  # type: ignore[no-redef]
-        GAP_LOOKBACK_DAYS,
-        GAP_SIZE_LARGE,
-        GAP_SIZE_MEDIUM,
-        GAP_SIZE_SMALL_NEG,
-        KELTNER_NEUTRAL_LOW,
-        SMA_MEDIUM,
-        SMA_SHORT,
-        VWAP_ABOVE,
-        VWAP_BELOW,
-        VWAP_PERIOD,
-        VWAP_STRONG_ABOVE,
-        VWAP_STRONG_BELOW,
-    )
+from ..constants import (
+    GAP_LOOKBACK_DAYS,
+    GAP_SIZE_LARGE,
+    GAP_SIZE_MEDIUM,
+    GAP_SIZE_SMALL_NEG,
+    KELTNER_NEUTRAL_LOW,
+    SMA_MEDIUM,
+    SMA_SHORT,
+    VWAP_ABOVE,
+    VWAP_BELOW,
+    VWAP_PERIOD,
+    VWAP_STRONG_ABOVE,
+    VWAP_STRONG_BELOW,
+)
 
 logger = logging.getLogger(__name__)
 

@@ -126,7 +126,7 @@ class HistoricalCache:
         self,
         ttl_seconds: int = DEFAULT_TTL_SECONDS,
         max_entries: int = DEFAULT_MAX_ENTRIES
-    ):
+    ) -> None:
         """
         Initialisiert den Cache.
         

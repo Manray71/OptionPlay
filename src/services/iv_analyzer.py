@@ -134,7 +134,7 @@ class IVAnalyzer:
         self,
         iv_fetcher: Optional[IVFetcher] = None,
         db_path: Optional[Path] = None,
-    ):
+    ) -> None:
         """
         Args:
             iv_fetcher: Optional IVFetcher-Instanz (Default: globale Instanz)

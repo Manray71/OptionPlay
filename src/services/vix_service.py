@@ -53,7 +53,7 @@ class VIXService(BaseService):
         _vix_selector: VIX Strategy Selector
     """
     
-    def __init__(self, context: ServiceContext):
+    def __init__(self, context: ServiceContext) -> None:
         """Initialisiert den VIX Service."""
         super().__init__(context)
         self._vix_selector = VIXStrategySelector()

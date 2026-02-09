@@ -82,7 +82,7 @@ class RecursiveConfigResolver:
     _instance: Optional["RecursiveConfigResolver"] = None
     _lock = threading.RLock()
 
-    def __new__(cls, yaml_path: Optional[str] = None):
+    def __new__(cls, yaml_path: Optional[str] = None) -> "RecursiveConfigResolver":
         with cls._lock:
             if cls._instance is None:
                 instance = super().__new__(cls)
@@ -90,7 +90,7 @@ class RecursiveConfigResolver:
                 cls._instance = instance
             return cls._instance
 
-    def __init__(self, yaml_path: Optional[str] = None):
+    def __init__(self, yaml_path: Optional[str] = None) -> None:
         with self._lock:
             if self._initialized:
                 return

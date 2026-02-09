@@ -147,7 +147,7 @@ class SymbolFundamentalsManager:
     - Calculation of metrics from own data
     """
 
-    def __init__(self, db_path: Optional[Path] = None):
+    def __init__(self, db_path: Optional[Path] = None) -> None:
         self.db_path = db_path or DEFAULT_DB_PATH
         self._lock = threading.RLock()
         self._ensure_db_exists()

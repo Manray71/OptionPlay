@@ -10,13 +10,11 @@ from datetime import date, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 import urllib.error
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-
-from data_providers.marketdata import (
+from src.data_providers.marketdata import (
     MarketDataProvider,
     MarketDataConfig,
 )
-from data_providers.interface import (
+from src.data_providers.interface import (
     PriceQuote,
     OptionQuote,
     HistoricalBar,

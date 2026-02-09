@@ -107,7 +107,7 @@ class SectorCycleService:
     and caches results for configured TTL.
     """
 
-    def __init__(self, provider=None):
+    def __init__(self, provider=None) -> None:
         """
         Args:
             provider: MarketDataProvider or compatible (must have get_historical).

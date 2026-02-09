@@ -14,16 +14,10 @@ Usage:
 import logging
 from typing import Dict, Optional, Any
 
-try:
-    from .constants.trading_rules import (
-        SPREAD_MIN_CREDIT_PCT,
-        LIQUIDITY_SPREAD_PCT_GOOD,
-    )
-except ImportError:
-    from constants.trading_rules import (
-        SPREAD_MIN_CREDIT_PCT,
-        LIQUIDITY_SPREAD_PCT_GOOD,
-    )
+from .constants.trading_rules import (
+    SPREAD_MIN_CREDIT_PCT,
+    LIQUIDITY_SPREAD_PCT_GOOD,
+)
 
 # Black-Scholes for accurate delta calculation
 try:

@@ -40,7 +40,7 @@ import logging
 import threading
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Callable, Optional, TypeVar
+from typing import Any, Callable, Dict, Optional, TypeVar
 from dataclasses import dataclass, field
 from functools import wraps
 
@@ -129,7 +129,7 @@ class CircuitBreaker:
         recovery_timeout: float = 60.0,
         half_open_max_calls: int = 3,
         success_threshold: int = 2,
-    ):
+    ) -> None:
         self.name = name
         self.failure_threshold = failure_threshold
         self.recovery_timeout = recovery_timeout
@@ -299,7 +299,7 @@ class CircuitBreaker:
             remaining = self.recovery_timeout - elapsed
             return max(0, remaining)
     
-    def stats(self) -> dict:
+    def stats(self) -> Dict[str, Any]:
         """Gibt Statistiken zurück."""
         with self._lock:
             return {
@@ -323,14 +323,14 @@ class CircuitBreaker:
     # CONTEXT MANAGER & DECORATOR
     # =========================================================================
     
-    async def __aenter__(self):
+    async def __aenter__(self) -> 'CircuitBreaker':
         """Async context manager entry."""
         if not self.can_execute():
             self.record_rejected()
             raise CircuitBreakerOpen(self.name, self.get_retry_after())
         return self
     
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type, exc_val, exc_tb) -> bool:
         """Async context manager exit."""
         if exc_type is None:
             self.record_success()
@@ -338,14 +338,14 @@ class CircuitBreaker:
             self.record_failure(exc_val)
         return False  # Don't suppress exceptions
     
-    def __enter__(self):
+    def __enter__(self) -> 'CircuitBreaker':
         """Sync context manager entry."""
         if not self.can_execute():
             self.record_rejected()
             raise CircuitBreakerOpen(self.name, self.get_retry_after())
         return self
     
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type, exc_val, exc_tb) -> bool:
         """Sync context manager exit."""
         if exc_type is None:
             self.record_success()
@@ -408,7 +408,7 @@ class CircuitBreakerRegistry:
         all_stats = registry.all_stats()
     """
     
-    def __init__(self):
+    def __init__(self) -> None:
         self._breakers: dict[str, CircuitBreaker] = {}
         self._lock = threading.RLock()
         
@@ -483,7 +483,7 @@ class CircuitBreakerRegistry:
             for breaker in self._breakers.values():
                 breaker.reset()
     
-    def all_stats(self) -> dict[str, dict]:
+    def all_stats(self) -> Dict[str, Dict[str, Any]]:
         """Gibt Stats aller Breaker zurück."""
         with self._lock:
             return {name: breaker.stats() for name, breaker in self._breakers.items()}
