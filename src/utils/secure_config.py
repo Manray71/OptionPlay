@@ -16,6 +16,7 @@
 
 import os
 import logging
+from datetime import datetime
 from typing import Optional, Dict, Callable
 from pathlib import Path
 from functools import lru_cache
@@ -143,6 +144,7 @@ class SecureConfig:
         self._use_keyring = use_keyring
         self._keyring_service = keyring_service
         self._cache: Dict[str, str] = {}
+        self._key_load_times: Dict[str, datetime] = {}
         self._env_loaded = False
         
         # Keyring verfügbar?
@@ -180,6 +182,12 @@ class SecureConfig:
                     break
         
         if env_file and env_file.exists():
+            # Security: reject symlinks to prevent path traversal attacks
+            if env_file.is_symlink():
+                logger.warning("Rejected symlinked .env file: %s", env_file)
+                self._env_loaded = True
+                return
+            env_file = env_file.resolve()
             try:
                 with open(env_file) as f:
                     for line in f:
@@ -296,8 +304,10 @@ class SecureConfig:
         
         # Cachen und zurückgeben
         self._cache[key_name] = value
+        self._key_load_times[key_name] = datetime.now()
         logger.debug(f"Loaded {key_name} from {source}: {mask_api_key(value)}")
-        
+        logger.info("API key loaded for provider: %s (source: %s)", key_name, source)
+
         return value
     
     def set_api_key(
@@ -316,7 +326,8 @@ class SecureConfig:
         """
         self._cache[key_name] = value
         os.environ[key_name] = value
-        
+        logger.info("API key set for provider: %s", key_name)
+
         if persist and self._keyring_available:
             try:
                 import keyring
@@ -325,6 +336,61 @@ class SecureConfig:
             except Exception as e:
                 logger.warning(f"Failed to save {key_name} to keyring: {e}")
     
+    def rotate_key(self, key_name: str) -> Optional[str]:
+        """
+        Rotiert einen API-Key: invalidiert Cache und lädt neu aus Environment/.env.
+
+        Args:
+            key_name: Name des zu rotierenden Keys
+
+        Returns:
+            Neuer Key-Wert oder None wenn nicht gefunden
+        """
+        # Cache und Load-Time invalidieren
+        if key_name in self._cache:
+            del self._cache[key_name]
+        if key_name in self._key_load_times:
+            del self._key_load_times[key_name]
+
+        # .env neu laden erzwingen: alten Wert aus os.environ entfernen,
+        # damit setdefault() den neuen Wert aus der .env-Datei übernimmt
+        if self._env_file is not None or self._env_loaded:
+            os.environ.pop(key_name, None)
+        self._env_loaded = False
+
+        # Key neu laden
+        value = self.get_api_key(key_name, required=False)
+        logger.info("API key rotated for provider: %s", key_name)
+        return value
+
+    def check_key_age(self, key_name: str, max_age_days: int = 90) -> bool:
+        """
+        Prüft ob ein Key innerhalb des Alters-Limits liegt.
+
+        Args:
+            key_name: Name des Keys
+            max_age_days: Maximales Alter in Tagen (default: 90)
+
+        Returns:
+            True wenn Key innerhalb des Limits oder nicht geladen,
+            False wenn Key älter als max_age_days
+        """
+        load_time = self._key_load_times.get(key_name)
+        if load_time is None:
+            return True
+
+        age = datetime.now() - load_time
+        age_days = age.days
+
+        if age_days > max_age_days:
+            logger.warning(
+                "API key for %s was loaded %d days ago (max: %d)",
+                key_name, age_days, max_age_days
+            )
+            return False
+
+        return True
+
     def clear_cache(self) -> None:
         """Leert den Key-Cache."""
         self._cache.clear()

@@ -65,6 +65,16 @@ repos:
       # Check Python syntax
       - id: check-ast
 
+  # Block .env files from being committed (A.2)
+  - repo: local
+    hooks:
+      - id: forbid-env-files
+        name: Block .env files from commit
+        entry: bash -c 'echo "ERROR: .env files must not be committed!" && exit 1'
+        language: system
+        files: '(^|/)\.env(\..+)?$'
+        types: [file]
+
   # Security checks with bandit
   - repo: https://github.com/PyCQA/bandit
     rev: 1.7.7

@@ -24,6 +24,51 @@ logger = logging.getLogger(__name__)
 OUTCOME_DB_PATH = Path.home() / ".optionplay" / "outcomes.db"
 
 
+def _validate_db_path(db_path: Path) -> Path:
+    """
+    Validate and resolve a database path to prevent symlink attacks.
+
+    Ensures parent directory exists and is not a symlink.
+    Returns the resolved path.
+
+    Raises:
+        ValueError: If the path is a symlink or parent doesn't exist.
+    """
+    db_path = Path(db_path)
+
+    # Check the file itself is not a symlink
+    if db_path.exists() and db_path.is_symlink():
+        raise ValueError(f"Database path is a symlink (rejected): {db_path}")
+
+    # Resolve and validate parent directory
+    parent = db_path.parent
+    if parent.exists():
+        if parent.is_symlink():
+            raise ValueError(f"Parent directory is a symlink (rejected): {parent}")
+        resolved = parent.resolve(strict=True) / db_path.name
+    else:
+        resolved = db_path
+
+    return resolved
+
+
+# Whitelist for valid strategy names (used in dynamic column references)
+VALID_STRATEGIES = frozenset([
+    'pullback', 'bounce', 'ath_breakout', 'earnings_dip', 'trend_continuation'
+])
+
+# Whitelist for valid column names in ALTER TABLE operations
+VALID_COMPONENT_COLUMNS = frozenset([
+    'rsi_score', 'support_score', 'fibonacci_score', 'ma_score', 'volume_score',
+    'macd_score', 'stoch_score', 'keltner_score', 'trend_strength_score',
+    'momentum_score', 'rs_score', 'candlestick_score',
+    'vwap_score', 'market_context_score', 'sector_score', 'gap_score',
+    'pullback_score', 'bounce_score', 'ath_breakout_score', 'earnings_dip_score',
+    'trend_continuation_score',
+    'rsi_value', 'distance_to_support_pct', 'spy_trend', 'score_breakdown_json',
+])
+
+
 def create_outcome_database(db_path: Path = OUTCOME_DB_PATH) -> sqlite3.Connection:
     """
     Erstellt die Outcome-Datenbank für ML-Training.
@@ -32,6 +77,7 @@ def create_outcome_database(db_path: Path = OUTCOME_DB_PATH) -> sqlite3.Connecti
     - trade_outcomes: Alle backtesteten Trades mit Features und Outcomes
     - backtest_runs: Metadaten über Backtest-Läufe
     """
+    db_path = _validate_db_path(db_path)
     conn = sqlite3.connect(str(db_path))
     cursor = conn.cursor()
 
@@ -122,7 +168,12 @@ def create_outcome_database(db_path: Path = OUTCOME_DB_PATH) -> sqlite3.Connecti
     ]
 
     # Füge Spalten hinzu, falls sie nicht existieren
+    valid_types = frozenset(["REAL", "TEXT", "INTEGER"])
     for col_name, col_type in component_columns:
+        if col_name not in VALID_COMPONENT_COLUMNS:
+            raise ValueError(f"Invalid column name: {col_name}")
+        if col_type not in valid_types:
+            raise ValueError(f"Invalid column type: {col_type}")
         try:
             cursor.execute(f"ALTER TABLE trade_outcomes ADD COLUMN {col_name} {col_type}")
         except sqlite3.OperationalError:
@@ -289,6 +340,7 @@ def load_outcomes_for_training(
         X: Feature-Matrix (n_samples, n_features)
         y: Labels (1 = profitable, 0 = nicht profitable)
     """
+    db_path = _validate_db_path(db_path)
     conn = sqlite3.connect(str(db_path))
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
@@ -336,6 +388,7 @@ def load_outcomes_dataframe(
     """
     import pandas as pd
 
+    db_path = _validate_db_path(db_path)
     conn = sqlite3.connect(str(db_path))
     df = pd.read_sql_query("SELECT * FROM trade_outcomes", conn)
     conn.close()
@@ -351,6 +404,7 @@ def get_outcome_statistics(db_path: Path = OUTCOME_DB_PATH) -> Dict:
     """
     Generiert Statistiken aus der Outcome-Datenbank.
     """
+    db_path = _validate_db_path(db_path)
     conn = sqlite3.connect(str(db_path))
     cursor = conn.cursor()
 
@@ -417,6 +471,7 @@ def get_trades_without_scores(
     Returns:
         Liste von Trades (symbol, entry_date) ohne scores
     """
+    db_path = _validate_db_path(db_path)
     conn = sqlite3.connect(str(db_path))
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
@@ -428,10 +483,12 @@ def get_trades_without_scores(
       AND bounce_score IS NULL
     ORDER BY entry_date
     """
+    params = []
     if limit:
-        query += f" LIMIT {limit}"
+        query += " LIMIT ?"
+        params.append(int(limit))
 
-    cursor.execute(query)
+    cursor.execute(query, params)
     rows = [dict(row) for row in cursor.fetchall()]
     conn.close()
 
@@ -453,6 +510,7 @@ def update_trade_scores(
     Returns:
         True wenn erfolgreich
     """
+    db_path = _validate_db_path(db_path)
     conn = sqlite3.connect(str(db_path))
     cursor = conn.cursor()
 
@@ -506,10 +564,18 @@ def load_outcomes_with_scores(
     """
     import pandas as pd
 
-    conn = sqlite3.connect(str(db_path))
+    if strategy:
+        if strategy not in VALID_STRATEGIES:
+            raise ValueError(
+                f"Invalid strategy: {strategy!r}. "
+                f"Must be one of: {sorted(VALID_STRATEGIES)}"
+            )
+        score_col = f"{strategy}_score"
+    else:
+        score_col = "pullback_score"
 
-    # Filtere auf Trades mit Scores
-    score_col = f"{strategy}_score" if strategy else "pullback_score"
+    db_path = _validate_db_path(db_path)
+    conn = sqlite3.connect(str(db_path))
     query = f"""
     SELECT *
     FROM trade_outcomes
