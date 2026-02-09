@@ -217,6 +217,7 @@ python scripts/sync_daily_to_price_data.py   # OHLCV: daily_prices → price_dat
 python scripts/full_walkforward_train.py     # Full Walk-Forward (280 Jobs, ~45 Min)
 python scripts/fast_weight_train.py          # Schnelles Component-Weight-Training
 python scripts/fast_strategy_train.py        # Schnelles Strategy-Training
+python scripts/train_stability_thresholds.py # Stability-Cutoffs per Strategy × Regime (~2 Min)
 ```
 
 **Trainings-Output:** `~/.optionplay/models/`
@@ -224,6 +225,7 @@ python scripts/fast_strategy_train.py        # Schnelles Strategy-Training
 - `trained_models.json` — Score-Schwellen + Regime-Adjustments
 - `SECTOR_CLUSTER_WEIGHTS.json` — Sektor-Faktoren (12 × 5)
 - `wf_training_results_detailed.json` — Detaillierte Walk-Forward-Ergebnisse
+- `stability_threshold_analysis.json` — Stability-Cutoff-Analyse (2,978 Trades)
 
 ---
 
@@ -278,14 +280,19 @@ Alle Scores werden via `score_normalization.py` auf 0-10 Skala normalisiert.
 | **EARN-01** | ~~Earnings Pre-Filter blockiert Dip-Strategie~~ — `include_dip_candidates` in ALL/BEST_SIGNAL Mode | ✅ GELÖST |
 | **STAB-01** | ~~Fundamentals Pre-Filter zu aggressiv~~ — Von 70 auf 50 gesenkt, Tier-System (Stability-First) übernimmt Qualitätskontrolle | ✅ GELÖST |
 
-### Stability-Filterung (2-Stufen-System)
+### Stability-Filterung (3-Stufen-System)
 
 1. **Fundamentals Pre-Filter** (VOR Scan): `min_stability ≥ 50` — entfernt nur Blacklist-Symbole
 2. **Stability-First Post-Filter** (NACH Scan): Tiered Score-Anforderungen:
-   - Premium (≥80 Stability): min_score 4.0 — 94.5% Win Rate
-   - Good (70-80): min_score 5.0 — 86.1% Win Rate
-   - OK (50-70): min_score 6.0 — 75% Win Rate (höhere Hürde!)
+   - Premium (≥80 Stability): min_score 4.0
+   - Good (70-80): min_score 5.0
+   - OK (50-70): min_score 6.0 (hoehere Huerde!)
    - Blacklist (<50): komplett gefiltert
+3. **WF-Trained Stability Thresholds** (per Strategy × Regime):
+   - `by_strategy` Werte in `scoring_weights.yaml` OVERRIDEN globale Defaults (nicht additiv)
+   - Meiste Cutoffs = 0 (WF-Score-Thresholds filtern bereits effektiv genug)
+   - Ausnahmen: `earnings_dip` (high VIX → 70, Tech/Healthcare/Industrials → 65-70), `trend_continuation` (elevated → 60)
+   - Trainiert auf 2,978 OOS-Trades mit echten Stability-Scores
 
 ### Volume-Fallback (Wochenende/Feiertage)
 
@@ -315,6 +322,6 @@ src/backtesting/                    44 Module | 17,611 LOC
 | 3 | Earnings Dip (Refactor) | 77 | ✅ |
 | 4 | Trend Continuation (NEU) | 98 | ✅ |
 | 5 | Integration & Backtesting | — | ✅ |
-| 6 | Retraining (ML-Weights, Sector Rotation) | — | ✅ (Walk-Forward, 4112 OOS-Trades, 89.1% WR) |
+| 6 | Retraining (ML-Weights, Sector Rotation, Stability) | — | ✅ (Walk-Forward, 4112 OOS-Trades, 89.1% WR) |
 
 *Alle Trading-Regeln, VIX-Regime, Stability-Schwellen, Watchlist und Blacklist stehen ausschließlich in PLAYBOOK.md.*

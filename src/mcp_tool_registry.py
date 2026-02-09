@@ -4,9 +4,10 @@ OptionPlay MCP Tool Registry v4.0.0
 
 Zentrales Registry für alle MCP Tools mit Handler-Definitionen.
 
-Stats (2026-02-07):
+Stats (2026-02-09):
 - 53 Tools + 55 Aliases = 108 MCP Endpoints
 - 80.19% Test Coverage
+- ML-Training: Walk-Forward (2026-02-09) + Stability Thresholds
 
 Pattern:
     @tool_registry.register(
@@ -209,7 +210,7 @@ async def handle_vix(server, arguments):
 
 @tool_registry.register(
     name="optionplay_regime_status",
-    description="Get current VIX regime status with trained model recommendations. Shows regime, trading parameters, enabled strategies.",
+    description="Get current VIX regime status with WF-trained model recommendations. Shows regime, trading parameters, enabled strategies, and stability thresholds.",
     input_schema=EMPTY_SCHEMA,
     aliases=["regime"],
 )

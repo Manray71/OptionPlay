@@ -271,6 +271,7 @@ Normalisierung auf 0-10 Skala via `score_normalization.py`.
 **Training:** 18/6/6 Monate Rolling, 7 Epochen (2020-2025), 630 Symbole, echte Options-Chains
 **Sector-Rotation:** 12 Sektoren mit trainierten sector_factors (0.647-1.154)
 **VIX-Regime:** 4 Regimes (normal 92-95% WR, elevated 82-90%, high 70-85%, extreme unprofitabel)
+**Stability-Thresholds:** WF-trainierte Cutoffs per Strategy × Regime (2,978 Trades). Meiste = 0, Ausnahmen: earnings_dip (high→70), trend_continuation (elevated→60)
 
 ### Stufe 3: Ranking (Daily Picks)
 
@@ -289,9 +290,11 @@ final = base * speed_multiplier
 | ML-Weights anpassen | `~/.optionplay/models/component_weights.json` | Gering |
 | Sector-Factors | `config/scoring_weights.yaml` (sectors) | Gering |
 | Score-Schwellen | `~/.optionplay/models/trained_models.json` | Gering |
+| Stability-Cutoffs | `config/scoring_weights.yaml` (stability_thresholds.by_strategy) | Gering |
 | Stability/Speed-Gewichtung | Config-Dict in recommendation_engine | Gering |
 | RSI/MACD-Schwellen | `constants/strategy_parameters.py` | Gering |
 | Komponenten-Punktzahlen | `config/scoring_weights.yaml` (weights) | Mittel |
+| Stability-Threshold Training | `scripts/train_stability_thresholds.py` (~2 Min) | Mittel |
 | Full WF Retraining | `scripts/full_walkforward_train.py` (~45 Min) | Hoch |
 
 ---

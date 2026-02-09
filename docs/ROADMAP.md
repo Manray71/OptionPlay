@@ -561,7 +561,14 @@ Reihenfolge nach Impact:
 | `~/.optionplay/models/trained_models.json` | Optimale Score-Schwellen + Regime-Adjustments |
 | `~/.optionplay/models/SECTOR_CLUSTER_WEIGHTS.json` | Sektor-Faktoren (12 × 5 Strategien) |
 | `~/.optionplay/models/wf_training_results_detailed.json` | Vollstaendige Ergebnisse mit Threshold- & Regime-Analyse |
-| `config/scoring_weights.yaml` | Aktualisiert mit trainierten sector_factors |
+| `config/scoring_weights.yaml` | Aktualisiert mit trainierten sector_factors + stability_thresholds |
+| `~/.optionplay/models/stability_threshold_analysis.json` | Stability-Cutoff-Analyse (2,978 Trades) |
+
+**Stability-Threshold Training (2,978 OOS-Trades):**
+- Optimale stability_score Cutoffs per Strategy × VIX-Regime
+- Ergebnis: Meiste Cutoffs = 0 (WF-Score-Thresholds filtern bereits effektiv)
+- Ausnahmen: `earnings_dip` (high VIX → 70, Tech/Healthcare/Industrials → 65-70), `trend_continuation` (elevated → 60)
+- Script: `scripts/train_stability_thresholds.py`
 
 **Bugs behoben waehrend Training:**
 1. Component-Score-Extraktion: Nested dicts/bools in `score_breakdown` korrekt navigieren
@@ -631,7 +638,8 @@ Strategy Sessions (2026-02) ✅
         ├── Component Weights (Walk-Forward, 7 Epochen) ✅
         ├── Strategy Thresholds (5 Strategien × 8 Schwellen) ✅
         ├── Sector Rotation (12 Sektoren × 5 Strategien) ✅
-        └── Regime Performance (4 VIX-Regimes) ✅
+        ├── Regime Performance (4 VIX-Regimes) ✅
+        └── Stability Thresholds (per Strategy × Regime, 2978 Trades) ✅
 ```
 
 ---
