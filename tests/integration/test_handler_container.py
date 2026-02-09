@@ -126,13 +126,6 @@ class TestBaseHandler:
 
         assert handler.config is ctx.config
 
-    def test_provider_property(self):
-        """Test BaseHandler provider property."""
-        ctx = self.create_context()
-        handler = BaseHandler(ctx)
-
-        assert handler.provider is ctx.provider
-
     def test_tradier_provider_property(self):
         """Test BaseHandler tradier_provider property."""
         ctx = self.create_context()

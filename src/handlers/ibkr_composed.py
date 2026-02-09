@@ -195,19 +195,4 @@ class IbkrHandler(BaseHandler):
 
         return await self._ctx.ibkr_bridge.get_quotes_batch_formatted(symbols, batch_size, pause_seconds)
 
-    # --- Shared helper methods ---
-
-    async def _get_vix(self) -> Optional[float]:
-        """Get current VIX value from context cache or provider."""
-        if self._ctx.current_vix is not None:
-            return self._ctx.current_vix
-        if self._ctx.provider:
-            try:
-                quote = await self._ctx.provider.get_quote("VIX")
-                if quote and hasattr(quote, 'last') and quote.last:
-                    self._ctx.current_vix = quote.last
-                    self._ctx.vix_updated = datetime.now()
-                    return quote.last
-            except (ConnectionError, AttributeError, TimeoutError) as e:
-                logger.debug("VIX fetch failed: %s", e)
-        return None
+    # _get_vix() inherited from BaseHandler

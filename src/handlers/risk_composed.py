@@ -399,25 +399,13 @@ class RiskHandler(BaseHandler):
 
     # --- Shared helper methods ---
 
-    async def _get_vix(self) -> Optional[float]:
-        if self._ctx.current_vix is not None:
-            return self._ctx.current_vix
-        if self._ctx.provider:
-            try:
-                quote = await self._ctx.provider.get_quote("VIX")
-                if quote and hasattr(quote, 'last') and quote.last:
-                    self._ctx.current_vix = quote.last
-                    return quote.last
-            except (ConnectionError, AttributeError, TimeoutError) as e:
-                logger.debug("VIX fetch failed: %s", e)
-        return None
-
+    # _get_vix() inherited from BaseHandler
     # _get_quote_cached inherited from BaseHandler
 
     async def _fetch_historical_cached(self, symbol: str, days: Optional[int] = None):
         """Fetch historical data with caching.
 
-        Priority: in-memory cache → Tradier → Marketdata.app provider.
+        Priority: in-memory cache → Tradier.
         """
         from ..cache.historical_cache import CacheStatus
 
@@ -429,6 +417,7 @@ class RiskHandler(BaseHandler):
             if cache_result.status == CacheStatus.HIT:
                 return cache_result.data
 
+        await self._ensure_connected()
         if self._ctx.tradier_connected and self._ctx.tradier_provider:
             try:
                 data = await self._ctx.tradier_provider.get_historical_for_scanner(symbol, days=days)
@@ -438,14 +427,5 @@ class RiskHandler(BaseHandler):
                     return data
             except (ConnectionError, TimeoutError, ValueError) as e:
                 self._logger.debug(f"Tradier historical failed for {symbol}: {e}")
-
-        if self._ctx.provider:
-            try:
-                data = await self._ctx.provider.get_historical_for_scanner(symbol, days=days)
-                if data and self._ctx.historical_cache:
-                    self._ctx.historical_cache.set(symbol, data, days=days)
-                return data
-            except Exception as e:
-                self._logger.debug(f"Provider historical failed for {symbol}: {e}")
 
         return None

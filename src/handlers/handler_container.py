@@ -28,7 +28,6 @@ import logging
 from typing import TYPE_CHECKING, Any, Optional
 
 if TYPE_CHECKING:
-    from ..data_providers.marketdata import MarketDataProvider
     from ..data_providers.tradier import TradierProvider
     from ..scanner.multi_strategy_scanner import MultiStrategyScanner
     from ..cache import EarningsFetcher, HistoricalCache
@@ -117,10 +116,6 @@ class BaseHandler:
         return self._ctx.config
 
     @property
-    def provider(self) -> Optional["MarketDataProvider"]:
-        return self._ctx.provider
-
-    @property
     def tradier_provider(self) -> Optional["TradierProvider"]:
         return self._ctx.tradier_provider
 
@@ -154,21 +149,12 @@ class BaseHandler:
 
         return self._ctx.tradier_provider if self._ctx.tradier_connected else None
 
-    async def _ensure_connected(self) -> Optional["MarketDataProvider"]:
-        """Ensure data providers are connected (Tradier + Marketdata.app)."""
-        await self._ensure_tradier_connected()
-
-        if not self._ctx.connected and self._ctx.provider:
-            try:
-                await self._ctx.provider.connect()
-                self._ctx.connected = True
-            except Exception as e:
-                self._logger.error(f"Provider connection failed: {e}")
-                raise
-        return self._ctx.provider
+    async def _ensure_connected(self) -> Optional["TradierProvider"]:
+        """Ensure Tradier provider is connected."""
+        return await self._ensure_tradier_connected()
 
     async def _get_quote_cached(self, symbol: str) -> Optional[Any]:
-        """Get quote with caching. Tries Tradier first, then Marketdata.app."""
+        """Get quote with caching via Tradier."""
         from datetime import datetime
 
         now = datetime.now()
@@ -181,7 +167,6 @@ class BaseHandler:
         self._ctx.quote_cache_misses += 1
         await self._ensure_connected()
 
-        # Try Tradier first
         if self._ctx.tradier_connected and self._ctx.tradier_provider:
             try:
                 quote = await self._ctx.tradier_provider.get_quote(symbol)
@@ -191,16 +176,84 @@ class BaseHandler:
             except Exception as e:
                 self._logger.debug(f"Tradier quote failed for {symbol}: {e}")
 
-        # Fall back to Marketdata.app
-        if self._ctx.provider:
-            await self._ctx.rate_limiter.acquire()
-            quote = await self._ctx.provider.get_quote(symbol)
-            self._ctx.rate_limiter.record_success()
-            if quote:
-                self._ctx.quote_cache[symbol] = (quote, now)
-            return quote
-
         return None
+
+    async def _get_vix(self) -> Optional[float]:
+        """Get current VIX value. Chain: cache → IBKR → Tradier → Yahoo Finance."""
+        from datetime import datetime
+
+        # 1. Check cache
+        if self._ctx.current_vix is not None:
+            return self._ctx.current_vix
+
+        # 2. Try IBKR bridge
+        if self._ctx.ibkr_bridge:
+            try:
+                vix = await self._ctx.ibkr_bridge.get_vix()
+                if vix is not None:
+                    self._ctx.current_vix = vix
+                    self._ctx.vix_updated = datetime.now()
+                    return vix
+            except Exception as e:
+                self._logger.debug(f"IBKR VIX failed: {e}")
+
+        # 3. Try Tradier quote for VIX index
+        await self._ensure_connected()
+        if self._ctx.tradier_connected and self._ctx.tradier_provider:
+            try:
+                quote = await self._ctx.tradier_provider.get_quote("VIX")
+                if quote and hasattr(quote, 'last') and quote.last:
+                    self._ctx.current_vix = quote.last
+                    self._ctx.vix_updated = datetime.now()
+                    return quote.last
+            except Exception as e:
+                self._logger.debug(f"Tradier VIX quote failed: {e}")
+
+        # 4. Fall back to Yahoo Finance
+        try:
+            import asyncio
+            vix = await asyncio.to_thread(self._fetch_vix_yahoo)
+            if vix:
+                self._ctx.current_vix = vix
+                self._ctx.vix_updated = datetime.now()
+                return vix
+        except Exception as e:
+            self._logger.debug(f"Yahoo VIX failed: {e}")
+
+        return self._ctx.current_vix
+
+    def _fetch_vix_yahoo(self) -> Optional[float]:
+        """Fetch VIX from Yahoo Finance as fallback."""
+        import json
+        import urllib.request
+
+        try:
+            url = "https://query1.finance.yahoo.com/v8/finance/chart/%5EVIX?interval=1d&range=5d"
+            timeout = self._ctx.config.settings.api_connection.yahoo_timeout
+
+            req = urllib.request.Request(url)
+            req.add_header('User-Agent', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)')
+
+            with urllib.request.urlopen(req, timeout=timeout) as response:
+                data = json.loads(response.read().decode())
+
+            result = data.get('chart', {}).get('result', [{}])[0]
+            meta = result.get('meta', {})
+
+            regular_price = meta.get('regularMarketPrice')
+            if regular_price:
+                return float(regular_price)
+
+            closes = result.get('indicators', {}).get('quote', [{}])[0].get('close', [])
+            if closes:
+                for c in reversed(closes):
+                    if c is not None:
+                        return float(c)
+
+            return None
+        except Exception as e:
+            self._logger.debug(f"Yahoo VIX fetch error: {e}")
+            return None
 
 
 class HandlerContainer:

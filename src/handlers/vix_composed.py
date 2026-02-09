@@ -67,18 +67,17 @@ class VixHandler(BaseHandler):
             except Exception as e:
                 self._logger.debug(f"IBKR VIX failed: {e}")
 
-        # Fallback to MarketData provider
-        if self._ctx.provider:
+        # Try Tradier quote for VIX index
+        await self._ensure_connected()
+        if self._ctx.tradier_connected and self._ctx.tradier_provider:
             try:
-                await self._ctx.rate_limiter.acquire()
-                vix = await self._ctx.provider.get_vix()
-                if vix:
-                    self._ctx.current_vix = vix
+                quote = await self._ctx.tradier_provider.get_quote("VIX")
+                if quote and hasattr(quote, 'last') and quote.last:
+                    self._ctx.current_vix = quote.last
                     self._ctx.vix_updated = datetime.now()
-                    self._ctx.rate_limiter.record_success()
-                    return vix
+                    return quote.last
             except Exception as e:
-                self._logger.warning(f"VIX fetch failed: {e}")
+                self._logger.debug(f"Tradier VIX quote failed: {e}")
 
         # Fallback to Yahoo Finance
         if self._ctx.current_vix is None:

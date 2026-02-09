@@ -36,7 +36,6 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 # Local imports
-from .data_providers.marketdata import MarketDataProvider
 from .data_providers.tradier import TradierProvider, TradierEnvironment
 from .data_providers.local_db import LocalDBProvider, get_local_db_provider
 from .utils.provider_orchestrator import get_orchestrator, ProviderType
@@ -126,24 +125,13 @@ class OptionPlayServer:
             self._rate_limiter = container.rate_limiter
             self._circuit_breaker = container.circuit_breaker
             self._historical_cache = container.historical_cache
-            self._provider = container.provider
-            self._api_key = api_key or get_api_key("MARKETDATA_API_KEY", required=True)
+            self._provider = None  # Marketdata.app removed — Tradier is sole live provider
         else:
             self._config = get_config()
             perf = self._config.settings.performance
             cb_cfg = self._config.settings.circuit_breaker
 
-            self._api_key = api_key
-            if not self._api_key:
-                try:
-                    self._api_key = get_api_key("MARKETDATA_API_KEY", required=True)
-                except ValueError as e:
-                    raise ValueError(
-                        "MARKETDATA_API_KEY required. "
-                        "Set environment variable or create .env file."
-                    ) from e
-
-            self._provider = None
+            self._provider = None  # Marketdata.app removed — Tradier is sole live provider
             self._rate_limiter = get_marketdata_limiter()
             self._historical_cache = get_historical_cache(
                 ttl_seconds=perf.cache_ttl_seconds,
@@ -155,8 +143,6 @@ class OptionPlayServer:
                 failure_threshold=cb_cfg.failure_threshold,
                 recovery_timeout=cb_cfg.recovery_timeout,
             )
-
-        logger.debug(f"API key loaded: {mask_api_key(self._api_key)}")
 
         # Non-container components
         self._scanner: Optional[MultiStrategyScanner] = None
@@ -224,8 +210,8 @@ class OptionPlayServer:
 
     @property
     def api_key_masked(self) -> str:
-        """Return masked API key for debugging/logging."""
-        return mask_api_key(self._api_key)
+        """Return masked Tradier API key for debugging/logging."""
+        return mask_api_key(self._tradier_api_key) if self._tradier_api_key else "N/A"
 
     # =========================================================================
     # STATE DELEGATION (backward compat for handler mixins)
@@ -331,60 +317,24 @@ class OptionPlayServer:
                 if connected:
                     self._tradier_connected = True
                     self._orchestrator.enable_tradier(True)
+                    self.state.connection.mark_connected()
                     logger.info(f"Connected to Tradier ({self._config.settings.tradier.environment})")
                 else:
-                    logger.warning("Tradier connection failed, using Marketdata.app as fallback")
+                    logger.warning("Tradier connection failed")
             except (ConnectionError, TimeoutError, OSError) as e:
-                logger.warning(f"Tradier connection error: {e}, using Marketdata.app as fallback")
+                logger.warning(f"Tradier connection error: {e}")
 
         return self._tradier_provider if self._tradier_connected else None
 
-    async def _ensure_connected(self) -> MarketDataProvider:
-        """Establish connection to Marketdata.app with retry logic."""
-        await self._ensure_tradier_connected()
-
-        if not self._circuit_breaker.can_execute():
-            retry_after = self._circuit_breaker.get_retry_after()
-            raise CircuitBreakerOpen(self._circuit_breaker.name, retry_after)
-
-        if self._provider is None:
-            self._provider = MarketDataProvider(self._api_key)
-
-        if not self._connected:
-            api_conn = self._config.settings.api_connection
-            max_retries = api_conn.max_retries
-            base_delay = api_conn.retry_base_delay
-
-            for attempt in range(max_retries):
-                try:
-                    await self._rate_limiter.acquire()
-                    connected = await self._provider.connect()
-                    if connected:
-                        self.state.connection.mark_connected()
-                        self._rate_limiter.record_success()
-                        self._circuit_breaker.record_success()
-                        logger.info("Connected to Marketdata.app")
-                        break
-                except CircuitBreakerOpen:
-                    raise
-                except (ConnectionError, TimeoutError, OSError) as e:
-                    logger.warning(f"Connection attempt {attempt + 1}/{max_retries} failed: {e}")
-                    self._circuit_breaker.record_failure(e)
-                    if attempt < max_retries - 1:
-                        await asyncio.sleep(base_delay ** attempt)
-
-            if not self._connected:
-                raise ConnectionError(
-                    f"Cannot connect to Marketdata.app after {max_retries} attempts"
-                )
-
-        return self._provider
+    async def _ensure_connected(self) -> Optional[TradierProvider]:
+        """Ensure Tradier provider is connected."""
+        return await self._ensure_tradier_connected()
 
     def _get_active_provider_name(self) -> str:
         """Get the name of the currently active provider."""
         if self._tradier_connected:
             return "Tradier"
-        return "Marketdata.app"
+        return "None"
 
     def _get_scanner(
         self,
@@ -462,7 +412,7 @@ class OptionPlayServer:
         Priority:
         1. In-memory cache (fastest)
         2. Local database (if enabled, data fresh, and has real OHLCV)
-        3. API providers (Tradier, Marketdata.app)
+        3. Tradier API
         4. Graceful degradation: incomplete local data if API fails
         """
         if days is None:
@@ -499,7 +449,7 @@ class OptionPlayServer:
             except Exception as e:
                 logger.debug(f"LocalDB failed for {symbol}: {e}")
 
-        # 3. Fall back to API providers
+        # 3. Fetch from Tradier
         async def fetch_historical() -> Optional[Tuple]:
             tradier = await self._ensure_tradier_connected()
             if tradier:
@@ -510,12 +460,7 @@ class OptionPlayServer:
                         return d
                 except (ConnectionError, TimeoutError, ValueError) as e:
                     logger.debug(f"Tradier historical failed for {symbol}: {e}")
-
-            provider = await self._ensure_connected()
-            await self._rate_limiter.acquire()
-            d = await provider.get_historical_for_scanner(symbol, days=days)
-            self._rate_limiter.record_success()
-            return d
+            return None
 
         try:
             data = await self._deduplicator.deduplicated_call(
@@ -687,6 +632,7 @@ class OptionPlayServer:
                 return quote
 
         async def fetch_quote() -> Optional[Any]:
+            await self._ensure_connected()
             if self._tradier_connected and self._tradier_provider:
                 try:
                     q = await self._tradier_provider.get_quote(symbol)
@@ -694,15 +640,9 @@ class OptionPlayServer:
                         self._orchestrator.record_request(ProviderType.TRADIER, success=True)
                         return q
                 except (ConnectionError, TimeoutError, ValueError) as e:
-                    logger.debug(f"Tradier quote failed for {symbol}, falling back: {e}")
+                    logger.debug(f"Tradier quote failed for {symbol}: {e}")
                     self._orchestrator.record_request(ProviderType.TRADIER, success=False, error=str(e))
-
-            provider = await self._ensure_connected()
-            await self._rate_limiter.acquire()
-            q = await provider.get_quote(symbol)
-            self._rate_limiter.record_success()
-            self._orchestrator.record_request(ProviderType.MARKETDATA, success=True)
-            return q
+            return None
 
         quote = await self._deduplicator.deduplicated_call(
             key=f"quote:{symbol}",
@@ -742,15 +682,11 @@ class OptionPlayServer:
 
     async def disconnect(self) -> None:
         """Disconnect from all data providers."""
-        if self._provider and self.state.connection.is_connected:
-            await self._provider.disconnect()
-            self.state.connection.mark_disconnected()
-            logger.info("Marketdata.app disconnected")
-
         if self._tradier_provider and self._tradier_connected:
             await self._tradier_provider.disconnect()
             self._tradier_connected = False
             self._orchestrator.enable_tradier(False)
+            self.state.connection.mark_disconnected()
             logger.info("Tradier disconnected")
 
     # =========================================================================

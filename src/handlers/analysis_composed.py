@@ -85,16 +85,7 @@ class AnalysisHandler(BaseHandler):
 
         historical = await self._fetch_historical_cached(symbol, days=260)
 
-        earnings = None
-        if self._ctx.tradier_connected and self._ctx.tradier_provider:
-            try:
-                earnings = await self._ctx.tradier_provider.get_earnings_date(symbol)
-            except Exception:
-                pass
-        if earnings is None and self._ctx.provider:
-            await self._ctx.rate_limiter.acquire()
-            earnings = await self._ctx.provider.get_earnings_date(symbol)
-            self._ctx.rate_limiter.record_success()
+        earnings = await self._fetch_earnings_cached(symbol)
 
         b = MarkdownBuilder()
         b.h1(f"Complete Analysis: {symbol}").blank()
@@ -240,16 +231,7 @@ class AnalysisHandler(BaseHandler):
             b.kv_line("Price", f"${quote.last:.2f}" if quote.last else "N/A")
         b.kv_line("VIX", f"{vix:.2f}" if vix else "N/A")
 
-        earnings = None
-        if self._ctx.tradier_connected and self._ctx.tradier_provider:
-            try:
-                earnings = await self._ctx.tradier_provider.get_earnings_date(symbol)
-            except Exception:
-                pass
-        if earnings is None and self._ctx.provider:
-            await self._ctx.rate_limiter.acquire()
-            earnings = await self._ctx.provider.get_earnings_date(symbol)
-            self._ctx.rate_limiter.record_success()
+        earnings = await self._fetch_earnings_cached(symbol)
 
         if earnings and earnings.earnings_date:
             if earnings.days_to_earnings < ENTRY_EARNINGS_MIN_DAYS:
@@ -585,23 +567,28 @@ class AnalysisHandler(BaseHandler):
 
     # --- Shared helper methods ---
 
-    async def _get_vix(self) -> Optional[float]:
-        if self._ctx.current_vix is not None:
-            return self._ctx.current_vix
-        if self._ctx.provider:
-            try:
-                quote = await self._ctx.provider.get_quote("VIX")
-                if quote and hasattr(quote, 'last') and quote.last:
-                    self._ctx.current_vix = quote.last
-                    return quote.last
-            except (ConnectionError, AttributeError, TimeoutError) as e:
-                logger.debug("VIX fetch failed: %s", e)
+    # _get_vix() inherited from BaseHandler
+
+    async def _fetch_earnings_cached(self, symbol: str):
+        """Fetch earnings info via EarningsFetcher (local DB + yfinance)."""
+        import asyncio
+        from ..cache import get_earnings_fetcher
+
+        if self._ctx.earnings_fetcher is None:
+            self._ctx.earnings_fetcher = get_earnings_fetcher()
+
+        try:
+            result = await asyncio.to_thread(self._ctx.earnings_fetcher.fetch, symbol)
+            if result and result.earnings_date:
+                return result
+        except Exception as e:
+            self._logger.debug(f"Earnings fetch failed for {symbol}: {e}")
         return None
 
     async def _fetch_historical_cached(self, symbol: str, days: Optional[int] = None):
         """Fetch historical data with caching.
 
-        Priority: in-memory cache → Tradier → Marketdata.app provider.
+        Priority: in-memory cache → Tradier.
         """
         from ..cache.historical_cache import CacheStatus
 
@@ -614,7 +601,8 @@ class AnalysisHandler(BaseHandler):
             if cache_result.status == CacheStatus.HIT:
                 return cache_result.data
 
-        # 2. Try Tradier provider
+        # 2. Fetch from Tradier
+        await self._ensure_connected()
         if self._ctx.tradier_connected and self._ctx.tradier_provider:
             try:
                 data = await self._ctx.tradier_provider.get_historical_for_scanner(symbol, days=days)
@@ -624,16 +612,6 @@ class AnalysisHandler(BaseHandler):
                     return data
             except (ConnectionError, TimeoutError, ValueError) as e:
                 self._logger.debug(f"Tradier historical failed for {symbol}: {e}")
-
-        # 3. Fall back to Marketdata.app provider
-        if self._ctx.provider:
-            try:
-                data = await self._ctx.provider.get_historical_for_scanner(symbol, days=days)
-                if data and self._ctx.historical_cache:
-                    self._ctx.historical_cache.set(symbol, data, days=days)
-                return data
-            except Exception as e:
-                self._logger.debug(f"Provider historical failed for {symbol}: {e}")
 
         return None
 

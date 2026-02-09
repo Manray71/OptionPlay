@@ -181,17 +181,4 @@ class MonitorHandler(BaseHandler):
             return ""
         return f", P&L {pnl_pct:+.0f}%"
 
-    # --- Shared helper methods ---
-
-    async def _get_vix(self) -> Optional[float]:
-        if self._ctx.current_vix is not None:
-            return self._ctx.current_vix
-        if self._ctx.provider:
-            try:
-                quote = await self._ctx.provider.get_quote("VIX")
-                if quote and hasattr(quote, 'last') and quote.last:
-                    self._ctx.current_vix = quote.last
-                    return quote.last
-            except (ConnectionError, AttributeError, TimeoutError) as e:
-                logger.debug("VIX fetch failed: %s", e)
-        return None
+    # _get_vix() inherited from BaseHandler

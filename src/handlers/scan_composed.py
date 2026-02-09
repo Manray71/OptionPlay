@@ -812,7 +812,7 @@ class ScanHandler(BaseHandler):
     async def _fetch_historical_cached(self, symbol: str, days: Optional[int] = None):
         """Fetch historical data with caching.
 
-        Priority: in-memory cache → Tradier → Marketdata.app provider.
+        Priority: in-memory cache → Tradier.
         """
         from ..cache.historical_cache import CacheStatus
 
@@ -825,7 +825,8 @@ class ScanHandler(BaseHandler):
             if cache_result.status == CacheStatus.HIT:
                 return cache_result.data
 
-        # 2. Try Tradier provider
+        # 2. Fetch from Tradier
+        await self._ensure_connected()
         if self._ctx.tradier_connected and self._ctx.tradier_provider:
             try:
                 data = await self._ctx.tradier_provider.get_historical_for_scanner(symbol, days=days)
@@ -835,16 +836,6 @@ class ScanHandler(BaseHandler):
                     return data
             except (ConnectionError, TimeoutError, ValueError) as e:
                 self._logger.debug(f"Tradier historical failed for {symbol}: {e}")
-
-        # 3. Fall back to Marketdata.app provider
-        if self._ctx.provider:
-            try:
-                data = await self._ctx.provider.get_historical_for_scanner(symbol, days=days)
-                if data and self._ctx.historical_cache:
-                    self._ctx.historical_cache.set(symbol, data, days=days)
-                return data
-            except Exception as e:
-                self._logger.debug(f"Provider historical failed for {symbol}: {e}")
 
         return None
 
@@ -913,21 +904,7 @@ class ScanHandler(BaseHandler):
             config.exclude_earnings_within_days = exclude_earnings_within_days
         return MultiStrategyScanner(config=config)
 
-    async def _get_vix(self) -> Optional[float]:
-        """Get current VIX value via the VixHandler."""
-        # Use VIX from context cache
-        if self._ctx.current_vix is not None:
-            return self._ctx.current_vix
-        # Try provider
-        if self._ctx.provider:
-            try:
-                quote = await self._ctx.provider.get_quote("VIX")
-                if quote and hasattr(quote, 'last') and quote.last:
-                    self._ctx.current_vix = quote.last
-                    return quote.last
-            except (ConnectionError, AttributeError, TimeoutError) as e:
-                logger.debug("VIX fetch failed: %s", e)
-        return None
+    # _get_vix() inherited from BaseHandler
 
     async def _get_options_chain_with_fallback(self, symbol, dte_min=60, dte_max=90, right="P"):
         """Fetch options chain with Tradier-first, IBKR-fallback."""

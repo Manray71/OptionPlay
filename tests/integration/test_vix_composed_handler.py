@@ -109,19 +109,25 @@ class TestVixHandlerGetVix:
         mock_ibkr.get_vix.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_get_vix_falls_back_to_provider(self, vix_handler, mock_context):
-        """Test get_vix falls back to provider if IBKR fails."""
+    async def test_get_vix_falls_back_to_tradier(self, vix_handler, mock_context):
+        """Test get_vix falls back to Tradier quote if IBKR fails."""
         mock_ibkr = AsyncMock()
         mock_ibkr.get_vix = AsyncMock(side_effect=Exception("IBKR error"))
         mock_context.ibkr_bridge = mock_ibkr
 
-        mock_provider = AsyncMock()
-        mock_provider.get_vix = AsyncMock(return_value=21.0)
-        mock_context.provider = mock_provider
+        # Tradier quote for VIX
+        mock_tradier = AsyncMock()
+        mock_quote = MagicMock()
+        mock_quote.last = 21.0
+        mock_tradier.get_quote = AsyncMock(return_value=mock_quote)
+        mock_tradier.connect = AsyncMock(return_value=True)
+        mock_context.tradier_provider = mock_tradier
+        mock_context.tradier_connected = True
 
         result = await vix_handler.get_vix(force_refresh=True)
 
         assert result == 21.0
+        mock_tradier.get_quote.assert_called_once_with("VIX")
 
     @pytest.mark.asyncio
     async def test_get_vix_returns_none_if_no_source(self, vix_handler, mock_context):
@@ -303,17 +309,17 @@ class TestVixHandlerStrategyForStock:
 
     @pytest.fixture
     def mock_context(self):
-        """Create mock server context with provider for quote fetching."""
+        """Create mock server context with Tradier provider for quote fetching."""
         ctx = MockServerContext()
-        mock_provider = AsyncMock()
-        mock_provider.connect = AsyncMock()
+        mock_tradier = AsyncMock()
+        mock_tradier.connect = AsyncMock(return_value=True)
 
         mock_quote = MagicMock()
         mock_quote.last = 150.0
-        mock_provider.get_quote = AsyncMock(return_value=mock_quote)
+        mock_tradier.get_quote = AsyncMock(return_value=mock_quote)
 
-        ctx.provider = mock_provider
-        ctx.connected = True
+        ctx.tradier_provider = mock_tradier
+        ctx.tradier_connected = True
         ctx.current_vix = 18.5
         ctx.vix_updated = datetime.now()
         return ctx
@@ -354,7 +360,7 @@ class TestVixHandlerStrategyForStock:
     @pytest.mark.asyncio
     async def test_get_strategy_for_stock_no_quote(self, vix_handler, mock_context):
         """Test get_strategy_for_stock when quote fails."""
-        mock_context.provider.get_quote = AsyncMock(return_value=None)
+        mock_context.tradier_provider.get_quote = AsyncMock(return_value=None)
 
         result = await vix_handler.get_strategy_for_stock("AAPL")
 
@@ -442,9 +448,13 @@ class TestVixHandlerCaching:
         """Test cache is updated when new VIX is fetched."""
         mock_context.current_vix = None
 
-        mock_provider = AsyncMock()
-        mock_provider.get_vix = AsyncMock(return_value=19.5)
-        mock_context.provider = mock_provider
+        mock_tradier = AsyncMock()
+        mock_quote = MagicMock()
+        mock_quote.last = 19.5
+        mock_tradier.get_quote = AsyncMock(return_value=mock_quote)
+        mock_tradier.connect = AsyncMock(return_value=True)
+        mock_context.tradier_provider = mock_tradier
+        mock_context.tradier_connected = True
 
         await vix_handler.get_vix()
 
@@ -457,16 +467,17 @@ class TestVixHandlerHelpers:
 
     @pytest.fixture
     def mock_context(self):
-        """Create mock server context."""
+        """Create mock server context with Tradier."""
         ctx = MockServerContext()
-        mock_provider = AsyncMock()
-        mock_provider.connect = AsyncMock()
+        mock_tradier = AsyncMock()
+        mock_tradier.connect = AsyncMock(return_value=True)
 
         mock_quote = MagicMock()
         mock_quote.last = 175.0
-        mock_provider.get_quote = AsyncMock(return_value=mock_quote)
+        mock_tradier.get_quote = AsyncMock(return_value=mock_quote)
 
-        ctx.provider = mock_provider
+        ctx.tradier_provider = mock_tradier
+        ctx.tradier_connected = True
         return ctx
 
     @pytest.fixture
@@ -478,23 +489,22 @@ class TestVixHandlerHelpers:
         return handler
 
     @pytest.mark.asyncio
-    async def test_ensure_connected_connects_provider(self, vix_handler, mock_context):
-        """Test _ensure_connected calls provider.connect() if not connected."""
-        mock_context.connected = False
+    async def test_ensure_connected_returns_tradier(self, vix_handler, mock_context):
+        """Test _ensure_connected returns Tradier provider."""
+        result = await vix_handler._ensure_connected()
 
-        await vix_handler._ensure_connected()
-
-        mock_context.provider.connect.assert_called_once()
-        assert mock_context.connected is True
+        assert result is mock_context.tradier_provider
 
     @pytest.mark.asyncio
-    async def test_ensure_connected_skips_if_already_connected(self, vix_handler, mock_context):
-        """Test _ensure_connected skips connect if already connected."""
-        mock_context.connected = True
+    async def test_ensure_connected_returns_none_without_tradier(self, vix_handler, mock_context):
+        """Test _ensure_connected returns None if no Tradier configured."""
+        mock_context.tradier_provider = None
+        mock_context.tradier_connected = False
+        mock_context.tradier_api_key = None
 
-        await vix_handler._ensure_connected()
+        result = await vix_handler._ensure_connected()
 
-        mock_context.provider.connect.assert_not_called()
+        assert result is None
 
     @pytest.mark.asyncio
     async def test_get_quote_cached_returns_fresh_cache(self, vix_handler, mock_context):
@@ -502,7 +512,6 @@ class TestVixHandlerHelpers:
         cached_quote = MagicMock()
         cached_quote.last = 200.0
         mock_context.quote_cache["AAPL"] = (cached_quote, datetime.now())
-        mock_context.connected = True
 
         result = await vix_handler._get_quote_cached("AAPL")
 
@@ -511,9 +520,7 @@ class TestVixHandlerHelpers:
 
     @pytest.mark.asyncio
     async def test_get_quote_cached_fetches_on_miss(self, vix_handler, mock_context):
-        """Test _get_quote_cached fetches from provider on cache miss."""
-        mock_context.connected = True
-
+        """Test _get_quote_cached fetches from Tradier on cache miss."""
         result = await vix_handler._get_quote_cached("MSFT")
 
         assert result.last == 175.0
