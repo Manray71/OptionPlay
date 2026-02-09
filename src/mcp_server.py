@@ -54,19 +54,7 @@ from .config import get_config, get_scan_config, get_watchlist_loader
 from .container import ServiceContainer
 from .state.server_state import ServerState
 
-# Handler Mixins (legacy, gradually migrating to Composition — Phase 3.3)
-from .handlers import (
-    VixHandlerMixin,
-    ScanHandlerMixin,
-    QuoteHandlerMixin,
-    AnalysisHandlerMixin,
-    PortfolioHandlerMixin,
-    IbkrHandlerMixin,
-    ReportHandlerMixin,
-    RiskHandlerMixin,
-    ValidateHandlerMixin,
-    MonitorHandlerMixin,
-)
+# Handler Mixins removed — now using Composition pattern via HandlerContainer
 
 # Composition-based handler architecture (Phase 3.3)
 from .handlers.handler_container import (
@@ -85,42 +73,33 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
-class OptionPlayServer(
-    VixHandlerMixin,
-    ScanHandlerMixin,
-    QuoteHandlerMixin,
-    AnalysisHandlerMixin,
-    PortfolioHandlerMixin,
-    IbkrHandlerMixin,
-    ReportHandlerMixin,
-    RiskHandlerMixin,
-    ValidateHandlerMixin,
-    MonitorHandlerMixin,
-):
+class OptionPlayServer:
     """
     OptionPlay Server for multi-strategy options analysis.
 
-    Uses modular handler mixins for organized code structure:
-    - VixHandlerMixin: VIX, strategy, regime operations
-    - ScanHandlerMixin: All scan operations
-    - QuoteHandlerMixin: Quote, options, historical, earnings
-    - AnalysisHandlerMixin: Symbol analysis, ensemble
-    - PortfolioHandlerMixin: Portfolio management
-    - IbkrHandlerMixin: IBKR Bridge features
-    - ReportHandlerMixin: PDF report generation
-    - RiskHandlerMixin: Position sizing, stop loss
+    Uses composition-based handler architecture via HandlerContainer:
+    - server.handlers.vix: VIX, strategy, regime operations
+    - server.handlers.scan: All scan operations
+    - server.handlers.quote: Quote, options, historical, earnings
+    - server.handlers.analysis: Symbol analysis, ensemble
+    - server.handlers.portfolio: Portfolio management
+    - server.handlers.ibkr: IBKR Bridge features
+    - server.handlers.report: PDF report generation
+    - server.handlers.risk: Position sizing, stop loss
+    - server.handlers.validate: Trade validation
+    - server.handlers.monitor: Position monitoring
 
     Usage:
         server = OptionPlayServer()
 
         # Multi-strategy scan
-        result = await server.scan_multi_strategy()
+        result = await server.handlers.scan.scan_multi_strategy()
 
         # Single symbol analysis
-        result = await server.analyze_multi_strategy("AAPL")
+        result = await server.handlers.analysis.analyze_multi_strategy("AAPL")
 
         # VIX-aware pullback scan
-        result = await server.scan_with_strategy()
+        result = await server.handlers.scan.scan_with_strategy()
     """
 
     VERSION = "4.0.0"
@@ -184,28 +163,13 @@ class OptionPlayServer(
         self._earnings_fetcher: Optional[EarningsFetcher] = None
         self._vix_selector = VIXStrategySelector()
 
-        # Centralized state (STATE-01: replaces 16+ scattered variables)
+        # Centralized state (STATE-01: replaces scattered variables)
         self.state = ServerState()
 
-        # Connection state — delegates to self.state.connection
-        self._connected = False
-
-        # VIX state — delegates to self.state.vix
-        self._current_vix: Optional[float] = None
-        self._vix_updated: Optional[datetime] = None
-
-        # Quote cache — metrics tracked via self.state.quote_cache
+        # Cache data stores (metrics tracked via self.state.quote_cache / scan_cache)
         self._quote_cache: Dict[str, tuple] = {}
-
-        # Scan cache — metrics tracked via self.state.scan_cache
         self._scan_cache: Dict[str, tuple] = {}
         self._scan_cache_ttl = 1800  # 30 minutes
-
-        # Cache counters (used by handler mixins)
-        self._quote_cache_hits: int = 0
-        self._quote_cache_misses: int = 0
-        self._scan_cache_hits: int = 0
-        self._scan_cache_misses: int = 0
 
         # Request deduplicator
         self._deduplicator = get_request_deduplicator()
@@ -262,6 +226,72 @@ class OptionPlayServer(
     def api_key_masked(self) -> str:
         """Return masked API key for debugging/logging."""
         return mask_api_key(self._api_key)
+
+    # =========================================================================
+    # STATE DELEGATION (backward compat for handler mixins)
+    # =========================================================================
+
+    @property
+    def _connected(self) -> bool:
+        return self.state.connection.is_connected
+
+    @_connected.setter
+    def _connected(self, value: bool) -> None:
+        if value:
+            self.state.connection.mark_connected()
+        else:
+            self.state.connection.mark_disconnected()
+
+    @property
+    def _current_vix(self) -> Optional[float]:
+        return self.state.vix.current_value
+
+    @_current_vix.setter
+    def _current_vix(self, value: Optional[float]) -> None:
+        if value is not None:
+            self.state.vix.update(value)
+        else:
+            self.state.vix.current_value = None
+
+    @property
+    def _vix_updated(self) -> Optional[datetime]:
+        return self.state.vix.updated_at
+
+    @_vix_updated.setter
+    def _vix_updated(self, value: Optional[datetime]) -> None:
+        self.state.vix.updated_at = value
+
+    @property
+    def _quote_cache_hits(self) -> int:
+        return self.state.quote_cache.hits
+
+    @_quote_cache_hits.setter
+    def _quote_cache_hits(self, value: int) -> None:
+        self.state.quote_cache.hits = value
+
+    @property
+    def _quote_cache_misses(self) -> int:
+        return self.state.quote_cache.misses
+
+    @_quote_cache_misses.setter
+    def _quote_cache_misses(self, value: int) -> None:
+        self.state.quote_cache.misses = value
+
+    @property
+    def _scan_cache_hits(self) -> int:
+        return self.state.scan_cache.hits
+
+    @_scan_cache_hits.setter
+    def _scan_cache_hits(self, value: int) -> None:
+        self.state.scan_cache.hits = value
+
+    @property
+    def _scan_cache_misses(self) -> int:
+        return self.state.scan_cache.misses
+
+    @_scan_cache_misses.setter
+    def _scan_cache_misses(self, value: int) -> None:
+        self.state.scan_cache.misses = value
 
     # =========================================================================
     # ASYNC CONTEXT MANAGER
@@ -330,7 +360,6 @@ class OptionPlayServer(
                     await self._rate_limiter.acquire()
                     connected = await self._provider.connect()
                     if connected:
-                        self._connected = True
                         self.state.connection.mark_connected()
                         self._rate_limiter.record_success()
                         self._circuit_breaker.record_success()
@@ -652,7 +681,6 @@ class OptionPlayServer(
             age = (datetime.now() - timestamp).total_seconds()
             if age < cache_ttl:
                 self.state.quote_cache.record_hit()
-                self._quote_cache_hits += 1
                 logger.debug(f"Quote cache HIT: {symbol} (age: {age:.0f}s)")
                 return quote
 
@@ -681,44 +709,39 @@ class OptionPlayServer(
 
         self._quote_cache[symbol] = (quote, datetime.now())
         self.state.quote_cache.record_miss()
-        self._quote_cache_misses += 1
         self.state.quote_cache.set_current_entries(len(self._quote_cache))
         logger.debug(f"Quote cache MISS: {symbol}")
 
         return quote
 
     def _get_quote_cache_stats(self) -> Dict[str, Any]:
-        """Get quote cache statistics."""
-        hits = max(self.state.quote_cache.hits, self._quote_cache_hits)
-        misses = max(self.state.quote_cache.misses, self._quote_cache_misses)
-        total = hits + misses
-        hit_rate = round((hits / total * 100) if total > 0 else 0, 1)
+        """Get quote cache statistics from ServerState."""
+        stats = self.state.quote_cache
+        total = stats.total_requests
+        hit_rate = round(stats.hit_rate_pct, 1)
         return {
             "entries": len(self._quote_cache),
-            "hits": hits,
-            "misses": misses,
+            "hits": stats.hits,
+            "misses": stats.misses,
             "hit_rate_percent": hit_rate,
         }
 
     def _get_scan_cache_stats(self) -> Dict[str, Any]:
-        """Get scan cache statistics."""
-        hits = max(self.state.scan_cache.hits, self._scan_cache_hits)
-        misses = max(self.state.scan_cache.misses, self._scan_cache_misses)
-        total = hits + misses
-        hit_rate = round((hits / total * 100) if total > 0 else 0, 1)
+        """Get scan cache statistics from ServerState."""
+        stats = self.state.scan_cache
+        hit_rate = round(stats.hit_rate_pct, 1)
         return {
             "entries": len(self._scan_cache),
-            "hits": hits,
-            "misses": misses,
+            "hits": stats.hits,
+            "misses": stats.misses,
             "hit_rate_percent": hit_rate,
             "ttl_seconds": self._scan_cache_ttl,
         }
 
     async def disconnect(self) -> None:
         """Disconnect from all data providers."""
-        if self._provider and self._connected:
+        if self._provider and self.state.connection.is_connected:
             await self._provider.disconnect()
-            self._connected = False
             self.state.connection.mark_disconnected()
             logger.info("Marketdata.app disconnected")
 
@@ -736,7 +759,7 @@ class OptionPlayServer(
         """Get server status."""
         from .utils.markdown_builder import MarkdownBuilder
 
-        cfg = get_config()
+        cfg = self._config
         scanner_cfg = cfg.settings.scanner
         loader = get_watchlist_loader()
 
@@ -759,9 +782,9 @@ class OptionPlayServer(
         data = HealthCheckData(
             version=self.VERSION,
             api_key_masked=self.api_key_masked,
-            connected=self._connected,
-            current_vix=self._current_vix,
-            vix_updated=self._vix_updated,
+            connected=self.state.connection.is_connected,
+            current_vix=self.state.vix.current_value,
+            vix_updated=self.state.vix.updated_at,
             watchlist_symbols=len(loader.get_all_symbols()),
             watchlist_sectors=len(loader.get_all_sectors()),
             cache_stats=self._historical_cache.stats(),
@@ -862,27 +885,28 @@ async def run_interactive() -> None:
 
     server = OptionPlayServer()
 
+    # Commands: (handler_attr, method_name, required_args, is_sync)
     commands = {
-        "vix": ("get_strategy_recommendation", []),
-        "scan": ("scan_with_strategy", []),
-        "bounce": ("scan_bounce", []),
-        "breakout": ("scan_ath_breakout", []),
-        "earningsdip": ("scan_earnings_dip", []),
-        "trend": ("scan_trend_continuation", []),
-        "multi": ("scan_multi_strategy", []),
-        "analyzem": ("analyze_multi_strategy", ["symbol"]),
-        "quote": ("get_quote", ["symbol"]),
-        "options": ("get_options_chain", ["symbol"]),
-        "earnings": ("get_earnings", ["symbol"]),
-        "analyze": ("analyze_symbol", ["symbol"]),
-        "health": ("health_check", []),
-        "ibkr": ("get_ibkr_status", []),
-        "pf": ("portfolio_summary", []),
+        "vix": ("vix", "get_strategy_recommendation", [], False),
+        "scan": ("scan", "scan_with_strategy", [], False),
+        "bounce": ("scan", "scan_bounce", [], False),
+        "breakout": ("scan", "scan_ath_breakout", [], False),
+        "earningsdip": ("scan", "scan_earnings_dip", [], False),
+        "trend": ("scan", "scan_trend_continuation", [], False),
+        "multi": ("scan", "scan_multi_strategy", [], False),
+        "analyzem": ("analysis", "analyze_multi_strategy", ["symbol"], False),
+        "quote": ("quote", "get_quote", ["symbol"], False),
+        "options": ("quote", "get_options_chain", ["symbol"], False),
+        "earnings": ("quote", "get_earnings", ["symbol"], False),
+        "analyze": ("analysis", "analyze_symbol", ["symbol"], False),
+        "health": (None, "health_check", [], False),
+        "ibkr": ("ibkr", "get_ibkr_status", [], False),
+        "pf": ("portfolio", "portfolio_summary", [], True),
     }
 
     print("\nAvailable commands:")
-    for cmd, (method, args) in commands.items():
-        args_str = " ".join(f"<{a}>" for a in args) if args else ""
+    for cmd, (_, _, req_args, _) in commands.items():
+        args_str = " ".join(f"<{a}>" for a in req_args) if req_args else ""
         print(f"  {cmd} {args_str}")
     print("  quit - Exit")
     print()
@@ -905,17 +929,23 @@ async def run_interactive() -> None:
                 print(f"Unknown command: {cmd}")
                 continue
 
-            method_name, required_args = commands[cmd]
-            method = getattr(server, method_name)
+            handler_attr, method_name, required_args, is_sync = commands[cmd]
 
             if required_args and not args:
                 print(f"Missing: {', '.join(required_args)}")
                 continue
 
+            # Get method from handler or server directly
+            if handler_attr is None:
+                method = getattr(server, method_name)
+            else:
+                handler = getattr(server.handlers, handler_attr)
+                method = getattr(handler, method_name)
+
             if args:
                 result = await method(args[0])
             else:
-                if cmd == "pf":
+                if is_sync:
                     result = method()
                 else:
                     result = await method()
@@ -945,7 +975,7 @@ async def quick_test() -> None:
     server = OptionPlayServer()
 
     print("\n1. VIX & Strategy...")
-    result = await server.get_strategy_recommendation()
+    result = await server.handlers.vix.get_strategy_recommendation()
     print(result)
 
     print("\n2. Health Check...")

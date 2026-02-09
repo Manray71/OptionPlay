@@ -159,16 +159,16 @@ class TestVIXOperations:
     @pytest.mark.asyncio
     async def test_get_vix(self, server, mock_provider):
         """Test VIX retrieval."""
-        vix = await server.get_vix()
+        vix = await server.handlers.vix.get_vix()
         assert vix == 18.5
     
     @pytest.mark.asyncio
     async def test_get_vix_cached(self, server, mock_provider):
         """Test VIX caching."""
         # First call
-        vix1 = await server.get_vix()
+        vix1 = await server.handlers.vix.get_vix()
         # Second call should use cache
-        vix2 = await server.get_vix()
+        vix2 = await server.handlers.vix.get_vix()
         
         assert vix1 == vix2
         # Provider should only be called once due to caching
@@ -177,7 +177,7 @@ class TestVIXOperations:
     @pytest.mark.asyncio
     async def test_get_strategy_recommendation(self, server):
         """Test strategy recommendation."""
-        result = await server.get_strategy_recommendation()
+        result = await server.handlers.vix.get_strategy_recommendation()
         
         assert "Strategy Recommendation" in result
         assert "VIX" in result
@@ -191,7 +191,7 @@ class TestQuoteOperations:
     @pytest.mark.asyncio
     async def test_get_quote_success(self, server):
         """Test successful quote retrieval."""
-        result = await server.get_quote("AAPL")
+        result = await server.handlers.quote.get_quote("AAPL")
         
         assert "Quote: AAPL" in result
         assert "Last:" in result
@@ -200,7 +200,7 @@ class TestQuoteOperations:
     @pytest.mark.asyncio
     async def test_get_quote_invalid_symbol(self, server):
         """Test quote with invalid symbol."""
-        result = await server.get_quote("123INVALID")
+        result = await server.handlers.quote.get_quote("123INVALID")
         
         assert "Validation Error" in result
     
@@ -209,7 +209,7 @@ class TestQuoteOperations:
         """Test quote when no data available."""
         mock_provider.get_quote = AsyncMock(return_value=None)
         
-        result = await server.get_quote("AAPL")
+        result = await server.handlers.quote.get_quote("AAPL")
         assert "No quote data available" in result
 
 
@@ -219,7 +219,7 @@ class TestOptionsOperations:
     @pytest.mark.asyncio
     async def test_get_options_chain(self, server):
         """Test options chain retrieval."""
-        result = await server.get_options_chain("AAPL")
+        result = await server.handlers.quote.get_options_chain("AAPL")
         
         assert "Options Chain: AAPL" in result
         assert "Strike" in result
@@ -228,21 +228,21 @@ class TestOptionsOperations:
     @pytest.mark.asyncio
     async def test_get_options_chain_puts(self, server):
         """Test puts options chain."""
-        result = await server.get_options_chain("AAPL", right="P")
+        result = await server.handlers.quote.get_options_chain("AAPL", right="P")
         
         assert "Put" in result
     
     @pytest.mark.asyncio
     async def test_get_options_chain_calls(self, server):
         """Test calls options chain."""
-        result = await server.get_options_chain("AAPL", right="C")
+        result = await server.handlers.quote.get_options_chain("AAPL", right="C")
         
         assert "Call" in result
     
     @pytest.mark.asyncio
     async def test_get_expirations(self, server):
         """Test expiration dates retrieval."""
-        result = await server.get_expirations("AAPL")
+        result = await server.handlers.quote.get_expirations("AAPL")
 
         assert "Option Expirations: AAPL" in result
         assert "DTE" in result
@@ -254,7 +254,7 @@ class TestEarningsOperations:
     @pytest.mark.asyncio
     async def test_get_earnings_safe(self, server):
         """Test earnings check with safe distance."""
-        result = await server.get_earnings("AAPL", min_days=60)
+        result = await server.handlers.quote.get_earnings("AAPL", min_days=60)
         
         assert "Earnings: AAPL" in result
         assert "SAFE" in result
@@ -266,14 +266,14 @@ class TestEarningsOperations:
         mock_earnings.days_to_earnings = 30
         mock_provider.get_earnings_date = AsyncMock(return_value=mock_earnings)
         
-        result = await server.get_earnings("AAPL", min_days=60)
+        result = await server.handlers.quote.get_earnings("AAPL", min_days=60)
         
         assert "TOO CLOSE" in result
     
     @pytest.mark.asyncio
     async def test_earnings_prefilter_basic(self, server):
         """Test earnings prefilter with default settings."""
-        result = await server.earnings_prefilter(
+        result = await server.handlers.quote.earnings_prefilter(
             min_days=45,
             symbols=["AAPL", "MSFT"]
         )
@@ -285,7 +285,7 @@ class TestEarningsOperations:
     @pytest.mark.asyncio
     async def test_earnings_prefilter_with_show_excluded(self, server):
         """Test earnings prefilter showing excluded symbols."""
-        result = await server.earnings_prefilter(
+        result = await server.handlers.quote.earnings_prefilter(
             min_days=45,
             symbols=["AAPL", "MSFT"],
             show_excluded=True
@@ -297,7 +297,7 @@ class TestEarningsOperations:
     @pytest.mark.asyncio
     async def test_earnings_prefilter_cache_stats(self, server):
         """Test that prefilter includes cache statistics."""
-        result = await server.earnings_prefilter(
+        result = await server.handlers.quote.earnings_prefilter(
             symbols=["AAPL"]
         )
         
@@ -310,7 +310,7 @@ class TestScanOperations:
     @pytest.mark.asyncio
     async def test_scan_with_strategy(self, server):
         """Test VIX-aware scan."""
-        result = await server.scan_with_strategy(
+        result = await server.handlers.scan.scan_with_strategy(
             symbols=["AAPL", "MSFT"],
             max_results=5
         )
@@ -321,7 +321,7 @@ class TestScanOperations:
     @pytest.mark.asyncio
     async def test_scan_pullback_candidates(self, server):
         """Test legacy scan."""
-        result = await server.scan_pullback_candidates(
+        result = await server.handlers.scan.scan_pullback_candidates(
             symbols=["AAPL"],
             min_score=3.0,
             max_results=5
@@ -336,7 +336,7 @@ class TestAnalysisOperations:
     @pytest.mark.asyncio
     async def test_analyze_symbol(self, server):
         """Test complete symbol analysis."""
-        result = await server.analyze_symbol("AAPL")
+        result = await server.handlers.analysis.analyze_symbol("AAPL")
         
         assert "Complete Analysis: AAPL" in result
         assert "VIX" in result
@@ -347,7 +347,7 @@ class TestAnalysisOperations:
     @pytest.mark.asyncio
     async def test_get_historical_data(self, server):
         """Test historical data retrieval."""
-        result = await server.get_historical_data("AAPL", days=30)
+        result = await server.handlers.quote.get_historical_data("AAPL", days=30)
         
         assert "Historical Data: AAPL" in result
         assert "Performance" in result
@@ -359,7 +359,7 @@ class TestStrikeRecommendation:
     @pytest.mark.asyncio
     async def test_recommend_strikes_basic(self, server):
         """Test basic strike recommendation."""
-        result = await server.recommend_strikes("AAPL")
+        result = await server.handlers.analysis.recommend_strikes("AAPL")
 
         assert "Strike Recommendations: AAPL" in result
         assert "Short Strike" in result
@@ -369,7 +369,7 @@ class TestStrikeRecommendation:
     @pytest.mark.asyncio
     async def test_recommend_strikes_with_dte(self, server):
         """Test strike recommendation with custom DTE range."""
-        result = await server.recommend_strikes(
+        result = await server.handlers.analysis.recommend_strikes(
             symbol="AAPL",
             dte_min=20,
             dte_max=45
@@ -381,7 +381,7 @@ class TestStrikeRecommendation:
     @pytest.mark.asyncio
     async def test_recommend_strikes_includes_quality(self, server):
         """Test that recommendation includes quality assessment."""
-        result = await server.recommend_strikes("AAPL")
+        result = await server.handlers.analysis.recommend_strikes("AAPL")
 
         assert "Quality" in result
         # Note: "Confidence" was removed from output format
@@ -389,7 +389,7 @@ class TestStrikeRecommendation:
     @pytest.mark.asyncio
     async def test_recommend_strikes_includes_metrics(self, server):
         """Test that recommendation includes metrics."""
-        result = await server.recommend_strikes("AAPL")
+        result = await server.handlers.analysis.recommend_strikes("AAPL")
         
         # Should include expected metrics section
         assert "Credit" in result or "Max Profit" in result
@@ -397,7 +397,7 @@ class TestStrikeRecommendation:
     @pytest.mark.asyncio
     async def test_recommend_strikes_invalid_symbol(self, server):
         """Test strike recommendation with invalid symbol."""
-        result = await server.recommend_strikes("!!!INVALID")
+        result = await server.handlers.analysis.recommend_strikes("!!!INVALID")
         
         assert "Validation Error" in result or "Error" in result
 
@@ -436,7 +436,7 @@ class TestErrorHandling:
     @pytest.mark.asyncio
     async def test_invalid_symbol_handled(self, server):
         """Test that invalid symbols are handled gracefully."""
-        result = await server.get_quote("!!!INVALID!!!")
+        result = await server.handlers.quote.get_quote("!!!INVALID!!!")
         
         # Should return error message, not raise exception
         assert "Validation Error" in result or "Error" in result
@@ -446,7 +446,7 @@ class TestErrorHandling:
         """Test that connection errors are handled."""
         mock_provider.get_quote = AsyncMock(side_effect=ConnectionError("Network error"))
         
-        result = await server.get_quote("AAPL")
+        result = await server.handlers.quote.get_quote("AAPL")
         
         # Should return error message, not crash
         assert "Error" in result

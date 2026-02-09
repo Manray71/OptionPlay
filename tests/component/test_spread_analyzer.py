@@ -17,9 +17,9 @@ from unittest.mock import patch, MagicMock
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from spread_analyzer import (
+from src.options.spread_analyzer import (
     SpreadAnalyzer,
     BullPutSpreadParams,
     SpreadAnalysis,
@@ -718,7 +718,7 @@ class TestProbabilityEstimation:
     def test_probability_with_delta_provided(self, default_analyzer, params_with_greeks):
         """Probability should use Delta when provided and Black-Scholes unavailable."""
         # Mock Black-Scholes as unavailable to test delta fallback
-        with patch("spread_analyzer._BLACK_SCHOLES_AVAILABLE", False):
+        with patch("src.options.spread_analyzer._BLACK_SCHOLES_AVAILABLE", False):
             result = default_analyzer.analyze(params_with_greeks)
 
             # Should still calculate probabilities
@@ -737,7 +737,7 @@ class TestProbabilityEstimation:
             contracts=1,
         )
 
-        with patch("spread_analyzer._BLACK_SCHOLES_AVAILABLE", False):
+        with patch("src.options.spread_analyzer._BLACK_SCHOLES_AVAILABLE", False):
             result = default_analyzer.analyze(params)
 
             # Heuristic: 10% OTM should give reasonable probability
@@ -783,7 +783,7 @@ class TestGreeksCalculation:
 
     def test_greeks_from_provided_values(self, default_analyzer, params_with_greeks):
         """Greeks should use provided values when Black-Scholes unavailable."""
-        with patch("spread_analyzer._BLACK_SCHOLES_AVAILABLE", False):
+        with patch("src.options.spread_analyzer._BLACK_SCHOLES_AVAILABLE", False):
             result = default_analyzer.analyze(params_with_greeks)
 
             assert result.net_delta is not None
@@ -821,7 +821,7 @@ class TestGreeksCalculation:
             # No delta, theta, or IV
         )
 
-        with patch("spread_analyzer._BLACK_SCHOLES_AVAILABLE", False):
+        with patch("src.options.spread_analyzer._BLACK_SCHOLES_AVAILABLE", False):
             result = default_analyzer.analyze(params)
 
             assert result.net_delta is None

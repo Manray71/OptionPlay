@@ -95,7 +95,7 @@ class TestStrikeRecommenderInitialization:
 
     def test_config_loader_not_available_graceful_fallback(self):
         """Test: When ConfigLoader not available, gracefully fallback to defaults."""
-        import src.strike_recommender as strike_recommender
+        import src.options.strike_recommender as strike_recommender
         original = strike_recommender._CONFIG_AVAILABLE
 
         try:
@@ -109,7 +109,7 @@ class TestStrikeRecommenderInitialization:
 
     def test_config_loader_exception_handled(self):
         """Test: ConfigLoader exceptions are handled gracefully."""
-        import src.strike_recommender as strike_recommender
+        import src.options.strike_recommender as strike_recommender
         original_available = strike_recommender._CONFIG_AVAILABLE
 
         # Mock a ConfigLoader that raises an exception

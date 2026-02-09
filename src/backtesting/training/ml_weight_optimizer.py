@@ -34,19 +34,24 @@ Usage:
 
 import json
 import logging
-import statistics
-from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta
+from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Set
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
 # Re-export from sub-modules for backward compatibility
 from .feature_extraction import TradeFeatures, FeatureExtractor
 from .weight_scorer import WeightedScorer
+from .optimization_methods import (
+    analyze_components as _analyze_components_impl,
+    cross_validate as _cross_validate_impl,
+    calculate_baseline_score as _calculate_baseline_score_impl,
+    validate_weights as _validate_weights_impl,
+    safe_correlation as _safe_correlation_impl,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -499,66 +504,15 @@ class MLWeightOptimizer:
         return result
 
     def _analyze_components(self, features: List[TradeFeatures]) -> Dict[str, ComponentStats]:
-        """Analyze all components across all trades"""
-        stats = {}
+        """Analyze all components across all trades.
 
-        component_data: Dict[str, Dict[str, List]] = defaultdict(
-            lambda: {"values": [], "outcomes": [], "pnls": []}
-        )
-
-        for f in features:
-            for comp, value in f.components.items():
-                component_data[comp]["values"].append(value)
-                component_data[comp]["outcomes"].append(1 if f.is_winner else 0)
-                component_data[comp]["pnls"].append(f.pnl_percent)
-
-        for comp, data in component_data.items():
-            if len(data["values"]) < 10:
-                continue
-
-            values = np.array(data["values"])
-            outcomes = np.array(data["outcomes"])
-            pnls = np.array(data["pnls"])
-
-            win_corr = self._safe_correlation(values, outcomes)
-            pnl_corr = self._safe_correlation(values, pnls)
-
-            winner_mask = outcomes == 1
-            avg_winners = np.mean(values[winner_mask]) if winner_mask.any() else 0
-            avg_losers = np.mean(values[~winner_mask]) if (~winner_mask).any() else 0
-
-            rf_imp = abs(win_corr) * 0.5 + abs(pnl_corr) * 0.5
-            gb_imp = rf_imp
-            ensemble_imp = (rf_imp + gb_imp) / 2
-
-            if ensemble_imp > 0.2:
-                power = "strong"
-            elif ensemble_imp > 0.1:
-                power = "moderate"
-            elif ensemble_imp > 0.05:
-                power = "weak"
-            else:
-                power = "none"
-
-            rec_weight = 0.5 + ensemble_imp * 2.5
-
-            stats[comp] = ComponentStats(
-                name=comp,
-                sample_size=len(values),
-                win_rate_correlation=win_corr,
-                pnl_correlation=pnl_corr,
-                avg_value_winners=avg_winners,
-                avg_value_losers=avg_losers,
-                std_value=np.std(values),
-                rf_importance=rf_imp,
-                gb_importance=gb_imp,
-                ensemble_importance=ensemble_imp,
-                predictive_power=power,
-                recommended_weight=rec_weight,
-                confidence_interval=(rec_weight * 0.8, rec_weight * 1.2),
-            )
-
-        return stats
+        Delegates to optimization_methods.analyze_components().
+        """
+        raw = _analyze_components_impl(features)
+        return {
+            comp: ComponentStats(name=comp, **data)
+            for comp, data in raw.items()
+        }
 
     def _train_strategy_weights(
         self, strategy: str, features: List[TradeFeatures],
@@ -594,101 +548,34 @@ class MLWeightOptimizer:
         )
 
     def _cross_validate(self, features: List[TradeFeatures], weights: Dict[str, float]) -> float:
-        """Cross-validate weights using time-series splits"""
-        if len(features) < 20:
-            return 0.0
+        """Cross-validate weights using time-series splits.
 
-        sorted_features = sorted(features, key=lambda x: x.signal_date)
-        fold_size = len(sorted_features) // self.cv_folds
-        scores = []
-
-        for i in range(self.cv_folds - 1):
-            test_start = (i + 1) * fold_size
-            test_end = min(test_start + fold_size, len(sorted_features))
-
-            if test_end <= test_start:
-                continue
-
-            test_features = sorted_features[test_start:test_end]
-
-            correct = 0
-            for f in test_features:
-                weighted_score = sum(
-                    f.components.get(comp, 0) * w
-                    for comp, w in weights.items()
-                )
-                predicted_win = weighted_score > np.median([
-                    sum(f.components.get(c, 0) * w for c, w in weights.items())
-                    for f in sorted_features[:test_start]
-                ])
-                if predicted_win == f.is_winner:
-                    correct += 1
-
-            scores.append(correct / len(test_features))
-
-        return np.mean(scores) if scores else 0.0
+        Delegates to optimization_methods.cross_validate().
+        """
+        return _cross_validate_impl(features, weights, cv_folds=self.cv_folds)
 
     def _calculate_baseline_score(self, features: List[TradeFeatures]) -> float:
-        """Calculate baseline score with equal weights"""
-        if not features:
-            return 0.0
+        """Calculate baseline score with equal weights.
 
-        correct = 0
-        all_scores = []
-
-        for f in features:
-            score = sum(f.components.values())
-            all_scores.append(score)
-
-        median_score = np.median(all_scores)
-
-        for f in features:
-            score = sum(f.components.values())
-            predicted_win = score > median_score
-            if predicted_win == f.is_winner:
-                correct += 1
-
-        return correct / len(features)
+        Delegates to optimization_methods.calculate_baseline_score().
+        """
+        return _calculate_baseline_score_impl(features)
 
     def _validate_weights(
         self, features: List[TradeFeatures], strategy_weights: Dict[str, WeightConfig],
     ) -> float:
-        """Validate optimized weights across all strategies"""
-        if not features:
-            return 0.0
+        """Validate optimized weights across all strategies.
 
-        correct = 0
-        total = 0
-
-        for strategy, config in strategy_weights.items():
-            strat_features = [f for f in features if f.strategy == strategy]
-            if not strat_features:
-                continue
-
-            all_scores = []
-            for f in strat_features:
-                score = config.apply_weights(f.components)
-                all_scores.append(score)
-
-            if not all_scores:
-                continue
-
-            median = np.median(all_scores)
-
-            for f in strat_features:
-                score = config.apply_weights(f.components)
-                predicted_win = score > median
-                if predicted_win == f.is_winner:
-                    correct += 1
-                total += 1
-
-        return correct / total if total > 0 else 0.0
+        Delegates to optimization_methods.validate_weights().
+        """
+        return _validate_weights_impl(features, strategy_weights)
 
     def _safe_correlation(self, x: np.ndarray, y: np.ndarray) -> float:
-        """Calculate correlation safely"""
-        if len(x) < 2 or np.std(x) == 0 or np.std(y) == 0:
-            return 0.0
-        return float(np.corrcoef(x, y)[0, 1])
+        """Calculate correlation safely.
+
+        Delegates to optimization_methods.safe_correlation().
+        """
+        return _safe_correlation_impl(x, y)
 
     def _create_default_weight_config(self, strategy: str) -> WeightConfig:
         """Create default weight config when insufficient data"""

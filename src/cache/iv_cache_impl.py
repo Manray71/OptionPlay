@@ -104,60 +104,10 @@ class IVCacheEntry:
 
 
 # =============================================================================
-# IV CALCULATIONS
+# IV CALCULATIONS (delegated to iv_calculator.py)
 # =============================================================================
 
-def calculate_iv_rank(current_iv: float, iv_history: List[float]) -> Optional[float]:
-    """
-    Berechnet IV-Rank.
-    
-    IV-Rank = (Current IV - 52w Low) / (52w High - 52w Low) * 100
-    
-    Zeigt wo die aktuelle IV im Vergleich zum 52-Wochen-Range liegt.
-    
-    Args:
-        current_iv: Aktuelle IV (dezimal)
-        iv_history: Liste historischer IV-Werte (dezimal)
-        
-    Returns:
-        IV-Rank (0-100) oder None
-    """
-    if not iv_history or len(iv_history) < 20:
-        return None
-    if current_iv is None or current_iv <= 0:
-        return None
-    
-    iv_high = max(iv_history)
-    iv_low = min(iv_history)
-    
-    if iv_high == iv_low:
-        return 50.0  # Keine Variation
-    
-    iv_rank = (current_iv - iv_low) / (iv_high - iv_low) * 100
-    return max(0.0, min(100.0, iv_rank))
-
-
-def calculate_iv_percentile(current_iv: float, iv_history: List[float]) -> Optional[float]:
-    """
-    Berechnet IV-Perzentil.
-    
-    Zeigt an welchem Prozentsatz der historischen Tage die IV niedriger war.
-    
-    Args:
-        current_iv: Aktuelle IV (dezimal)
-        iv_history: Liste historischer IV-Werte (dezimal)
-        
-    Returns:
-        IV-Perzentil (0-100) oder None
-    """
-    if not iv_history or len(iv_history) < 20:
-        return None
-    if current_iv is None or current_iv <= 0:
-        return None
-    
-    days_below = sum(1 for iv in iv_history if iv < current_iv)
-    percentile = days_below / len(iv_history) * 100
-    return round(percentile, 1)
+from .iv_calculator import calculate_iv_rank, calculate_iv_percentile  # noqa: F401
 
 
 # =============================================================================
@@ -798,89 +748,27 @@ class HistoricalIVFetcher:
     def calculate_historical_volatility(
         self,
         prices: List[float],
-        window: int = 20
+        window: int = 20,
     ) -> List[float]:
+        """Berechnet historische Volatilität (HV) aus Preisen.
+
+        Delegates to iv_calculator.calculate_historical_volatility().
         """
-        Berechnet historische Volatilität (HV) aus Preisen.
-        
-        HV = StdDev(log returns) * sqrt(252)
-        
-        Args:
-            prices: Liste von Schlusskursen (älteste zuerst)
-            window: Rolling Window für Berechnung (default: 20 Tage)
-            
-        Returns:
-            Liste von HV-Werten (annualisiert, dezimal)
-        """
-        import math
-        
-        if len(prices) < window + 1:
-            return []
-        
-        # Log Returns berechnen
-        log_returns = []
-        for i in range(1, len(prices)):
-            if prices[i-1] > 0 and prices[i] > 0:
-                log_returns.append(math.log(prices[i] / prices[i-1]))
-            else:
-                log_returns.append(0)
-        
-        # Rolling StdDev
-        hv_values = []
-        for i in range(window - 1, len(log_returns)):
-            window_returns = log_returns[i - window + 1:i + 1]
-            
-            # StdDev berechnen
-            mean = sum(window_returns) / len(window_returns)
-            variance = sum((r - mean) ** 2 for r in window_returns) / len(window_returns)
-            std_dev = math.sqrt(variance)
-            
-            # Annualisieren (252 Trading-Tage)
-            annualized_vol = std_dev * math.sqrt(252)
-            hv_values.append(annualized_vol)
-        
-        return hv_values
-    
+        from .iv_calculator import calculate_historical_volatility as calc_hv
+        return calc_hv(prices, window)
+
     def estimate_iv_from_hv(
         self,
         hv_values: List[float],
         vix_history: Optional[List[float]] = None,
-        iv_premium: float = 1.15
+        iv_premium: float = 1.15,
     ) -> List[float]:
+        """Schätzt IV aus historischer Volatilität.
+
+        Delegates to iv_calculator.estimate_iv_from_hv().
         """
-        Schätzt IV aus historischer Volatilität.
-        
-        IV ist typischerweise 10-20% höher als HV (Volatility Risk Premium).
-        
-        Args:
-            hv_values: Liste von HV-Werten (dezimal)
-            vix_history: Optional VIX-History für Markt-Adjustment
-            iv_premium: Multiplikator für IV (default: 1.15 = 15% Premium)
-            
-        Returns:
-            Liste von geschätzten IV-Werten (dezimal)
-        """
-        if not hv_values:
-            return []
-        
-        estimated_iv = []
-        
-        for i, hv in enumerate(hv_values):
-            # Basis: HV mit Premium
-            iv = hv * iv_premium
-            
-            # Optional: VIX-Adjustment
-            if vix_history and i < len(vix_history):
-                vix = vix_history[i]
-                # Bei hohem VIX höheres IV-Premium
-                if vix > 25:
-                    iv *= 1.1  # +10% bei VIX > 25
-                elif vix > 35:
-                    iv *= 1.2  # +20% bei VIX > 35
-            
-            estimated_iv.append(round(iv, 4))
-        
-        return estimated_iv
+        from .iv_calculator import estimate_iv_from_hv as est_iv
+        return est_iv(hv_values, vix_history, iv_premium)
     
     def fetch_vix_history(self, days: int = 252) -> List[float]:
         """

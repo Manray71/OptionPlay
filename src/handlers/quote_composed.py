@@ -198,6 +198,98 @@ class QuoteHandler(BaseHandler):
             source=source_used
         )
 
+    async def get_earnings_aggregated(self, symbol: str, min_days: int = 60) -> str:
+        """
+        Check earnings date with multi-source aggregation and majority voting.
+
+        Args:
+            symbol: Ticker symbol
+            min_days: Minimum days until earnings for safety
+
+        Returns:
+            Aggregated earnings information with confidence
+        """
+        from ..utils.validation import validate_symbol
+        from ..utils.markdown_builder import MarkdownBuilder
+        from ..cache import get_earnings_fetcher
+        from ..utils.earnings_aggregator import (
+            EarningsResult, get_earnings_aggregator, create_earnings_result,
+        )
+
+        symbol = validate_symbol(symbol)
+        results: List[EarningsResult] = []
+
+        async def fetch_marketdata() -> EarningsResult:
+            try:
+                provider = await self._ensure_connected()
+                await self._ctx.rate_limiter.acquire()
+                earnings = await provider.get_earnings_date(symbol)
+                self._ctx.rate_limiter.record_success()
+
+                if earnings and earnings.earnings_date:
+                    return create_earnings_result(
+                        source="marketdata",
+                        earnings_date=earnings.earnings_date,
+                        days_to_earnings=earnings.days_to_earnings,
+                    )
+                return create_earnings_result(source="marketdata", earnings_date=None, days_to_earnings=None)
+            except Exception as e:
+                return create_earnings_result(source="marketdata", earnings_date=None, days_to_earnings=None, error=str(e))
+
+        async def fetch_yahoo() -> EarningsResult:
+            try:
+                yahoo_data = await asyncio.to_thread(self._fetch_yahoo_earnings, symbol)
+                return create_earnings_result(
+                    source="yahoo_direct",
+                    earnings_date=yahoo_data.get("earnings_date"),
+                    days_to_earnings=yahoo_data.get("days_to_earnings"),
+                )
+            except Exception as e:
+                return create_earnings_result(source="yahoo_direct", earnings_date=None, days_to_earnings=None, error=str(e))
+
+        async def fetch_yfinance() -> EarningsResult:
+            try:
+                if self._ctx.earnings_fetcher is None:
+                    self._ctx.earnings_fetcher = get_earnings_fetcher()
+
+                fetched = await asyncio.to_thread(self._ctx.earnings_fetcher.fetch, symbol)
+                if fetched and fetched.earnings_date:
+                    return create_earnings_result(
+                        source="yfinance",
+                        earnings_date=fetched.earnings_date,
+                        days_to_earnings=fetched.days_to_earnings,
+                    )
+                return create_earnings_result(source="yfinance", earnings_date=None, days_to_earnings=None)
+            except Exception as e:
+                return create_earnings_result(source="yfinance", earnings_date=None, days_to_earnings=None, error=str(e))
+
+        results = await asyncio.gather(fetch_marketdata(), fetch_yahoo(), fetch_yfinance())
+
+        aggregator = get_earnings_aggregator()
+        aggregated = aggregator.aggregate(symbol, list(results))
+
+        b = MarkdownBuilder()
+        b.h1(f"Earnings Check: {symbol}").blank()
+
+        if aggregated.consensus_date:
+            days = aggregated.days_to_earnings or 0
+            if days < 0:
+                is_safe = True
+                status = "SAFE (past earnings)"
+            else:
+                is_safe = days >= min_days
+                status = "SAFE" if is_safe else "TOO CLOSE"
+
+            b.h2("Consensus Result")
+            b.kv_line("Date", aggregated.consensus_date)
+            b.kv_line("Days", f"{aggregated.days_to_earnings} (Min: {min_days})")
+            b.kv_line("Status", status)
+            b.kv_line("Confidence", f"{aggregated.confidence}%")
+        else:
+            b.status_warning("No earnings date found from any source.")
+
+        return b.build()
+
     async def earnings_prefilter(
         self,
         min_days: int = 45,

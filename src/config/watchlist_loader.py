@@ -152,12 +152,50 @@ class WatchlistLoader:
     
     def _use_fallback(self) -> None:
         self._sectors = {
-            "information_technology": ["AAPL", "MSFT", "NVDA", "AVGO", "ORCL", "CRM", "ADBE", "AMD", "CSCO", "ACN"],
-            "health_care": ["UNH", "JNJ", "LLY", "ABBV", "MRK", "PFE", "TMO", "ABT", "DHR", "AMGN"],
-            "financials": ["JPM", "V", "MA", "BAC", "WFC", "GS", "MS", "SPGI", "BLK", "C"],
-            "consumer_discretionary": ["AMZN", "TSLA", "HD", "MCD", "NKE", "LOW", "SBUX", "TJX", "BKNG", "CMG"],
-            "industrials": ["GE", "CAT", "RTX", "HON", "UNP", "DE", "LMT", "BA", "UPS", "ETN"],
-            "energy": ["XOM", "CVX", "COP", "SLB", "EOG", "MPC", "PSX", "VLO", "OXY", "WMB"],
+            "information_technology": [
+                "AAPL", "MSFT", "NVDA", "AVGO", "ORCL", "CRM", "ADBE", "AMD", "CSCO", "ACN",
+                "INTC", "IBM", "INTU", "TXN", "QCOM", "AMAT", "NOW", "PANW", "MU", "LRCX",
+            ],
+            "health_care": [
+                "UNH", "JNJ", "LLY", "ABBV", "MRK", "PFE", "TMO", "ABT", "DHR", "AMGN",
+                "BMY", "ISRG", "GILD", "VRTX", "MDT", "SYK", "REGN", "BSX", "ZTS", "ELV",
+            ],
+            "financials": [
+                "JPM", "V", "MA", "BAC", "WFC", "GS", "MS", "SPGI", "BLK", "C",
+                "AXP", "SCHW", "PGR", "CB", "CME", "ICE", "MCO", "PNC", "USB", "MET",
+            ],
+            "consumer_discretionary": [
+                "AMZN", "TSLA", "HD", "MCD", "NKE", "LOW", "SBUX", "TJX", "BKNG", "CMG",
+                "ORLY", "MAR", "HLT", "AZO", "ROST", "RCL", "GM", "F", "DHI", "LEN",
+            ],
+            "communication_services": [
+                "GOOGL", "META", "NFLX", "DIS", "TMUS", "VZ", "T", "CMCSA", "CHTR", "EA",
+                "TTWO", "LYV", "OMC", "MTCH", "PARA",
+            ],
+            "industrials": [
+                "GE", "CAT", "RTX", "HON", "UNP", "DE", "LMT", "BA", "UPS", "ETN",
+                "PH", "GD", "NOC", "WM", "FDX", "CSX", "NSC", "EMR", "ITW", "MMM",
+            ],
+            "consumer_staples": [
+                "WMT", "PG", "COST", "KO", "PEP", "PM", "MDLZ", "MO", "CL", "KMB",
+                "GIS", "HSY", "SYY", "KR", "STZ", "ADM", "KHC", "TSN", "CLX", "CHD",
+            ],
+            "energy": [
+                "XOM", "CVX", "COP", "SLB", "EOG", "MPC", "PSX", "VLO", "OXY", "WMB",
+                "KMI", "FANG", "BKR", "TRGP", "OKE", "HAL", "DVN", "EQT", "HES", "MRO",
+            ],
+            "utilities": [
+                "NEE", "SO", "DUK", "AEP", "D", "EXC", "SRE", "XEL", "ED", "WEC",
+                "ETR", "PEG", "DTE", "FE", "PPL", "ES", "CMS", "CNP", "NI", "AWK",
+            ],
+            "real_estate": [
+                "PLD", "AMT", "EQIX", "WELL", "SPG", "PSA", "DLR", "O", "CCI", "VICI",
+                "VTR", "IRM", "EXR", "AVB", "EQR", "ARE", "MAA", "ESS", "UDR", "KIM",
+            ],
+            "materials": [
+                "LIN", "SHW", "FCX", "APD", "ECL", "NEM", "NUE", "DD", "DOW", "VMC",
+                "MLM", "CTVA", "PPG", "ALB", "IFF", "PKG", "IP", "CF", "MOS", "AVY",
+            ],
         }
         self._all_symbols = []
         for symbols in self._sectors.values():

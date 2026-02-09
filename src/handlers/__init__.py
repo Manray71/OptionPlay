@@ -5,31 +5,50 @@ OptionPlay Handler Modules
 Modular handler organization for the MCP server.
 
 Architecture:
-1. Legacy Mixins (for backwards compatibility):
-   - VixHandlerMixin, ScanHandlerMixin, etc.
-   - Used by OptionPlayServer via multiple inheritance
+  Composition-Based Handlers (active):
+  - HandlerContainer, ServerContext, BaseHandler
+  - Used by OptionPlayServer via server.handlers property
+  - Cleaner architecture without MRO complexity
 
-2. Composition-Based Handlers (preferred for new code):
-   - HandlerContainer, ServerContext, BaseHandler
-   - Cleaner architecture without MRO complexity
-   - Better testability and maintainability
+  Legacy Mixins (deprecated, kept for test compatibility):
+  - VixHandlerMixin, ScanHandlerMixin, etc.
+  - No longer inherited by OptionPlayServer
 
 Modules:
-- base: Base handler mixin with shared utilities
-- vix: VIX, strategy, and regime handlers
-- scan: All scan operations (pullback, bounce, breakout, etc.)
-- quote: Quote, options chain, historical data
-- analysis: Symbol analysis, ensemble recommendations
-- portfolio: Portfolio management operations
-- ibkr: IBKR Bridge features
-- report: PDF report generation
-- risk: Position sizing and stop loss
-- validate: Trade validation against PLAYBOOK rules
-- monitor: Position monitoring for exit signals
 - handler_container: Composition-based handler system
+- vix_composed: VIX, strategy, and regime handlers
+- scan_composed: All scan operations
+- quote_composed: Quote, options chain, historical data
+- analysis_composed: Symbol analysis, ensemble recommendations
+- portfolio_composed: Portfolio management operations
+- ibkr_composed: IBKR Bridge features
+- report_composed: PDF report generation
+- risk_composed: Position sizing and stop loss
+- validate_composed: Trade validation against PLAYBOOK rules
+- monitor_composed: Position monitoring for exit signals
 """
 
-# Legacy Mixins (backwards compatibility)
+# Composition-based handler system (active)
+from .handler_container import (
+    HandlerContainer,
+    ServerContext,
+    BaseHandler,
+    create_handler_container_from_server,
+)
+
+# Composed handlers (active)
+from .vix_composed import VixHandler
+from .scan_composed import ScanHandler
+from .quote_composed import QuoteHandler
+from .analysis_composed import AnalysisHandler
+from .portfolio_composed import PortfolioHandler
+from .ibkr_composed import IbkrHandler
+from .report_composed import ReportHandler
+from .risk_composed import RiskHandler
+from .validate_composed import ValidateHandler
+from .monitor_composed import MonitorHandler
+
+# Legacy Mixins (deprecated — kept for test compatibility)
 from .base import BaseHandlerMixin
 from .vix import VixHandlerMixin
 from .scan import ScanHandlerMixin
@@ -42,28 +61,24 @@ from .risk import RiskHandlerMixin
 from .validate import ValidateHandlerMixin
 from .monitor import MonitorHandlerMixin
 
-# Composition-based handler system (new, preferred)
-from .handler_container import (
-    HandlerContainer,
-    ServerContext,
-    BaseHandler,
-    create_handler_container_from_server,
-)
-
-# Composed handlers (new, preferred for new code)
-from .vix_composed import VixHandler
-from .scan_composed import ScanHandler
-from .quote_composed import QuoteHandler
-from .analysis_composed import AnalysisHandler
-from .portfolio_composed import PortfolioHandler
-from .ibkr_composed import IbkrHandler
-from .report_composed import ReportHandler
-from .risk_composed import RiskHandler
-from .validate_composed import ValidateHandler
-from .monitor_composed import MonitorHandler
-
 __all__ = [
-    # Legacy Mixins (for backwards compatibility)
+    # Composition-based infrastructure
+    "HandlerContainer",
+    "ServerContext",
+    "BaseHandler",
+    "create_handler_container_from_server",
+    # Composed handlers (active)
+    "VixHandler",
+    "ScanHandler",
+    "QuoteHandler",
+    "AnalysisHandler",
+    "PortfolioHandler",
+    "IbkrHandler",
+    "ReportHandler",
+    "RiskHandler",
+    "ValidateHandler",
+    "MonitorHandler",
+    # Legacy Mixins (deprecated)
     "BaseHandlerMixin",
     "VixHandlerMixin",
     "ScanHandlerMixin",
@@ -75,20 +90,4 @@ __all__ = [
     "RiskHandlerMixin",
     "ValidateHandlerMixin",
     "MonitorHandlerMixin",
-    # Composition-based infrastructure
-    "HandlerContainer",
-    "ServerContext",
-    "BaseHandler",
-    "create_handler_container_from_server",
-    # Composed handlers (preferred for new code)
-    "VixHandler",
-    "ScanHandler",
-    "QuoteHandler",
-    "AnalysisHandler",
-    "PortfolioHandler",
-    "IbkrHandler",
-    "ReportHandler",
-    "RiskHandler",
-    "ValidateHandler",
-    "MonitorHandler",
 ]

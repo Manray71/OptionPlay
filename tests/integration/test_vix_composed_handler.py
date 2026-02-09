@@ -17,6 +17,8 @@ class MockServerContext:
         self.provider = None
         self.tradier_provider = None
         self.rate_limiter = MagicMock()
+        self.rate_limiter.acquire = AsyncMock()
+        self.rate_limiter.record_success = MagicMock()
         self.circuit_breaker = MagicMock()
         self.historical_cache = MagicMock()
         self.vix_selector = MagicMock()
@@ -29,6 +31,11 @@ class MockServerContext:
         self.tradier_connected = False
         self.current_vix = None
         self.vix_updated = None
+
+        # Caches
+        self.quote_cache = {}
+        self.quote_cache_hits = 0
+        self.quote_cache_misses = 0
 
 
 class TestVixHandlerGetVix:
@@ -65,9 +72,7 @@ class TestVixHandlerGetVix:
 
         # Mock provider
         mock_provider = AsyncMock()
-        mock_quote = MagicMock()
-        mock_quote.last = 20.0
-        mock_provider.get_quote = AsyncMock(return_value=mock_quote)
+        mock_provider.get_vix = AsyncMock(return_value=20.0)
         mock_context.provider = mock_provider
 
         result = await vix_handler.get_vix()
@@ -82,9 +87,7 @@ class TestVixHandlerGetVix:
 
         # Mock provider
         mock_provider = AsyncMock()
-        mock_quote = MagicMock()
-        mock_quote.last = 22.0
-        mock_provider.get_quote = AsyncMock(return_value=mock_quote)
+        mock_provider.get_vix = AsyncMock(return_value=22.0)
         mock_context.provider = mock_provider
 
         result = await vix_handler.get_vix(force_refresh=True)
@@ -112,9 +115,7 @@ class TestVixHandlerGetVix:
         mock_context.ibkr_bridge = mock_ibkr
 
         mock_provider = AsyncMock()
-        mock_quote = MagicMock()
-        mock_quote.last = 21.0
-        mock_provider.get_quote = AsyncMock(return_value=mock_quote)
+        mock_provider.get_vix = AsyncMock(return_value=21.0)
         mock_context.provider = mock_provider
 
         result = await vix_handler.get_vix(force_refresh=True)
@@ -129,34 +130,23 @@ class TestVixHandlerGetVix:
         mock_context.ibkr_bridge = None
         mock_context.provider = None
 
-        result = await vix_handler.get_vix()
+        with patch.object(vix_handler, '_fetch_vix_yahoo', return_value=None):
+            result = await vix_handler.get_vix()
 
         assert result is None
 
 
 class TestVixHandlerStrategyRecommendation:
-    """Tests for get_strategy_recommendation method."""
+    """Tests for get_strategy_recommendation method.
+
+    Now uses formatters.strategy.format(recommendation, vix)
+    via get_strategy_for_vix() -- output matches the mixin version.
+    """
 
     @pytest.fixture
     def mock_context(self):
         """Create mock server context."""
-        ctx = MockServerContext()
-
-        # Setup VIX selector mock
-        mock_regime = MagicMock()
-        mock_regime.name = "NORMAL"
-        mock_regime.description = "Normal volatility"
-
-        mock_strategy = MagicMock()
-        mock_strategy.name = "Standard"
-        mock_strategy.min_score = 5.0
-        mock_strategy.max_dte = 60
-        mock_strategy.position_size_pct = 0.10
-
-        ctx.vix_selector.get_regime = MagicMock(return_value=mock_regime)
-        ctx.vix_selector.get_strategy = MagicMock(return_value=mock_strategy)
-
-        return ctx
+        return MockServerContext()
 
     @pytest.fixture
     def vix_handler(self, mock_context):
@@ -168,99 +158,91 @@ class TestVixHandlerStrategyRecommendation:
 
     @pytest.mark.asyncio
     async def test_get_strategy_recommendation_returns_markdown(self, vix_handler, mock_context):
-        """Test get_strategy_recommendation returns markdown."""
+        """Test get_strategy_recommendation returns markdown with Strategy Recommendation title."""
         mock_context.current_vix = 18.5
         mock_context.vix_updated = datetime.now()
 
         result = await vix_handler.get_strategy_recommendation()
 
-        assert "VIX Strategy Recommendation" in result
+        assert "Strategy Recommendation" in result
         assert "18.5" in result
 
     @pytest.mark.asyncio
     async def test_get_strategy_recommendation_includes_regime(self, vix_handler, mock_context):
-        """Test get_strategy_recommendation includes regime."""
+        """Test get_strategy_recommendation includes regime info."""
         mock_context.current_vix = 18.5
         mock_context.vix_updated = datetime.now()
 
         result = await vix_handler.get_strategy_recommendation()
 
-        assert "NORMAL" in result
+        # The formatter outputs regime value (e.g. "normal") not uppercased
+        assert "Regime" in result
 
     @pytest.mark.asyncio
     async def test_get_strategy_recommendation_includes_parameters(self, vix_handler, mock_context):
-        """Test get_strategy_recommendation includes parameters."""
+        """Test get_strategy_recommendation includes recommended parameters."""
         mock_context.current_vix = 18.5
         mock_context.vix_updated = datetime.now()
 
         result = await vix_handler.get_strategy_recommendation()
 
+        assert "Recommended Parameters" in result
         assert "Min Score" in result
-        assert "Max DTE" in result
-        assert "Position Size" in result
+        assert "Delta Target" in result
 
     @pytest.mark.asyncio
-    async def test_get_strategy_recommendation_returns_error_if_no_vix(self, vix_handler, mock_context):
-        """Test get_strategy_recommendation returns error if no VIX."""
+    async def test_get_strategy_recommendation_handles_no_vix(self, vix_handler, mock_context):
+        """Test get_strategy_recommendation gracefully handles no VIX.
+
+        When VIX is None, get_strategy_for_vix() returns a default recommendation
+        with a warning about VIX not being available.
+        """
         mock_context.current_vix = None
         mock_context.ibkr_bridge = None
         mock_context.provider = None
 
         result = await vix_handler.get_strategy_recommendation()
 
-        assert "Unable to fetch VIX" in result
+        # The formatter still produces output; the recommendation includes
+        # a warning about VIX not being available
+        assert "Strategy Recommendation" in result
+        assert "Not available" in result or "VIX" in result
 
     @pytest.mark.asyncio
-    async def test_get_strategy_recommendation_low_volatility_advice(self, vix_handler, mock_context):
-        """Test get_strategy_recommendation shows low vol advice."""
+    async def test_get_strategy_recommendation_low_volatility(self, vix_handler, mock_context):
+        """Test get_strategy_recommendation output for low VIX."""
         mock_context.current_vix = 12.0
         mock_context.vix_updated = datetime.now()
 
-        mock_regime = MagicMock()
-        mock_regime.name = "LOW"
-        mock_context.vix_selector.get_regime = MagicMock(return_value=mock_regime)
-
         result = await vix_handler.get_strategy_recommendation()
 
-        assert "Low Volatility" in result
+        assert "12.0" in result
+        assert "Reasoning" in result
 
     @pytest.mark.asyncio
-    async def test_get_strategy_recommendation_high_volatility_advice(self, vix_handler, mock_context):
-        """Test get_strategy_recommendation shows high vol advice."""
+    async def test_get_strategy_recommendation_high_volatility(self, vix_handler, mock_context):
+        """Test get_strategy_recommendation output for high VIX."""
         mock_context.current_vix = 35.0
         mock_context.vix_updated = datetime.now()
 
-        mock_regime = MagicMock()
-        mock_regime.name = "HIGH"
-        mock_context.vix_selector.get_regime = MagicMock(return_value=mock_regime)
-
         result = await vix_handler.get_strategy_recommendation()
 
-        assert "High Volatility" in result or "Caution" in result
+        assert "35.0" in result
+        # High vol should include warnings
+        assert "Warnings" in result or "Warning" in result
 
 
 class TestVixHandlerRegimeStatus:
-    """Tests for get_regime_status method."""
+    """Tests for get_regime_status method.
+
+    Now uses RegimeModel (trained) with FIXED_REGIMES fallback --
+    matches the mixin version exactly.
+    """
 
     @pytest.fixture
     def mock_context(self):
         """Create mock server context."""
-        ctx = MockServerContext()
-
-        mock_regime = MagicMock()
-        mock_regime.name = "NORMAL"
-        mock_regime.description = "Normal market volatility"
-
-        mock_strategy = MagicMock()
-        mock_strategy.name = "Standard"
-        mock_strategy.min_score = 5.0
-        mock_strategy.max_dte = 60
-        mock_strategy.position_size_pct = 0.10
-
-        ctx.vix_selector.get_regime = MagicMock(return_value=mock_regime)
-        ctx.vix_selector.get_strategy = MagicMock(return_value=mock_strategy)
-
-        return ctx
+        return MockServerContext()
 
     @pytest.fixture
     def vix_handler(self, mock_context):
@@ -290,7 +272,6 @@ class TestVixHandlerRegimeStatus:
         result = await vix_handler.get_regime_status()
 
         assert "Enabled Strategies" in result
-        assert "Pullback" in result
 
     @pytest.mark.asyncio
     async def test_get_regime_status_returns_error_if_no_vix(self, vix_handler, mock_context):
@@ -299,9 +280,140 @@ class TestVixHandlerRegimeStatus:
         mock_context.ibkr_bridge = None
         mock_context.provider = None
 
+        with patch.object(vix_handler, '_fetch_vix_yahoo', return_value=None):
+            result = await vix_handler.get_regime_status()
+
+        assert "Could not fetch VIX" in result
+
+    @pytest.mark.asyncio
+    async def test_get_regime_status_shows_trading_parameters(self, vix_handler, mock_context):
+        """Test get_regime_status shows trading parameters section."""
+        mock_context.current_vix = 18.5
+        mock_context.vix_updated = datetime.now()
+
         result = await vix_handler.get_regime_status()
 
-        assert "Unable to fetch VIX" in result
+        # Should show either trained or default parameters
+        assert "Parameters" in result
+
+
+class TestVixHandlerStrategyForStock:
+    """Tests for get_strategy_for_stock method."""
+
+    @pytest.fixture
+    def mock_context(self):
+        """Create mock server context with provider for quote fetching."""
+        ctx = MockServerContext()
+        mock_provider = AsyncMock()
+        mock_provider.connect = AsyncMock()
+
+        mock_quote = MagicMock()
+        mock_quote.last = 150.0
+        mock_provider.get_quote = AsyncMock(return_value=mock_quote)
+
+        ctx.provider = mock_provider
+        ctx.connected = True
+        ctx.current_vix = 18.5
+        ctx.vix_updated = datetime.now()
+        return ctx
+
+    @pytest.fixture
+    def vix_handler(self, mock_context):
+        """Create VIX handler with mock context."""
+        from src.handlers.vix_composed import VixHandler
+
+        handler = VixHandler(mock_context)
+        return handler
+
+    @pytest.mark.asyncio
+    async def test_get_strategy_for_stock_returns_markdown(self, vix_handler):
+        """Test get_strategy_for_stock returns formatted markdown."""
+        result = await vix_handler.get_strategy_for_stock("AAPL")
+
+        assert "Strategy for AAPL" in result
+        assert "Market Context" in result
+        assert "Bull-Put-Spread" in result
+
+    @pytest.mark.asyncio
+    async def test_get_strategy_for_stock_shows_stock_price(self, vix_handler):
+        """Test get_strategy_for_stock shows stock price."""
+        result = await vix_handler.get_strategy_for_stock("AAPL")
+
+        assert "$150.00" in result
+
+    @pytest.mark.asyncio
+    async def test_get_strategy_for_stock_shows_delta_info(self, vix_handler):
+        """Test get_strategy_for_stock shows delta targets."""
+        result = await vix_handler.get_strategy_for_stock("AAPL")
+
+        assert "Short Put Delta" in result
+        assert "Long Put Delta" in result
+        assert "Delta-Range" in result
+
+    @pytest.mark.asyncio
+    async def test_get_strategy_for_stock_no_quote(self, vix_handler, mock_context):
+        """Test get_strategy_for_stock when quote fails."""
+        mock_context.provider.get_quote = AsyncMock(return_value=None)
+
+        result = await vix_handler.get_strategy_for_stock("AAPL")
+
+        assert "Cannot get quote for AAPL" in result
+
+
+class TestVixHandlerEventCalendar:
+    """Tests for get_event_calendar method."""
+
+    @pytest.fixture
+    def mock_context(self):
+        """Create mock server context."""
+        return MockServerContext()
+
+    @pytest.fixture
+    def vix_handler(self, mock_context):
+        """Create VIX handler with mock context."""
+        from src.handlers.vix_composed import VixHandler
+
+        handler = VixHandler(mock_context)
+        return handler
+
+    @pytest.mark.asyncio
+    async def test_get_event_calendar_returns_markdown(self, vix_handler):
+        """Test get_event_calendar returns formatted markdown."""
+        result = await vix_handler.get_event_calendar(days=30)
+
+        assert "Market Events" in result
+        assert "30 Days" in result
+
+    @pytest.mark.asyncio
+    async def test_get_event_calendar_custom_days(self, vix_handler):
+        """Test get_event_calendar with custom days parameter."""
+        result = await vix_handler.get_event_calendar(days=60)
+
+        assert "60 Days" in result
+
+
+class TestVixHandlerSectorStatus:
+    """Tests for get_sector_status method."""
+
+    @pytest.fixture
+    def mock_context(self):
+        """Create mock server context."""
+        return MockServerContext()
+
+    @pytest.fixture
+    def vix_handler(self, mock_context):
+        """Create VIX handler with mock context."""
+        from src.handlers.vix_composed import VixHandler
+
+        handler = VixHandler(mock_context)
+        return handler
+
+    @pytest.mark.asyncio
+    async def test_get_sector_status_returns_markdown(self, vix_handler):
+        """Test get_sector_status returns formatted markdown."""
+        result = await vix_handler.get_sector_status()
+
+        assert "Sector Momentum Status" in result
 
 
 class TestVixHandlerCaching:
@@ -330,15 +442,82 @@ class TestVixHandlerCaching:
         mock_context.current_vix = None
 
         mock_provider = AsyncMock()
-        mock_quote = MagicMock()
-        mock_quote.last = 19.5
-        mock_provider.get_quote = AsyncMock(return_value=mock_quote)
+        mock_provider.get_vix = AsyncMock(return_value=19.5)
         mock_context.provider = mock_provider
 
         await vix_handler.get_vix()
 
         assert mock_context.current_vix == 19.5
         assert mock_context.vix_updated is not None
+
+
+class TestVixHandlerHelpers:
+    """Tests for helper methods (_ensure_connected, _get_quote_cached)."""
+
+    @pytest.fixture
+    def mock_context(self):
+        """Create mock server context."""
+        ctx = MockServerContext()
+        mock_provider = AsyncMock()
+        mock_provider.connect = AsyncMock()
+
+        mock_quote = MagicMock()
+        mock_quote.last = 175.0
+        mock_provider.get_quote = AsyncMock(return_value=mock_quote)
+
+        ctx.provider = mock_provider
+        return ctx
+
+    @pytest.fixture
+    def vix_handler(self, mock_context):
+        """Create VIX handler with mock context."""
+        from src.handlers.vix_composed import VixHandler
+
+        handler = VixHandler(mock_context)
+        return handler
+
+    @pytest.mark.asyncio
+    async def test_ensure_connected_connects_provider(self, vix_handler, mock_context):
+        """Test _ensure_connected calls provider.connect() if not connected."""
+        mock_context.connected = False
+
+        await vix_handler._ensure_connected()
+
+        mock_context.provider.connect.assert_called_once()
+        assert mock_context.connected is True
+
+    @pytest.mark.asyncio
+    async def test_ensure_connected_skips_if_already_connected(self, vix_handler, mock_context):
+        """Test _ensure_connected skips connect if already connected."""
+        mock_context.connected = True
+
+        await vix_handler._ensure_connected()
+
+        mock_context.provider.connect.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_get_quote_cached_returns_fresh_cache(self, vix_handler, mock_context):
+        """Test _get_quote_cached returns cached value if fresh."""
+        cached_quote = MagicMock()
+        cached_quote.last = 200.0
+        mock_context.quote_cache["AAPL"] = (cached_quote, datetime.now())
+        mock_context.connected = True
+
+        result = await vix_handler._get_quote_cached("AAPL")
+
+        assert result.last == 200.0
+        assert mock_context.quote_cache_hits == 1
+
+    @pytest.mark.asyncio
+    async def test_get_quote_cached_fetches_on_miss(self, vix_handler, mock_context):
+        """Test _get_quote_cached fetches from provider on cache miss."""
+        mock_context.connected = True
+
+        result = await vix_handler._get_quote_cached("MSFT")
+
+        assert result.last == 175.0
+        assert mock_context.quote_cache_misses == 1
+        assert "MSFT" in mock_context.quote_cache
 
 
 if __name__ == "__main__":

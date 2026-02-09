@@ -323,14 +323,13 @@ class TestServiceContextProvider:
         context._circuit_breaker.record_success = MagicMock()
         context._circuit_breaker.record_failure = MagicMock()
 
-        with patch('src.services.base.get_config') as mock_config:
-            mock_api = MagicMock()
-            mock_api.max_retries = 3
-            mock_api.retry_base_delay = 1
-            mock_config.return_value.settings.api_connection = mock_api
+        mock_api = MagicMock()
+        mock_api.max_retries = 3
+        mock_api.retry_base_delay = 1
+        context.config.settings.api_connection = mock_api
 
-            with patch('src.services.base.asyncio.sleep', new_callable=AsyncMock):
-                await context._connect_provider()
+        with patch('src.services.base.asyncio.sleep', new_callable=AsyncMock):
+            await context._connect_provider()
 
         assert context._connected is True
         assert mock_provider.connect.call_count == 3
@@ -347,15 +346,14 @@ class TestServiceContextProvider:
         context._circuit_breaker.can_execute = MagicMock(return_value=True)
         context._circuit_breaker.record_failure = MagicMock()
 
-        with patch('src.services.base.get_config') as mock_config:
-            mock_api = MagicMock()
-            mock_api.max_retries = 2
-            mock_api.retry_base_delay = 1
-            mock_config.return_value.settings.api_connection = mock_api
+        mock_api = MagicMock()
+        mock_api.max_retries = 2
+        mock_api.retry_base_delay = 1
+        context.config.settings.api_connection = mock_api
 
-            with patch('src.services.base.asyncio.sleep', new_callable=AsyncMock):
-                with pytest.raises(ConnectionError, match="Cannot connect"):
-                    await context._connect_provider()
+        with patch('src.services.base.asyncio.sleep', new_callable=AsyncMock):
+            with pytest.raises(ConnectionError, match="Cannot connect"):
+                await context._connect_provider()
 
     @pytest.mark.asyncio
     async def test_disconnect_when_connected(self, context):

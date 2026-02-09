@@ -38,6 +38,7 @@ if TYPE_CHECKING:
     from ..vix_strategy import VIXStrategySelector
     from ..config import Config
     from ..container import ServiceContainer
+    from ..state.server_state import ServerState
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +62,7 @@ class ServerContext:
         vix_selector: "VIXStrategySelector",
         deduplicator: "RequestDeduplicator",
         container: Optional["ServiceContainer"] = None,
+        server_state: Optional["ServerState"] = None,
     ) -> None:
         self.config = config
         self.provider = provider
@@ -71,6 +73,7 @@ class ServerContext:
         self.vix_selector = vix_selector
         self.deduplicator = deduplicator
         self.container = container
+        self.server_state = server_state
 
         # Mutable state (shared across handlers)
         self.connected = False
@@ -246,6 +249,7 @@ def create_handler_container_from_server(server) -> HandlerContainer:
         vix_selector=server._vix_selector,
         deduplicator=server._deduplicator,
         container=getattr(server, '_container', None),
+        server_state=getattr(server, 'state', None),
     )
 
     # Copy mutable state

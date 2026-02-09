@@ -221,7 +221,7 @@ SCAN_SCHEMA = {
     aliases=["vix"],
 )
 async def handle_vix(server: Any, arguments: ToolArguments) -> str:
-    return await server.get_strategy_recommendation()
+    return await server.handlers.vix.get_strategy_recommendation()
 
 
 @tool_registry.register(
@@ -231,7 +231,7 @@ async def handle_vix(server: Any, arguments: ToolArguments) -> str:
     aliases=["regime"],
 )
 async def handle_regime_status(server: Any, arguments: ToolArguments) -> str:
-    return await server.get_regime_status()
+    return await server.handlers.vix.get_regime_status()
 
 
 @tool_registry.register(
@@ -241,7 +241,7 @@ async def handle_regime_status(server: Any, arguments: ToolArguments) -> str:
     aliases=["strategy_stock"],
 )
 async def handle_strategy_for_stock(server: Any, arguments: ToolArguments) -> str:
-    return await server.get_strategy_for_stock(arguments["symbol"])
+    return await server.handlers.vix.get_strategy_for_stock(arguments["symbol"])
 
 
 @tool_registry.register(
@@ -254,7 +254,7 @@ async def handle_strategy_for_stock(server: Any, arguments: ToolArguments) -> st
     aliases=["events"],
 )
 async def handle_events(server: Any, arguments: ToolArguments) -> str:
-    return await server.get_event_calendar(days=arguments.get("days", 30))
+    return await server.handlers.vix.get_event_calendar(days=arguments.get("days", 30))
 
 
 @tool_registry.register(
@@ -278,7 +278,7 @@ async def handle_health(server: Any, arguments: ToolArguments) -> str:
     aliases=["scan"],
 )
 async def handle_scan(server: Any, arguments: ToolArguments) -> str:
-    return await server.scan_with_strategy(
+    return await server.handlers.scan.scan_with_strategy(
         symbols=arguments.get("symbols"),
         max_results=arguments.get("max_results", 10),
         min_score=arguments.get("min_score", 3.5),
@@ -292,7 +292,7 @@ async def handle_scan(server: Any, arguments: ToolArguments) -> str:
     aliases=["bounce"],
 )
 async def handle_scan_bounce(server: Any, arguments: ToolArguments) -> str:
-    return await server.scan_bounce(
+    return await server.handlers.scan.scan_bounce(
         symbols=arguments.get("symbols"),
         max_results=arguments.get("max_results", 10),
         min_score=arguments.get("min_score", 5.0),
@@ -306,7 +306,7 @@ async def handle_scan_bounce(server: Any, arguments: ToolArguments) -> str:
     aliases=["breakout"],
 )
 async def handle_scan_breakout(server: Any, arguments: ToolArguments) -> str:
-    return await server.scan_ath_breakout(
+    return await server.handlers.scan.scan_ath_breakout(
         symbols=arguments.get("symbols"),
         max_results=arguments.get("max_results", 10),
         min_score=arguments.get("min_score", 6.0),
@@ -320,7 +320,7 @@ async def handle_scan_breakout(server: Any, arguments: ToolArguments) -> str:
     aliases=["dip"],
 )
 async def handle_scan_earnings_dip(server: Any, arguments: ToolArguments) -> str:
-    return await server.scan_earnings_dip(
+    return await server.handlers.scan.scan_earnings_dip(
         symbols=arguments.get("symbols"),
         max_results=arguments.get("max_results", 10),
         min_score=arguments.get("min_score", 5.0),
@@ -334,7 +334,7 @@ async def handle_scan_earnings_dip(server: Any, arguments: ToolArguments) -> str
     aliases=["trend"],
 )
 async def handle_scan_trend(server: Any, arguments: ToolArguments) -> str:
-    return await server.scan_trend_continuation(
+    return await server.handlers.scan.scan_trend_continuation(
         symbols=arguments.get("symbols"),
         max_results=arguments.get("max_results", 10),
         min_score=arguments.get("min_score", 5.0),
@@ -348,7 +348,7 @@ async def handle_scan_trend(server: Any, arguments: ToolArguments) -> str:
     aliases=["multi"],
 )
 async def handle_scan_multi(server: Any, arguments: ToolArguments) -> str:
-    return await server.scan_multi_strategy(
+    return await server.handlers.scan.scan_multi_strategy(
         symbols=arguments.get("symbols"),
         max_results=arguments.get("max_results", 20),
         min_score=arguments.get("min_score", 3.5),
@@ -372,7 +372,7 @@ async def handle_scan_multi(server: Any, arguments: ToolArguments) -> str:
     aliases=["daily", "picks", "recommendations"],
 )
 async def handle_daily_picks(server: Any, arguments: ToolArguments) -> str:
-    return await server.daily_picks(
+    return await server.handlers.scan.daily_picks(
         symbols=arguments.get("symbols"),
         max_picks=arguments.get("max_picks", 5),
         min_score=arguments.get("min_score", 3.5),
@@ -395,7 +395,7 @@ async def handle_daily_picks(server: Any, arguments: ToolArguments) -> str:
     aliases=["prefilter"],
 )
 async def handle_earnings_prefilter(server: Any, arguments: ToolArguments) -> str:
-    return await server.earnings_prefilter(
+    return await server.handlers.scan.earnings_prefilter(
         min_days=arguments.get("min_days", ENTRY_EARNINGS_MIN_DAYS),
         symbols=arguments.get("symbols"),
         show_excluded=arguments.get("show_excluded", False),
@@ -413,7 +413,7 @@ async def handle_earnings_prefilter(server: Any, arguments: ToolArguments) -> st
     aliases=["quote"],
 )
 async def handle_quote(server: Any, arguments: ToolArguments) -> str:
-    return await server.get_quote(arguments["symbol"])
+    return await server.handlers.quote.get_quote(arguments["symbol"])
 
 
 @tool_registry.register(
@@ -432,7 +432,7 @@ async def handle_quote(server: Any, arguments: ToolArguments) -> str:
     aliases=["options"],
 )
 async def handle_options(server: Any, arguments: ToolArguments) -> str:
-    return await server.get_options_chain(
+    return await server.handlers.quote.get_options_chain(
         symbol=arguments["symbol"],
         dte_min=arguments.get("dte_min", 60),
         dte_max=arguments.get("dte_max", 90),
@@ -454,7 +454,7 @@ async def handle_options(server: Any, arguments: ToolArguments) -> str:
     aliases=["earnings"],
 )
 async def handle_earnings(server: Any, arguments: ToolArguments) -> str:
-    return await server.get_earnings_aggregated(
+    return await server.handlers.quote.get_earnings_aggregated(
         arguments["symbol"],
         arguments.get("min_days", 60),
     )
@@ -474,7 +474,7 @@ async def handle_earnings(server: Any, arguments: ToolArguments) -> str:
     aliases=["historical"],
 )
 async def handle_historical(server: Any, arguments: ToolArguments) -> str:
-    return await server.get_historical_data(
+    return await server.handlers.quote.get_historical_data(
         symbol=arguments["symbol"],
         days=arguments.get("days", 30),
     )
@@ -487,7 +487,7 @@ async def handle_historical(server: Any, arguments: ToolArguments) -> str:
     aliases=["expirations"],
 )
 async def handle_expirations(server: Any, arguments: ToolArguments) -> str:
-    return await server.get_expirations(symbol=arguments["symbol"])
+    return await server.handlers.quote.get_expirations(symbol=arguments["symbol"])
 
 
 @tool_registry.register(
@@ -497,7 +497,7 @@ async def handle_expirations(server: Any, arguments: ToolArguments) -> str:
     aliases=["validate"],
 )
 async def handle_validate(server: Any, arguments: ToolArguments) -> str:
-    return await server.validate_for_trading(symbol=arguments["symbol"])
+    return await server.handlers.quote.validate_for_trading(symbol=arguments["symbol"])
 
 
 @tool_registry.register(
@@ -524,7 +524,7 @@ async def handle_validate(server: Any, arguments: ToolArguments) -> str:
     aliases=["check"],
 )
 async def handle_validate_trade(server: Any, arguments: ToolArguments) -> str:
-    return await server.validate_trade(
+    return await server.handlers.validate.validate_trade(
         symbol=arguments["symbol"],
         short_strike=arguments.get("short_strike"),
         expiration=arguments.get("expiration"),
@@ -542,7 +542,7 @@ async def handle_validate_trade(server: Any, arguments: ToolArguments) -> str:
     aliases=["monitor"],
 )
 async def handle_monitor_positions(server: Any, arguments: ToolArguments) -> str:
-    return await server.monitor_positions()
+    return await server.handlers.monitor.monitor_positions()
 
 
 @tool_registry.register(
@@ -556,7 +556,7 @@ async def handle_monitor_positions(server: Any, arguments: ToolArguments) -> str
     aliases=["max_pain"],
 )
 async def handle_max_pain(server: Any, arguments: ToolArguments) -> str:
-    return await server.get_max_pain(symbols=arguments["symbols"])
+    return await server.handlers.ibkr.get_max_pain(symbols=arguments["symbols"])
 
 
 # =============================================================================
@@ -570,7 +570,7 @@ async def handle_max_pain(server: Any, arguments: ToolArguments) -> str:
     aliases=["analyze"],
 )
 async def handle_analyze(server: Any, arguments: ToolArguments) -> str:
-    return await server.analyze_symbol(arguments["symbol"])
+    return await server.handlers.analysis.analyze_symbol(arguments["symbol"])
 
 
 @tool_registry.register(
@@ -580,7 +580,7 @@ async def handle_analyze(server: Any, arguments: ToolArguments) -> str:
     aliases=["analyze_multi"],
 )
 async def handle_analyze_multi(server: Any, arguments: ToolArguments) -> str:
-    return await server.analyze_multi_strategy(arguments["symbol"])
+    return await server.handlers.analysis.analyze_multi_strategy(arguments["symbol"])
 
 
 @tool_registry.register(
@@ -590,7 +590,7 @@ async def handle_analyze_multi(server: Any, arguments: ToolArguments) -> str:
     aliases=["ensemble"],
 )
 async def handle_ensemble(server: Any, arguments: ToolArguments) -> str:
-    return await server.get_ensemble_recommendation(arguments["symbol"])
+    return await server.handlers.analysis.get_ensemble_recommendation(arguments["symbol"])
 
 
 @tool_registry.register(
@@ -600,7 +600,7 @@ async def handle_ensemble(server: Any, arguments: ToolArguments) -> str:
     aliases=["ensemble_status"],
 )
 async def handle_ensemble_status(server: Any, arguments: ToolArguments) -> str:
-    return await server.get_ensemble_status()
+    return await server.handlers.analysis.get_ensemble_status()
 
 
 @tool_registry.register(
@@ -619,7 +619,7 @@ async def handle_ensemble_status(server: Any, arguments: ToolArguments) -> str:
     aliases=["strikes"],
 )
 async def handle_recommend_strikes(server: Any, arguments: ToolArguments) -> str:
-    return await server.recommend_strikes(
+    return await server.handlers.analysis.recommend_strikes(
         symbol=arguments["symbol"],
         dte_min=arguments.get("dte_min", 60),
         dte_max=arguments.get("dte_max", 90),
@@ -639,7 +639,7 @@ async def handle_recommend_strikes(server: Any, arguments: ToolArguments) -> str
     is_async=False,
 )
 def handle_portfolio(server: Any, arguments: ToolArguments) -> str:
-    return server.portfolio_summary()
+    return server.handlers.portfolio.portfolio_summary()
 
 
 @tool_registry.register(
@@ -653,7 +653,7 @@ def handle_portfolio(server: Any, arguments: ToolArguments) -> str:
     is_async=False,
 )
 def handle_portfolio_positions(server: Any, arguments: ToolArguments) -> str:
-    return server.portfolio_positions(status=arguments.get("status", "all"))
+    return server.handlers.portfolio.portfolio_positions(status=arguments.get("status", "all"))
 
 
 @tool_registry.register(
@@ -668,7 +668,7 @@ def handle_portfolio_positions(server: Any, arguments: ToolArguments) -> str:
     is_async=False,
 )
 def handle_portfolio_position(server: Any, arguments: ToolArguments) -> str:
-    return server.portfolio_position(position_id=arguments["position_id"])
+    return server.handlers.portfolio.portfolio_position(position_id=arguments["position_id"])
 
 
 @tool_registry.register(
@@ -691,7 +691,7 @@ def handle_portfolio_position(server: Any, arguments: ToolArguments) -> str:
     is_async=False,
 )
 def handle_portfolio_add(server: Any, arguments: ToolArguments) -> str:
-    return server.portfolio_add(
+    return server.handlers.portfolio.portfolio_add(
         symbol=arguments["symbol"],
         short_strike=arguments["short_strike"],
         long_strike=arguments["long_strike"],
@@ -718,7 +718,7 @@ def handle_portfolio_add(server: Any, arguments: ToolArguments) -> str:
     is_async=False,
 )
 def handle_portfolio_close(server: Any, arguments: ToolArguments) -> str:
-    return server.portfolio_close(
+    return server.handlers.portfolio.portfolio_close(
         position_id=arguments["position_id"],
         close_premium=arguments["close_premium"],
         notes=arguments.get("notes", ""),
@@ -737,7 +737,7 @@ def handle_portfolio_close(server: Any, arguments: ToolArguments) -> str:
     is_async=False,
 )
 def handle_portfolio_expire(server: Any, arguments: ToolArguments) -> str:
-    return server.portfolio_expire(position_id=arguments["position_id"])
+    return server.handlers.portfolio.portfolio_expire(position_id=arguments["position_id"])
 
 
 @tool_registry.register(
@@ -751,7 +751,7 @@ def handle_portfolio_expire(server: Any, arguments: ToolArguments) -> str:
     is_async=False,
 )
 def handle_portfolio_expiring(server: Any, arguments: ToolArguments) -> str:
-    return server.portfolio_expiring(days=arguments.get("days", 7))
+    return server.handlers.portfolio.portfolio_expiring(days=arguments.get("days", 7))
 
 
 @tool_registry.register(
@@ -765,7 +765,7 @@ def handle_portfolio_expiring(server: Any, arguments: ToolArguments) -> str:
     is_async=False,
 )
 def handle_portfolio_trades(server: Any, arguments: ToolArguments) -> str:
-    return server.portfolio_trades(limit=arguments.get("limit", 20))
+    return server.handlers.portfolio.portfolio_trades(limit=arguments.get("limit", 20))
 
 
 @tool_registry.register(
@@ -776,7 +776,7 @@ def handle_portfolio_trades(server: Any, arguments: ToolArguments) -> str:
     is_async=False,
 )
 def handle_portfolio_pnl(server: Any, arguments: ToolArguments) -> str:
-    return server.portfolio_pnl_symbols()
+    return server.handlers.portfolio.portfolio_pnl_symbols()
 
 
 @tool_registry.register(
@@ -787,7 +787,7 @@ def handle_portfolio_pnl(server: Any, arguments: ToolArguments) -> str:
     is_async=False,
 )
 def handle_portfolio_monthly(server: Any, arguments: ToolArguments) -> str:
-    return server.portfolio_pnl_monthly()
+    return server.handlers.portfolio.portfolio_pnl_monthly()
 
 
 @tool_registry.register(
@@ -805,7 +805,7 @@ def handle_portfolio_monthly(server: Any, arguments: ToolArguments) -> str:
     is_async=False,
 )
 def handle_portfolio_check(server: Any, arguments: ToolArguments) -> str:
-    return server.portfolio_check(
+    return server.handlers.portfolio.portfolio_check(
         symbol=arguments["symbol"],
         max_risk=arguments.get("max_risk", 500.0),
     )
@@ -819,7 +819,7 @@ def handle_portfolio_check(server: Any, arguments: ToolArguments) -> str:
     is_async=False,
 )
 def handle_portfolio_constraints(server: Any, arguments: ToolArguments) -> str:
-    return server.portfolio_constraints()
+    return server.handlers.portfolio.portfolio_constraints()
 
 
 # =============================================================================
@@ -833,7 +833,7 @@ def handle_portfolio_constraints(server: Any, arguments: ToolArguments) -> str:
     aliases=["ibkr"],
 )
 async def handle_ibkr_status(server: Any, arguments: ToolArguments) -> str:
-    return await server.get_ibkr_status()
+    return await server.handlers.ibkr.get_ibkr_status()
 
 
 @tool_registry.register(
@@ -843,7 +843,7 @@ async def handle_ibkr_status(server: Any, arguments: ToolArguments) -> str:
     aliases=["ibkr_portfolio"],
 )
 async def handle_ibkr_portfolio(server: Any, arguments: ToolArguments) -> str:
-    return await server.get_ibkr_portfolio()
+    return await server.handlers.ibkr.get_ibkr_portfolio()
 
 
 @tool_registry.register(
@@ -853,7 +853,7 @@ async def handle_ibkr_portfolio(server: Any, arguments: ToolArguments) -> str:
     aliases=["ibkr_spreads"],
 )
 async def handle_ibkr_spreads(server: Any, arguments: ToolArguments) -> str:
-    return await server.get_ibkr_spreads()
+    return await server.handlers.ibkr.get_ibkr_spreads()
 
 
 @tool_registry.register(
@@ -863,7 +863,7 @@ async def handle_ibkr_spreads(server: Any, arguments: ToolArguments) -> str:
     aliases=["ibkr_vix"],
 )
 async def handle_ibkr_vix(server: Any, arguments: ToolArguments) -> str:
-    return await server.get_ibkr_vix()
+    return await server.handlers.ibkr.get_ibkr_vix()
 
 
 @tool_registry.register(
@@ -879,7 +879,7 @@ async def handle_ibkr_vix(server: Any, arguments: ToolArguments) -> str:
     aliases=["ibkr_quotes"],
 )
 async def handle_ibkr_quotes(server: Any, arguments: ToolArguments) -> str:
-    return await server.get_ibkr_quotes(
+    return await server.handlers.ibkr.get_ibkr_quotes(
         symbols=arguments.get("symbols"),
         batch_size=arguments.get("batch_size", 50),
     )
@@ -899,7 +899,7 @@ async def handle_ibkr_quotes(server: Any, arguments: ToolArguments) -> str:
     aliases=["news"],
 )
 async def handle_news(server: Any, arguments: ToolArguments) -> str:
-    return await server.get_news(
+    return await server.handlers.ibkr.get_news(
         symbols=arguments["symbols"],
         days=arguments.get("days", 5),
     )
@@ -925,7 +925,7 @@ async def handle_news(server: Any, arguments: ToolArguments) -> str:
     aliases=["report"],
 )
 async def handle_report(server: Any, arguments: ToolArguments) -> str:
-    return await server.generate_report(
+    return await server.handlers.report.generate_report(
         symbol=arguments["symbol"],
         strategy=arguments.get("strategy"),
         include_options=arguments.get("include_options", True),
@@ -948,7 +948,7 @@ async def handle_report(server: Any, arguments: ToolArguments) -> str:
     aliases=["scan_report"],
 )
 async def handle_scan_report(server: Any, arguments: ToolArguments) -> str:
-    return await server.generate_scan_report(
+    return await server.handlers.report.generate_scan_report(
         strategy=arguments.get("strategy", "multi"),
         symbols=arguments.get("symbols"),
         min_score=arguments.get("min_score", 5.0),
@@ -980,7 +980,7 @@ async def handle_scan_report(server: Any, arguments: ToolArguments) -> str:
     aliases=["position_size"],
 )
 async def handle_position_size(server: Any, arguments: ToolArguments) -> str:
-    return await server.calculate_position_size(
+    return await server.handlers.risk.calculate_position_size(
         account_size=arguments["account_size"],
         max_loss_per_contract=arguments["max_loss_per_contract"],
         win_rate=arguments.get("win_rate", 0.65),
@@ -1006,7 +1006,7 @@ async def handle_position_size(server: Any, arguments: ToolArguments) -> str:
     aliases=["stop_loss"],
 )
 async def handle_stop_loss(server: Any, arguments: ToolArguments) -> str:
-    return await server.recommend_stop_loss(
+    return await server.handlers.risk.recommend_stop_loss(
         net_credit=arguments["net_credit"],
         spread_width=arguments["spread_width"],
     )
@@ -1030,7 +1030,7 @@ async def handle_stop_loss(server: Any, arguments: ToolArguments) -> str:
     aliases=["spread_analysis"],
 )
 async def handle_spread_analysis(server: Any, arguments: ToolArguments) -> str:
-    return await server.analyze_spread(
+    return await server.handlers.risk.analyze_spread(
         symbol=arguments["symbol"],
         short_strike=arguments["short_strike"],
         long_strike=arguments["long_strike"],
@@ -1059,7 +1059,7 @@ async def handle_spread_analysis(server: Any, arguments: ToolArguments) -> str:
     aliases=["monte_carlo"],
 )
 async def handle_monte_carlo(server: Any, arguments: ToolArguments) -> str:
-    return await server.run_monte_carlo(
+    return await server.handlers.risk.run_monte_carlo(
         symbol=arguments["symbol"],
         short_strike=arguments["short_strike"],
         long_strike=arguments["long_strike"],
@@ -1106,7 +1106,7 @@ def handle_watchlist_info(server: Any, arguments: ToolArguments) -> str:
     aliases=["sector_status"],
 )
 async def handle_sector_status(server: Any, arguments: ToolArguments) -> str:
-    return await server.get_sector_status()
+    return await server.handlers.vix.get_sector_status()
 
 
 # =============================================================================

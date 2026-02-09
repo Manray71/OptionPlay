@@ -7,12 +7,12 @@ from .max_pain import (
     calculate_max_pain,
     format_max_pain_report
 )
-# Import from canonical locations in src/
-from ..strike_recommender import (
+# Import from canonical locations
+from .strike_recommender import (
     StrikeRecommender,
     calculate_strike_recommendation
 )
-from ..vix_strategy import (
+from ..services.vix_strategy import (
     VIXStrategySelector,
     MarketRegime,
     VIXThresholds,

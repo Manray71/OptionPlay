@@ -43,12 +43,13 @@ logger = logging.getLogger(__name__)
 class ServiceContext:
     """
     Shared Context für alle Services.
-    
+
     Ermöglicht das Teilen von Ressourcen zwischen Services,
     ohne dass jeder Service seine eigene Verbindung aufbaut.
-    
+
     Attributes:
         api_key: Marketdata.app API Key
+        config: Configuration (optional, falls back to get_config())
         provider: Shared MarketDataProvider (lazy init)
         rate_limiter: Shared Rate Limiter
         circuit_breaker: Shared Circuit Breaker
@@ -56,6 +57,7 @@ class ServiceContext:
         connected: Verbindungsstatus
     """
     api_key: str
+    config: Optional[Any] = None  # ConfigLoader
     rate_limiter: AdaptiveRateLimiter = field(default_factory=get_marketdata_limiter)
     historical_cache: Optional[HistoricalCache] = None
     _circuit_breaker: Optional[CircuitBreaker] = None
@@ -63,19 +65,20 @@ class ServiceContext:
     _connected: bool = False
     _vix_cache: Optional[float] = None
     _vix_updated: Optional[datetime] = None
-    
+
     def __post_init__(self) -> None:
         """Initialize components after dataclass creation."""
-        config = get_config()
-        perf = config.settings.performance
-        cb_cfg = config.settings.circuit_breaker
-        
+        if self.config is None:
+            self.config = get_config()
+        perf = self.config.settings.performance
+        cb_cfg = self.config.settings.circuit_breaker
+
         if self.historical_cache is None:
             self.historical_cache = get_historical_cache(
                 ttl_seconds=perf.cache_ttl_seconds,
                 max_entries=perf.cache_max_entries
             )
-        
+
         if self._circuit_breaker is None:
             self._circuit_breaker = get_circuit_breaker(
                 name="marketdata_api",
@@ -113,9 +116,8 @@ class ServiceContext:
         if not self._circuit_breaker.can_execute():
             retry_after = self._circuit_breaker.get_retry_after()
             raise CircuitBreakerOpen("marketdata_api", retry_after)
-        
-        config = get_config()
-        api_conn = config.settings.api_connection
+
+        api_conn = self.config.settings.api_connection
         
         for attempt in range(api_conn.max_retries):
             try:
@@ -172,7 +174,7 @@ class BaseService(ABC):
             context: Shared ServiceContext mit Provider, Cache, etc.
         """
         self._context = context
-        self._config = get_config()
+        self._config = context.config
         self._logger = logging.getLogger(self.__class__.__name__)
     
     @property

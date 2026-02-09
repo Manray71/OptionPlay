@@ -323,10 +323,9 @@ class TradeValidator:
     ) -> ValidationCheck:
         """Check 2: Stability Score (PLAYBOOK §1 + §3 VIX adjustment).
 
-        Uses get_adjusted_stability_min() for VIX-aware threshold (Task 2.4).
+        Uses get_adjusted_stability_min() for VIX-aware threshold,
+        same logic as check_symbol_stability() in signal_filter.py.
         """
-        from ..constants.trading_rules import get_adjusted_stability_min
-
         if fundamentals is None or fundamentals.stability_score is None:
             return ValidationCheck(
                 name="stability",
