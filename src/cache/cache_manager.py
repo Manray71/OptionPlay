@@ -291,6 +291,10 @@ class BaseCache:
             ]
             for key in expired_keys:
                 del self._entries[key]
+            # G.3: Track TTL evictions separately
+            if expired_keys:
+                self._metrics.evictions_ttl += len(expired_keys)
+                self._metrics.evictions += len(expired_keys)
             self._update_entry_count()
             return len(expired_keys)
 
@@ -317,6 +321,8 @@ class BaseCache:
             evict_key = candidates[0][0]
             del self._entries[evict_key]
             self._metrics.record_eviction()
+            # G.3: Track LRU evictions separately
+            self._metrics.evictions_lru += 1
             logger.debug(f"Evicted {evict_key} from cache {self._name}")
             return evict_key
 
@@ -392,6 +398,9 @@ class CacheManager:
         self._refresh_lock = threading.Lock()
         self._refresh_failures: Dict[str, int] = {}
         self._refresh_circuit_open: Dict[str, float] = {}  # key → circuit-open-until timestamp
+
+        # G.2: Track background asyncio tasks to prevent GC of fire-and-forget tasks
+        self._background_tasks: set = set()
 
         logger.info(f"CacheManager initialized with {len(self._caches)} caches")
 
@@ -515,9 +524,12 @@ class CacheManager:
                     return value
                 if refresh_key not in self._refresh_in_progress:
                     self._refresh_in_progress.add(refresh_key)
-                    asyncio.create_task(
+                    task = asyncio.create_task(
                         self._background_refresh(cache_name, key, refresh_func, refresh_key)
                     )
+                    # G.2: Track task to prevent GC and enable cleanup
+                    self._background_tasks.add(task)
+                    task.add_done_callback(self._background_tasks.discard)
 
         return value
 
@@ -549,6 +561,9 @@ class CacheManager:
                 self._refresh_circuit_open[refresh_key] = (
                     datetime.now().timestamp() + self._REFRESH_CIRCUIT_OPEN_SECONDS
                 )
+                # G.3: Track circuit breaker opens per cache
+                cache = self.get_cache(cache_name)
+                cache.metrics.circuit_breaker_opens += 1
                 logger.warning(
                     f"Background refresh circuit open for {cache_name}:{key} "
                     f"after {failures} failures (pausing {self._REFRESH_CIRCUIT_OPEN_SECONDS}s): {e}"
@@ -562,6 +577,29 @@ class CacheManager:
         finally:
             with self._refresh_lock:
                 self._refresh_in_progress.discard(refresh_key)
+
+    @property
+    def pending_background_tasks(self) -> int:
+        """Number of background refresh tasks currently running."""
+        return len(self._background_tasks)
+
+    def cancel_background_tasks(self) -> int:
+        """
+        Cancel all running background refresh tasks.
+
+        Returns:
+            Number of tasks cancelled
+        """
+        count = 0
+        for task in list(self._background_tasks):
+            if not task.done():
+                task.cancel()
+                count += 1
+        self._background_tasks.clear()
+        with self._refresh_lock:
+            self._refresh_in_progress.clear()
+        logger.info(f"Cancelled {count} background refresh tasks")
+        return count
 
     def invalidate(
         self,
@@ -661,6 +699,7 @@ class CacheManager:
 
         stats["summary"]["total_hits"] = total_hits
         stats["summary"]["total_misses"] = total_misses
+        stats["summary"]["pending_background_tasks"] = self.pending_background_tasks
 
         total_requests = total_hits + total_misses
         if total_requests > 0:
@@ -690,6 +729,12 @@ class CacheManager:
             # Warnung bei niedriger Hit-Rate
             if cache_stats["total_requests"] > 100 and cache_stats["hit_rate_pct"] < 50:
                 warnings.append(f"{name}: Low hit rate ({cache_stats['hit_rate_pct']}%)")
+
+            # G.3: Warnung bei offenen Circuit Breakern
+            if cache_stats.get("circuit_breaker_opens", 0) > 0:
+                warnings.append(
+                    f"{name}: {cache_stats['circuit_breaker_opens']} circuit breaker opens"
+                )
 
         return {
             "status": "healthy" if not warnings else "warning",

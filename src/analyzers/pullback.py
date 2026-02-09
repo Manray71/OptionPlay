@@ -476,9 +476,12 @@ class PullbackAnalyzer(PullbackScoringMixin, BaseAnalyzer):
         breakdown.vwap_reason = vwap_result[4]
 
         # 11. Market Context Score (-1 to +2 points) - NEW from Feature Engineering
-        # Note: spy_prices should be passed via context in production
-        # For now, we'll skip if no context provided
-        if context and hasattr(context, 'spy_prices') and context.spy_prices:
+        # G.1: Use pre-computed market context if available (avoids redundant SPY SMA computation)
+        if context and context.market_context_score is not None:
+            breakdown.market_context_score = context.market_context_score
+            breakdown.spy_trend = context.market_context_trend or "unknown"
+            breakdown.market_context_reason = f"Market: {context.market_context_trend}"
+        elif context and hasattr(context, 'spy_prices') and context.spy_prices:
             market_result = self._score_market_context(context.spy_prices)
             breakdown.market_context_score = market_result[0]
             breakdown.spy_trend = market_result[1]

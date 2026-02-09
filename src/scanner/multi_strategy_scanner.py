@@ -1430,6 +1430,25 @@ class MultiStrategyScanner:
         if self._use_pool and self._pool:
             self._pool.prefill_all()
 
+        # G.1: Pre-compute market context once for ALL symbols (SPY trend is global)
+        precomputed_market_score: Optional[float] = None
+        precomputed_market_trend: Optional[str] = None
+        try:
+            spy_data = await data_fetcher("SPY")
+            if spy_data and len(spy_data[0]) >= 50:
+                spy_prices = spy_data[0]
+                from ..analyzers.feature_scoring_mixin import FeatureScoringMixin
+                _scorer = FeatureScoringMixin()
+                mc_result = _scorer._score_market_context(spy_prices)
+                precomputed_market_score = mc_result[0]
+                precomputed_market_trend = mc_result[1]
+                logger.debug(
+                    f"G.1: Pre-computed market context: {precomputed_market_trend} "
+                    f"(score={precomputed_market_score})"
+                )
+        except Exception as e:
+            logger.debug(f"G.1: Could not pre-compute market context: {e}")
+
         # PERFORMANCE: Create semaphore once, but defer acquisition until after data fetch
         # This allows data fetching to proceed in parallel while only limiting analysis
         semaphore = asyncio.Semaphore(self.config.max_concurrent)
@@ -1464,6 +1483,10 @@ class MultiStrategyScanner:
                             regime=self._get_regime(),
                             sector=self._get_sector(symbol),
                         )
+                        # G.1: Inject pre-computed market context
+                        if precomputed_market_score is not None:
+                            context.market_context_score = precomputed_market_score
+                            context.market_context_trend = precomputed_market_trend
                         context_cache[symbol] = context
 
                     # Analysieren mit gecachtem Context
@@ -1603,17 +1626,42 @@ class MultiStrategyScanner:
 
         strategies = self._get_strategies_for_mode(mode)
 
+        # G.1: Pre-compute market context once (sync path)
+        sync_market_score: Optional[float] = None
+        sync_market_trend: Optional[str] = None
+        try:
+            spy_data = data_fetcher("SPY")
+            if spy_data and len(spy_data[0]) >= 50:
+                spy_prices = spy_data[0]
+                from ..analyzers.feature_scoring_mixin import FeatureScoringMixin
+                _scorer = FeatureScoringMixin()
+                mc_result = _scorer._score_market_context(spy_prices)
+                sync_market_score = mc_result[0]
+                sync_market_trend = mc_result[1]
+        except Exception as e:
+            logger.debug(f"G.1: Could not pre-compute market context (sync): {e}")
+
         for idx, symbol in enumerate(symbols):
             try:
                 if progress_callback:
                     progress_callback(idx + 1, len(symbols), symbol)
-                
+
                 # Daten abrufen
                 data = data_fetcher(symbol)
                 if not data or len(data[0]) < self.config.min_data_points:
                     continue
-                
+
                 prices, volumes, highs, lows, *_ = data
+
+                # G.1: Create context with pre-computed market data
+                ctx = AnalysisContext.from_data(
+                    symbol, prices, volumes, highs, lows,
+                    regime=self._get_regime(),
+                    sector=self._get_sector(symbol),
+                )
+                if sync_market_score is not None:
+                    ctx.market_context_score = sync_market_score
+                    ctx.market_context_trend = sync_market_trend
 
                 # Analysieren
                 signals = self.analyze_symbol(
@@ -1622,7 +1670,8 @@ class MultiStrategyScanner:
                     volumes=volumes,
                     highs=highs,
                     lows=lows,
-                    strategies=strategies
+                    strategies=strategies,
+                    context=ctx,
                 )
                 
                 if signals:

@@ -325,8 +325,12 @@ class FeatureScoringMixin:
         breakdown.vwap_position = vwap_result[3]
         breakdown.vwap_reason = vwap_result[4]
 
-        # Market Context Score
-        if context and hasattr(context, 'spy_prices') and context.spy_prices:
+        # Market Context Score — use pre-computed value (G.1) if available
+        if context and context.market_context_score is not None:
+            breakdown.market_context_score = context.market_context_score
+            breakdown.spy_trend = context.market_context_trend or "unknown"
+            breakdown.market_context_reason = f"Market: {context.market_context_trend}"
+        elif context and hasattr(context, 'spy_prices') and context.spy_prices:
             market_result = self._score_market_context(context.spy_prices)
             breakdown.market_context_score = market_result[0]
             breakdown.spy_trend = market_result[1]

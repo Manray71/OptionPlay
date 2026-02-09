@@ -86,7 +86,7 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
-@dataclass
+@dataclass(slots=True)
 class AnalysisContext:
     """
     Pre-calculated technical indicators and levels for a single symbol.
@@ -156,8 +156,15 @@ class AnalysisContext:
     is_near_ex_dividend: bool = False
     ex_dividend_amount: Optional[float] = None
 
+    # G.1: Pre-computed market context (SPY trend — same for all symbols in a scan)
+    market_context_score: Optional[float] = None
+    market_context_trend: Optional[str] = None
+
     # Strategy context (v3: for strategy-differentiated scoring)
     strategy: str = ""               # Current strategy being evaluated (pullback, bounce, etc.)
+
+    # Internal: open prices for gap calculation (prefixed _ but needs slot)
+    _opens: Optional[list[float]] = field(default=None, repr=False)
 
     @classmethod
     def from_data(

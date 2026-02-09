@@ -38,9 +38,9 @@
 | **B** | Performance Quick-Wins | 6 | HOCH | Woche 1-2 | ~8 Std | **~10-12 Std** | ✅ 6/6 done (2026-02-09) |
 | **C** | Code Quality Foundation | 10 | MITTEL | Woche 2-4 | ~25 Std | **~30-35 Std** | ✅ 10/10 done (2026-02-09) |
 | **D** | Architecture Modernization | 8 | MITTEL | Monat 2 | ~15 Tage | ~15 Tage ✓ | ✅ 8/8 done (2026-02-09) |
-| **E** | Trading Logic Improvements | 8 | MITTEL | Monat 2-3 | ~3 Tage | ~3 Tage ✓ | 🔄 5/8 → 8/8 |
-| **F** | Testing Gaps | 5 | NIEDRIG-MITTEL | Monat 3 | ~2 Tage | ~2 Tage ✓ | ⬜ 0/5 |
-| **G** | Advanced Optimization | 5 | NIEDRIG | Monat 3-6 | ~5 Tage | ~5 Tage ✓ | ⬜ 0/5 |
+| **E** | Trading Logic Improvements | 8 | MITTEL | Monat 2-3 | ~3 Tage | ~3 Tage ✓ | ✅ 8/8 done (2026-02-09) |
+| **F** | Testing Gaps | 5 | NIEDRIG-MITTEL | Monat 3 | ~2 Tage | ~2 Tage ✓ | ✅ 5/5 done (2026-02-09) |
+| **G** | Advanced Optimization | 5 | NIEDRIG | Monat 3-6 | ~5 Tage | ~5 Tage ✓ | ✅ 4/5 done, G.4 deferred (2026-02-09) |
 | **H** | Long-term Architecture | 5 | NIEDRIG | Monat 4-6 | ~5 Tage | ~5 Tage ✓ | ⬜ 0/5 |
 
 **Gesamt:** 53 Issues (+ 5 bereits gelöste aus Phase 7.0/7.1)
@@ -735,11 +735,11 @@ Phase G (Optimization)  Phase H (Long-term)
 | F.3 | F | Fehlende Modul-Tests | ✅ | 2026-02-09 |
 | F.4 | F | Data-Type-Coercion Tests | ✅ | 2026-02-09 |
 | F.5 | F | Hypothesis PBT ausbauen | ✅ | 2026-02-09 |
-| G.1 | G | NumPy batch-vektorisieren | ⬜ | 1-2 Tage |
-| G.2 | G | asyncio.create_task Tracking | ⬜ | 2-3 Std |
-| G.3 | G | Cache-Eviction-Statistik | ⬜ | 1-2 Std |
-| G.4 | G | Migration zu aiosqlite | ⬜ | 2-3 Tage |
-| G.5 | G | AnalysisContext Memory-Opt | ⬜ | 1 Tag |
+| G.1 | G | Pre-computed Market Context (SPY) | ✅ | 2026-02-09 |
+| G.2 | G | asyncio.create_task Tracking | ✅ | 2026-02-09 |
+| G.3 | G | Cache-Eviction-Statistik | ✅ | 2026-02-09 |
+| G.4 | G | Migration zu aiosqlite | ⏭ deferred | LOW ROI: 13 files/66 call sites, SQLite GIL limits async benefit |
+| G.5 | G | AnalysisContext Memory-Opt (slots=True) | ✅ | 2026-02-09 |
 | H.1 | H | Vollstaendige DI-Migration | ⬜ | 3-5 Tage |
 | H.2 | H | Black-Scholes Review | ⬜ | 0.5 Tage |
 | H.3 | H | TODO pool.py loesen | ⬜ | 2-3 Std |

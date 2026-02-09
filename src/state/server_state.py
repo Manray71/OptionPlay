@@ -291,6 +291,9 @@ class CacheMetrics:
     hits: int = 0
     misses: int = 0
     evictions: int = 0
+    evictions_ttl: int = 0
+    evictions_lru: int = 0
+    circuit_breaker_opens: int = 0
     ttl_seconds: int = 0
     max_entries: int = 0
     _current_entries: int = 0
@@ -350,6 +353,9 @@ class CacheMetrics:
         self.hits = 0
         self.misses = 0
         self.evictions = 0
+        self.evictions_ttl = 0
+        self.evictions_lru = 0
+        self.circuit_breaker_opens = 0
         self._current_entries = 0
 
     def to_dict(self) -> Dict[str, Any]:
@@ -361,6 +367,9 @@ class CacheMetrics:
             "total_requests": self.total_requests,
             "hit_rate_pct": round(self.hit_rate_pct, 2),
             "evictions": self.evictions,
+            "evictions_ttl": self.evictions_ttl,
+            "evictions_lru": self.evictions_lru,
+            "circuit_breaker_opens": self.circuit_breaker_opens,
             "current_entries": self.current_entries,
             "max_entries": self.max_entries,
             "fill_rate_pct": round(self.fill_rate * 100, 2),

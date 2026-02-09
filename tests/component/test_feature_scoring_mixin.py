@@ -348,6 +348,9 @@ class TestApplyFeatureScores:
         """Test applying feature scores with market context."""
         class MockContext:
             spy_prices = [400.0 + i * 0.3 for i in range(60)]
+            market_context_score = None
+            market_context_trend = None
+            vix = None
 
         mixin._apply_feature_scores(
             breakdown=sample_breakdown,

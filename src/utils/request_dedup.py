@@ -45,6 +45,9 @@ class RequestDeduplicator:
         self._in_flight: Dict[str, asyncio.Future] = {}
         self._lock = asyncio.Lock()
 
+        # G.2: Track background tasks to prevent GC of fire-and-forget tasks
+        self._tasks: set = set()
+
         # Statistics
         self._total_requests = 0
         self._deduplicated = 0
@@ -87,7 +90,10 @@ class RequestDeduplicator:
                 self._actual_calls += 1
 
                 # Start the actual request (outside the lock)
-                asyncio.create_task(self._execute_request(key, coro_factory, future))
+                # G.2: Track task to prevent GC
+                task = asyncio.create_task(self._execute_request(key, coro_factory, future))
+                self._tasks.add(task)
+                task.add_done_callback(self._tasks.discard)
                 logger.debug(f"Dedup MISS: {key} (starting new request)")
 
         # Wait for result (whether we started it or someone else did)
@@ -115,6 +121,11 @@ class RequestDeduplicator:
                 if key in self._in_flight:
                     del self._in_flight[key]
 
+    @property
+    def pending_tasks(self) -> int:
+        """Number of background tasks currently running."""
+        return len(self._tasks)
+
     def stats(self) -> Dict[str, Any]:
         """Get deduplication statistics."""
         dedup_rate = (
@@ -127,6 +138,7 @@ class RequestDeduplicator:
             "deduplicated": self._deduplicated,
             "dedup_rate_percent": round(dedup_rate, 1),
             "in_flight": len(self._in_flight),
+            "pending_tasks": self.pending_tasks,
         }
 
     def reset_stats(self) -> None:
