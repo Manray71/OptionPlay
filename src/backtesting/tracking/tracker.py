@@ -122,7 +122,7 @@ class TradeTracker:
         try:
             yield conn
             conn.commit()
-        except Exception:
+        except (sqlite3.DatabaseError, OSError):
             conn.rollback()
             raise
 

@@ -869,7 +869,8 @@ class IBKRMarketData:
                     try:
                         opt = Option(ibkr_sym, expiry_str, strike, right_upper, "SMART")
                         contracts.append((strike, opt))
-                    except Exception:
+                    except (TypeError, ValueError) as e:
+                        logger.warning("Contract creation failed for %s strike=%s: %s", symbol, strike, e)
                         continue
 
                 if not contracts:

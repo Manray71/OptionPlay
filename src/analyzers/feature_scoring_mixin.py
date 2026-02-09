@@ -53,7 +53,7 @@ def _get_fe_thresholds() -> Dict:
     try:
         from ..config.scoring_config import get_scoring_resolver
         _fe_thresholds_cache = get_scoring_resolver().get_feature_engineering_config()
-    except Exception:
+    except (ImportError, AttributeError):
         _fe_thresholds_cache = {}
 
     return _fe_thresholds_cache
@@ -300,7 +300,7 @@ class FeatureScoringMixin:
             else:
                 return 0.0, "none", 0.0, False, "No significant gap detected"
 
-        except Exception:
+        except (ValueError, IndexError):
             return 0.0, "none", 0.0, False, "Gap analysis error"
 
     def _apply_feature_scores(

@@ -208,6 +208,6 @@ class IbkrHandler(BaseHandler):
                     self._ctx.current_vix = quote.last
                     self._ctx.vix_updated = datetime.now()
                     return quote.last
-            except Exception:
-                pass
+            except (ConnectionError, AttributeError, TimeoutError) as e:
+                logger.debug("VIX fetch failed: %s", e)
         return None

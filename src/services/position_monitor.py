@@ -635,8 +635,8 @@ class PositionMonitor:
                 )
                 if not is_safe:
                     return False
-            except Exception:
-                pass  # If we can't check, allow roll
+            except (AttributeError, ValueError, RuntimeError) as e:
+                logger.debug("Earnings check failed for %s: %s", snap.symbol, e)
 
         return True
 

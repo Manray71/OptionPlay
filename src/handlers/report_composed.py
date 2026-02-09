@@ -255,8 +255,8 @@ class ReportHandler(BaseHandler):
                 if quote and hasattr(quote, 'last') and quote.last:
                     self._ctx.current_vix = quote.last
                     return quote.last
-            except Exception:
-                pass
+            except (ConnectionError, AttributeError, TimeoutError) as e:
+                logger.debug("VIX fetch failed: %s", e)
         return None
 
     async def _fetch_historical_cached(self, symbol: str, days: Optional[int] = None):

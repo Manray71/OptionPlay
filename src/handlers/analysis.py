@@ -61,7 +61,7 @@ class AnalysisHandlerMixin(BaseHandlerMixin):
         try:
             fundamentals_mgr = get_fundamentals_manager()
             fundamentals = fundamentals_mgr.get_fundamentals(symbol)
-        except Exception:
+        except (AttributeError, ValueError):
             fundamentals = None
 
         await self._rate_limiter.acquire()

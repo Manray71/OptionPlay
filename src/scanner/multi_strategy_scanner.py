@@ -635,8 +635,8 @@ class MultiStrategyScanner:
             fundamentals = manager.get_fundamentals(symbol)
             if fundamentals:
                 return fundamentals.sector
-        except Exception:
-            pass
+        except (AttributeError, ValueError) as e:
+            logger.debug("Sector lookup failed for %s: %s", symbol, e)
         return None
 
     def _create_pool(self) -> AnalyzerPool:
@@ -1253,7 +1253,7 @@ class MultiStrategyScanner:
         try:
             from ..config.scoring_config import get_scoring_resolver
             resolver = get_scoring_resolver()
-        except Exception:
+        except (ImportError, AttributeError):
             resolver = None
 
         regime = self._get_regime()

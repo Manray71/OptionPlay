@@ -321,7 +321,7 @@ class DailyRecommendationEngine(RecommendationRankingMixin):
         # Fundamentals Manager
         try:
             self._fundamentals_manager = get_fundamentals_manager()
-        except Exception:
+        except (ImportError, AttributeError):
             self._fundamentals_manager = None
             logger.warning("Fundamentals manager not available")
 

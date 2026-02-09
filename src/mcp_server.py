@@ -226,7 +226,7 @@ class OptionPlayServer(
             if tradier_key:
                 self._tradier_api_key = tradier_key
                 logger.info(f"Tradier API key found: {mask_api_key(tradier_key)}")
-        except Exception:
+        except (KeyError, ValueError):
             logger.debug("Tradier API key not configured")
 
         # Local Database Provider (primary source for historical data)

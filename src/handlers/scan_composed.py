@@ -866,7 +866,8 @@ class ScanHandler(BaseHandler):
                         safe.append(symbol)
                 else:
                     safe.append(symbol)
-            except Exception:
+            except (AttributeError, ValueError) as e:
+                logger.debug("Earnings filter error for %s: %s", symbol, e)
                 safe.append(symbol)
 
         return safe, excluded, cache_hits
@@ -901,8 +902,8 @@ class ScanHandler(BaseHandler):
                 if quote and hasattr(quote, 'last') and quote.last:
                     self._ctx.current_vix = quote.last
                     return quote.last
-            except Exception:
-                pass
+            except (ConnectionError, AttributeError, TimeoutError) as e:
+                logger.debug("VIX fetch failed: %s", e)
         return None
 
     async def _get_options_chain_with_fallback(self, symbol, dte_min=60, dte_max=90, right="P"):

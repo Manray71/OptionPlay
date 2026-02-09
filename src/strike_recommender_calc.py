@@ -242,7 +242,7 @@ class StrikeMetricsMixin:
                         option_type=OptionType.PUT,
                     ) * 100, 1
                 )
-            except Exception:
+            except (ValueError, TypeError):
                 if "delta" in metrics:
                     metrics["prob_profit"] = round((1 - abs(metrics["delta"])) * 100, 1)
         elif "delta" in metrics:

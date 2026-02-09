@@ -491,7 +491,7 @@ class PullbackAnalyzer(PullbackScoringMixin, BaseAnalyzer):
         try:
             resolved = self.get_weights(regime=regime, sector=sector)
             w = resolved.weights
-        except Exception:
+        except (KeyError, AttributeError, ImportError):
             w = {}
 
         # Default max weights per component (used when YAML weight matches original)

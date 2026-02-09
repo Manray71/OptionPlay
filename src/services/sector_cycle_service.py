@@ -130,7 +130,7 @@ class SectorCycleService:
             from ..container import get_container
             container = get_container()
             self._provider = await container.ensure_provider()
-        except Exception:
+        except (ImportError, AttributeError):
             logger.warning("Could not resolve market data provider")
         return self._provider
 

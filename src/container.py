@@ -317,7 +317,7 @@ class ServiceContainer:
         try:
             key = get_api_key("TRADIER_API_KEY", required=False)
             return bool(key)
-        except Exception:
+        except (KeyError, ValueError):
             return False
 
     async def disconnect(self) -> None:
