@@ -558,7 +558,7 @@ class HealthCheckFormatter(BaseFormatter):
                 b.kv_line("API Key", data.tradier_api_key_masked)
             if data.tradier_environment:
                 b.kv_line("Environment", data.tradier_environment.upper())
-            b.kv_line("Features", "Quotes, Options Chain, Historical Data")
+            b.kv_line("Features", "Quotes, Options Chain + Greeks (ORATS), Historical Data")
         else:
             b.kv_line("Status", "❌ Not configured (set TRADIER_API_KEY)")
 

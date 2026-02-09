@@ -711,6 +711,9 @@ class OptionPlayServer:
         tradier_environment = None
         if tradier_available:
             tradier_environment = cfg.settings.tradier.environment
+            # Trigger lazy connection so health check reflects actual status
+            if not self._tradier_connected:
+                await self._ensure_tradier_connected()
 
         # Local DB stats
         local_db_stats = None
