@@ -100,19 +100,19 @@ class TestVixHandlerGetVix:
     async def test_get_vix_tries_ibkr_first(self, vix_handler, mock_context):
         """Test get_vix tries IBKR bridge first."""
         mock_ibkr = AsyncMock()
-        mock_ibkr.get_vix = AsyncMock(return_value=19.5)
+        mock_ibkr.get_vix_value = AsyncMock(return_value=19.5)
         mock_context.ibkr_bridge = mock_ibkr
 
         result = await vix_handler.get_vix(force_refresh=True)
 
         assert result == 19.5
-        mock_ibkr.get_vix.assert_called_once()
+        mock_ibkr.get_vix_value.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_get_vix_falls_back_to_tradier(self, vix_handler, mock_context):
         """Test get_vix falls back to Tradier quote if IBKR fails."""
         mock_ibkr = AsyncMock()
-        mock_ibkr.get_vix = AsyncMock(side_effect=Exception("IBKR error"))
+        mock_ibkr.get_vix_value = AsyncMock(side_effect=Exception("IBKR error"))
         mock_context.ibkr_bridge = mock_ibkr
 
         # Tradier quote for VIX

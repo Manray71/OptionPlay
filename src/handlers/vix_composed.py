@@ -59,7 +59,7 @@ class VixHandler(BaseHandler):
         # Try IBKR first
         if self._ctx.ibkr_bridge:
             try:
-                vix = await self._ctx.ibkr_bridge.get_vix()
+                vix = await self._ctx.ibkr_bridge.get_vix_value()
                 if vix is not None:
                     self._ctx.current_vix = vix
                     self._ctx.vix_updated = datetime.now()
