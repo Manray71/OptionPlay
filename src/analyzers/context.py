@@ -152,6 +152,10 @@ class AnalysisContext:
     regime: str = "normal"           # VIX regime (low_vol, normal, elevated, high_vol, danger)
     sector: Optional[str] = None     # Sector name from fundamentals
 
+    # E.5: Dividend-Gap-Handling — set by scanner before analysis
+    is_near_ex_dividend: bool = False
+    ex_dividend_amount: Optional[float] = None
+
     # Strategy context (v3: for strategy-differentiated scoring)
     strategy: str = ""               # Current strategy being evaluated (pullback, bounce, etc.)
 

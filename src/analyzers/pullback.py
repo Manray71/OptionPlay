@@ -413,9 +413,29 @@ class PullbackAnalyzer(PullbackScoringMixin, BaseAnalyzer):
         breakdown.volume_trend = vol_result[2]
         breakdown.volume_ratio = current_volume / avg_volume if avg_volume > 0 else 0
 
-        # E.5: Detect potential dividend gap (warning only, no score penalty)
+        # E.5: Dividend-Gap-Handling — data-driven when available, heuristic fallback
         warnings = []
-        if len(prices) >= 2 and avg_volume > 0:
+        if context and context.is_near_ex_dividend and len(prices) >= 2:
+            overnight_gap_pct = (prices[-1] - prices[-2]) / prices[-2] * 100
+            div_amount = context.ex_dividend_amount
+            if div_amount and prices[-2] > 0:
+                expected_gap_pct = -(div_amount / prices[-2]) * 100
+                # If observed gap is within 50% of expected dividend gap, neutralize
+                if overnight_gap_pct < 0 and abs(overnight_gap_pct - expected_gap_pct) < abs(expected_gap_pct) * 0.5:
+                    # Neutralize gap score — this is a dividend gap, not a bearish signal
+                    if hasattr(breakdown, 'gap_score'):
+                        breakdown.gap_score = 0.0
+                    warnings.append(
+                        f"Dividend gap neutralized (${div_amount:.2f}, gap {overnight_gap_pct:.1f}%)"
+                    )
+                else:
+                    warnings.append(
+                        f"Near ex-dividend (${div_amount:.2f}) but gap {overnight_gap_pct:.1f}% doesn't match"
+                    )
+            else:
+                warnings.append("Near ex-dividend date (amount unknown)")
+        elif len(prices) >= 2 and avg_volume > 0:
+            # Heuristic fallback when no dividend data available
             overnight_gap_pct = (prices[-1] - prices[-2]) / prices[-2] * 100
             vol_ratio = current_volume / avg_volume
             if PULLBACK_GAP_WARNING_MIN <= overnight_gap_pct <= PULLBACK_GAP_WARNING_MAX and vol_ratio < PULLBACK_GAP_VOL_THRESHOLD:

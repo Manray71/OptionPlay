@@ -339,7 +339,11 @@ class TradierProvider(DataProvider):
     ) -> List[HistoricalBar]:
         """
         Historische Preisdaten abrufen.
-        
+
+        E.7: Tradier /v1/markets/history liefert standardmäßig split-adjustierte
+        Preise. daily_prices.close IST der adjustierte Kurs — keine separate
+        Split-Korrektur nötig.
+
         Args:
             symbol: Ticker oder OCC Options-Symbol
             days: Anzahl Tage

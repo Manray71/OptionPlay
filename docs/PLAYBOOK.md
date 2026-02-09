@@ -57,6 +57,19 @@ Der Scanner filtert Symbole mit Earnings innerhalb von 60 Tagen VOR dem Scan (Pr
 
 **Wichtig:** Der 60-Tage-Abstand bezieht sich auf das nächste Earnings-Datum ab dem Scan-Zeitpunkt. Liegt das Earnings-Datum in der Vergangenheit (bereits berichtet), greift der Filter nicht.
 
+### Dividend-Gap-Handling (E.5)
+
+Ex-Dividend-Tage verursachen einen Kursrückgang in Höhe der Dividende. Ohne Erkennung kann dies als Pullback/Dip fehlinterpretiert werden.
+
+**Lösung:** Der Scanner prüft vor der Analyse, ob ein Symbol nahe an einem Ex-Dividend-Datum liegt:
+- `DividendHistoryManager` speichert historische Ex-Dividend-Daten (via `scripts/collect_dividends.py`)
+- `AnalysisContext.is_near_ex_dividend` wird gesetzt wenn Ex-Date ±2 Tage entfernt
+- `AnalysisContext.ex_dividend_amount` enthält den Dividendenbetrag
+- **Pullback-Analyzer:** Wenn der beobachtete Gap dem erwarteten Dividenden-Gap entspricht (±50%), wird der Gap-Score neutralisiert
+- **Heuristik-Fallback:** Ohne Dividend-Daten wird ein Gap von -1% bis -3% bei niedrigem Volumen als potentieller Dividend-Gap gewarnt
+
+**Datenquelle:** `yfinance ticker.dividends` → `dividend_history` Tabelle in `trades.db`
+
 ---
 
 ## 2. SPREAD-PARAMETER

@@ -38,7 +38,7 @@
 | **B** | Performance Quick-Wins | 6 | HOCH | Woche 1-2 | ~8 Std | **~10-12 Std** | ✅ 6/6 done (2026-02-09) |
 | **C** | Code Quality Foundation | 10 | MITTEL | Woche 2-4 | ~25 Std | **~30-35 Std** | ✅ 10/10 done (2026-02-09) |
 | **D** | Architecture Modernization | 8 | MITTEL | Monat 2 | ~15 Tage | ~15 Tage ✓ | ✅ 8/8 done (2026-02-09) |
-| **E** | Trading Logic Improvements | 8 | MITTEL | Monat 2-3 | ~3 Tage | ~3 Tage ✓ | ⬜ 0/8 |
+| **E** | Trading Logic Improvements | 8 | MITTEL | Monat 2-3 | ~3 Tage | ~3 Tage ✓ | 🔄 5/8 → 8/8 |
 | **F** | Testing Gaps | 5 | NIEDRIG-MITTEL | Monat 3 | ~2 Tage | ~2 Tage ✓ | ⬜ 0/5 |
 | **G** | Advanced Optimization | 5 | NIEDRIG | Monat 3-6 | ~5 Tage | ~5 Tage ✓ | ⬜ 0/5 |
 | **H** | Long-term Architecture | 5 | NIEDRIG | Monat 4-6 | ~5 Tage | ~5 Tage ✓ | ⬜ 0/5 |
@@ -488,95 +488,55 @@ CREATE INDEX IF NOT EXISTS idx_earnings_symbol_date ON earnings_history(symbol, 
 ## Phase E — Trading Logic Improvements (Monat 2-3)
 
 **Ziel:** Strategie-Qualitaet verbessern, Edge-Cases absichern, Backtest-Bias reduzieren.
+**Status:** ✅ Komplett (8/8 done, 2026-02-09)
 
-### E.1 Bounce-Strategie: Momentum-Check — MITTEL
+### E.1 Bounce-Strategie: Momentum-Check — MITTEL ✅ ERLEDIGT (Strategy-Refactor Session 1)
 
 **Problem:** Kein MACD/RSI-Recovery-Check nach Bounce — Dead-Cat-Bounce Risiko.
-**Ort:** `src/analyzers/bounce.py:~650`
-**Aufwand:** 2-3 Stunden
+**Ort:** `src/analyzers/bounce.py:655-692`
+**Lösung:** RSI turning up (+0.5), MACD cross (+0.5), momentum fading (-0.5), MACD declining (-0.5). Implementiert in `_score_momentum()`.
 
-**Schritte:**
-1. RSI-Recovery-Check: RSI muss nach Bounce ansteigen (nicht nur prallen)
-2. MACD-Histogram-Check: Muss positiv drehen
-3. Score-Penalty wenn Momentum fehlt (-0.5 bis -1.0)
-4. Tests ergaenzen
-
-### E.2 Bounce-Strategie: Trend-Alignment — MITTEL
+### E.2 Bounce-Strategie: Trend-Alignment — MITTEL ✅ ERLEDIGT (Strategy-Refactor Session 1)
 
 **Problem:** Bounce in Downtrend (SMA200 fallend) scored gleich wie in Uptrend.
-**Ort:** `src/analyzers/bounce.py`
-**Aufwand:** 1-2 Stunden
+**Ort:** `src/analyzers/bounce.py:855-903`
+**Lösung:** `_score_trend_context()` mit SMA200-Slope: steep downtrend -2.0, moderate -1.5, mild -1.0, uptrend +1.5.
 
-**Schritte:**
-1. SMA200-Slope berechnen (letzten 20 Tage)
-2. Bei negativem Slope: Score-Penalty (-0.5 bis -1.0)
-3. Bei positivem Slope: Score-Bonus (+0.5)
-
-### E.3 Pullback-Strategie: Volume-Decline Penalty — NIEDRIG
+### E.3 Pullback-Strategie: Volume-Decline Penalty — NIEDRIG ✅ ERLEDIGT (Strategy-Refactor Session 1)
 
 **Problem:** Volume-Scoring belohnt nur Spikes, bestraft nicht Decline.
-**Ort:** `src/analyzers/pullback_scoring.py`
-**Aufwand:** 1-2 Stunden
+**Ort:** `src/analyzers/pullback_scoring.py:197-219`
+**Lösung:** Very low volume penalized, declining volume rewarded als healthy pullback pattern.
 
-**Schritte:**
-1. Volume-Decline-Ratio: `current_vol / avg_vol`
-2. Bei Ratio < 0.5: Penalty (-0.5)
-3. Verhindert Over-Scoring bei schwachen Reversals
-
-### E.4 Bounce-Strategie: Dead-Cat-Bounce Filter verbessern — NIEDRIG
+### E.4 Bounce-Strategie: Dead-Cat-Bounce Filter verbessern — NIEDRIG ✅ ERLEDIGT (Strategy-Refactor Session 1)
 
 **Problem:** DCB-Filter prueft nur Volume (Threshold 0.7), nicht Momentum.
-**Ort:** `src/analyzers/bounce.py:80`
-**Aufwand:** 1-2 Stunden
+**Ort:** `src/analyzers/bounce.py:308-337`
+**Lösung:** Volume < 0.7x disqualify, RSI > 70 disqualify, 2 red candles disqualify.
 
-**Schritte:**
-1. Zusaetzlich zur Volume-Pruefung: RSI > 30 nach Bounce
-2. Preis muss > VWAP sein
-3. Min. 2 aufeinanderfolgende Gruene Kerzen nach Bounce
-
-### E.5 Dividend-Gap-Handling — NIEDRIG
+### E.5 Dividend-Gap-Handling — NIEDRIG ✅ ERLEDIGT (2026-02-09)
 
 **Problem:** Ex-Dividend Gaps werden als Pullbacks/Dips fehlinterpretiert.
 **Ort:** Alle Analyzer
-**Aufwand:** 1 Tag
+**Lösung:** `DividendHistoryManager` (src/cache/dividend_history.py) mit SQLite-basierter Ex-Dividend-Datenbank. Scanner setzt `is_near_ex_dividend`/`ex_dividend_amount` im AnalysisContext. Pullback-Analyzer neutralisiert Gap-Score bei Dividend-Gap-Match. EventCalendar-Integration via `add_dividends_from_db()`. Collection-Script: `scripts/collect_dividends.py`.
 
-**Schritte:**
-1. Ex-Dividend-Daten via Tradier API abfragen (oder Yahoo Finance)
-2. `earnings_history`-Tabelle um `dividend_date` Column erweitern
-3. In Analyzer: Gap an Ex-Div-Tag ignorieren / Score-Neutral setzen
-
-### E.6 Survivorship-Bias-Korrektur — NIEDRIG
+### E.6 Survivorship-Bias-Korrektur — NIEDRIG ✅ ERLEDIGT (2026-02-09)
 
 **Problem:** Backtest enthaelt keine delisteten Unternehmen — Ergebnisse ggf. optimistisch.
-**Ort:** `src/backtesting/core/engine.py`
-**Aufwand:** 1-2 Tage
+**Ort:** `src/backtesting/core/engine.py`, `src/cache/symbol_fundamentals.py`
+**Lösung:** `delisted: int = 0` Feld zum SymbolFundamentals Dataclass + DB-Schema hinzugefügt. `_filter_delisted()` in engine.py nutzt jetzt echtes DB-Feld statt nur getattr-Fallback. ALTER TABLE Migration für bestehende DBs.
 
-**Schritte:**
-1. `symbol_fundamentals.delisted` Flag ergaenzen
-2. Backtest-Config: `include_delisted: bool = False` (Default)
-3. Bei True: Delistete Symbole mit Max-Loss-Outcome einbeziehen
-4. Vergleichs-Metrik: WR mit vs. ohne Survivorship-Filter
-
-### E.7 Stock-Split-Handling — NIEDRIG
+### E.7 Stock-Split-Handling — NIEDRIG ✅ N/A (2026-02-09)
 
 **Problem:** Keine explizite Behandlung von Stock-Splits.
 **Ort:** Daten-Layer
-**Aufwand:** 2-3 Stunden
+**Lösung:** Verifiziert: Tradier `/v1/markets/history` liefert standardmäßig split-adjustierte Daten. `daily_prices.close` IST der adjustierte Kurs. Kommentar in `tradier.py:get_historical()` hinzugefügt.
 
-**Schritte:**
-1. Split-adjustierte Preise via Tradier API (bereits Standard)
-2. Verify: `daily_prices` enthalten adjustierte Werte
-3. Dokumentieren dass Broker adjustierte Daten liefert
-
-### E.8 Earnings Pre-Filter Timing dokumentieren — NIEDRIG
+### E.8 Earnings Pre-Filter Timing dokumentieren — NIEDRIG ✅ ERLEDIGT (Strategy-Refactor Session)
 
 **Problem:** Pre-Filter schliesst Earnings-Reversals an Tag 3-7 aus.
 **Ort:** Dokumentation
-**Aufwand:** 15 Min
-
-**Schritte:**
-1. In `docs/PLAYBOOK.md` explizit dokumentieren: "By design — konservativer Ansatz"
-2. Optional: Konfigurierbar machen: `earnings_exclusion_days: 14` (Default)
+**Lösung:** In `docs/PLAYBOOK.md` §1.4 dokumentiert als "By design — konservativer Ansatz". `exclude_earnings_within_days` konfigurierbar im ScanConfig.
 
 ---
 
@@ -762,14 +722,14 @@ Phase G (Optimization)  Phase H (Long-term)
 | D.6 | D | ServerState integrieren | ⬜ | 1 Tag |
 | D.7 | D | Service-Duplikation (Phase 2.4 Rest) | ⬜ | 0.5 Tage |
 | D.8 | D | Backtesting >1000 LOC splitten (5 Dateien) | ⬜ | 3-5 Tage |
-| E.1 | E | Bounce: Momentum-Check | ⬜ | 2-3 Std |
-| E.2 | E | Bounce: Trend-Alignment | ⬜ | 1-2 Std |
-| E.3 | E | Pullback: Volume-Decline Penalty | ⬜ | 1-2 Std |
-| E.4 | E | Bounce: DCB-Filter verbessern | ⬜ | 1-2 Std |
-| E.5 | E | Dividend-Gap-Handling | ⬜ | 1 Tag |
-| E.6 | E | Survivorship-Bias-Korrektur | ⬜ | 1-2 Tage |
-| E.7 | E | Stock-Split-Handling verifizieren | ⬜ | 2-3 Std |
-| E.8 | E | Earnings Pre-Filter dokumentieren | ⬜ | 15 Min |
+| E.1 | E | Bounce: Momentum-Check | ✅ | Strategy-Refactor |
+| E.2 | E | Bounce: Trend-Alignment | ✅ | Strategy-Refactor |
+| E.3 | E | Pullback: Volume-Decline Penalty | ✅ | Strategy-Refactor |
+| E.4 | E | Bounce: DCB-Filter verbessern | ✅ | Strategy-Refactor |
+| E.5 | E | Dividend-Gap-Handling | ✅ | 2026-02-09 |
+| E.6 | E | Survivorship-Bias-Korrektur (Schema) | ✅ | 2026-02-09 |
+| E.7 | E | Stock-Split-Handling verifizieren | ✅ N/A | 2026-02-09 |
+| E.8 | E | Earnings Pre-Filter dokumentieren | ✅ | Strategy-Refactor |
 | F.1 | F | Negative/Malicious Input Tests | ⬜ | 2-3 Std |
 | F.2 | F | Concurrent-Access Tests | ⬜ | 2-3 Std |
 | F.3 | F | Fehlende Modul-Tests | ⬜ | 1-2 Tage |
@@ -1008,15 +968,15 @@ find "$BACKUP_DIR" -name "*.gz" -mtime +30 -delete
 - [x] D.7 Stability-Filter Duplikation aufloesen
 - [x] D.8 ml_weight_optimizer.py splitten
 
-## Phase E: Trading Logic (Priority!) ⬜ 0/8
-- [ ] E.5 Dividend-Gap-Handling
-- [ ] E.1 Bounce: Momentum
-- [ ] E.2 Bounce: Trend
-- [ ] E.4 DCB-Filter
-- [ ] E.3 Pullback: Volume
-- [ ] E.6 Survivorship-Bias
-- [ ] E.7 Stock-Split
-- [ ] E.8 Earnings Doku
+## Phase E: Trading Logic ✅ 8/8
+- [x] E.1 Bounce: Momentum (Strategy-Refactor)
+- [x] E.2 Bounce: Trend (Strategy-Refactor)
+- [x] E.3 Pullback: Volume (Strategy-Refactor)
+- [x] E.4 DCB-Filter (Strategy-Refactor)
+- [x] E.5 Dividend-Gap-Handling (2026-02-09)
+- [x] E.6 Survivorship-Bias Schema (2026-02-09)
+- [x] E.7 Stock-Split N/A (2026-02-09)
+- [x] E.8 Earnings Doku (Strategy-Refactor)
 ```
 
 **Performance-Benchmarks (vor/nach Änderungen):**

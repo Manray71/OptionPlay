@@ -98,6 +98,9 @@ class SymbolFundamentals:
     # Earnings
     earnings_beat_rate: Optional[float] = None  # Calculated from earnings_history
 
+    # E.6: Survivorship Bias — 1 = delisted/acquired, 0 = active
+    delisted: int = 0
+
     # Metadata
     updated_at: Optional[str] = None
     data_source: Optional[str] = None
@@ -231,11 +234,21 @@ class SymbolFundamentalsManager:
                         -- Earnings
                         earnings_beat_rate REAL,
 
+                        -- E.6: Survivorship Bias
+                        delisted INTEGER DEFAULT 0,
+
                         -- Metadata
                         updated_at TEXT,
                         data_source TEXT
                     )
                 """)
+
+                # E.6: Migration for existing DBs — add delisted column if missing
+                try:
+                    cursor.execute("SELECT delisted FROM symbol_fundamentals LIMIT 1")
+                except sqlite3.OperationalError:
+                    cursor.execute("ALTER TABLE symbol_fundamentals ADD COLUMN delisted INTEGER DEFAULT 0")
+                    logger.info("Migrated symbol_fundamentals: added 'delisted' column")
 
                 # Indices for fast queries
                 cursor.execute("""

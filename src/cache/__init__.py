@@ -91,6 +91,16 @@ from .symbol_fundamentals import (
     categorize_market_cap,
 )
 
+from .dividend_history import (
+    # Classes
+    DividendHistoryManager,
+    DividendRecord,
+
+    # Functions
+    get_dividend_history_manager,
+    reset_dividend_history_manager,
+)
+
 from .vix_cache import (
     # Classes
     VixCacheManager,
@@ -174,6 +184,14 @@ __all__ = [
     'get_fundamentals_manager',
     'reset_fundamentals_manager',
     'categorize_market_cap',
+
+    # Dividend History Classes
+    'DividendHistoryManager',
+    'DividendRecord',
+
+    # Dividend History Functions
+    'get_dividend_history_manager',
+    'reset_dividend_history_manager',
 
     # VIX Cache Classes
     'VixCacheManager',

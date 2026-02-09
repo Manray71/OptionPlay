@@ -424,6 +424,53 @@ class EventCalendar:
             details={'amount': amount} if amount else {}
         ))
 
+    def add_dividends_from_db(self, dividend_manager=None) -> int:
+        """
+        E.5: Imports ex-dividend dates from DividendHistoryManager.
+
+        Args:
+            dividend_manager: DividendHistoryManager instance (uses singleton if None)
+
+        Returns:
+            Number of imported events
+        """
+        if dividend_manager is None:
+            try:
+                from ..cache.dividend_history import get_dividend_history_manager
+                dividend_manager = get_dividend_history_manager()
+            except (ImportError, Exception) as e:
+                logger.debug("Cannot load dividend manager: %s", e)
+                return 0
+
+        count = 0
+        today = date.today()
+        # Load dividends for the next 90 days
+        try:
+            with dividend_manager._lock:
+                with dividend_manager._get_connection() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("""
+                        SELECT symbol, ex_date, amount
+                        FROM dividend_history
+                        WHERE ex_date >= ? AND ex_date <= ?
+                        ORDER BY ex_date
+                    """, (today.isoformat(), (today + timedelta(days=90)).isoformat()))
+
+                    for row in cursor:
+                        ex_dt = row["ex_date"]
+                        if isinstance(ex_dt, str):
+                            ex_dt = date.fromisoformat(ex_dt)
+                        self.add_dividend(
+                            symbol=row["symbol"],
+                            ex_date=ex_dt,
+                            amount=row["amount"],
+                        )
+                        count += 1
+        except Exception as e:
+            logger.debug("Error loading dividends from DB: %s", e)
+
+        return count
+
     def add_earnings_from_cache(self, earnings_cache) -> int:
         """
         Importiert Earnings aus EarningsCache.

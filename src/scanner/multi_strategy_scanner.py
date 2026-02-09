@@ -60,6 +60,12 @@ except ImportError:
     get_fundamentals_manager = None
     SymbolFundamentals = None
 
+# E.5: Dividend-Gap-Handling
+try:
+    from ..cache.dividend_history import get_dividend_history_manager
+except ImportError:
+    get_dividend_history_manager = None
+
 logger = logging.getLogger(__name__)
 
 
@@ -606,6 +612,19 @@ class MultiStrategyScanner:
             logger.debug("Sector lookup failed for %s: %s", symbol, e)
         return None
 
+    def _set_dividend_context(self, context: AnalysisContext, symbol: str) -> None:
+        """E.5: Sets dividend context fields for gap-filtering."""
+        if get_dividend_history_manager is None:
+            return
+        try:
+            manager = get_dividend_history_manager()
+            today = date.today()
+            context.is_near_ex_dividend = manager.is_near_ex_dividend(symbol, today)
+            if context.is_near_ex_dividend:
+                context.ex_dividend_amount = manager.get_ex_dividend_amount(symbol, today)
+        except Exception as e:
+            logger.debug("Dividend lookup failed for %s: %s", symbol, e)
+
     def _create_pool(self) -> AnalyzerPool:
         """Erstellt und konfiguriert den Analyzer Pool"""
         pool_config = PoolConfig(
@@ -895,6 +914,10 @@ class MultiStrategyScanner:
                 regime=self._get_regime(),
                 sector=self._get_sector(symbol),
             )
+
+        # E.5: Set dividend context for gap-filtering
+        if context is not None:
+            self._set_dividend_context(context, symbol)
 
         for strategy_name in strategies_to_use:
             try:
