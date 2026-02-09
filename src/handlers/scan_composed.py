@@ -133,6 +133,7 @@ class ScanHandler(BaseHandler):
             enable_bounce = mode in [ScanMode.BOUNCE_ONLY, ScanMode.ALL, ScanMode.BEST_SIGNAL]
             enable_breakout = mode in [ScanMode.BREAKOUT_ONLY, ScanMode.ALL, ScanMode.BEST_SIGNAL]
             enable_earnings_dip = mode in [ScanMode.EARNINGS_DIP, ScanMode.ALL, ScanMode.BEST_SIGNAL]
+            enable_trend = mode in [ScanMode.TREND_ONLY, ScanMode.ALL, ScanMode.BEST_SIGNAL]
 
             scanner = self._get_multi_scanner(
                 min_score=min_score,
@@ -140,6 +141,7 @@ class ScanHandler(BaseHandler):
                 enable_bounce=enable_bounce,
                 enable_breakout=enable_breakout,
                 enable_earnings_dip=enable_earnings_dip,
+                enable_trend_continuation=enable_trend,
             )
             scanner.config.max_total_results = max_results
 
@@ -609,6 +611,7 @@ class ScanHandler(BaseHandler):
             enable_bounce=True,
             enable_breakout=True,
             enable_earnings_dip=True,
+            enable_trend_continuation=True,
         )
 
         engine = DailyRecommendationEngine(
@@ -875,7 +878,7 @@ class ScanHandler(BaseHandler):
 
     def _get_multi_scanner(self, min_score=3.5, enable_pullback=True,
                            enable_bounce=True, enable_breakout=True,
-                           enable_earnings_dip=True,
+                           enable_earnings_dip=True, enable_trend_continuation=True,
                            exclude_earnings_within_days=None):
         """Get a configured MultiStrategyScanner instance."""
         from ..scanner.multi_strategy_scanner import MultiStrategyScanner, ScanConfig
@@ -884,8 +887,9 @@ class ScanHandler(BaseHandler):
             min_score=min_score,
             enable_pullback=enable_pullback,
             enable_bounce=enable_bounce,
-            enable_breakout=enable_breakout,
+            enable_ath_breakout=enable_breakout,
             enable_earnings_dip=enable_earnings_dip,
+            enable_trend_continuation=enable_trend_continuation,
         )
         if exclude_earnings_within_days is not None:
             config.exclude_earnings_within_days = exclude_earnings_within_days

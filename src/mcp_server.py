@@ -409,6 +409,7 @@ class OptionPlayServer:
         enable_bounce: bool = True,
         enable_breakout: bool = True,
         enable_earnings_dip: bool = True,
+        enable_trend_continuation: bool = True,
         exclude_earnings_within_days: Optional[int] = None,
     ) -> MultiStrategyScanner:
         """Get scanner instance with all strategies enabled."""
@@ -425,6 +426,7 @@ class OptionPlayServer:
             enable_bounce=enable_bounce,
             enable_ath_breakout=enable_breakout,
             enable_earnings_dip=enable_earnings_dip,
+            enable_trend_continuation=enable_trend_continuation,
             enable_iv_filter=enable_iv,
         )
         if exclude_earnings_within_days is not None:

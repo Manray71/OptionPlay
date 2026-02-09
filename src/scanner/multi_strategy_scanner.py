@@ -1821,12 +1821,13 @@ def create_scanner(
     enable_breakout: bool = True,
     enable_bounce: bool = True,
     enable_earnings_dip: bool = True,
+    enable_trend_continuation: bool = True,
     min_score: float = 3.5,  # Normalized 0-10 scale
     exclude_earnings_days: int = 60
 ) -> MultiStrategyScanner:
     """
     Factory-Funktion für einfache Scanner-Erstellung.
-    
+
     Beispiel:
         scanner = create_scanner(enable_earnings_dip=False)
         result = scanner.scan_sync(symbols, data_fetcher)
@@ -1837,7 +1838,8 @@ def create_scanner(
         enable_pullback=enable_pullback,
         enable_ath_breakout=enable_breakout,
         enable_bounce=enable_bounce,
-        enable_earnings_dip=enable_earnings_dip
+        enable_earnings_dip=enable_earnings_dip,
+        enable_trend_continuation=enable_trend_continuation,
     )
     return MultiStrategyScanner(config)
 

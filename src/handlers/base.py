@@ -110,6 +110,7 @@ class BaseHandlerMixin:
         enable_bounce: bool = True,
         enable_breakout: bool = True,
         enable_earnings_dip: bool = True,
+        enable_trend_continuation: bool = True,
     ) -> "MultiStrategyScanner":
         """Get multi-strategy scanner instance."""
         raise NotImplementedError

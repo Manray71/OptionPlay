@@ -207,7 +207,8 @@ class ScannerService(BaseService):
         enable_bounce = strategies is None or Strategy.BOUNCE in strategies
         enable_breakout = strategies is None or Strategy.ATH_BREAKOUT in strategies
         enable_earnings_dip = strategies is None or Strategy.EARNINGS_DIP in strategies
-        
+        enable_trend = strategies is None or Strategy.TREND_CONTINUATION in strategies
+
         # Create multi-strategy scanner
         scanner = self._create_multi_scanner(
             min_score=min_score,
@@ -215,6 +216,7 @@ class ScannerService(BaseService):
             enable_bounce=enable_bounce,
             enable_breakout=enable_breakout,
             enable_earnings_dip=enable_earnings_dip,
+            enable_trend_continuation=enable_trend,
         )
         scanner.config.max_total_results = max_results * 2
         
@@ -375,6 +377,7 @@ class ScannerService(BaseService):
         enable_bounce: bool,
         enable_breakout: bool,
         enable_earnings_dip: bool,
+        enable_trend_continuation: bool = True,
     ) -> MultiStrategyScanner:
         """Erstellt Scanner mit mehreren Strategien."""
         config = ScanConfig(
@@ -383,6 +386,7 @@ class ScannerService(BaseService):
             enable_bounce=enable_bounce,
             enable_ath_breakout=enable_breakout,
             enable_earnings_dip=enable_earnings_dip,
+            enable_trend_continuation=enable_trend_continuation,
         )
         return MultiStrategyScanner(config)
     

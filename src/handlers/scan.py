@@ -140,6 +140,7 @@ class ScanHandlerMixin(BaseHandlerMixin):
             enable_bounce = mode in [ScanMode.BOUNCE_ONLY, ScanMode.ALL, ScanMode.BEST_SIGNAL]
             enable_breakout = mode in [ScanMode.BREAKOUT_ONLY, ScanMode.ALL, ScanMode.BEST_SIGNAL]
             enable_earnings_dip = mode in [ScanMode.EARNINGS_DIP, ScanMode.ALL, ScanMode.BEST_SIGNAL]
+            enable_trend = mode in [ScanMode.TREND_ONLY, ScanMode.ALL, ScanMode.BEST_SIGNAL]
 
             scanner = self._get_multi_scanner(
                 min_score=min_score,
@@ -147,6 +148,7 @@ class ScanHandlerMixin(BaseHandlerMixin):
                 enable_bounce=enable_bounce,
                 enable_breakout=enable_breakout,
                 enable_earnings_dip=enable_earnings_dip,
+                enable_trend_continuation=enable_trend,
             )
             scanner.config.max_total_results = max_results
 
@@ -641,6 +643,7 @@ class ScanHandlerMixin(BaseHandlerMixin):
             enable_bounce=True,
             enable_breakout=True,
             enable_earnings_dip=True,
+            enable_trend_continuation=True,
         )
 
         engine = DailyRecommendationEngine(
