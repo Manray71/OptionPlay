@@ -617,12 +617,42 @@ class AnalysisHandler(BaseHandler):
         return quote
 
     async def _fetch_historical_cached(self, symbol: str, days: Optional[int] = None):
+        """Fetch historical data with caching.
+
+        Priority: in-memory cache → Tradier → Marketdata.app provider.
+        """
+        from ..cache.historical_cache import CacheStatus
+
+        if days is None:
+            days = self._ctx.config.settings.performance.historical_days
+
+        # 1. Check in-memory cache
         if self._ctx.historical_cache:
-            return await self._ctx.historical_cache.get_historical(
-                symbol, days=days, provider=self._ctx.provider
-            )
+            cache_result = self._ctx.historical_cache.get(symbol, days)
+            if cache_result.status == CacheStatus.HIT:
+                return cache_result.data
+
+        # 2. Try Tradier provider
+        if self._ctx.tradier_connected and self._ctx.tradier_provider:
+            try:
+                data = await self._ctx.tradier_provider.get_historical_for_scanner(symbol, days=days)
+                if data:
+                    if self._ctx.historical_cache:
+                        self._ctx.historical_cache.set(symbol, data, days=days)
+                    return data
+            except (ConnectionError, TimeoutError, ValueError) as e:
+                self._logger.debug(f"Tradier historical failed for {symbol}: {e}")
+
+        # 3. Fall back to Marketdata.app provider
         if self._ctx.provider:
-            return await self._ctx.provider.get_historical_for_scanner(symbol, days=days or 120)
+            try:
+                data = await self._ctx.provider.get_historical_for_scanner(symbol, days=days)
+                if data and self._ctx.historical_cache:
+                    self._ctx.historical_cache.set(symbol, data, days=days)
+                return data
+            except Exception as e:
+                self._logger.debug(f"Provider historical failed for {symbol}: {e}")
+
         return None
 
     def _get_scanner(self, min_score=None, earnings_days=None):
@@ -639,7 +669,7 @@ class AnalysisHandler(BaseHandler):
             min_score=min_score,
             enable_pullback=enable_pullback,
             enable_bounce=enable_bounce,
-            enable_breakout=enable_breakout,
+            enable_ath_breakout=enable_breakout,
             enable_earnings_dip=enable_earnings_dip,
             enable_trend_continuation=enable_trend_continuation,
         )

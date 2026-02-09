@@ -262,23 +262,30 @@ class PullbackAnalyzer(PullbackScoringMixin, BaseAnalyzer):
 
             # MACD still needs MACDResult format
             if context.macd_line is not None:
+                crossover = None
+                if context.macd_histogram:
+                    crossover = 'bullish' if context.macd_histogram > 0 else 'bearish'
                 macd_result = MACDResult(
                     macd_line=context.macd_line,
                     signal_line=context.macd_signal,
                     histogram=context.macd_histogram,
-                    bullish_cross=context.macd_histogram > 0 if context.macd_histogram else False,
-                    bearish_cross=context.macd_histogram < 0 if context.macd_histogram else False
+                    crossover=crossover,
                 )
             else:
                 macd_result = self._calculate_macd(prices)
 
             # Stochastic
             if context.stoch_k is not None:
+                if context.stoch_k < self.STOCH_OVERSOLD:
+                    zone = 'oversold'
+                elif context.stoch_k > self.STOCH_OVERBOUGHT:
+                    zone = 'overbought'
+                else:
+                    zone = 'neutral'
                 stoch_result = StochasticResult(
                     k=context.stoch_k,
                     d=context.stoch_d,
-                    oversold=context.stoch_k < self.STOCH_OVERSOLD,
-                    overbought=context.stoch_k > self.STOCH_OVERBOUGHT
+                    zone=zone,
                 )
             else:
                 stoch_result = self._calculate_stochastic(highs, lows, prices)
