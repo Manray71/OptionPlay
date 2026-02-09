@@ -18,7 +18,7 @@ import inspect
 import logging
 from enum import Enum
 from collections.abc import Callable, Coroutine
-from typing import Any, TypeVar, Optional, Union
+from typing import Any, TypeVar, Optional, TypedDict, Union
 
 from .validation import ValidationError
 from .circuit_breaker import CircuitBreakerOpen
@@ -28,6 +28,16 @@ logger = logging.getLogger(__name__)
 
 # Type variable for return type
 T = TypeVar('T')
+
+
+class ErrorPayload(TypedDict):
+    """Serialized error information returned by MCPError.to_dict()."""
+    error_code: int
+    error_name: str
+    message: str
+    user_message: str
+    retryable: bool
+    retry_after: Optional[int]
 
 
 class ErrorCode(Enum):
@@ -92,16 +102,16 @@ class MCPError(Exception):
             self.retry_after = retry_after
         self.__cause__ = cause
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> ErrorPayload:
         """Convert error to dictionary for logging/serialization."""
-        return {
-            'error_code': self.error_code.value,
-            'error_name': self.error_code.name,
-            'message': str(self),
-            'user_message': self.user_message,
-            'retryable': self.retryable,
-            'retry_after': self.retry_after,
-        }
+        return ErrorPayload(
+            error_code=self.error_code.value,
+            error_name=self.error_code.name,
+            message=str(self),
+            user_message=self.user_message,
+            retryable=self.retryable,
+            retry_after=self.retry_after,
+        )
 
 
 class DataFetchError(MCPError):
@@ -357,7 +367,7 @@ def _extract_symbol(
         return None
 
     # Try kwargs first
-    symbol: Any = kwargs.get(symbol_param)
+    symbol: object = kwargs.get(symbol_param)
     if symbol is not None:
         return str(symbol)
 
@@ -542,7 +552,7 @@ def safe_format(template: str, **kwargs: Any) -> str:
     Returns:
         Formatted string with missing values as 'N/A'
     """
-    class SafeDict(dict):  # type: ignore[type-arg]
+    class SafeDict(dict[str, Any]):
         def __missing__(self, key: str) -> str:
             return 'N/A'
     

@@ -20,7 +20,7 @@ from .pool import (
 try:
     from .batch_scorer import BatchScorer
 except ImportError:
-    BatchScorer = None  # type: ignore[assignment,misc]
+    BatchScorer = None  # type: ignore[assignment,misc]  # optional dependency; None sentinel for availability check
 from .score_normalization import (
     normalize_score,
     denormalize_score,

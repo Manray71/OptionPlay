@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 try:
     from ..utils.markdown_builder import MarkdownBuilder, truncate
 except ImportError:
-    from utils.markdown_builder import MarkdownBuilder, truncate  # type: ignore[no-redef]
+    from utils.markdown_builder import MarkdownBuilder, truncate  # type: ignore[no-redef]  # fallback for non-package execution
 
 
 def format_picks_markdown(result: Any) -> str:
@@ -39,7 +39,7 @@ def format_picks_markdown(result: Any) -> str:
     try:
         from ..vix_strategy import MarketRegime
     except ImportError:
-        from vix_strategy import MarketRegime  # type: ignore[no-redef]
+        from vix_strategy import MarketRegime  # type: ignore[no-redef]  # fallback for non-package execution
 
     lines = [
         f"# 📊 Daily Picks - {result.timestamp.strftime('%Y-%m-%d')}",

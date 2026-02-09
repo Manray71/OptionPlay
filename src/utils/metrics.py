@@ -31,7 +31,7 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 
 @dataclass
@@ -304,7 +304,7 @@ class MetricsRegistry:
         """Create or get a counter."""
         with self._lock:
             if name in self._metrics:
-                return self._metrics[name]  # type: ignore
+                return cast(Counter, self._metrics[name])  # registered as Counter by prior call
             counter = Counter(name, help_text, label_names)
             self._metrics[name] = counter
             return counter
@@ -313,7 +313,7 @@ class MetricsRegistry:
         """Create or get a gauge."""
         with self._lock:
             if name in self._metrics:
-                return self._metrics[name]  # type: ignore
+                return cast(Gauge, self._metrics[name])  # registered as Gauge by prior call
             gauge = Gauge(name, help_text, label_names)
             self._metrics[name] = gauge
             return gauge
@@ -328,7 +328,7 @@ class MetricsRegistry:
         """Create or get a histogram."""
         with self._lock:
             if name in self._metrics:
-                return self._metrics[name]  # type: ignore
+                return cast(Histogram, self._metrics[name])  # registered as Histogram by prior call
             histogram = Histogram(name, help_text, label_names, buckets)
             self._metrics[name] = histogram
             return histogram

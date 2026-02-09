@@ -45,7 +45,7 @@ try:
     )
     from ..cache.symbol_fundamentals import get_fundamentals_manager
 except ImportError:
-    from cache.iv_cache_impl import (  # type: ignore[no-redef]
+    from cache.iv_cache_impl import (  # type: ignore[no-redef]  # fallback for non-package execution
         IVCache,
         IVData,
         IVFetcher,
@@ -55,7 +55,7 @@ except ImportError:
         get_iv_cache,
         get_iv_fetcher,
     )
-    from cache.symbol_fundamentals import get_fundamentals_manager  # type: ignore[no-redef]
+    from cache.symbol_fundamentals import get_fundamentals_manager  # type: ignore[no-redef]  # fallback for non-package execution
 
 logger = logging.getLogger(__name__)
 

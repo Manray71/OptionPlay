@@ -88,17 +88,21 @@ known_first_party = ["src"]
 sections = ["FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 warn_return_any = true
 warn_unused_configs = true
 warn_unreachable = true
 ignore_missing_imports = true
-no_strict_optional = true
+no_strict_optional = false
 exclude = ["tests/", "venv/", ".venv/"]
 
 [[tool.mypy.overrides]]
 module = "tests.*"
 ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "src.constants.*"
+disallow_untyped_defs = true
 
 [tool.pytest.ini_options]
 minversion = "7.0"

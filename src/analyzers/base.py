@@ -10,7 +10,7 @@ from typing import Any, Optional
 try:
     from ..models.base import TradeSignal, SignalType, SignalStrength
 except ImportError:
-    from models.base import TradeSignal, SignalType, SignalStrength  # type: ignore[no-redef]
+    from models.base import TradeSignal, SignalType, SignalStrength  # type: ignore[no-redef]  # fallback for non-package execution
 
 
 class BaseAnalyzer(ABC):

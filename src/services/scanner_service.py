@@ -154,7 +154,7 @@ class ScannerService(BaseService):
             mode = STRATEGY_TO_MODE.get(strategy, ScanMode.ALL)
             result = await scanner.scan_async(
                 symbols=symbols,
-                data_fetcher=data_fetcher,  # type: ignore[arg-type]
+                data_fetcher=data_fetcher,  # type: ignore[arg-type]  # async callback signature differs from scanner's expected type
                 mode=mode
             )
             
@@ -232,7 +232,7 @@ class ScannerService(BaseService):
         try:
             result = await scanner.scan_async(
                 symbols=symbols,
-                data_fetcher=data_fetcher,  # type: ignore[arg-type]
+                data_fetcher=data_fetcher,  # type: ignore[arg-type]  # async callback signature differs from scanner's expected type
                 mode=ScanMode.BEST_SIGNAL
             )
             

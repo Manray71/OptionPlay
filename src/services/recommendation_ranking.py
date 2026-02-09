@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import logging
 from collections import Counter
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple, TYPE_CHECKING
 
 from ..vix_strategy import MarketRegime
 from ..models.base import TradeSignal
@@ -23,6 +23,10 @@ from ..constants.trading_rules import (
     SPREAD_DTE_MAX,
     LIQUIDITY_MIN_QUALITY_DAILY_PICKS,
 )
+
+if TYPE_CHECKING:
+    from ..strike_recommender import StrikeRecommender
+    from ..cache.symbol_fundamentals import SymbolFundamentalsManager
 
 logger = logging.getLogger(__name__)
 
@@ -69,10 +73,16 @@ class RecommendationRankingMixin:
 
     Expected instance attributes (set by the host class):
         config: dict[str, Any]
-        _fundamentals_manager: Optional[...]
+        _fundamentals_manager: Optional[SymbolFundamentalsManager]
         _strike_recommender: StrikeRecommender
         _sector_factors: Dict[str, float]
     """
+
+    # Declare mixin attributes (set by DailyRecommendationEngine.__init__)
+    config: Dict[str, Any]
+    _fundamentals_manager: Optional[SymbolFundamentalsManager]
+    _strike_recommender: StrikeRecommender
+    _sector_factors: Dict[str, float]
 
     # Sektor-Speed-Map aus Phase 4 Analyse (avg days_to_playbook_exit)
     SECTOR_SPEED: Dict[str, float] = {
@@ -126,7 +136,7 @@ class RecommendationRankingMixin:
 
         # 3. Sektor-Bonus (Max 1.5) x Cycle Factor (0.6-1.2)
         base_sector_speed = self.SECTOR_SPEED.get(sector, 0.5) * SPEED_SECTOR_WEIGHT
-        cycle_factor = self._sector_factors.get(sector, 1.0) if self._sector_factors else 1.0  # type: ignore[attr-defined]
+        cycle_factor = self._sector_factors.get(sector, 1.0) if self._sector_factors else 1.0
         score += base_sector_speed * cycle_factor
 
         # 4. Pullback-Score-Bonus (Max 1.5)
@@ -164,8 +174,8 @@ class RecommendationRankingMixin:
         Returns:
             Nach kombiniertem Score sortierte Signal-Liste
         """
-        weight: float = self.config['stability_weight']  # type: ignore[attr-defined]
-        speed_exponent: float = self.config.get('speed_exponent', 0.3)  # type: ignore[attr-defined]
+        weight: float = self.config['stability_weight']
+        speed_exponent: float = self.config.get('speed_exponent', 0.3)
 
         def get_combined_score(signal: TradeSignal) -> float:
             """Returns combined score with speed multiplier."""
@@ -181,8 +191,8 @@ class RecommendationRankingMixin:
             if signal.details and 'stability' in signal.details:
                 stability = signal.details['stability'].get('score', 0.0)
 
-            if self._fundamentals_manager:  # type: ignore[attr-defined]
-                fundamentals = self._fundamentals_manager.get_fundamentals(signal.symbol)  # type: ignore[attr-defined]
+            if self._fundamentals_manager:
+                fundamentals = self._fundamentals_manager.get_fundamentals(signal.symbol)
                 if fundamentals:
                     if stability == 0.0 and fundamentals.stability_score:
                         stability = fundamentals.stability_score
@@ -319,7 +329,7 @@ class RecommendationRankingMixin:
                     logger.warning(f"Could not fetch options for {symbol}: {e}")
 
             # Strike-Empfehlung generieren
-            rec = self._strike_recommender.get_recommendation(  # type: ignore[attr-defined]
+            rec = self._strike_recommender.get_recommendation(
                 symbol=symbol,
                 current_price=current_price,
                 support_levels=support_levels,
@@ -448,8 +458,8 @@ class RecommendationRankingMixin:
         # Sektor und Market Cap aus Fundamentals
         sector = None
         market_cap = None
-        if self._fundamentals_manager:  # type: ignore[attr-defined]
-            fundamentals = self._fundamentals_manager.get_fundamentals(signal.symbol)  # type: ignore[attr-defined]
+        if self._fundamentals_manager:
+            fundamentals = self._fundamentals_manager.get_fundamentals(signal.symbol)
             if fundamentals:
                 sector = fundamentals.sector
                 market_cap = fundamentals.market_cap_category
@@ -460,7 +470,7 @@ class RecommendationRankingMixin:
 
         # Strike-Empfehlung generieren
         suggested_strikes = None
-        if self.config['enable_strike_recommendations']:  # type: ignore[attr-defined]
+        if self.config['enable_strike_recommendations']:
             suggested_strikes = await self._generate_strike_recommendation(
                 symbol=signal.symbol,
                 current_price=signal.current_price,

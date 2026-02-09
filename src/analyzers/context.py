@@ -21,6 +21,8 @@ import logging
 import numpy as np
 
 # Import optimized support/resistance functions
+# NOTE: Fallback import chains use type: ignore for no-redef (re-importing same names),
+# import-untyped (non-package imports), and assignment (None fallbacks for optional deps).
 try:
     from ..indicators.support_resistance import (
         find_support_levels as find_support_optimized,
@@ -64,6 +66,7 @@ except ImportError:
         GapResult = None  # type: ignore[assignment,misc]
 
 # Import canonical indicator functions (used in Python fallback path)
+# NOTE: Same fallback pattern — no-redef for duplicate imports, assignment for None sentinels.
 try:
     from ..indicators.momentum import calculate_rsi, calculate_macd, calculate_stochastic
     from ..indicators.trend import calculate_ema

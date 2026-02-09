@@ -26,11 +26,49 @@ import time
 import functools
 from contextlib import contextmanager
 from datetime import datetime
-from typing import Any, Callable, Dict, Generator, Optional, TypeVar
+from typing import IO, Any, Callable, Dict, Generator, Optional, TypedDict, TypeVar, cast
 from threading import local
 
 # Thread-local storage for context
 _context = local()
+
+
+class _LocationInfo(TypedDict):
+    """Source location for error-level log entries."""
+    file: str
+    line: int
+    function: str
+
+
+class _ExceptionInfo(TypedDict):
+    """Exception details attached to log entries."""
+    type: str
+    message: str
+
+
+class LogEntry(TypedDict, total=False):
+    """Structured log entry produced by StructuredFormatter."""
+    timestamp: str
+    level: str
+    logger: str
+    message: str
+    location: _LocationInfo
+    exception: _ExceptionInfo
+    context: dict[str, Any]
+    extra: dict[str, Any]
+
+
+class PerformanceLogExtra(TypedDict, total=False):
+    """Extra fields emitted by log_performance and log_api_call decorators."""
+    function: str
+    api_call: str
+    symbol: str
+    duration_ms: float
+    status: str
+    error: str
+    error_type: str
+    args: str
+    kwargs: str
 
 
 class StructuredFormatter(logging.Formatter):
@@ -53,12 +91,12 @@ class StructuredFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         """Format log record as JSON."""
         # Base fields
-        log_dict: Dict[str, Any] = {
-            'timestamp': datetime.utcnow().isoformat() + 'Z',
-            'level': record.levelname,
-            'logger': record.name,
-            'message': record.getMessage(),
-        }
+        log_dict: LogEntry = LogEntry(
+            timestamp=datetime.utcnow().isoformat() + 'Z',
+            level=record.levelname,
+            logger=record.name,
+            message=record.getMessage(),
+        )
 
         # Add location info for errors
         if record.levelno >= logging.ERROR:
@@ -123,7 +161,7 @@ class StructuredLogger(logging.Logger):
         msg: object,
         args: tuple,
         exc_info: Any = None,
-        extra: Optional[Dict] = None,
+        extra: Optional[Dict[str, Any]] = None,
         stack_info: bool = False,
         stacklevel: int = 1,
         **kwargs: Any
@@ -154,13 +192,13 @@ def get_logger(name: str) -> StructuredLogger:
     logging.setLoggerClass(StructuredLogger)
     logger = logging.getLogger(name)
     logging.setLoggerClass(old_class)
-    return logger  # type: ignore
+    return cast(StructuredLogger, logger)  # getLogger returns Logger; we registered StructuredLogger class above
 
 
 def configure_logging(
     level: int = logging.INFO,
     json_output: bool = True,
-    stream: Any = None
+    stream: Optional[IO[str]] = None
 ) -> None:
     """
     Configure structured logging for the application.
@@ -283,8 +321,8 @@ def log_performance(logger: Optional[logging.Logger] = None) -> Callable[[F], F]
 
         import asyncio
         if asyncio.iscoroutinefunction(func):
-            return async_wrapper  # type: ignore
-        return sync_wrapper  # type: ignore
+            return async_wrapper  # type: ignore[return-value]  # wrapper preserves F signature via functools.wraps
+        return sync_wrapper  # type: ignore[return-value]  # wrapper preserves F signature via functools.wraps
 
     return decorator
 
@@ -315,9 +353,9 @@ def log_api_call(
             elif 'symbol' in kwargs:
                 symbol = kwargs['symbol']
 
-            extra: Dict[str, Any] = {
-                'api_call': func.__name__,
-            }
+            extra: PerformanceLogExtra = PerformanceLogExtra(
+                api_call=func.__name__,
+            )
             if symbol:
                 extra['symbol'] = symbol
             if include_args:
@@ -343,7 +381,7 @@ def log_api_call(
 
         @functools.wraps(func)
         def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
-            extra: Dict[str, Any] = {'api_call': func.__name__}
+            extra: PerformanceLogExtra = PerformanceLogExtra(api_call=func.__name__)
 
             start = time.perf_counter()
             try:
@@ -363,14 +401,16 @@ def log_api_call(
 
         import asyncio
         if asyncio.iscoroutinefunction(func):
-            return async_wrapper  # type: ignore
-        return sync_wrapper  # type: ignore
+            return async_wrapper  # type: ignore[return-value]  # wrapper preserves F signature via functools.wraps
+        return sync_wrapper  # type: ignore[return-value]  # wrapper preserves F signature via functools.wraps
 
     return decorator
 
 
 # Convenience re-exports
 __all__ = [
+    'LogEntry',
+    'PerformanceLogExtra',
     'StructuredFormatter',
     'StructuredLogger',
     'get_logger',

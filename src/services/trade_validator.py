@@ -26,7 +26,11 @@ import asyncio
 import logging
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
-from typing import Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, TypedDict
+
+if TYPE_CHECKING:
+    from ..cache.symbol_fundamentals import SymbolFundamentals, SymbolFundamentalsManager
+    from ..cache.earnings_history import EarningsHistoryManager
 
 from ..constants.trading_rules import (
     TradeDecision,
@@ -68,6 +72,28 @@ logger = logging.getLogger(__name__)
 
 
 # =============================================================================
+# TYPED DICTS
+# =============================================================================
+
+class SizingRecommendation(TypedDict):
+    """Position sizing recommendation returned by _calculate_sizing."""
+    spread_width: float
+    credit_per_contract: float
+    max_loss_per_contract: float
+    risk_pct: float
+    max_risk_usd: float
+    recommended_contracts: int
+    total_credit: float
+    total_risk: float
+
+
+class OpenPositionInfo(TypedDict, total=False):
+    """Minimal position info needed for portfolio constraint checks."""
+    symbol: str
+    sector: str
+
+
+# =============================================================================
 # DATA CLASSES
 # =============================================================================
 
@@ -101,7 +127,7 @@ class TradeValidationResult:
     checks: list[ValidationCheck]
     regime: Optional[str] = None
     regime_notes: Optional[str] = None
-    sizing_recommendation: Optional[dict[str, Any]] = None
+    sizing_recommendation: Optional[SizingRecommendation] = None
 
     @property
     def blockers(self) -> list[ValidationCheck]:
@@ -150,12 +176,12 @@ class TradeValidator:
     """
 
     def __init__(self, quote_provider: Any = None) -> None:
-        self._fundamentals_manager: Any = None
-        self._earnings_manager: Any = None
+        self._fundamentals_manager: Optional[SymbolFundamentalsManager] = None
+        self._earnings_manager: Optional[EarningsHistoryManager] = None
         self._quote_provider = quote_provider
 
     @property
-    def fundamentals(self) -> Any:
+    def fundamentals(self) -> Optional[SymbolFundamentalsManager]:
         """Lazy-load Fundamentals Manager."""
         if self._fundamentals_manager is None:
             try:
@@ -166,7 +192,7 @@ class TradeValidator:
         return self._fundamentals_manager
 
     @property
-    def earnings(self) -> Any:
+    def earnings(self) -> Optional[EarningsHistoryManager]:
         """Lazy-load Earnings History Manager."""
         if self._earnings_manager is None:
             try:
@@ -180,7 +206,7 @@ class TradeValidator:
         self,
         request: TradeValidationRequest,
         current_vix: Optional[float] = None,
-        open_positions: Optional[list[dict[str, Any]]] = None,
+        open_positions: Optional[list[OpenPositionInfo]] = None,
     ) -> TradeValidationResult:
         """
         Run all PLAYBOOK checks against a trade idea.
@@ -201,7 +227,7 @@ class TradeValidator:
             current_vix = await self._get_current_vix()
 
         # Get fundamentals
-        fundamentals = None
+        fundamentals: Optional[SymbolFundamentals] = None
         if self.fundamentals:
             try:
                 fundamentals = self.fundamentals.get_fundamentals(symbol)
@@ -292,7 +318,7 @@ class TradeValidator:
     def _check_stability(
         self,
         symbol: str,
-        fundamentals: Any,
+        fundamentals: Optional[SymbolFundamentals],
         current_vix: Optional[float],
     ) -> ValidationCheck:
         """Check 2: Stability Score (PLAYBOOK §1 + §3 VIX adjustment).
@@ -529,7 +555,7 @@ class TradeValidator:
             details={"vix": current_vix, "regime": regime.value},
         )
 
-    def _check_price(self, symbol: str, fundamentals: Any) -> ValidationCheck:
+    def _check_price(self, symbol: str, fundamentals: Optional[SymbolFundamentals]) -> ValidationCheck:
         """Check 5: Price range (PLAYBOOK §1)."""
         if fundamentals is None or fundamentals.current_price is None:
             return ValidationCheck(
@@ -558,7 +584,7 @@ class TradeValidator:
             details={"price": price},
         )
 
-    async def _check_volume(self, symbol: str, fundamentals: Any) -> ValidationCheck:
+    async def _check_volume(self, symbol: str, fundamentals: Optional[SymbolFundamentals]) -> ValidationCheck:
         """Check 6: Volume (PLAYBOOK §1).
 
         Requires quote_provider for live volume data.
@@ -614,7 +640,7 @@ class TradeValidator:
                 details={"error": str(e)},
             )
 
-    def _check_iv_rank(self, symbol: str, fundamentals: Any) -> ValidationCheck:
+    def _check_iv_rank(self, symbol: str, fundamentals: Optional[SymbolFundamentals]) -> ValidationCheck:
         """Check 7: IV Rank (PLAYBOOK §1 — soft filter)."""
         if fundamentals is None or fundamentals.iv_rank_252d is None:
             return ValidationCheck(
@@ -774,8 +800,8 @@ class TradeValidator:
     def _check_portfolio(
         self,
         symbol: str,
-        fundamentals: Any,
-        open_positions: list[dict[str, Any]],
+        fundamentals: Optional[SymbolFundamentals],
+        open_positions: list[OpenPositionInfo],
         current_vix: Optional[float],
     ) -> list[ValidationCheck]:
         """Portfolio constraint checks (PLAYBOOK §5)."""
@@ -840,9 +866,9 @@ class TradeValidator:
     def _calculate_sizing(
         self,
         request: TradeValidationRequest,
-        fundamentals: Any,
+        fundamentals: Optional[SymbolFundamentals],
         current_vix: Optional[float],
-    ) -> dict[str, Any]:
+    ) -> SizingRecommendation:
         """Calculate position sizing recommendation (PLAYBOOK §5)."""
         spread_width = abs(request.short_strike - request.long_strike)
         max_loss_per_contract = (spread_width - request.credit) * 100
@@ -860,16 +886,16 @@ class TradeValidator:
         if recommended_contracts == 0 and max_loss_per_contract > 0 and max_loss_per_contract <= max_risk_usd:
             recommended_contracts = 1
 
-        return {
-            "spread_width": spread_width,
-            "credit_per_contract": request.credit,
-            "max_loss_per_contract": max_loss_per_contract,
-            "risk_pct": risk_pct,
-            "max_risk_usd": max_risk_usd,
-            "recommended_contracts": recommended_contracts,
-            "total_credit": request.credit * recommended_contracts * 100,
-            "total_risk": max_loss_per_contract * recommended_contracts,
-        }
+        return SizingRecommendation(
+            spread_width=spread_width,
+            credit_per_contract=request.credit,
+            max_loss_per_contract=max_loss_per_contract,
+            risk_pct=risk_pct,
+            max_risk_usd=max_risk_usd,
+            recommended_contracts=recommended_contracts,
+            total_credit=request.credit * recommended_contracts * 100,
+            total_risk=max_loss_per_contract * recommended_contracts,
+        )
 
     # =========================================================================
     # HELPERS

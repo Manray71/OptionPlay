@@ -104,6 +104,9 @@ class TradeSignal:
             errors.append("strategy must be a non-empty string")
 
         # Score Validierung (0-16 max theoretical)
+        # NOTE: isinstance checks below are flagged as [unreachable] by mypy because
+        # dataclass fields have type annotations. We keep them as runtime guards since
+        # callers may pass unvalidated data (e.g. from JSON/dict unpacking).
         if not isinstance(self.score, (int, float)):  # type: ignore[unreachable]
             errors.append(f"score must be numeric, got {type(self.score)}")  # type: ignore[unreachable]
         elif self.score < 0 or self.score > 20:

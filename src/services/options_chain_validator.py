@@ -37,7 +37,7 @@ try:
         ENTRY_BID_ASK_SPREAD_MAX,
     )
 except ImportError:
-    from constants.trading_rules import (  # type: ignore[no-redef]
+    from constants.trading_rules import (  # type: ignore[no-redef]  # fallback for non-package execution
         SPREAD_DTE_MIN,
         SPREAD_DTE_MAX,
         SPREAD_DTE_TARGET,

@@ -271,7 +271,7 @@ class StrikeMetricsMixin:
         try:
             from .strike_recommender import StrikeQuality
         except ImportError:
-            from strike_recommender import StrikeQuality  # type: ignore[no-redef]
+            from strike_recommender import StrikeQuality  # type: ignore[no-redef]  # fallback for non-package execution
 
         score = 50  # Base score
         warnings = []

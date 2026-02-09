@@ -28,7 +28,7 @@ Alle Tools sind hier definiert mit:
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Awaitable
+from typing import Any, Callable, Dict, List, Optional, Awaitable, Union
 
 from mcp.types import Tool
 
@@ -41,6 +41,22 @@ logger = logging.getLogger(__name__)
 
 
 # =============================================================================
+# TYPE ALIASES
+# =============================================================================
+
+#: JSON Schema definition for MCP tool input validation.
+JsonSchema = Dict[str, Any]
+
+#: MCP tool arguments dict received from JSON-RPC protocol.
+ToolArguments = Dict[str, Any]
+
+#: Handler function signature: (server, arguments) -> str (sync or async).
+ToolHandlerAsync = Callable[[Any, ToolArguments], Awaitable[str]]
+ToolHandlerSync = Callable[[Any, ToolArguments], str]
+ToolHandler = Union[ToolHandlerAsync, ToolHandlerSync]
+
+
+# =============================================================================
 # TOOL REGISTRY CLASS
 # =============================================================================
 
@@ -49,8 +65,8 @@ class ToolDefinition:
     """Vollständige Tool-Definition mit Handler."""
     name: str
     description: str
-    input_schema: Dict[str, Any]
-    handler: Callable[..., Awaitable[str]]
+    input_schema: JsonSchema
+    handler: ToolHandler
     is_async: bool = True
     aliases: List[str] = field(default_factory=list)
 
@@ -70,12 +86,12 @@ class ToolRegistry:
         self,
         name: str,
         description: str,
-        input_schema: Dict[str, Any],
+        input_schema: JsonSchema,
         aliases: Optional[List[str]] = None,
         is_async: bool = True,
-    ) -> Callable:
+    ) -> Callable[[ToolHandler], ToolHandler]:
         """Decorator zum Registrieren eines Tool-Handlers."""
-        def decorator(func: Callable[..., Awaitable[str]]) -> Callable:
+        def decorator(func: ToolHandler) -> ToolHandler:
             tool = ToolDefinition(
                 name=name,
                 description=description,
@@ -110,7 +126,7 @@ class ToolRegistry:
         self,
         name: str,
         server: Any,
-        arguments: Dict[str, Any],
+        arguments: ToolArguments,
     ) -> str:
         """Dispatcht einen Tool-Aufruf zum registrierten Handler."""
         resolved = self.resolve_alias(name)
@@ -204,7 +220,7 @@ SCAN_SCHEMA = {
     input_schema=EMPTY_SCHEMA,
     aliases=["vix"],
 )
-async def handle_vix(server: Any, arguments: Dict[str, Any]) -> str:
+async def handle_vix(server: Any, arguments: ToolArguments) -> str:
     return await server.get_strategy_recommendation()
 
 
@@ -214,7 +230,7 @@ async def handle_vix(server: Any, arguments: Dict[str, Any]) -> str:
     input_schema=EMPTY_SCHEMA,
     aliases=["regime"],
 )
-async def handle_regime_status(server: Any, arguments: Dict[str, Any]) -> str:
+async def handle_regime_status(server: Any, arguments: ToolArguments) -> str:
     return await server.get_regime_status()
 
 
@@ -224,7 +240,7 @@ async def handle_regime_status(server: Any, arguments: Dict[str, Any]) -> str:
     input_schema=SYMBOL_SCHEMA,
     aliases=["strategy_stock"],
 )
-async def handle_strategy_for_stock(server: Any, arguments: Dict[str, Any]) -> str:
+async def handle_strategy_for_stock(server: Any, arguments: ToolArguments) -> str:
     return await server.get_strategy_for_stock(arguments["symbol"])
 
 
@@ -237,7 +253,7 @@ async def handle_strategy_for_stock(server: Any, arguments: Dict[str, Any]) -> s
     },
     aliases=["events"],
 )
-async def handle_events(server: Any, arguments: Dict[str, Any]) -> str:
+async def handle_events(server: Any, arguments: ToolArguments) -> str:
     return await server.get_event_calendar(days=arguments.get("days", 30))
 
 
@@ -247,7 +263,7 @@ async def handle_events(server: Any, arguments: Dict[str, Any]) -> str:
     input_schema=EMPTY_SCHEMA,
     aliases=["health"],
 )
-async def handle_health(server: Any, arguments: Dict[str, Any]) -> str:
+async def handle_health(server: Any, arguments: ToolArguments) -> str:
     return await server.health_check()
 
 
@@ -261,7 +277,7 @@ async def handle_health(server: Any, arguments: Dict[str, Any]) -> str:
     input_schema=SCAN_SCHEMA,
     aliases=["scan"],
 )
-async def handle_scan(server: Any, arguments: Dict[str, Any]) -> str:
+async def handle_scan(server: Any, arguments: ToolArguments) -> str:
     return await server.scan_with_strategy(
         symbols=arguments.get("symbols"),
         max_results=arguments.get("max_results", 10),
@@ -275,7 +291,7 @@ async def handle_scan(server: Any, arguments: Dict[str, Any]) -> str:
     input_schema=SCAN_SCHEMA,
     aliases=["bounce"],
 )
-async def handle_scan_bounce(server: Any, arguments: Dict[str, Any]) -> str:
+async def handle_scan_bounce(server: Any, arguments: ToolArguments) -> str:
     return await server.scan_bounce(
         symbols=arguments.get("symbols"),
         max_results=arguments.get("max_results", 10),
@@ -289,7 +305,7 @@ async def handle_scan_bounce(server: Any, arguments: Dict[str, Any]) -> str:
     input_schema=SCAN_SCHEMA,
     aliases=["breakout"],
 )
-async def handle_scan_breakout(server: Any, arguments: Dict[str, Any]) -> str:
+async def handle_scan_breakout(server: Any, arguments: ToolArguments) -> str:
     return await server.scan_ath_breakout(
         symbols=arguments.get("symbols"),
         max_results=arguments.get("max_results", 10),
@@ -303,7 +319,7 @@ async def handle_scan_breakout(server: Any, arguments: Dict[str, Any]) -> str:
     input_schema=SCAN_SCHEMA,
     aliases=["dip"],
 )
-async def handle_scan_earnings_dip(server: Any, arguments: Dict[str, Any]) -> str:
+async def handle_scan_earnings_dip(server: Any, arguments: ToolArguments) -> str:
     return await server.scan_earnings_dip(
         symbols=arguments.get("symbols"),
         max_results=arguments.get("max_results", 10),
@@ -317,7 +333,7 @@ async def handle_scan_earnings_dip(server: Any, arguments: Dict[str, Any]) -> st
     input_schema=SCAN_SCHEMA,
     aliases=["trend"],
 )
-async def handle_scan_trend(server: Any, arguments: Dict[str, Any]) -> str:
+async def handle_scan_trend(server: Any, arguments: ToolArguments) -> str:
     return await server.scan_trend_continuation(
         symbols=arguments.get("symbols"),
         max_results=arguments.get("max_results", 10),
@@ -331,7 +347,7 @@ async def handle_scan_trend(server: Any, arguments: Dict[str, Any]) -> str:
     input_schema=SCAN_SCHEMA,
     aliases=["multi"],
 )
-async def handle_scan_multi(server: Any, arguments: Dict[str, Any]) -> str:
+async def handle_scan_multi(server: Any, arguments: ToolArguments) -> str:
     return await server.scan_multi_strategy(
         symbols=arguments.get("symbols"),
         max_results=arguments.get("max_results", 20),
@@ -355,7 +371,7 @@ async def handle_scan_multi(server: Any, arguments: Dict[str, Any]) -> str:
     },
     aliases=["daily", "picks", "recommendations"],
 )
-async def handle_daily_picks(server: Any, arguments: Dict[str, Any]) -> str:
+async def handle_daily_picks(server: Any, arguments: ToolArguments) -> str:
     return await server.daily_picks(
         symbols=arguments.get("symbols"),
         max_picks=arguments.get("max_picks", 5),
@@ -378,7 +394,7 @@ async def handle_daily_picks(server: Any, arguments: Dict[str, Any]) -> str:
     },
     aliases=["prefilter"],
 )
-async def handle_earnings_prefilter(server: Any, arguments: Dict[str, Any]) -> str:
+async def handle_earnings_prefilter(server: Any, arguments: ToolArguments) -> str:
     return await server.earnings_prefilter(
         min_days=arguments.get("min_days", ENTRY_EARNINGS_MIN_DAYS),
         symbols=arguments.get("symbols"),
@@ -396,7 +412,7 @@ async def handle_earnings_prefilter(server: Any, arguments: Dict[str, Any]) -> s
     input_schema=SYMBOL_SCHEMA,
     aliases=["quote"],
 )
-async def handle_quote(server: Any, arguments: Dict[str, Any]) -> str:
+async def handle_quote(server: Any, arguments: ToolArguments) -> str:
     return await server.get_quote(arguments["symbol"])
 
 
@@ -415,7 +431,7 @@ async def handle_quote(server: Any, arguments: Dict[str, Any]) -> str:
     },
     aliases=["options"],
 )
-async def handle_options(server: Any, arguments: Dict[str, Any]) -> str:
+async def handle_options(server: Any, arguments: ToolArguments) -> str:
     return await server.get_options_chain(
         symbol=arguments["symbol"],
         dte_min=arguments.get("dte_min", 60),
@@ -437,7 +453,7 @@ async def handle_options(server: Any, arguments: Dict[str, Any]) -> str:
     },
     aliases=["earnings"],
 )
-async def handle_earnings(server: Any, arguments: Dict[str, Any]) -> str:
+async def handle_earnings(server: Any, arguments: ToolArguments) -> str:
     return await server.get_earnings_aggregated(
         arguments["symbol"],
         arguments.get("min_days", 60),
@@ -457,7 +473,7 @@ async def handle_earnings(server: Any, arguments: Dict[str, Any]) -> str:
     },
     aliases=["historical"],
 )
-async def handle_historical(server: Any, arguments: Dict[str, Any]) -> str:
+async def handle_historical(server: Any, arguments: ToolArguments) -> str:
     return await server.get_historical_data(
         symbol=arguments["symbol"],
         days=arguments.get("days", 30),
@@ -470,7 +486,7 @@ async def handle_historical(server: Any, arguments: Dict[str, Any]) -> str:
     input_schema=SYMBOL_SCHEMA,
     aliases=["expirations"],
 )
-async def handle_expirations(server: Any, arguments: Dict[str, Any]) -> str:
+async def handle_expirations(server: Any, arguments: ToolArguments) -> str:
     return await server.get_expirations(symbol=arguments["symbol"])
 
 
@@ -480,7 +496,7 @@ async def handle_expirations(server: Any, arguments: Dict[str, Any]) -> str:
     input_schema=SYMBOL_SCHEMA,
     aliases=["validate"],
 )
-async def handle_validate(server: Any, arguments: Dict[str, Any]) -> str:
+async def handle_validate(server: Any, arguments: ToolArguments) -> str:
     return await server.validate_for_trading(symbol=arguments["symbol"])
 
 
@@ -507,7 +523,7 @@ async def handle_validate(server: Any, arguments: Dict[str, Any]) -> str:
     },
     aliases=["check"],
 )
-async def handle_validate_trade(server: Any, arguments: Dict[str, Any]) -> str:
+async def handle_validate_trade(server: Any, arguments: ToolArguments) -> str:
     return await server.validate_trade(
         symbol=arguments["symbol"],
         short_strike=arguments.get("short_strike"),
@@ -525,7 +541,7 @@ async def handle_validate_trade(server: Any, arguments: Dict[str, Any]) -> str:
     input_schema=EMPTY_SCHEMA,
     aliases=["monitor"],
 )
-async def handle_monitor_positions(server: Any, arguments: Dict[str, Any]) -> str:
+async def handle_monitor_positions(server: Any, arguments: ToolArguments) -> str:
     return await server.monitor_positions()
 
 
@@ -539,7 +555,7 @@ async def handle_monitor_positions(server: Any, arguments: Dict[str, Any]) -> st
     },
     aliases=["max_pain"],
 )
-async def handle_max_pain(server: Any, arguments: Dict[str, Any]) -> str:
+async def handle_max_pain(server: Any, arguments: ToolArguments) -> str:
     return await server.get_max_pain(symbols=arguments["symbols"])
 
 
@@ -553,7 +569,7 @@ async def handle_max_pain(server: Any, arguments: Dict[str, Any]) -> str:
     input_schema=SYMBOL_SCHEMA,
     aliases=["analyze"],
 )
-async def handle_analyze(server: Any, arguments: Dict[str, Any]) -> str:
+async def handle_analyze(server: Any, arguments: ToolArguments) -> str:
     return await server.analyze_symbol(arguments["symbol"])
 
 
@@ -563,7 +579,7 @@ async def handle_analyze(server: Any, arguments: Dict[str, Any]) -> str:
     input_schema=SYMBOL_SCHEMA,
     aliases=["analyze_multi"],
 )
-async def handle_analyze_multi(server: Any, arguments: Dict[str, Any]) -> str:
+async def handle_analyze_multi(server: Any, arguments: ToolArguments) -> str:
     return await server.analyze_multi_strategy(arguments["symbol"])
 
 
@@ -573,7 +589,7 @@ async def handle_analyze_multi(server: Any, arguments: Dict[str, Any]) -> str:
     input_schema=SYMBOL_SCHEMA,
     aliases=["ensemble"],
 )
-async def handle_ensemble(server: Any, arguments: Dict[str, Any]) -> str:
+async def handle_ensemble(server: Any, arguments: ToolArguments) -> str:
     return await server.get_ensemble_recommendation(arguments["symbol"])
 
 
@@ -583,7 +599,7 @@ async def handle_ensemble(server: Any, arguments: Dict[str, Any]) -> str:
     input_schema=EMPTY_SCHEMA,
     aliases=["ensemble_status"],
 )
-async def handle_ensemble_status(server: Any, arguments: Dict[str, Any]) -> str:
+async def handle_ensemble_status(server: Any, arguments: ToolArguments) -> str:
     return await server.get_ensemble_status()
 
 
@@ -602,7 +618,7 @@ async def handle_ensemble_status(server: Any, arguments: Dict[str, Any]) -> str:
     },
     aliases=["strikes"],
 )
-async def handle_recommend_strikes(server: Any, arguments: Dict[str, Any]) -> str:
+async def handle_recommend_strikes(server: Any, arguments: ToolArguments) -> str:
     return await server.recommend_strikes(
         symbol=arguments["symbol"],
         dte_min=arguments.get("dte_min", 60),
@@ -622,7 +638,7 @@ async def handle_recommend_strikes(server: Any, arguments: Dict[str, Any]) -> st
     aliases=["portfolio"],
     is_async=False,
 )
-def handle_portfolio(server: Any, arguments: Dict[str, Any]) -> str:
+def handle_portfolio(server: Any, arguments: ToolArguments) -> str:
     return server.portfolio_summary()
 
 
@@ -636,7 +652,7 @@ def handle_portfolio(server: Any, arguments: Dict[str, Any]) -> str:
     aliases=["pf_positions"],
     is_async=False,
 )
-def handle_portfolio_positions(server: Any, arguments: Dict[str, Any]) -> str:
+def handle_portfolio_positions(server: Any, arguments: ToolArguments) -> str:
     return server.portfolio_positions(status=arguments.get("status", "all"))
 
 
@@ -651,7 +667,7 @@ def handle_portfolio_positions(server: Any, arguments: Dict[str, Any]) -> str:
     aliases=["pf_position"],
     is_async=False,
 )
-def handle_portfolio_position(server: Any, arguments: Dict[str, Any]) -> str:
+def handle_portfolio_position(server: Any, arguments: ToolArguments) -> str:
     return server.portfolio_position(position_id=arguments["position_id"])
 
 
@@ -674,7 +690,7 @@ def handle_portfolio_position(server: Any, arguments: Dict[str, Any]) -> str:
     aliases=["pf_add"],
     is_async=False,
 )
-def handle_portfolio_add(server: Any, arguments: Dict[str, Any]) -> str:
+def handle_portfolio_add(server: Any, arguments: ToolArguments) -> str:
     return server.portfolio_add(
         symbol=arguments["symbol"],
         short_strike=arguments["short_strike"],
@@ -701,7 +717,7 @@ def handle_portfolio_add(server: Any, arguments: Dict[str, Any]) -> str:
     aliases=["pf_close"],
     is_async=False,
 )
-def handle_portfolio_close(server: Any, arguments: Dict[str, Any]) -> str:
+def handle_portfolio_close(server: Any, arguments: ToolArguments) -> str:
     return server.portfolio_close(
         position_id=arguments["position_id"],
         close_premium=arguments["close_premium"],
@@ -720,7 +736,7 @@ def handle_portfolio_close(server: Any, arguments: Dict[str, Any]) -> str:
     aliases=["pf_expire"],
     is_async=False,
 )
-def handle_portfolio_expire(server: Any, arguments: Dict[str, Any]) -> str:
+def handle_portfolio_expire(server: Any, arguments: ToolArguments) -> str:
     return server.portfolio_expire(position_id=arguments["position_id"])
 
 
@@ -734,7 +750,7 @@ def handle_portfolio_expire(server: Any, arguments: Dict[str, Any]) -> str:
     aliases=["pf_expiring"],
     is_async=False,
 )
-def handle_portfolio_expiring(server: Any, arguments: Dict[str, Any]) -> str:
+def handle_portfolio_expiring(server: Any, arguments: ToolArguments) -> str:
     return server.portfolio_expiring(days=arguments.get("days", 7))
 
 
@@ -748,7 +764,7 @@ def handle_portfolio_expiring(server: Any, arguments: Dict[str, Any]) -> str:
     aliases=["pf_trades"],
     is_async=False,
 )
-def handle_portfolio_trades(server: Any, arguments: Dict[str, Any]) -> str:
+def handle_portfolio_trades(server: Any, arguments: ToolArguments) -> str:
     return server.portfolio_trades(limit=arguments.get("limit", 20))
 
 
@@ -759,7 +775,7 @@ def handle_portfolio_trades(server: Any, arguments: Dict[str, Any]) -> str:
     aliases=["pf_pnl"],
     is_async=False,
 )
-def handle_portfolio_pnl(server: Any, arguments: Dict[str, Any]) -> str:
+def handle_portfolio_pnl(server: Any, arguments: ToolArguments) -> str:
     return server.portfolio_pnl_symbols()
 
 
@@ -770,7 +786,7 @@ def handle_portfolio_pnl(server: Any, arguments: Dict[str, Any]) -> str:
     aliases=["pf_monthly"],
     is_async=False,
 )
-def handle_portfolio_monthly(server: Any, arguments: Dict[str, Any]) -> str:
+def handle_portfolio_monthly(server: Any, arguments: ToolArguments) -> str:
     return server.portfolio_pnl_monthly()
 
 
@@ -788,7 +804,7 @@ def handle_portfolio_monthly(server: Any, arguments: Dict[str, Any]) -> str:
     aliases=["pf_check"],
     is_async=False,
 )
-def handle_portfolio_check(server: Any, arguments: Dict[str, Any]) -> str:
+def handle_portfolio_check(server: Any, arguments: ToolArguments) -> str:
     return server.portfolio_check(
         symbol=arguments["symbol"],
         max_risk=arguments.get("max_risk", 500.0),
@@ -802,7 +818,7 @@ def handle_portfolio_check(server: Any, arguments: Dict[str, Any]) -> str:
     aliases=["pf_constraints"],
     is_async=False,
 )
-def handle_portfolio_constraints(server: Any, arguments: Dict[str, Any]) -> str:
+def handle_portfolio_constraints(server: Any, arguments: ToolArguments) -> str:
     return server.portfolio_constraints()
 
 
@@ -816,7 +832,7 @@ def handle_portfolio_constraints(server: Any, arguments: Dict[str, Any]) -> str:
     input_schema=EMPTY_SCHEMA,
     aliases=["ibkr"],
 )
-async def handle_ibkr_status(server: Any, arguments: Dict[str, Any]) -> str:
+async def handle_ibkr_status(server: Any, arguments: ToolArguments) -> str:
     return await server.get_ibkr_status()
 
 
@@ -826,7 +842,7 @@ async def handle_ibkr_status(server: Any, arguments: Dict[str, Any]) -> str:
     input_schema=EMPTY_SCHEMA,
     aliases=["ibkr_portfolio"],
 )
-async def handle_ibkr_portfolio(server: Any, arguments: Dict[str, Any]) -> str:
+async def handle_ibkr_portfolio(server: Any, arguments: ToolArguments) -> str:
     return await server.get_ibkr_portfolio()
 
 
@@ -836,7 +852,7 @@ async def handle_ibkr_portfolio(server: Any, arguments: Dict[str, Any]) -> str:
     input_schema=EMPTY_SCHEMA,
     aliases=["ibkr_spreads"],
 )
-async def handle_ibkr_spreads(server: Any, arguments: Dict[str, Any]) -> str:
+async def handle_ibkr_spreads(server: Any, arguments: ToolArguments) -> str:
     return await server.get_ibkr_spreads()
 
 
@@ -846,7 +862,7 @@ async def handle_ibkr_spreads(server: Any, arguments: Dict[str, Any]) -> str:
     input_schema=EMPTY_SCHEMA,
     aliases=["ibkr_vix"],
 )
-async def handle_ibkr_vix(server: Any, arguments: Dict[str, Any]) -> str:
+async def handle_ibkr_vix(server: Any, arguments: ToolArguments) -> str:
     return await server.get_ibkr_vix()
 
 
@@ -862,7 +878,7 @@ async def handle_ibkr_vix(server: Any, arguments: Dict[str, Any]) -> str:
     },
     aliases=["ibkr_quotes"],
 )
-async def handle_ibkr_quotes(server: Any, arguments: Dict[str, Any]) -> str:
+async def handle_ibkr_quotes(server: Any, arguments: ToolArguments) -> str:
     return await server.get_ibkr_quotes(
         symbols=arguments.get("symbols"),
         batch_size=arguments.get("batch_size", 50),
@@ -882,7 +898,7 @@ async def handle_ibkr_quotes(server: Any, arguments: Dict[str, Any]) -> str:
     },
     aliases=["news"],
 )
-async def handle_news(server: Any, arguments: Dict[str, Any]) -> str:
+async def handle_news(server: Any, arguments: ToolArguments) -> str:
     return await server.get_news(
         symbols=arguments["symbols"],
         days=arguments.get("days", 5),
@@ -908,7 +924,7 @@ async def handle_news(server: Any, arguments: Dict[str, Any]) -> str:
     },
     aliases=["report"],
 )
-async def handle_report(server: Any, arguments: Dict[str, Any]) -> str:
+async def handle_report(server: Any, arguments: ToolArguments) -> str:
     return await server.generate_report(
         symbol=arguments["symbol"],
         strategy=arguments.get("strategy"),
@@ -931,7 +947,7 @@ async def handle_report(server: Any, arguments: Dict[str, Any]) -> str:
     },
     aliases=["scan_report"],
 )
-async def handle_scan_report(server: Any, arguments: Dict[str, Any]) -> str:
+async def handle_scan_report(server: Any, arguments: ToolArguments) -> str:
     return await server.generate_scan_report(
         strategy=arguments.get("strategy", "multi"),
         symbols=arguments.get("symbols"),
@@ -963,7 +979,7 @@ async def handle_scan_report(server: Any, arguments: Dict[str, Any]) -> str:
     },
     aliases=["position_size"],
 )
-async def handle_position_size(server: Any, arguments: Dict[str, Any]) -> str:
+async def handle_position_size(server: Any, arguments: ToolArguments) -> str:
     return await server.calculate_position_size(
         account_size=arguments["account_size"],
         max_loss_per_contract=arguments["max_loss_per_contract"],
@@ -989,7 +1005,7 @@ async def handle_position_size(server: Any, arguments: Dict[str, Any]) -> str:
     },
     aliases=["stop_loss"],
 )
-async def handle_stop_loss(server: Any, arguments: Dict[str, Any]) -> str:
+async def handle_stop_loss(server: Any, arguments: ToolArguments) -> str:
     return await server.recommend_stop_loss(
         net_credit=arguments["net_credit"],
         spread_width=arguments["spread_width"],
@@ -1013,7 +1029,7 @@ async def handle_stop_loss(server: Any, arguments: Dict[str, Any]) -> str:
     },
     aliases=["spread_analysis"],
 )
-async def handle_spread_analysis(server: Any, arguments: Dict[str, Any]) -> str:
+async def handle_spread_analysis(server: Any, arguments: ToolArguments) -> str:
     return await server.analyze_spread(
         symbol=arguments["symbol"],
         short_strike=arguments["short_strike"],
@@ -1042,7 +1058,7 @@ async def handle_spread_analysis(server: Any, arguments: Dict[str, Any]) -> str:
     },
     aliases=["monte_carlo"],
 )
-async def handle_monte_carlo(server: Any, arguments: Dict[str, Any]) -> str:
+async def handle_monte_carlo(server: Any, arguments: ToolArguments) -> str:
     return await server.run_monte_carlo(
         symbol=arguments["symbol"],
         short_strike=arguments["short_strike"],
@@ -1064,7 +1080,7 @@ async def handle_monte_carlo(server: Any, arguments: Dict[str, Any]) -> str:
     input_schema=EMPTY_SCHEMA,
     aliases=["cache_stats"],
 )
-async def handle_cache_stats(server: Any, arguments: Dict[str, Any]) -> str:
+async def handle_cache_stats(server: Any, arguments: ToolArguments) -> str:
     return await server.get_cache_stats()
 
 
@@ -1075,7 +1091,7 @@ async def handle_cache_stats(server: Any, arguments: Dict[str, Any]) -> str:
     aliases=["watchlist"],
     is_async=False,
 )
-def handle_watchlist_info(server: Any, arguments: Dict[str, Any]) -> str:
+def handle_watchlist_info(server: Any, arguments: ToolArguments) -> str:
     return server.get_watchlist_info()
 
 
@@ -1089,7 +1105,7 @@ def handle_watchlist_info(server: Any, arguments: Dict[str, Any]) -> str:
     input_schema=EMPTY_SCHEMA,
     aliases=["sector_status"],
 )
-async def handle_sector_status(server: Any, arguments: Dict[str, Any]) -> str:
+async def handle_sector_status(server: Any, arguments: ToolArguments) -> str:
     return await server.get_sector_status()
 
 
