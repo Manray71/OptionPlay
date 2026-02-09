@@ -622,7 +622,7 @@ class ScanHandlerMixin(BaseHandlerMixin):
             logger.warning(f"Could not fetch VIX: {e}")
 
         # Configure recommendation engine (PLAYBOOK-aligned defaults)
-        from ..constants.trading_rules import SIZING_MAX_PER_SECTOR
+        from ..constants.trading_rules import SIZING_MAX_PER_SECTOR, SPREAD_MIN_CREDIT_PCT
         engine_config = {
             'min_stability_score': min_stability,
             'min_signal_score': min_score,
@@ -865,6 +865,8 @@ class ScanHandlerMixin(BaseHandlerMixin):
 
         Output matches TASKS_DAILY_PICKS_V2.md Task 4.1 specification.
         """
+        from ..constants.trading_rules import SPREAD_MIN_CREDIT_PCT
+
         # Strategy display
         strategy_display = {
             "pullback": "Pullback",
@@ -919,7 +921,7 @@ class ScanHandlerMixin(BaseHandlerMixin):
             )
 
             # Credit line
-            credit_check = "OK" if sv.credit_pct and sv.credit_pct >= 10 else "LOW"
+            credit_check = "OK" if sv.credit_pct and sv.credit_pct >= SPREAD_MIN_CREDIT_PCT else "LOW"
             b.text(
                 f"**Credit:** ${sv.credit_bid:.2f} (Bid) -- "
                 f"${sv.credit_mid:.2f} (Mid) | "

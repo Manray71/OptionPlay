@@ -62,6 +62,30 @@ logger = logging.getLogger(__name__)
 # DB-Pfad
 DEFAULT_DB_PATH = Path.home() / ".optionplay" / "trades.db"
 
+# =============================================================================
+# CONSTANTS — extracted from inline magic numbers
+# =============================================================================
+
+# IV status thresholds (used in iv_status property)
+IV_RANK_VERY_HIGH = 70
+IV_RANK_ELEVATED = 50
+IV_RANK_NORMAL = 30
+
+# Minimum data points for cache validity
+IV_CACHE_MIN_POINTS = 20
+
+# ATM put selection criteria for DB query
+IV_ATM_DELTA_MIN = -0.55
+IV_ATM_DELTA_MAX = -0.45
+IV_ATM_DTE_MIN = 25
+IV_ATM_DTE_MAX = 35
+
+# Lookback period for historical IV
+IV_LOOKBACK_DAYS = 365
+
+# Minimum data points for DB-based IV calculation
+IV_DB_MIN_POINTS = 30
+
 
 @dataclass
 class IVMetrics:
@@ -86,11 +110,11 @@ class IVMetrics:
         """Gibt IV-Status als String zurück."""
         if self.iv_rank is None:
             return "unknown"
-        if self.iv_rank >= 70:
+        if self.iv_rank >= IV_RANK_VERY_HIGH:
             return "very_high"
-        elif self.iv_rank >= 50:
+        elif self.iv_rank >= IV_RANK_ELEVATED:
             return "elevated"
-        elif self.iv_rank >= 30:
+        elif self.iv_rank >= IV_RANK_NORMAL:
             return "normal"
         else:
             return "low"
@@ -196,7 +220,7 @@ class IVAnalyzer:
         try:
             iv_data = self.fetcher.get_iv_rank(symbol, current_iv or 0.0)
 
-            if iv_data and iv_data.iv_rank is not None and iv_data.data_points >= 20:
+            if iv_data and iv_data.iv_rank is not None and iv_data.data_points >= IV_CACHE_MIN_POINTS:
                 return IVMetrics(
                     symbol=symbol,
                     iv_rank=round(iv_data.iv_rank, 1),
@@ -217,15 +241,15 @@ class IVAnalyzer:
         """Sync DB query for IV data. Runs in thread pool."""
         conn = sqlite3.connect(str(self._db_path))
         cursor = conn.cursor()
-        query = """
+        query = f"""
             SELECT g.iv_calculated, p.quote_date
             FROM options_greeks g
             JOIN options_prices p ON g.options_price_id = p.id
             WHERE p.underlying = ?
               AND p.option_type = 'P'
-              AND g.delta BETWEEN -0.55 AND -0.45
-              AND p.dte BETWEEN 25 AND 35
-              AND p.quote_date >= date('now', '-365 days')
+              AND g.delta BETWEEN {IV_ATM_DELTA_MIN} AND {IV_ATM_DELTA_MAX}
+              AND p.dte BETWEEN {IV_ATM_DTE_MIN} AND {IV_ATM_DTE_MAX}
+              AND p.quote_date >= date('now', '-{IV_LOOKBACK_DAYS} days')
               AND g.iv_calculated IS NOT NULL
               AND g.iv_calculated > 0
             ORDER BY p.quote_date
@@ -248,7 +272,7 @@ class IVAnalyzer:
         try:
             rows = await asyncio.to_thread(self._query_iv_from_db, symbol)
 
-            if not rows or len(rows) < 30:
+            if not rows or len(rows) < IV_DB_MIN_POINTS:
                 return None
 
             # Tages-Durchschnitt berechnen (mehrere Strikes pro Tag)
@@ -264,7 +288,7 @@ class IVAnalyzer:
                 for ivs in daily_ivs.values()
             ]
 
-            if len(iv_values) < 30:
+            if len(iv_values) < IV_DB_MIN_POINTS:
                 return None
 
             current_iv = iv_values[-1]

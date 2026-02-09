@@ -21,6 +21,19 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# Display / UI formatting constants
+DISPLAY_STABILITY_OK = 70        # Stability threshold for "OK" display
+SMA_20_PERIOD = 20               # SMA short period
+SMA_50_PERIOD = 50               # SMA medium period
+SMA_200_PERIOD = 200             # SMA long period
+VOLUME_AVG_PERIOD = 20           # Volume average window (days)
+DISPLAY_SCORE_STRONG = 7         # Score threshold for "Strong" label
+DISPLAY_SCORE_MODERATE = 5       # Score threshold for "Moderate" label
+DISPLAY_SCORE_BEST = 6           # Score threshold for best signal
+DISPLAY_SCORE_OK = 4             # Score threshold for moderate signal
+DISPLAY_REASON_MAX_LEN = 35     # Max length for truncated reason text
+FIBONACCI_LOOKBACK = 60          # Lookback period for Fibonacci high/low
+
 
 class AnalysisHandler(BaseHandler):
     """
@@ -47,7 +60,7 @@ class AnalysisHandler(BaseHandler):
         from ..utils.validation import validate_symbol
         from ..utils.markdown_builder import MarkdownBuilder
         from ..vix_strategy import get_strategy_for_vix
-        from ..constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS, ENTRY_STABILITY_MIN, is_blacklisted
+        from ..constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS, ENTRY_VOLUME_MIN, ENTRY_STABILITY_MIN, is_blacklisted
         from ..cache.symbol_fundamentals import get_fundamentals_manager
 
         symbol = validate_symbol(symbol)
@@ -87,7 +100,7 @@ class AnalysisHandler(BaseHandler):
         b.h2("Fundamentals")
         if fundamentals and fundamentals.stability_score is not None:
             stability = fundamentals.stability_score
-            if stability >= 70:
+            if stability >= DISPLAY_STABILITY_OK:
                 stability_icon = "[OK]"
             elif stability >= ENTRY_STABILITY_MIN:
                 stability_icon = "[~]"  # WARNING: 65-70 range
@@ -112,9 +125,9 @@ class AnalysisHandler(BaseHandler):
         if historical:
             prices, volumes, highs, lows, *_ = historical
             current_price = prices[-1]
-            sma_20 = sum(prices[-20:]) / 20 if len(prices) >= 20 else current_price
-            sma_50 = sum(prices[-50:]) / 50 if len(prices) >= 50 else current_price
-            sma_200 = sum(prices[-200:]) / 200 if len(prices) >= 200 else current_price
+            sma_20 = sum(prices[-SMA_20_PERIOD:]) / SMA_20_PERIOD if len(prices) >= SMA_20_PERIOD else current_price
+            sma_50 = sum(prices[-SMA_50_PERIOD:]) / SMA_50_PERIOD if len(prices) >= SMA_50_PERIOD else current_price
+            sma_200 = sum(prices[-SMA_200_PERIOD:]) / SMA_200_PERIOD if len(prices) >= SMA_200_PERIOD else current_price
 
             b.h2("Technical Indicators")
             up_20 = "[UP]" if current_price > sma_20 else "[DN]"
@@ -124,10 +137,10 @@ class AnalysisHandler(BaseHandler):
             b.kv_line("SMA 50", f"${sma_50:.2f} {up_50}")
             b.kv_line("SMA 200", f"${sma_200:.2f} {up_200}")
 
-            if volumes and len(volumes) >= 20:
-                avg_vol_20d = sum(volumes[-20:]) / 20
-                vol_icon = "[OK]" if avg_vol_20d >= 500_000 else "[X]"
-                b.kv_line("Avg Volume (20d)", f"{vol_icon} {avg_vol_20d:,.0f} (min: 500,000)")
+            if volumes and len(volumes) >= VOLUME_AVG_PERIOD:
+                avg_vol_20d = sum(volumes[-VOLUME_AVG_PERIOD:]) / VOLUME_AVG_PERIOD
+                vol_icon = "[OK]" if avg_vol_20d >= ENTRY_VOLUME_MIN else "[X]"
+                b.kv_line("Avg Volume (20d)", f"{vol_icon} {avg_vol_20d:,.0f} (min: {ENTRY_VOLUME_MIN:,})")
             b.blank()
 
             if current_price > sma_200 and current_price < sma_20:
@@ -245,8 +258,8 @@ class AnalysisHandler(BaseHandler):
 
             if strat in signal_by_strategy:
                 sig = signal_by_strategy[strat]
-                status = "[OK] Strong" if sig.score >= 7 else ("[~] Moderate" if sig.score >= 5 else "[X] Weak")
-                reason = truncate(sig.reason, 35) if sig.reason else "-"
+                status = "[OK] Strong" if sig.score >= DISPLAY_SCORE_STRONG else ("[~] Moderate" if sig.score >= DISPLAY_SCORE_MODERATE else "[X] Weak")
+                reason = truncate(sig.reason, DISPLAY_REASON_MAX_LEN) if sig.reason else "-"
                 rows.append([f"{icon} {name}", f"{sig.score:.1f}/10", status, reason])
             else:
                 rows.append([f"{icon} {name}", "N/A", "[X] No signal", "-"])
@@ -259,9 +272,9 @@ class AnalysisHandler(BaseHandler):
             icon = strategy_icons.get(best.strategy, '*')
             name = strategy_names.get(best.strategy, best.strategy)
 
-            if best.score >= 6:
+            if best.score >= DISPLAY_SCORE_BEST:
                 b.status_ok(f"**Best: {icon} {name}** (Score: {best.score:.1f}/10)")
-            elif best.score >= 4:
+            elif best.score >= DISPLAY_SCORE_OK:
                 b.status_warning(f"**Moderate: {icon} {name}** (Score: {best.score:.1f}/10)")
             else:
                 b.status_error("**No strong signals.**")
@@ -463,8 +476,8 @@ class AnalysisHandler(BaseHandler):
         support_levels = find_support_levels(lows=lows, lookback=90, window=10, max_levels=5)
         support_levels = [s for s in support_levels if s < current_price]
 
-        recent_high = max(highs[-60:]) if len(highs) >= 60 else max(highs)
-        recent_low = min(lows[-60:]) if len(lows) >= 60 else min(lows)
+        recent_high = max(highs[-FIBONACCI_LOOKBACK:]) if len(highs) >= FIBONACCI_LOOKBACK else max(highs)
+        recent_low = min(lows[-FIBONACCI_LOOKBACK:]) if len(lows) >= FIBONACCI_LOOKBACK else min(lows)
         fib_levels = calculate_fibonacci(recent_high, recent_low)
 
         options = await self._get_options_chain_with_fallback(

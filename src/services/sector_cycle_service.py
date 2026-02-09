@@ -29,6 +29,44 @@ from ..config.scoring_config import get_scoring_resolver
 
 logger = logging.getLogger(__name__)
 
+# =============================================================================
+# CONSTANTS — extracted from inline magic numbers
+# =============================================================================
+
+# Cache TTL
+SECTOR_CACHE_TTL_HOURS = 4
+
+# Factor range (clamping bounds)
+SECTOR_FACTOR_MAX = 1.5
+SECTOR_FACTOR_MIN = 0.6
+
+# Lookback periods (days)
+SECTOR_LOOKBACK_SHORT = 30
+SECTOR_LOOKBACK_LONG = 60
+
+# Component weights for momentum factor calculation
+SECTOR_WEIGHT_RS_30D = 0.40
+SECTOR_WEIGHT_RS_60D = 0.30
+SECTOR_WEIGHT_BREADTH = 0.20
+SECTOR_WEIGHT_VOL_PREMIUM = 0.10
+
+# Breadth proxy defaults
+BREADTH_PROXY_NEUTRAL = 0.5
+BREADTH_NORM_FLOOR = 0.95
+BREADTH_NORM_RANGE = 0.10
+
+# Regime classification thresholds
+SECTOR_REGIME_STRONG = 1.05
+SECTOR_REGIME_NEUTRAL = 0.90
+SECTOR_REGIME_WEAK = 0.70
+
+# Relative strength normalization scales
+SECTOR_RS_30D_SCALE = 10.0
+SECTOR_RS_60D_SCALE = 15.0
+
+# Extra days fetched beyond lookback
+SECTOR_FETCH_BUFFER_DAYS = 10
+
 
 # =============================================================================
 # Data Models
@@ -82,7 +120,7 @@ class SectorCycleService:
 
     @property
     def _ttl_seconds(self) -> float:
-        return self._config.get("cache_ttl_hours", 4) * 3600
+        return self._config.get("cache_ttl_hours", SECTOR_CACHE_TTL_HOURS) * 3600
 
     @property
     def _etf_mapping(self) -> Dict[str, str]:
@@ -102,19 +140,19 @@ class SectorCycleService:
 
     @property
     def _factor_range(self) -> Dict[str, float]:
-        return self._config.get("factor_range", {"min": 0.6, "max": 1.2})
+        return self._config.get("factor_range", {"min": SECTOR_FACTOR_MIN, "max": SECTOR_FACTOR_MAX})
 
     @property
     def _lookback_days(self) -> Dict[str, int]:
-        return self._config.get("lookback_days", {"short": 30, "long": 60})
+        return self._config.get("lookback_days", {"short": SECTOR_LOOKBACK_SHORT, "long": SECTOR_LOOKBACK_LONG})
 
     @property
     def _component_weights(self) -> Dict[str, float]:
         return self._config.get("component_weights", {
-            "relative_strength_30d": 0.40,
-            "relative_strength_60d": 0.30,
-            "breadth": 0.20,
-            "vol_premium": 0.10,
+            "relative_strength_30d": SECTOR_WEIGHT_RS_30D,
+            "relative_strength_60d": SECTOR_WEIGHT_RS_60D,
+            "breadth": SECTOR_WEIGHT_BREADTH,
+            "vol_premium": SECTOR_WEIGHT_VOL_PREMIUM,
         })
 
     def _is_cache_valid(self) -> bool:
@@ -168,22 +206,22 @@ class SectorCycleService:
     def _calculate_breadth_proxy(self, prices: List[float]) -> float:
         """Breadth proxy: price / 50-SMA, normalized to 0-1."""
         if not prices or len(prices) < 50:
-            return 0.5  # Neutral
+            return BREADTH_PROXY_NEUTRAL  # Neutral
         sma50 = float(np.mean(prices[-50:]))
         if sma50 <= 0:
-            return 0.5
+            return BREADTH_PROXY_NEUTRAL
         ratio = prices[-1] / sma50
         # Normalize: 0.95 → 0, 1.05 → 1, clamped
-        normalized = (ratio - 0.95) / 0.10
+        normalized = (ratio - BREADTH_NORM_FLOOR) / BREADTH_NORM_RANGE
         return max(0.0, min(1.0, normalized))
 
     def _classify_regime(self, factor: float) -> SectorRegime:
         """Classify sector regime based on momentum factor."""
-        if factor >= 1.05:
+        if factor >= SECTOR_REGIME_STRONG:
             return SectorRegime.STRONG
-        elif factor >= 0.90:
+        elif factor >= SECTOR_REGIME_NEUTRAL:
             return SectorRegime.NEUTRAL
-        elif factor >= 0.70:
+        elif factor >= SECTOR_REGIME_WEAK:
             return SectorRegime.WEAK
         else:
             return SectorRegime.CRISIS
@@ -199,7 +237,7 @@ class SectorCycleService:
 
         etf_mapping = self._etf_mapping
         lookback = self._lookback_days
-        max_days = max(lookback.get("short", 30), lookback.get("long", 60)) + 10
+        max_days = max(lookback.get("short", SECTOR_LOOKBACK_SHORT), lookback.get("long", SECTOR_LOOKBACK_LONG)) + SECTOR_FETCH_BUFFER_DAYS
 
         # Fetch all ETFs + SPY in parallel
         symbols = list(etf_mapping.values()) + ["SPY"]
@@ -219,10 +257,10 @@ class SectorCycleService:
             logger.warning("No SPY data, returning neutral factors")
             return self._neutral_fallback()
 
-        spy_vol = self._calculate_volatility(spy_prices, lookback.get("short", 30))
+        spy_vol = self._calculate_volatility(spy_prices, lookback.get("short", SECTOR_LOOKBACK_SHORT))
         component_weights = self._component_weights
-        factor_min = self._factor_range.get("min", 0.6)
-        factor_max = self._factor_range.get("max", 1.2)
+        factor_min = self._factor_range.get("min", SECTOR_FACTOR_MIN)
+        factor_max = self._factor_range.get("max", SECTOR_FACTOR_MAX)
 
         statuses: List[SectorStatus] = []
         for sector, etf in etf_mapping.items():
@@ -232,8 +270,8 @@ class SectorCycleService:
                 continue
 
             # Calculate components
-            short_days = lookback.get("short", 30)
-            long_days = lookback.get("long", 60)
+            short_days = lookback.get("short", SECTOR_LOOKBACK_SHORT)
+            long_days = lookback.get("long", SECTOR_LOOKBACK_LONG)
 
             etf_return_short = self._calculate_return(etf_prices, short_days)
             spy_return_short = self._calculate_return(spy_prices, short_days)
@@ -250,16 +288,16 @@ class SectorCycleService:
 
             # Weighted combination → raw factor
             # Normalize components to similar scales
-            rs_30d_norm = max(-1.0, min(1.0, rs_30d / 10.0))  # ±10% → ±1
-            rs_60d_norm = max(-1.0, min(1.0, rs_60d / 15.0))  # ±15% → ±1
+            rs_30d_norm = max(-1.0, min(1.0, rs_30d / SECTOR_RS_30D_SCALE))  # ±10% → ±1
+            rs_60d_norm = max(-1.0, min(1.0, rs_60d / SECTOR_RS_60D_SCALE))  # ±15% → ±1
             breadth_norm = breadth * 2 - 1  # 0-1 → -1 to 1
             vol_prem_norm = max(-1.0, min(1.0, -vol_premium))  # Negative: high vol is bad
 
             raw = (
-                component_weights.get("relative_strength_30d", 0.4) * rs_30d_norm
-                + component_weights.get("relative_strength_60d", 0.3) * rs_60d_norm
-                + component_weights.get("breadth", 0.2) * breadth_norm
-                + component_weights.get("vol_premium", 0.1) * vol_prem_norm
+                component_weights.get("relative_strength_30d", SECTOR_WEIGHT_RS_30D) * rs_30d_norm
+                + component_weights.get("relative_strength_60d", SECTOR_WEIGHT_RS_60D) * rs_60d_norm
+                + component_weights.get("breadth", SECTOR_WEIGHT_BREADTH) * breadth_norm
+                + component_weights.get("vol_premium", SECTOR_WEIGHT_VOL_PREMIUM) * vol_prem_norm
             )
 
             # Scale raw (-1 to 1) to factor range (e.g., 0.6 to 1.2)
@@ -323,20 +361,20 @@ class SectorCycleService:
         resolver = get_scoring_resolver()
         factor_range, comp_weights = resolver.get_sector_factor_config(strategy)
 
-        factor_min = factor_range.get("min", 0.6)
-        factor_max = factor_range.get("max", 1.2)
+        factor_min = factor_range.get("min", SECTOR_FACTOR_MIN)
+        factor_max = factor_range.get("max", SECTOR_FACTOR_MAX)
 
         # Normalize components (same as get_all_sector_statuses)
-        rs_30d_norm = max(-1.0, min(1.0, status.relative_strength_30d / 10.0))
-        rs_60d_norm = max(-1.0, min(1.0, status.relative_strength_60d / 15.0))
+        rs_30d_norm = max(-1.0, min(1.0, status.relative_strength_30d / SECTOR_RS_30D_SCALE))
+        rs_60d_norm = max(-1.0, min(1.0, status.relative_strength_60d / SECTOR_RS_60D_SCALE))
         breadth_norm = status.breadth_proxy * 2 - 1
         vol_prem_norm = max(-1.0, min(1.0, -status.vol_premium))
 
         raw = (
-            comp_weights.get("relative_strength_30d", 0.4) * rs_30d_norm
-            + comp_weights.get("relative_strength_60d", 0.3) * rs_60d_norm
-            + comp_weights.get("breadth", 0.2) * breadth_norm
-            + comp_weights.get("vol_premium", 0.1) * vol_prem_norm
+            comp_weights.get("relative_strength_30d", SECTOR_WEIGHT_RS_30D) * rs_30d_norm
+            + comp_weights.get("relative_strength_60d", SECTOR_WEIGHT_RS_60D) * rs_60d_norm
+            + comp_weights.get("breadth", SECTOR_WEIGHT_BREADTH) * breadth_norm
+            + comp_weights.get("vol_premium", SECTOR_WEIGHT_VOL_PREMIUM) * vol_prem_norm
         )
 
         # Scale raw (-1 to 1) to strategy-specific factor range

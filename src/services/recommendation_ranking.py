@@ -36,6 +36,42 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+# =============================================================================
+# CONSTANTS — extracted from inline magic numbers
+# =============================================================================
+
+# Speed scoring: DTE component
+SPEED_DTE_OPTIMAL = 60
+SPEED_DTE_RANGE = 30
+SPEED_DTE_WEIGHT = 3.0
+
+# Speed scoring: stability component
+SPEED_STABILITY_BASELINE = 70
+SPEED_STABILITY_RANGE = 30
+SPEED_STABILITY_WEIGHT = 2.5
+
+# Speed scoring: other component weights
+SPEED_SECTOR_WEIGHT = 1.5
+SPEED_PULLBACK_WEIGHT = 1.5
+SPEED_MARKET_CONTEXT_WEIGHT = 1.5
+
+# Speed scoring: max possible score
+SPEED_SCORE_MAX = 10.0
+
+# Ranking: stability vs signal weight (30% stability, 70% signal)
+RANKING_STABILITY_WEIGHT = 0.3
+
+# Speed multiplier minimum (Speed 0 → 0.5x)
+SPEED_MULTIPLIER_MIN = 0.5
+
+# Strike support fallback percentages
+STRIKE_SUPPORT_PCT_1 = 0.90
+STRIKE_SUPPORT_PCT_2 = 0.85
+STRIKE_SUPPORT_PCT_3 = 0.80
+
+# Stability warning threshold
+RANKING_STABILITY_WARNING = 70
+
 
 class RecommendationRankingMixin:
     """
@@ -91,27 +127,27 @@ class RecommendationRankingMixin:
         score = 0.0
 
         # 1. DTE-Bonus: Näher an 60 = schneller (Max 3.0)
-        dte_factor = max(0.0, 1.0 - (dte - 60) / 30)
-        score += dte_factor * 3.0
+        dte_factor = max(0.0, 1.0 - (dte - SPEED_DTE_OPTIMAL) / SPEED_DTE_RANGE)
+        score += dte_factor * SPEED_DTE_WEIGHT
 
         # 2. Stability-Bonus: Höher = schneller (Max 2.5)
-        stab_factor = max(0.0, (stability_score - 70) / 30)
-        score += stab_factor * 2.5
+        stab_factor = max(0.0, (stability_score - SPEED_STABILITY_BASELINE) / SPEED_STABILITY_RANGE)
+        score += stab_factor * SPEED_STABILITY_WEIGHT
 
         # 3. Sektor-Bonus (Max 1.5) x Cycle Factor (0.6-1.2)
-        base_sector_speed = self.SECTOR_SPEED.get(sector, 0.5) * 1.5
+        base_sector_speed = self.SECTOR_SPEED.get(sector, 0.5) * SPEED_SECTOR_WEIGHT
         cycle_factor = self._sector_factors.get(sector, 1.0) if self._sector_factors else 1.0  # type: ignore[attr-defined]
         score += base_sector_speed * cycle_factor
 
         # 4. Pullback-Score-Bonus (Max 1.5)
         if pullback_score is not None:
-            score += min(pullback_score / 10, 1.0) * 1.5
+            score += min(pullback_score / 10, 1.0) * SPEED_PULLBACK_WEIGHT
 
         # 5. Market-Context-Bonus (Max 1.5)
         if market_context_score is not None:
-            score += min(max(market_context_score, 0) / 10, 1.0) * 1.5
+            score += min(max(market_context_score, 0) / 10, 1.0) * SPEED_MARKET_CONTEXT_WEIGHT
 
-        return min(score, 10.0)
+        return min(score, SPEED_SCORE_MAX)
 
     # ------------------------------------------------------------------
     # Ranking
@@ -187,7 +223,7 @@ class RecommendationRankingMixin:
 
             # Speed^exponent Multiplikator (PLAYBOOK)
             # Normalisierung: Speed 0-10 -> 0.5-1.5, dann ^0.3
-            speed_normalized = 0.5 + (speed / 10.0)
+            speed_normalized = SPEED_MULTIPLIER_MIN + (speed / SPEED_SCORE_MAX)
             combined = base * (speed_normalized ** speed_exponent)
 
             return float(combined)
@@ -249,9 +285,9 @@ class RecommendationRankingMixin:
             # Fallback: Berechne Support als 10% unter aktuellem Preis
             if not support_levels:
                 support_levels = [
-                    current_price * 0.90,
-                    current_price * 0.85,
-                    current_price * 0.80,
+                    current_price * STRIKE_SUPPORT_PCT_1,
+                    current_price * STRIKE_SUPPORT_PCT_2,
+                    current_price * STRIKE_SUPPORT_PCT_3,
                 ]
 
             # IV-Rank aus Signal-Details
@@ -464,9 +500,9 @@ class RecommendationRankingMixin:
         warnings: list[str] = []
         if signal.reliability_warnings:
             warnings.extend(signal.reliability_warnings)
-        if stability_score < 70:
+        if stability_score < RANKING_STABILITY_WARNING:
             warnings.append(
-                f"\u26a0\ufe0f Stability unter 70 ({stability_score:.0f}) - erh\u00f6htes Risiko"
+                f"\u26a0\ufe0f Stability unter {RANKING_STABILITY_WARNING} ({stability_score:.0f}) - erh\u00f6htes Risiko"
             )
         if regime == MarketRegime.DANGER_ZONE:
             warnings.append("\u26a0\ufe0f VIX in Danger Zone (20-25) - reduzierte Position empfohlen")

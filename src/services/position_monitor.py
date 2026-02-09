@@ -48,6 +48,13 @@ from ..constants.trading_rules import (
 
 logger = logging.getLogger(__name__)
 
+# =============================================================================
+# CONSTANTS — extracted from inline magic numbers
+# =============================================================================
+
+# Estimated original DTE for theta/P&L calculation (typical BPS entry at 60-90 DTE)
+THETA_ESTIMATE_ORIGINAL_DTE = 75
+
 
 # =============================================================================
 # DATA CLASSES
@@ -218,7 +225,7 @@ def estimate_pnl_from_theta(snapshot: PositionSnapshot) -> PositionSnapshot:
     # Estimate original DTE from expiration
     # Typical BPS opened at 60-90 DTE; use spread between now and exp
     # We estimate original entry at ~75 DTE (SPREAD_DTE_TARGET)
-    original_dte = 75  # Approximation
+    original_dte = THETA_ESTIMATE_ORIGINAL_DTE  # Approximation
     time_elapsed = max(0, original_dte - snapshot.dte)
     total_time = original_dte
 

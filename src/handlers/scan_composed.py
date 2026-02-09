@@ -708,6 +708,7 @@ class ScanHandler(BaseHandler):
     def _format_single_pick_v2(self, b: Any, pick: Any) -> None:
         """Format a single pick in v2 format with real chain data."""
         from ..utils.markdown_builder import truncate
+        from ..constants.trading_rules import SPREAD_MIN_CREDIT_PCT
 
         strategy_display = {
             "pullback": "Pullback", "bounce": "Bounce",
@@ -738,7 +739,7 @@ class ScanHandler(BaseHandler):
             b.blank()
 
             b.text(f"**Spread:** ${sv.spread_width:.0f} breit | **Expiry:** {sv.expiration} ({sv.dte} DTE)")
-            credit_check = "OK" if sv.credit_pct and sv.credit_pct >= 10 else "LOW"
+            credit_check = "OK" if sv.credit_pct and sv.credit_pct >= SPREAD_MIN_CREDIT_PCT else "LOW"
             b.text(f"**Credit:** ${sv.credit_bid:.2f} (Bid) -- ${sv.credit_mid:.2f} (Mid) | **Credit/Breite:** {sv.credit_pct:.1f}% {credit_check}")
 
             max_loss = sv.max_loss_per_contract if sv.max_loss_per_contract else 0
