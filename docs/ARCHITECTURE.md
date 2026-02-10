@@ -79,7 +79,7 @@ Alle 3 Kern-Services (Validator, Monitor, Recommender) sind implementiert.
 ## Module Structure
 
 ```
-src/                                    216 Module | 88,317 LOC
+src/                                    223 Module | 89,574 LOC
 ├── mcp_server.py                       (905 LOC — Server-Klasse)
 ├── mcp_tool_registry.py                (1,081 LOC — 108 Tool-Registrierungen)
 ├── mcp_main.py                         (255 LOC — Entry Point)
@@ -215,8 +215,8 @@ Alle Parameter extern in YAML:
 
 | Bereich | Python-Dateien | Zeilen |
 |---------|---------------|--------|
-| **src/** | 216 | 88,317 |
-| **tests/** | 143 | ~60,000 |
+| **src/** | 223 | 89,574 |
+| **tests/** | 138 | ~60,000 |
 
 ### Größte Subsysteme in src/
 

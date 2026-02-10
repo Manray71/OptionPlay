@@ -5,8 +5,8 @@ Für alle Trading-Regeln → siehe `docs/PLAYBOOK.md`
 
 **Version:** 4.0.0
 **Zuletzt aktualisiert:** 2026-02-09
-**Test-Coverage:** 80%+ (6,762 Tests)
-**Codebase:** 216 Module | 88,317 LOC (src/) | 143 Testdateien
+**Test-Coverage:** 80%+ (6,917 Tests)
+**Codebase:** 223 Module | 89,574 LOC (src/) | 138 Testdateien
 
 ---
 
