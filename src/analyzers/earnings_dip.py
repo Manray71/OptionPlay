@@ -53,7 +53,8 @@ EDIP_LOOKBACK_DAYS = 10          # Max days since earnings to scan
 EDIP_MIN_STABILIZATION_DAYS = 1  # Must wait at least 1 day
 EDIP_MIN_STABILITY_SCORE = 60.0  # Minimum stability for qualification
 EDIP_MIN_AVG_VOLUME = 500000     # Minimum average volume
-EDIP_NEXT_EARNINGS_MIN_DAYS = 60 # Min days to next earnings for BPS
+from ..constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS as _ENTRY_EARNINGS_MIN_DAYS
+EDIP_NEXT_EARNINGS_MIN_DAYS = _ENTRY_EARNINGS_MIN_DAYS  # Min days to next earnings for BPS
 EDIP_MIN_SCORE = 3.5             # Minimum total score for signal
 EDIP_MAX_SCORE = 9.5             # Theoretical maximum
 

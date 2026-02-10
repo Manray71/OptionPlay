@@ -14,6 +14,11 @@ from typing import Optional, Dict, List, Tuple, Callable, TypeVar, Any
 from enum import Enum
 from contextlib import contextmanager
 
+try:
+    from ..constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS
+except ImportError:
+    from constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS
+
 logger = logging.getLogger(__name__)
 
 # Type variable für retry decorator
@@ -742,7 +747,7 @@ def get_earnings(symbol: str) -> EarningsInfo:
     return get_earnings_fetcher().fetch(symbol)
 
 
-def is_earnings_safe(symbol: str, min_days: int = 60) -> bool:
+def is_earnings_safe(symbol: str, min_days: int = ENTRY_EARNINGS_MIN_DAYS) -> bool:
     """
     Prüft ob Symbol sicher vor Earnings ist.
     

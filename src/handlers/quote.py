@@ -125,7 +125,7 @@ class QuoteHandlerMixin(BaseHandlerMixin):
             return {'earnings_date': None, 'days_to_earnings': None, 'source': 'error'}
 
     @mcp_endpoint(operation="earnings check", symbol_param="symbol")
-    async def get_earnings(self, symbol: str, min_days: int = 60) -> str:
+    async def get_earnings(self, symbol: str, min_days: int = ENTRY_EARNINGS_MIN_DAYS) -> str:
         """
         Check earnings date for a symbol with multi-source fallback.
 

@@ -434,7 +434,7 @@ class FundamentalsFilterConfig:
 @dataclass
 class FilterConfig:
     """Filter Einstellungen"""
-    earnings_exclude_days: int = 60
+    earnings_exclude_days: int = ENTRY_EARNINGS_MIN_DAYS
     price_minimum: float = 20.0
     price_maximum: float = 1500.0
     volume_minimum: int = 500000
@@ -460,7 +460,7 @@ class ScannerConfig:
     min_actionable_score: float = 6.0
 
     # Earnings-Filter
-    exclude_earnings_within_days: int = 60
+    exclude_earnings_within_days: int = ENTRY_EARNINGS_MIN_DAYS
 
     # Auto Earnings Pre-Filter (reduziert API-Calls!)
     auto_earnings_prefilter: bool = True  # Automatisch vor Scans filtern

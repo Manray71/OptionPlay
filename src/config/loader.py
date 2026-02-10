@@ -281,7 +281,7 @@ class ConfigLoader:
                 )
 
             settings.filters = FilterConfig(
-                earnings_exclude_days=f.get('earnings', {}).get('exclude_days_before', 60),
+                earnings_exclude_days=f.get('earnings', {}).get('exclude_days_before', ENTRY_EARNINGS_MIN_DAYS),
                 price_minimum=f.get('price', {}).get('minimum', 20.0),
                 price_maximum=f.get('price', {}).get('maximum', 500.0),
                 volume_minimum=f.get('volume', {}).get('minimum_daily', 500000),

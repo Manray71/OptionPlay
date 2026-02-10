@@ -29,7 +29,7 @@ from ..analyzers.pool import AnalyzerPool, PoolConfig, get_analyzer_pool
 from ..models.base import TradeSignal, SignalType, SignalStrength
 from ..config import PullbackScoringConfig
 from ..config.liquidity_blacklist import is_illiquid, filter_liquid_symbols
-from ..constants.trading_rules import ENTRY_STABILITY_MIN, ENTRY_PRICE_MIN, ENTRY_PRICE_MAX
+from ..constants.trading_rules import ENTRY_STABILITY_MIN, ENTRY_PRICE_MIN, ENTRY_PRICE_MAX, ENTRY_EARNINGS_MIN_DAYS
 
 # Optional dependencies — these may not be available in all environments
 try:
@@ -88,7 +88,7 @@ class ScanConfig:
     min_actionable_score: float = 5.0  # Strong actionable signal
 
     # Earnings-Filter
-    exclude_earnings_within_days: int = 60
+    exclude_earnings_within_days: int = ENTRY_EARNINGS_MIN_DAYS
 
     # IV-Rank Filter (für Credit-Spreads wichtig!)
     iv_rank_minimum: float = 30.0   # Min IV-Rank für ausreichend Prämie
@@ -1895,7 +1895,7 @@ def create_scanner(
     enable_earnings_dip: bool = True,
     enable_trend_continuation: bool = True,
     min_score: float = 3.5,  # Normalized 0-10 scale
-    exclude_earnings_days: int = 60
+    exclude_earnings_days: int = ENTRY_EARNINGS_MIN_DAYS
 ) -> MultiStrategyScanner:
     """
     Factory-Funktion für einfache Scanner-Erstellung.

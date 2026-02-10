@@ -18,6 +18,7 @@ from datetime import date, datetime
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from .handler_container import BaseHandler, ServerContext
+from ..constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS
 
 if TYPE_CHECKING:
     pass
@@ -126,7 +127,7 @@ class QuoteHandler(BaseHandler):
             self._logger.debug(f"Yahoo earnings API error for {symbol}: {e}")
             return {'earnings_date': None, 'days_to_earnings': None, 'source': 'error'}
 
-    async def get_earnings(self, symbol: str, min_days: int = 60) -> str:
+    async def get_earnings(self, symbol: str, min_days: int = ENTRY_EARNINGS_MIN_DAYS) -> str:
         """
         Check earnings date for a symbol with multi-source fallback.
 
@@ -198,7 +199,7 @@ class QuoteHandler(BaseHandler):
             source=source_used
         )
 
-    async def get_earnings_aggregated(self, symbol: str, min_days: int = 60) -> str:
+    async def get_earnings_aggregated(self, symbol: str, min_days: int = ENTRY_EARNINGS_MIN_DAYS) -> str:
         """
         Check earnings date with multi-source aggregation and majority voting.
 
