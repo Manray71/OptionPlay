@@ -1,13 +1,13 @@
 ---
 name: optionplay
-description: "MCP-Server für Options-Trading mit Bull-Put-Spread Strategien. 3 Jobs: Daily Picks, Trade Validator, Position Manager. Verwendet Tradier + Marketdata.app API + optionale IBKR-Bridge. 80%+ Test-Coverage, 53 Tools + 55 Aliases. Trigger: 'Options-Analyse', 'Pullback-Scan', 'Trend-Scan', 'Bull-Put-Spread', 'VIX-Strategie', 'Earnings-Check', 'Options-Chain', 'Max Pain', 'IV-Rank', 'Spread-Kandidaten', 'was sagt der Markt', 'Trading-Setup', 'Daily Picks', 'Zeig mir die heutigen Picks', 'Wie stehen meine Positionen', 'Kann ich X traden'."
+description: "MCP-Server für Options-Trading mit Bull-Put-Spread Strategien. 3 Jobs: Daily Picks, Trade Validator, Position Manager. Verwendet Tradier + Marketdata.app API + optionale IBKR-Bridge. 80%+ Test-Coverage, 54 Tools + 56 Aliases. Trigger: 'Options-Analyse', 'Pullback-Scan', 'Trend-Scan', 'Bull-Put-Spread', 'VIX-Strategie', 'Earnings-Check', 'Options-Chain', 'Max Pain', 'IV-Rank', 'Spread-Kandidaten', 'was sagt der Markt', 'Trading-Setup', 'Daily Picks', 'Zeig mir die heutigen Picks', 'Wie stehen meine Positionen', 'Kann ich X traden'."
 ---
 
 # OptionPlay - Trading Assistant MCP Server v4.0.0
 
 Bull-Put-Spread Trading-Assistent mit 3 klar definierten Jobs und 5 ML-trainierten Strategien.
 
-**Version:** 4.0.0 | **Test-Coverage:** 80%+ | **Tests:** 6,762 | **ML-Training:** 2026-02-09 (Walk-Forward)
+**Version:** 4.0.0 | **Test-Coverage:** 80%+ | **Tests:** 6,917 | **ML-Training:** 2026-02-09 (Walk-Forward)
 
 **Alle Trading-Regeln → `docs/PLAYBOOK.md`**
 **DB-Schema & Code → `CLAUDE.md`**
@@ -219,8 +219,8 @@ Output pro Position:
 │   ├── PLAYBOOK.md            # DAS Regelwerk (Entry, Exit, VIX, Disziplin)
 │   ├── ARCHITECTURE.md        # System-Architektur
 │   └── ROADMAP.md             # Stabilisierungs-Roadmap
-├── tests/                     # 143 Testdateien, 6,762 Tests
-└── src/                       # 216 Module, 88,317 LOC — Details in ARCHITECTURE.md
+├── tests/                     # 138 Testdateien, 6,917 Tests
+└── src/                       # 223 Module, 89,574 LOC — Details in ARCHITECTURE.md
 ```
 
 ---
@@ -230,9 +230,9 @@ Output pro Position:
 | Metrik | Wert |
 |--------|------|
 | Test-Coverage | 80%+ |
-| Tests | 6,762 (143 Testdateien) |
-| Module (src/) | 216 Python-Dateien, 88,317 LOC |
-| Tools | 53 + 55 Aliases = 108 Endpoints |
+| Tests | 6,917 (138 Testdateien) |
+| Module (src/) | 223 Python-Dateien, 89,574 LOC |
+| Tools | 54 + 56 Aliases = 110 Endpoints |
 | Thread-Safety | ✅ (10+ Module mit Locks) |
 | Async-SQLite | ✅ (asyncio.to_thread) |
 
