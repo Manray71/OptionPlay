@@ -13,6 +13,7 @@ from pathlib import Path
 from datetime import datetime
 from unittest.mock import patch, MagicMock
 
+from src.constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS
 from src.formatters.pdf_report_generator import (
     CoverPageData,
     ScanResultRow,
@@ -263,7 +264,7 @@ class TestFundamentalsData:
             market_cap="$3.0T",
             div_yield="0.55%",
             iv_rank=45,
-            earnings_in_days=60,
+            earnings_in_days=ENTRY_EARNINGS_MIN_DAYS,
             sector="Technology",
         )
         assert fd.pe_ratio == 28.5
@@ -597,7 +598,7 @@ class TestPDFReportGenerator:
                 market_cap="$3.0T",
                 div_yield="0.55%",
                 iv_rank=45,
-                earnings_in_days=60,
+                earnings_in_days=ENTRY_EARNINGS_MIN_DAYS,
                 sector="Technology",
             ),
             news=[

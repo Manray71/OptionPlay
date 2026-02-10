@@ -12,6 +12,7 @@ import sqlite3
 from datetime import date, timedelta
 from pathlib import Path
 
+from src.constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS
 from src.cache.earnings_history import (
     EarningsHistoryManager,
     EarningsRecord,
@@ -503,7 +504,7 @@ class TestBmoAmcHandling:
         today = date.today()
         return [
             {
-                "earnings_date": (today + timedelta(days=60)).isoformat(),  # In 60 Tagen
+                "earnings_date": (today + timedelta(days=ENTRY_EARNINGS_MIN_DAYS)).isoformat(),
                 "fiscal_year": 2026,
                 "fiscal_quarter": "Q2",
                 "eps_actual": None,
@@ -577,7 +578,7 @@ class TestBmoAmcHandling:
         )
 
         assert is_safe is True
-        assert days_to == 60
+        assert days_to == ENTRY_EARNINGS_MIN_DAYS
         assert reason == "safe"
 
     def test_is_earnings_day_safe_too_close(self, manager):
@@ -647,7 +648,7 @@ class TestBatchMethods:
         today = date.today()
         earnings_data = [
             {
-                "earnings_date": (today + timedelta(days=60)).isoformat(),
+                "earnings_date": (today + timedelta(days=ENTRY_EARNINGS_MIN_DAYS)).isoformat(),
                 "time_of_day": "after close"
             }
         ]
@@ -666,9 +667,9 @@ class TestBatchMethods:
         today = date.today()
 
         # Setup: Different earnings scenarios for each symbol
-        # AAPL: Safe (60 days out)
+        # AAPL: Safe (ENTRY_EARNINGS_MIN_DAYS days out)
         manager.save_earnings("AAPL", [
-            {"earnings_date": (today + timedelta(days=60)).isoformat(), "time_of_day": "amc"}
+            {"earnings_date": (today + timedelta(days=ENTRY_EARNINGS_MIN_DAYS)).isoformat(), "time_of_day": "amc"}
         ])
         # MSFT: Too close (20 days)
         manager.save_earnings("MSFT", [
@@ -687,7 +688,7 @@ class TestBatchMethods:
 
         # AAPL: Safe
         assert batch["AAPL"][0] is True
-        assert batch["AAPL"][1] == 60
+        assert batch["AAPL"][1] == ENTRY_EARNINGS_MIN_DAYS
         assert batch["AAPL"][2] == "safe"
 
         # MSFT: Too close
@@ -709,7 +710,7 @@ class TestBatchMethods:
         """Test: Symbol lookup is case-insensitive"""
         today = date.today()
         manager.save_earnings("AAPL", [
-            {"earnings_date": (today + timedelta(days=60)).isoformat(), "time_of_day": "amc"}
+            {"earnings_date": (today + timedelta(days=ENTRY_EARNINGS_MIN_DAYS)).isoformat(), "time_of_day": "amc"}
         ])
 
         # Query with lowercase
@@ -759,7 +760,7 @@ class TestBatchMethods:
         """Test: Async batch wrapper works correctly"""
         today = date.today()
         manager.save_earnings("AAPL", [
-            {"earnings_date": (today + timedelta(days=60)).isoformat(), "time_of_day": "amc"}
+            {"earnings_date": (today + timedelta(days=ENTRY_EARNINGS_MIN_DAYS)).isoformat(), "time_of_day": "amc"}
         ])
 
         batch = await manager.is_earnings_day_safe_batch_async(
@@ -768,4 +769,4 @@ class TestBatchMethods:
 
         assert "AAPL" in batch
         assert batch["AAPL"][0] is True
-        assert batch["AAPL"][1] == 60
+        assert batch["AAPL"][1] == ENTRY_EARNINGS_MIN_DAYS

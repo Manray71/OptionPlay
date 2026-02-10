@@ -19,6 +19,7 @@ from unittest.mock import MagicMock, AsyncMock, patch, PropertyMock
 from datetime import datetime
 from dataclasses import dataclass
 
+from src.constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS
 from src.services.scanner_service import ScannerService, STRATEGY_TO_MODE
 from src.services.base import ServiceContext
 from src.models.strategy import Strategy
@@ -86,7 +87,7 @@ def create_mock_vix_service(vix: float = 15.0):
 
 def create_mock_recommendation(
     min_score: float = 5.0,
-    earnings_buffer_days: int = 60
+    earnings_buffer_days: int = ENTRY_EARNINGS_MIN_DAYS
 ):
     """Create a mock StrategyRecommendation."""
     rec = MagicMock()

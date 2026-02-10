@@ -25,6 +25,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from src.services.vix_service import VIXService
 from src.services.base import ServiceContext, BaseService
 from src.models.result import ServiceResult
+from src.constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS
 from src.vix_strategy import StrategyRecommendation, MarketRegime, VIXStrategySelector
 
 
@@ -607,7 +608,7 @@ class TestGetStrategyRecommendation:
             long_delta_target=-0.05,
             spread_width=None,
             min_score=6,
-            earnings_buffer_days=60,
+            earnings_buffer_days=ENTRY_EARNINGS_MIN_DAYS,
             dte_min=60,
             dte_max=90,
             reasoning="Test reasoning",
@@ -641,7 +642,7 @@ class TestGetStrategyRecommendation:
             long_delta_target=-0.05,
             spread_width=None,
             min_score=5,
-            earnings_buffer_days=60,
+            earnings_buffer_days=ENTRY_EARNINGS_MIN_DAYS,
             dte_min=60,
             dte_max=90,
             reasoning="Test reasoning",
@@ -670,7 +671,7 @@ class TestGetStrategyRecommendation:
             long_delta_target=-0.05,
             spread_width=None,
             min_score=7,
-            earnings_buffer_days=60,
+            earnings_buffer_days=ENTRY_EARNINGS_MIN_DAYS,
             dte_min=60,
             dte_max=90,
             reasoning="Test reasoning",
@@ -699,7 +700,7 @@ class TestGetStrategyRecommendation:
             long_delta_target=-0.05,
             spread_width=None,
             min_score=5,
-            earnings_buffer_days=60,
+            earnings_buffer_days=ENTRY_EARNINGS_MIN_DAYS,
             dte_min=60,
             dte_max=90,
             reasoning="Test reasoning",
@@ -728,7 +729,7 @@ class TestGetStrategyRecommendation:
             long_delta_target=-0.05,
             spread_width=None,
             min_score=6,
-            earnings_buffer_days=60,
+            earnings_buffer_days=ENTRY_EARNINGS_MIN_DAYS,
             dte_min=60,
             dte_max=90,
             reasoning="Test reasoning",

@@ -207,7 +207,7 @@ class TestValidateWorkflow:
 
     @pytest.mark.asyncio
     async def test_no_go_earnings_too_close(self):
-        """NO-GO: Earnings within 60 days."""
+        """NO-GO: Earnings within ENTRY_EARNINGS_MIN_DAYS."""
         fundamentals = _fundamentals_mock("MSFT", stability_score=88.0)
         earnings = _unsafe_earnings_mock(days=25)
         validator = _make_validator(fundamentals, earnings=earnings)

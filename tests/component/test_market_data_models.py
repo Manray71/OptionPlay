@@ -12,6 +12,7 @@ Tests for src/models/market_data.py including:
 import pytest
 from datetime import datetime
 
+from src.constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS
 from src.models.market_data import (
     EarningsSource,
     IVSource,
@@ -82,7 +83,7 @@ class TestEarningsInfo:
             updated_at="2026-01-16T10:00:00"
         )
 
-        assert info.is_safe(min_days=60) is True
+        assert info.is_safe(min_days=ENTRY_EARNINGS_MIN_DAYS) is True
 
     def test_is_safe_with_few_days(self):
         """Test: is_safe returns False when too close."""
@@ -94,7 +95,7 @@ class TestEarningsInfo:
             updated_at="2026-01-16T10:00:00"
         )
 
-        assert info.is_safe(min_days=60) is False
+        assert info.is_safe(min_days=ENTRY_EARNINGS_MIN_DAYS) is False
 
     def test_is_safe_with_none_days(self):
         """Test: is_safe returns True when days_to_earnings is None."""
@@ -107,7 +108,7 @@ class TestEarningsInfo:
         )
 
         # Unknown = accept (with warning)
-        assert info.is_safe(min_days=60) is True
+        assert info.is_safe(min_days=ENTRY_EARNINGS_MIN_DAYS) is True
 
     def test_to_dict(self):
         """Test: to_dict serialization."""

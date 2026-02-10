@@ -252,19 +252,21 @@ class TestEarningsOperations:
     @pytest.mark.asyncio
     async def test_get_earnings_safe(self, server):
         """Test earnings check with safe distance."""
-        result = await server.handlers.quote.get_earnings("AAPL", min_days=60)
-        
+        from src.constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS
+        result = await server.handlers.quote.get_earnings("AAPL", min_days=ENTRY_EARNINGS_MIN_DAYS)
+
         assert "Earnings: AAPL" in result
         assert "SAFE" in result
-    
+
     @pytest.mark.asyncio
     async def test_get_earnings_too_close(self, server, mock_provider):
         """Test earnings check with insufficient distance."""
         mock_earnings = MockEarnings()
         mock_earnings.days_to_earnings = 30
         mock_provider.get_earnings_date = AsyncMock(return_value=mock_earnings)
-        
-        result = await server.handlers.quote.get_earnings("AAPL", min_days=60)
+
+        from src.constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS
+        result = await server.handlers.quote.get_earnings("AAPL", min_days=ENTRY_EARNINGS_MIN_DAYS)
         
         assert "TOO CLOSE" in result
     

@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from src.constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS
 from src.cache.earnings_cache import (
     EarningsInfo,
     EarningsSource,
@@ -29,7 +30,7 @@ class TestEarningsInfo:
             confirmed=False
         )
         
-        assert info.is_safe(min_days=60) == True
+        assert info.is_safe(min_days=ENTRY_EARNINGS_MIN_DAYS) == True
         assert info.is_safe(min_days=90) == True
         
     def test_is_safe_insufficient_days(self):
@@ -43,7 +44,7 @@ class TestEarningsInfo:
             confirmed=False
         )
         
-        assert info.is_safe(min_days=60) == False
+        assert info.is_safe(min_days=ENTRY_EARNINGS_MIN_DAYS) == False
         assert info.is_safe(min_days=30) == False
         assert info.is_safe(min_days=20) == True
         
@@ -59,7 +60,7 @@ class TestEarningsInfo:
         )
 
         # Unbekannt mit unknown_is_safe=False (default) = False
-        assert info.is_safe(min_days=60) == False
+        assert info.is_safe(min_days=ENTRY_EARNINGS_MIN_DAYS) == False
         # Unbekannt mit unknown_is_safe=True = True (permissiv)
         assert info.is_safe(min_days=60, unknown_is_safe=True) == True
 
@@ -75,7 +76,7 @@ class TestEarningsInfo:
         )
 
         # Vergangene Earnings = safe (nächste Earnings ~90d entfernt)
-        assert info.is_safe(min_days=60) == True
+        assert info.is_safe(min_days=ENTRY_EARNINGS_MIN_DAYS) == True
         assert info.is_safe(min_days=90) == True
 
 

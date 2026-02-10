@@ -7,6 +7,8 @@ import asyncio
 from unittest.mock import Mock, AsyncMock, patch
 from datetime import datetime
 
+from src.constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS
+
 # Diese Tests prüfen die Integration der neuen Features:
 # - Circuit Breaker
 # - Historical Cache
@@ -343,12 +345,12 @@ class TestEarningsPreFilterIntegration:
             mock_fetcher = MagicMock()
             mock_cache = MagicMock()
 
-            # AAPL: 60 Tage bis Earnings (safe)
-            # MSFT: 30 Tage bis Earnings (excluded bei min_days=45)
+            # AAPL: > ENTRY_EARNINGS_MIN_DAYS bis Earnings (safe)
+            # MSFT: 30 Tage bis Earnings (excluded bei min_days=ENTRY_EARNINGS_MIN_DAYS)
             # GOOGL: keine Daten (excluded - konservative Logik schließt unbekannte aus)
             def cache_get(symbol):
                 if symbol == "AAPL":
-                    return Mock(earnings_date="2025-03-15", days_to_earnings=60)
+                    return Mock(earnings_date="2025-03-15", days_to_earnings=ENTRY_EARNINGS_MIN_DAYS + 15)
                 elif symbol == "MSFT":
                     return Mock(earnings_date="2025-02-15", days_to_earnings=30)
                 return None  # GOOGL
