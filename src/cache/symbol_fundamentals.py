@@ -26,6 +26,11 @@ from functools import partial
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 
+try:
+    from ..constants.trading_rules import ENTRY_STABILITY_MIN
+except ImportError:
+    from constants.trading_rules import ENTRY_STABILITY_MIN
+
 logger = logging.getLogger(__name__)
 
 # =============================================================================
@@ -468,7 +473,7 @@ class SymbolFundamentalsManager:
 
         return [SymbolFundamentals.from_dict(dict(row)) for row in rows]
 
-    def get_stable_symbols(self, min_stability: float = 70.0) -> List[SymbolFundamentals]:
+    def get_stable_symbols(self, min_stability: float = ENTRY_STABILITY_MIN) -> List[SymbolFundamentals]:
         """Gets all symbols with Stability Score >= min_stability"""
         with self._lock:
             with self._get_connection() as conn:

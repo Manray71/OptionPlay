@@ -14,6 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
+from constants.trading_rules import ENTRY_STABILITY_MIN
 from cache.symbol_fundamentals import (
     SymbolFundamentals,
     SymbolFundamentalsManager,
@@ -344,7 +345,7 @@ class TestSymbolFundamentalsManager:
         manager.save_fundamentals(SymbolFundamentals(symbol="MSFT", stability_score=90.0))
         manager.save_fundamentals(SymbolFundamentals(symbol="TSLA", stability_score=50.0))
 
-        stable = manager.get_stable_symbols(min_stability=70.0)
+        stable = manager.get_stable_symbols(min_stability=ENTRY_STABILITY_MIN)
 
         assert len(stable) == 2
         symbols = [f.symbol for f in stable]

@@ -544,10 +544,10 @@ class TestCanRollStability:
     """Test _can_roll stability re-validation (Task 4.3)."""
 
     def test_low_stability_blocks_roll(self, monitor):
-        """Symbol with stability < 70 → roll blocked."""
+        """Symbol with stability < ENTRY_STABILITY_MIN → roll blocked."""
         mock_fund = MagicMock()
         mock_f = MagicMock()
-        mock_f.stability_score = 55.0  # Below minimum 70
+        mock_f.stability_score = 55.0  # Below ENTRY_STABILITY_MIN
         mock_fund.get_fundamentals.return_value = mock_f
         monitor._fundamentals_manager = mock_fund
 
@@ -557,10 +557,10 @@ class TestCanRollStability:
         assert result is False
 
     def test_high_stability_allows_roll(self, monitor):
-        """Symbol with stability >= 70 → roll allowed."""
+        """Symbol with stability >= ENTRY_STABILITY_MIN → roll allowed."""
         mock_fund = MagicMock()
         mock_f = MagicMock()
-        mock_f.stability_score = 85.0  # Above minimum
+        mock_f.stability_score = 85.0  # Above ENTRY_STABILITY_MIN
         mock_fund.get_fundamentals.return_value = mock_f
         monitor._fundamentals_manager = mock_fund
 
@@ -573,7 +573,7 @@ class TestCanRollStability:
         """VIX 22 (Danger Zone) → stability min 80, blocks 75-stability symbol."""
         mock_fund = MagicMock()
         mock_f = MagicMock()
-        mock_f.stability_score = 75.0  # Above 70 but below 80
+        mock_f.stability_score = 75.0  # Above ENTRY_STABILITY_MIN but below 80 (VIX danger zone)
         mock_fund.get_fundamentals.return_value = mock_f
         monitor._fundamentals_manager = mock_fund
 

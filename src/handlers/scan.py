@@ -13,6 +13,7 @@ import logging
 from datetime import date, datetime
 from typing import Any, Dict, List, Optional, Callable
 
+from ..constants.trading_rules import ENTRY_STABILITY_MIN
 from ..scanner.multi_strategy_scanner import ScanMode
 from ..services.recommendation_engine import (
     DailyRecommendationEngine,
@@ -565,7 +566,7 @@ class ScanHandlerMixin(BaseHandlerMixin):
         symbols: Optional[List[str]] = None,
         max_picks: int = 5,
         min_score: float = 3.5,
-        min_stability: float = 70.0,
+        min_stability: float = ENTRY_STABILITY_MIN,
         include_strikes: bool = True,
     ) -> str:
         """

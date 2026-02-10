@@ -24,6 +24,7 @@ from datetime import datetime, date
 from unittest.mock import MagicMock, AsyncMock, patch
 from dataclasses import dataclass
 
+from src.constants.trading_rules import ENTRY_STABILITY_MIN
 from src.services.recommendation_engine import (
     DailyRecommendationEngine,
     DailyPick,
@@ -280,7 +281,7 @@ class TestStabilityFilter:
 
     def test_filter_removes_low_stability(self, mock_signal):
         """Test that low stability signals are filtered out."""
-        engine = create_recommendation_engine(min_stability=70.0)
+        engine = create_recommendation_engine(min_stability=ENTRY_STABILITY_MIN)
 
         signals = [
             mock_signal("AAPL", 8.0, 90.0),  # Pass
@@ -289,14 +290,14 @@ class TestStabilityFilter:
             mock_signal("SNAP", 6.0, 55.0),  # Fail - low stability
         ]
 
-        filtered = engine._apply_stability_filter(signals, min_stability=70.0)
+        filtered = engine._apply_stability_filter(signals, min_stability=ENTRY_STABILITY_MIN)
 
         assert len(filtered) == 2
         assert all(s.symbol in ["AAPL", "JPM"] for s in filtered)
 
     def test_filter_keeps_high_stability(self, mock_signal):
         """Test that high stability signals pass."""
-        engine = create_recommendation_engine(min_stability=70.0)
+        engine = create_recommendation_engine(min_stability=ENTRY_STABILITY_MIN)
 
         signals = [
             mock_signal("AAPL", 6.0, 95.0),
@@ -304,25 +305,25 @@ class TestStabilityFilter:
             mock_signal("JNJ", 5.0, 92.0),
         ]
 
-        filtered = engine._apply_stability_filter(signals, min_stability=70.0)
+        filtered = engine._apply_stability_filter(signals, min_stability=ENTRY_STABILITY_MIN)
 
         assert len(filtered) == 3
 
     def test_filter_vix_adjusted_minimum(self, mock_signal):
         """Test VIX-adjusted stability minimum."""
-        engine = create_recommendation_engine(min_stability=70.0)
+        engine = create_recommendation_engine(min_stability=ENTRY_STABILITY_MIN)
 
         signals = [
-            mock_signal("AAPL", 8.0, 75.0),  # Would pass at 70, fail at 80
+            mock_signal("AAPL", 8.0, 75.0),  # Pass at ENTRY_STABILITY_MIN, fail at VIX-adjusted 80
             mock_signal("MSFT", 7.5, 85.0),  # Pass at both
         ]
 
-        # Normal VIX: 70 min
-        filtered_normal = engine._apply_stability_filter(signals, min_stability=70.0, vix=18.0)
+        # Normal VIX: ENTRY_STABILITY_MIN
+        filtered_normal = engine._apply_stability_filter(signals, min_stability=ENTRY_STABILITY_MIN, vix=18.0)
         assert len(filtered_normal) == 2
 
         # High VIX (danger zone): 80 min
-        filtered_high = engine._apply_stability_filter(signals, min_stability=70.0, vix=22.0)
+        filtered_high = engine._apply_stability_filter(signals, min_stability=ENTRY_STABILITY_MIN, vix=22.0)
         assert len(filtered_high) == 1
         assert filtered_high[0].symbol == "MSFT"
 
@@ -605,7 +606,7 @@ class TestEngineInitialization:
         """Test default configuration."""
         engine = DailyRecommendationEngine()
 
-        assert engine.config['min_stability_score'] == 65.0
+        assert engine.config['min_stability_score'] == ENTRY_STABILITY_MIN
         assert engine.config['max_picks'] == 5
         assert engine.config['enable_strike_recommendations'] is True
 
@@ -1647,7 +1648,7 @@ class TestStabilityFilterEdgeCases:
         """Test filtering empty signal list."""
         engine = create_recommendation_engine()
 
-        filtered = engine._apply_stability_filter([], min_stability=70.0)
+        filtered = engine._apply_stability_filter([], min_stability=ENTRY_STABILITY_MIN)
 
         assert filtered == []
 
@@ -1668,7 +1669,7 @@ class TestStabilityFilterEdgeCases:
             details={},  # No stability
         )
 
-        filtered = engine._apply_stability_filter([signal], min_stability=70.0)
+        filtered = engine._apply_stability_filter([signal], min_stability=ENTRY_STABILITY_MIN)
 
         assert len(filtered) == 0  # Should be filtered out
 
@@ -1696,7 +1697,7 @@ class TestStabilityFilterEdgeCases:
         engine._fundamentals_manager = MagicMock()
         engine._fundamentals_manager.get_fundamentals_batch.return_value = {"AAPL": mock_fund}
 
-        filtered = engine._apply_stability_filter([signal], min_stability=70.0)
+        filtered = engine._apply_stability_filter([signal], min_stability=ENTRY_STABILITY_MIN)
 
         assert len(filtered) == 1  # Should pass via fundamentals fallback
 
@@ -1705,12 +1706,12 @@ class TestStabilityFilterEdgeCases:
         engine = create_recommendation_engine()
 
         signals = [
-            mock_signal("AAPL", 7.0, 70.0),  # Exactly at threshold
-            mock_signal("MSFT", 7.0, 69.9),  # Just below
-            mock_signal("GOOGL", 7.0, 70.1),  # Just above
+            mock_signal("AAPL", 7.0, ENTRY_STABILITY_MIN),  # Exactly at threshold
+            mock_signal("MSFT", 7.0, ENTRY_STABILITY_MIN - 0.1),  # Just below
+            mock_signal("GOOGL", 7.0, ENTRY_STABILITY_MIN + 0.1),  # Just above
         ]
 
-        filtered = engine._apply_stability_filter(signals, min_stability=70.0)
+        filtered = engine._apply_stability_filter(signals, min_stability=ENTRY_STABILITY_MIN)
 
         symbols = [s.symbol for s in filtered]
         assert "AAPL" in symbols  # At threshold - should pass

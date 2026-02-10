@@ -13,6 +13,8 @@ import sqlite3
 import time
 from datetime import date, timedelta
 from pathlib import Path
+
+from src.constants.trading_rules import ENTRY_STABILITY_MIN
 from typing import Any, Optional
 from unittest.mock import patch
 
@@ -71,16 +73,16 @@ class TestFundamentalsBenchmarks:
         assert elapsed_ms < 50, f"Full table fetch too slow: {elapsed_ms:.2f}ms"
 
     def test_get_stable_symbols(self, conn: sqlite3.Connection) -> None:
-        """Benchmark: filter by stability_score >= 70."""
+        """Benchmark: filter by stability_score >= ENTRY_STABILITY_MIN."""
         elapsed_ms, rows = time_query(
             conn,
             "SELECT symbol, stability_score, historical_win_rate "
             "FROM symbol_fundamentals "
             "WHERE stability_score >= ? "
             "ORDER BY stability_score DESC",
-            (70.0,)
+            (ENTRY_STABILITY_MIN,)
         )
-        print(f"\n  Stable symbols (>= 70): {len(rows)} rows in {elapsed_ms:.2f}ms")
+        print(f"\n  Stable symbols (>= {ENTRY_STABILITY_MIN}): {len(rows)} rows in {elapsed_ms:.2f}ms")
         assert elapsed_ms < 20, f"Stability filter too slow: {elapsed_ms:.2f}ms"
 
     def test_batch_lookup(self, conn: sqlite3.Connection) -> None:
@@ -135,7 +137,7 @@ class TestFundamentalsBenchmarks:
         # Check stability filter
         plan2 = conn.execute(
             "EXPLAIN QUERY PLAN "
-            "SELECT * FROM symbol_fundamentals WHERE stability_score >= 70 "
+            f"SELECT * FROM symbol_fundamentals WHERE stability_score >= {ENTRY_STABILITY_MIN} "
             "ORDER BY stability_score DESC"
         ).fetchall()
         plan2_str = " | ".join(str(dict(row)) for row in plan2)
@@ -430,7 +432,7 @@ class TestScanScenarioBenchmarks:
         t1, stable_rows = time_query(
             conn,
             "SELECT symbol FROM symbol_fundamentals "
-            "WHERE stability_score >= 70 ORDER BY stability_score DESC"
+            f"WHERE stability_score >= {ENTRY_STABILITY_MIN} ORDER BY stability_score DESC"
         )
         symbols = [row["symbol"] for row in stable_rows[:50]]
 

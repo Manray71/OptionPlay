@@ -17,6 +17,7 @@ from datetime import datetime, date
 from unittest.mock import AsyncMock, MagicMock, patch, PropertyMock
 from collections import OrderedDict
 
+from src.constants.trading_rules import ENTRY_STABILITY_MIN
 from src.mcp_server import OptionPlayServer
 
 
@@ -46,7 +47,7 @@ class MockConfig:
             enable_iv_filter = False
             earnings_allow_bmo_same_day = False
             min_score = 5.0
-            min_stability = 70.0
+            min_stability = ENTRY_STABILITY_MIN
             max_candidates = 20
 
         class Tradier:

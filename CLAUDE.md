@@ -109,7 +109,7 @@ manager = get_fundamentals_manager()
 f = manager.get_fundamentals("AAPL")
 # f.stability_score, f.historical_win_rate, f.avg_drawdown
 
-stable = manager.get_stable_symbols(min_stability=70.0)
+stable = manager.get_stable_symbols()  # Default: ENTRY_STABILITY_MIN
 ```
 
 ### Earnings
@@ -130,7 +130,7 @@ is_safe = manager.is_earnings_day_safe("PLTR", target_date)
 -- Stabile Symbole für Trading
 SELECT symbol, sector, stability_score, historical_win_rate
 FROM symbol_fundamentals
-WHERE stability_score >= 70
+WHERE stability_score >= 65  -- ENTRY_STABILITY_MIN
 ORDER BY stability_score DESC;
 
 -- Options mit Greeks

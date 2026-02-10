@@ -252,7 +252,7 @@ def is_blacklisted(symbol: str) -> bool:
 def get_adjusted_stability_min(vix: Optional[float] = None) -> float:
     """Get VIX-adjusted stability minimum threshold (PLAYBOOK §1 + §3).
 
-    Default: ENTRY_STABILITY_MIN (70.0).
+    Default: ENTRY_STABILITY_MIN.
     Under elevated VIX: Regime may require higher stability.
     """
     min_stability = ENTRY_STABILITY_MIN

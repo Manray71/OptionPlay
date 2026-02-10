@@ -243,7 +243,7 @@ class DailyRecommendationEngine(RecommendationRankingMixin):
 
     # Konfiguration (aligned with PLAYBOOK via trading_rules.py)
     DEFAULT_CONFIG = {
-        'min_stability_score': ENTRY_STABILITY_MIN,   # PLAYBOOK §1: 70.0
+        'min_stability_score': ENTRY_STABILITY_MIN,   # PLAYBOOK §1
         'min_signal_score': 3.5,        # Lowered: score is for ranking, not filtering
         'max_picks': 5,                 # UMBAUPLAN: 3-5 fertige Setups
         'max_per_sector': SIZING_MAX_PER_SECTOR,  # PLAYBOOK §5: 2
@@ -594,7 +594,7 @@ class DailyRecommendationEngine(RecommendationRankingMixin):
 # =============================================================================
 
 def create_recommendation_engine(
-    min_stability: float = 70.0,
+    min_stability: float = ENTRY_STABILITY_MIN,
     min_score: float = 5.0,
     max_picks: int = 20,
 ) -> DailyRecommendationEngine:

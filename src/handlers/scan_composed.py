@@ -16,6 +16,7 @@ import logging
 from datetime import date, datetime
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
+from ..constants.trading_rules import ENTRY_STABILITY_MIN
 from .handler_container import BaseHandler, ServerContext
 
 if TYPE_CHECKING:
@@ -534,7 +535,7 @@ class ScanHandler(BaseHandler):
         symbols: Optional[List[str]] = None,
         max_picks: int = 5,
         min_score: float = 3.5,
-        min_stability: float = 70.0,
+        min_stability: float = ENTRY_STABILITY_MIN,
         include_strikes: bool = True,
     ) -> str:
         """
