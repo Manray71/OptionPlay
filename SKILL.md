@@ -118,7 +118,7 @@ Output pro Position:
 | `optionplay_scan_breakout` | `breakout` | ATH-Breakout-Kandidaten |
 | `optionplay_scan_earnings_dip` | `dip` | Earnings-Dip-Kandidaten |
 | `optionplay_scan_trend` | `trend` | Trend-Continuation-Kandidaten (SMA-Alignment) |
-| `optionplay_earnings_prefilter` | `prefilter` | Earnings-Vorfilter (>60 Tage) |
+| `optionplay_earnings_prefilter` | `prefilter` | Earnings-Vorfilter (>45 Tage) |
 
 ### Einzel-Analyse
 
