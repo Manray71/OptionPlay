@@ -889,7 +889,7 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
 
         | Criterion                        | Score |
         |-----------------------------------|-------|
-        | Next earnings > 60 days away     | 0.5   |
+        | Next earnings > min_days away     | 0.5   |
         | IV rank after earnings > 30%     | 0.5   | (not checked — needs options data)
         """
         score = 0.0

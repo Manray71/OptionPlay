@@ -149,7 +149,7 @@ class VIXStrategySelector:
     # Profile definitions
     # BASE STRATEGY: Short Put with Delta -0.20, Long Put Delta -0.05, DTE 60-90 days
     # Spread width is DYNAMIC — derived from delta-selected strikes (not fixed)
-    # Earnings buffer: at least 60 days
+    # Earnings buffer: at least EARNINGS_MIN_DAYS
     PROFILES = {
         'conservative': {
             'delta_target': DELTA_TARGET,

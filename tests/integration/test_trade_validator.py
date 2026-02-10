@@ -404,7 +404,7 @@ class TestEarningsCheck:
 
     @pytest.mark.asyncio
     async def test_earnings_too_close_is_no_go(self, validator):
-        """Symbol with earnings in 30 days (< 60 min) = NO_GO."""
+        """Symbol with earnings in 30 days (< 45 min) = NO_GO."""
         mock_earnings = MagicMock()
         mock_earnings.is_earnings_day_safe.return_value = (False, 30, "too_close")
         validator._earnings_manager = mock_earnings
@@ -417,7 +417,7 @@ class TestEarningsCheck:
 
     @pytest.mark.asyncio
     async def test_earnings_safe_is_go(self, validator):
-        """Symbol with earnings in 90 days (>= 60 min) = GO."""
+        """Symbol with earnings in 90 days (>= 45 min) = GO."""
         mock_earnings = MagicMock()
         mock_earnings.is_earnings_day_safe.return_value = (True, 90, "safe")
         validator._earnings_manager = mock_earnings
@@ -502,7 +502,7 @@ class TestEarningsCheck:
 
     @pytest.mark.asyncio
     async def test_earnings_uses_playbook_min_days(self, validator):
-        """Verify the min_days parameter matches ENTRY_EARNINGS_MIN_DAYS (60)."""
+        """Verify the min_days parameter matches ENTRY_EARNINGS_MIN_DAYS (45)."""
         mock_earnings = MagicMock()
         mock_earnings.is_earnings_day_safe.return_value = (True, 90, "safe")
         validator._earnings_manager = mock_earnings
@@ -510,7 +510,7 @@ class TestEarningsCheck:
         with patch("src.utils.validation.is_etf", return_value=False):
             await validator._check_earnings("AAPL")
             call_args = mock_earnings.is_earnings_day_safe.call_args
-            assert call_args.kwargs.get("min_days") == 60 or call_args[1].get("min_days") == 60
+            assert call_args.kwargs.get("min_days") == 45 or call_args[1].get("min_days") == 45
 
 
 class TestVolumeCheck:

@@ -292,7 +292,7 @@ class TestEarningsPreFilterIntegration:
         assert hasattr(config, 'auto_earnings_prefilter')
         assert hasattr(config, 'earnings_prefilter_min_days')
         assert config.auto_earnings_prefilter is True  # Default: aktiviert
-        assert config.earnings_prefilter_min_days == 60  # Default: 60 Tage (PLAYBOOK §1)
+        assert config.earnings_prefilter_min_days == 45  # Default: ENTRY_EARNINGS_MIN_DAYS
 
     def test_prefilter_can_be_disabled(self):
         """Pre-Filter sollte deaktivierbar sein"""

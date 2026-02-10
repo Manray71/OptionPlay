@@ -713,12 +713,12 @@ class TestScoringComponents:
 
     # --- BPS Suitability ---
     def test_bps_far_earnings(self):
-        """Next earnings > 60 days should score 0.5."""
+        """Next earnings > ENTRY_EARNINGS_MIN_DAYS should score 0.5."""
         analyzer = EarningsDipAnalyzer()
         assert analyzer._score_bps_suitability(next_earnings_days=90) == 0.5
 
     def test_bps_close_earnings(self):
-        """Next earnings < 60 days should score 0."""
+        """Next earnings < ENTRY_EARNINGS_MIN_DAYS should score 0."""
         analyzer = EarningsDipAnalyzer()
         assert analyzer._score_bps_suitability(next_earnings_days=40) == 0.0
 
