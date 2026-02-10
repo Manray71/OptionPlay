@@ -104,7 +104,7 @@ class EarningsInfo:
     updated_at: str  # ISO Format Timestamp
     confirmed: bool = False  # True wenn Datum bestätigt
     
-    def is_safe(self, min_days: int = 60, unknown_is_safe: bool = False) -> bool:
+    def is_safe(self, min_days: int = ENTRY_EARNINGS_MIN_DAYS, unknown_is_safe: bool = False) -> bool:
         """
         Prüft ob genug Abstand zu Earnings.
 
@@ -656,7 +656,7 @@ class EarningsFetcher:
     def filter_by_earnings(
         self, 
         symbols: List[str], 
-        min_days: int = 60
+        min_days: int = ENTRY_EARNINGS_MIN_DAYS
     ) -> Tuple[List[str], List[str]]:
         """
         Filtert Symbole nach Earnings-Abstand.

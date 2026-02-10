@@ -108,7 +108,7 @@ Fasse die Ergebnisse übersichtlich zusammen."""
         "prompt": """Analysiere {symbol} vollständig für einen Bull-Put-Spread:
 
 1. Hole den aktuellen Kurs
-2. Prüfe Earnings (min 60 Tage)
+2. Prüfe Earnings (min 45 Tage)
 3. Führe Multi-Strategie-Analyse durch
 4. Hole Strike-Empfehlungen
 5. Zeige Options-Chain für die empfohlenen Strikes
@@ -156,7 +156,7 @@ Dies hilft bei der Planung der nächsten Trades."""
         "prompt": """Bereite einen Trade für {symbol} vor:
 
 1. Aktueller Kurs und VIX-Strategie
-2. Earnings-Check (muss >60 Tage sein)
+2. Earnings-Check (muss >45 Tage sein)
 3. Technische Analyse (Support, Fibonacci)
 4. Strike-Empfehlungen mit {dte} DTE (falls angegeben, sonst 30-60)
 5. Options-Chain mit Bid/Ask

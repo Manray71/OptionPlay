@@ -4,7 +4,7 @@
 #   Short Put: Delta ±0.20 (Range: 0.15-0.25)
 #   Long Put:  Delta ±0.05 (Range: 0.03-0.07)
 #   DTE: 60-90 Tage
-#   Earnings-Buffer: mindestens 60 Tage
+#   Earnings-Buffer: mindestens 45 Tage
 
 # =========================================================================
 # SPREAD DEFAULTS (für alle Strategien)
@@ -402,7 +402,7 @@ roll_strategy:
 #
 # TIMING:
 # - DTE:             60-90 Tage
-# - Earnings-Buffer: 60 Tage (keine Optionen wenn Earnings < 60 Tage)
+# - Earnings-Buffer: 45 Tage (keine Optionen wenn Earnings < 45 Tage)
 #
 # =========================================================================
 # DYNAMISCHE SPREAD-BREITE

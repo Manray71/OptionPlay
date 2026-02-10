@@ -464,7 +464,7 @@ class ScannerConfig:
 
     # Auto Earnings Pre-Filter (reduziert API-Calls!)
     auto_earnings_prefilter: bool = True  # Automatisch vor Scans filtern
-    earnings_prefilter_min_days: int = ENTRY_EARNINGS_MIN_DAYS  # PLAYBOOK §1: >60 Tage
+    earnings_prefilter_min_days: int = ENTRY_EARNINGS_MIN_DAYS  # PLAYBOOK §1: >45 Tage
 
     # BMO/AMC Handling: Earnings vor/nach Markt
     # - AMC am Tag X: Reaktion erst am Tag X+1 → Tag X ist NICHT sicher

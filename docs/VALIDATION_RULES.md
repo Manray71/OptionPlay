@@ -13,7 +13,7 @@ Jeder Trade MUSS alle harten Filter bestehen. Kein Filter darf übersprungen wer
 |---|--------|----------|----------------|
 | 1 | **Blacklist** | Symbol nicht auf Blacklist | NO-GO, keine Ausnahme |
 | 2 | **Stability Score** | ≥ 70 (≥ 80 wenn VIX > 20) | NO-GO, keine Ausnahme |
-| 3 | **Earnings-Abstand** | **> 60 Tage** | NO-GO, keine Ausnahme |
+| 3 | **Earnings-Abstand** | **> 45 Tage** | NO-GO, keine Ausnahme |
 | 4 | **VIX** | < 30 (> 35 = kein Trading) | NO-GO für neue Trades |
 | 5 | **Preis** | $20 – $1.500 | NO-GO |
 | 6 | **Tagesvolumen** | > 500.000 | NO-GO |
@@ -24,7 +24,7 @@ Jeder Trade MUSS alle harten Filter bestehen. Kein Filter darf übersprungen wer
 
 - **Blacklist zuerst prüfen.** Wenn ein Symbol auf der Blacklist steht, sofort NO-GO melden. Keine weitere Analyse nötig. (Beispiel: DAVE steht auf der Blacklist — egal was die Technicals sagen.)
 - **Stability Score MUSS immer explizit geprüft und genannt werden.** Wenn der Analyzer den Stability Score nicht liefert, separat aus `symbol_fundamentals` abrufen. Niemals einen Filter überspringen, nur weil das Tool ihn nicht anzeigt.
-- **Earnings-Abstand ist > 60 Tage**, nicht 45. Das Tool verwendet intern teilweise 45 Tage als Default — das ist falsch. Immer mit `min_days=60` prüfen oder manuell gegen 60 Tage validieren.
+- **Earnings-Abstand ist > 45 Tage.** Alle Tools verwenden `ENTRY_EARNINGS_MIN_DAYS = 45` als einheitlichen Default.
 - **Alle 6 Filter müssen explizit im Ergebnis erscheinen.** Wenn ein Filter nicht geprüft werden konnte → als UNBEKANNT melden, nicht stillschweigend überspringen.
 - **Volumen MUSS geprüft werden.** Das Analyze-Tool liefert kein Volumen. Volumen separat über Quote abrufen und gegen > 500.000 prüfen. (Beispiel: Bei JPM wurde das Volumen nicht geprüft — das ist ein unvollständiger Check.)
 

@@ -105,7 +105,7 @@ class BacktestConfig:
     - Short Put: Delta -0.20 (Range: -0.25 bis -0.15)
     - Long Put: Delta -0.05 (Range: -0.08 bis -0.03)
     - DTE: 60-90 Tage
-    - Earnings-Buffer: 60 Tage
+    - Earnings-Buffer: 45 Tage
     """
     # Kapital
     initial_capital: float = 100000.0

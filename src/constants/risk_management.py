@@ -84,7 +84,7 @@ TARGET_MULTIPLIER = 0.5       # Target at 50% credit (early exit)
 # =============================================================================
 
 # Minimum distance to earnings
-# PLAYBOOK §1: Earnings > 60 Tage (hart, keine Ausnahme)
+# PLAYBOOK §1: Earnings > 45 Tage (hart, keine Ausnahme)
 EARNINGS_MIN_DAYS = ENTRY_EARNINGS_MIN_DAYS        # Minimum days until earnings (PLAYBOOK: 60)
 EARNINGS_MIN_DAYS_STRICT = ENTRY_EARNINGS_MIN_DAYS # Strict variant (same as default per PLAYBOOK)
 EARNINGS_SAFE_DAYS = 90       # Classified as "safe"

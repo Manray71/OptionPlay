@@ -159,7 +159,7 @@ pullback_scoring:
 filters:
   # Earnings-Filter (KRITISCH für Bull-Put-Spreads!)
   earnings:
-    exclude_days_before: 60       # Keine Aktien mit Earnings in X Tagen (PLAYBOOK §1: >60 Tage)
+    exclude_days_before: 45       # Keine Aktien mit Earnings in X Tagen (PLAYBOOK §1: >45 Tage)
     data_source: "yfinance"       # Datenquelle für Earnings-Dates
     
   # Preis-Filter
@@ -405,7 +405,7 @@ scanner:
   # Nutzt 4-Wochen-Cache für Earnings-Daten.
   # AKTIVIERT: KRITISCH für Trade-Sicherheit - Earnings am selben Tag sind gefährlich!
   auto_earnings_prefilter: true   # MUSS aktiv sein für sichere Empfehlungen
-  earnings_prefilter_min_days: 60 # Mindestabstand zu Earnings (PLAYBOOK §1: >60 Tage)
+  earnings_prefilter_min_days: 45 # Mindestabstand zu Earnings (PLAYBOOK §1: >45 Tage)
 
   # BMO/AMC Handling: Earnings können vor Markt (BMO) oder nach Markt (AMC) sein
   # - AMC am Tag X: Reaktion erst am Tag X+1 → Tag X ist NICHT sicher

@@ -207,7 +207,7 @@ class QuoteHandlerMixin(BaseHandlerMixin):
         )
 
     @mcp_endpoint(operation="aggregated earnings check", symbol_param="symbol")
-    async def get_earnings_aggregated(self, symbol: str, min_days: int = 60) -> str:
+    async def get_earnings_aggregated(self, symbol: str, min_days: int = ENTRY_EARNINGS_MIN_DAYS) -> str:
         """
         Check earnings date with multi-source aggregation and majority voting.
 

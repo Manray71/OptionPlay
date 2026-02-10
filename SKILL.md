@@ -28,7 +28,7 @@ User: "Zeig mir die heutigen Picks"
 
 Workflow:
 1. vix                           → Regime bestimmen
-2. prefilter min_days=60         → Earnings-sichere Symbole
+2. prefilter min_days=45         → Earnings-sichere Symbole
 3. daily min_stability=50        → Top-Picks mit Strikes (Tier-System: ≥80→Premium, ≥70→Good, ≥50→OK mit höherer Score-Hürde)
 4. Pro Pick: earnings + strikes  → Fertige Setups
 

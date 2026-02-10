@@ -9,6 +9,11 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Optional
 
+try:
+    from ..constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS
+except ImportError:
+    from constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS
+
 
 class EarningsSource(Enum):
     """Datenquelle für Earnings"""
@@ -37,7 +42,7 @@ class EarningsInfo:
     updated_at: str  # ISO Format Timestamp
     confirmed: bool = False  # True wenn Datum bestätigt
     
-    def is_safe(self, min_days: int = 60) -> bool:
+    def is_safe(self, min_days: int = ENTRY_EARNINGS_MIN_DAYS) -> bool:
         """Prüft ob genug Abstand zu Earnings"""
         if self.days_to_earnings is None:
             return True  # Unbekannt = akzeptieren (mit Warnung)

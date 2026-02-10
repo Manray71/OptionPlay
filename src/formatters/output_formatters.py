@@ -20,6 +20,8 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Any, Dict, List, Optional, Protocol
 
+from ..constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS
+
 # Import from utils package (relative import within src package)
 from ..utils.markdown_builder import (
     MarkdownBuilder,
@@ -366,7 +368,7 @@ class EarningsFormatter(BaseFormatter):
         symbol: str,
         earnings_date: Optional[str],
         days_to_earnings: Optional[int],
-        min_days: int = 60,
+        min_days: int = ENTRY_EARNINGS_MIN_DAYS,
         source: str = "unknown",
         is_etf: bool = False
     ) -> str:

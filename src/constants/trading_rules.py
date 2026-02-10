@@ -336,7 +336,7 @@ SECONDARY_WATCHLIST_STABILITY_MIN = 70.0
 # =============================================================================
 # 1. Blacklist-Check     -> sofort raus wenn gelistet
 # 2. Stability >= 65     -> sofort raus wenn < 65 (65-70 = WARNING)
-# 3. Earnings > 60 Tage  -> sofort raus wenn zu nah
+# 3. Earnings > 45 Tage  -> sofort raus wenn zu nah
 # 4. VIX < 30            -> sofort raus wenn >= 30
 # 5. Preis $20-$1500      -> sofort raus wenn außerhalb
 # 6. Volumen > 500k      -> sofort raus wenn zu dünn

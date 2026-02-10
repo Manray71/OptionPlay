@@ -574,7 +574,7 @@ class ScanHandlerMixin(BaseHandlerMixin):
         Applies PLAYBOOK filter order:
         1. Blacklist-Check
         2. Stability >= 70 (>= 80 in Danger Zone)
-        3. Earnings > 60 days
+        3. Earnings > 45 days
         4. VIX < 30 (no new trades above 30)
         5. Multi-Strategy Scan (Pullback, Bounce, ATH Breakout, Earnings Dip)
         6. Sector Diversification (max 2 per sector)
