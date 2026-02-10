@@ -9,20 +9,22 @@ werden NICHT angefasst.
 
 Schritte:
   1. VIX via Yahoo Finance
-  2. Options-Chain via Marketdata.app
-  3. Greeks berechnen für neue Options ohne Greeks
+  2. Options-Chain + Greeks via Tradier (ORATS)
+  3. OHLCV daily prices via Tradier
 
 Usage:
     python scripts/DBupdate.py              # Komplettes Update
     python scripts/DBupdate.py --status     # Nur Status zeigen
     python scripts/DBupdate.py --dry-run    # Zeigt was passieren würde
     python scripts/DBupdate.py --steps vix  # Nur VIX
+    python scripts/DBupdate.py --steps options ohlcv  # Options + OHLCV
     python scripts/DBupdate.py -v           # Verbose
 """
 
 import argparse
 import asyncio
 import logging
+import os
 import sqlite3
 import sys
 import time
@@ -32,9 +34,12 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
+from dotenv import load_dotenv
+load_dotenv()
+
 DB_PATH = Path.home() / ".optionplay" / "trades.db"
 LOG_DIR = Path.home() / ".optionplay" / "logs"
-ALL_STEPS = ["vix", "options", "greeks"]
+ALL_STEPS = ["vix", "options", "ohlcv"]
 
 
 def setup_logging(verbose=False):
@@ -67,11 +72,15 @@ def get_status():
         "WHERE g.id IS NULL"
     )
     greeks_pending = cur.fetchone()[0]
+    cur = conn.execute("SELECT MAX(quote_date), COUNT(*), COUNT(DISTINCT symbol) FROM daily_prices")
+    r = cur.fetchone()
+    ohlcv_max, ohlcv_count, ohlcv_symbols = r
     conn.close()
     return {
         "vix_max": vix_max,
         "opt_max": opt_max, "opt_count": opt_count, "opt_symbols": opt_symbols,
         "greeks_pending": greeks_pending,
+        "ohlcv_max": ohlcv_max, "ohlcv_count": ohlcv_count, "ohlcv_symbols": ohlcv_symbols,
     }
 
 
@@ -85,6 +94,9 @@ def print_status(s, logger):
         d = (today - date.fromisoformat(s["opt_max"])).days
         logger.info(f"  Options: bis {s['opt_max']}  {'[aktuell]' if d <= 1 else f'[{d}d alt]'}  ({s['opt_count']:,} Preise, {s['opt_symbols']} Symbole)")
     logger.info(f"  Greeks:  {s['greeks_pending']:,} ausstehend")
+    if s["ohlcv_max"]:
+        d = (today - date.fromisoformat(s["ohlcv_max"])).days
+        logger.info(f"  OHLCV:   bis {s['ohlcv_max']}  {'[aktuell]' if d <= 1 else f'[{d}d alt]'}  ({s['ohlcv_count']:,} Bars, {s['ohlcv_symbols']} Symbole)")
 
 
 # -- Step 1: VIX --
@@ -131,77 +143,189 @@ def step_vix(logger, status, dry_run=False):
         return False
 
 
-# -- Step 2: Options --
+# -- Step 2: Options + Greeks via Tradier --
 
 async def step_options(logger, status, dry_run=False):
-    logger.info("--- STEP 2: Options-Chain (Marketdata.app) ---")
+    logger.info("--- STEP 2: Options + Greeks (Tradier/ORATS) ---")
     last = status["opt_max"]
     if not last:
         logger.error("  Keine Options-Daten - manuell initialisieren")
         return False
+
     last_date = date.fromisoformat(last)
-    yesterday = date.today() - timedelta(days=1)
-    # Zähle fehlende Handelstage (Mo-Fr) zwischen last_date+1 und gestern
-    days_missing = 0
-    d = last_date + timedelta(days=1)
-    while d <= yesterday:
-        if d.weekday() < 5:
-            days_missing += 1
-        d += timedelta(days=1)
-    if days_missing == 0:
+    today = date.today()
+
+    # Wenn letzter Stand heute oder gestern (Wochenende/Feiertag beachten)
+    days_since = (today - last_date).days
+    if days_since <= 1 and today.weekday() < 5:
         logger.info(f"  Aktuell bis {last_date} - nichts zu tun")
         return True
-    logger.info(f"  Letzter Stand: {last_date}")
-    logger.info(f"  Fehlend: {days_missing} Handelstag(e)")
+    if days_since <= 3 and last_date.weekday() == 4 and today.weekday() == 0:
+        # Freitag → Montag (Wochenende)
+        logger.info(f"  Aktuell bis {last_date} (Wochenende) - hole heutige Daten")
+
+    logger.info(f"  Letzter Stand: {last_date} ({days_since}d)")
+
+    # Tradier liefert nur aktuelle Chains (kein historisches Backfill)
+    # Daher sammeln wir die heutige Chain
+    if today.weekday() >= 5:
+        logger.info("  Wochenende - keine aktuellen Chains verfügbar")
+        return True
+
     if dry_run:
-        logger.info("  [DRY RUN]")
+        logger.info("  [DRY RUN] Würde heutige Options-Chain sammeln")
         return True
+
+    api_key = os.environ.get("TRADIER_API_KEY")
+    if not api_key:
+        logger.error("  TRADIER_API_KEY nicht gesetzt!")
+        return False
+
     try:
+        from src.data_providers.tradier import TradierProvider
+        from src.data_providers.interface import OptionQuote
         from src.config.watchlist_loader import get_watchlist_loader
-        from scripts.collect_options_prices import OptionsCollector, get_api_key, get_db_path
+
         symbols = get_watchlist_loader().get_all_symbols()
-        logger.info(f"  {len(symbols)} Symbole x {days_missing} Tag(e)")
-        collector = OptionsCollector(
-            api_key=get_api_key(),
-            db_path=get_db_path(),
-            requests_per_minute=6000,
-            concurrent_workers=30,
-        )
-        stats = await collector.collect(symbols, days_back=days_missing)
-        logger.info(f"  +{stats.options_collected:,} Optionen ({stats.api_calls} API-Calls)")
-        if stats.errors:
-            logger.warning(f"  {len(stats.errors)} Fehler")
-        return True
+        logger.info(f"  {len(symbols)} Symbole")
+
+        provider = TradierProvider(api_key=api_key)
+        try:
+            connected = await provider.connect()
+            if not connected:
+                logger.error("  Tradier-Verbindung fehlgeschlagen")
+                return False
+
+            logger.info("  Tradier verbunden - sammle Options-Chains...")
+
+            # Reuse store logic from collect_options_tradier
+            from scripts.collect_options_tradier import store_options_with_greeks, ensure_schema
+            db_path = str(DB_PATH)
+            ensure_schema(db_path)
+
+            quote_date = today
+            total_prices = 0
+            total_greeks = 0
+            errors = 0
+            semaphore = asyncio.Semaphore(3)  # Max 3 concurrent
+
+            async def collect_one(symbol):
+                nonlocal total_prices, total_greeks, errors
+                async with semaphore:
+                    try:
+                        chain = await provider.get_option_chain(
+                            symbol, dte_min=7, dte_max=130, right="PC"
+                        )
+                        if chain:
+                            prices, greeks = store_options_with_greeks(
+                                db_path, chain, quote_date
+                            )
+                            total_prices += prices
+                            total_greeks += greeks
+                    except Exception as e:
+                        errors += 1
+                        logger.debug(f"  {symbol}: {e}")
+
+            # Process in batches of 15
+            batch_size = 15
+            for i in range(0, len(symbols), batch_size):
+                batch = symbols[i:i + batch_size]
+                await asyncio.gather(*(collect_one(s) for s in batch))
+                pct = min(100, (i + len(batch)) / len(symbols) * 100)
+                logger.info(
+                    f"  [{pct:5.1f}%] {total_prices:,} Preise, "
+                    f"{total_greeks:,} Greeks"
+                )
+
+            logger.info(
+                f"  +{total_prices:,} Options-Preise, "
+                f"+{total_greeks:,} Greeks"
+            )
+            if errors:
+                logger.warning(f"  {errors} Fehler")
+
+            return True
+
+        finally:
+            await provider.disconnect()
+
     except Exception as e:
         logger.error(f"  Fehler: {e}")
         return False
 
 
-# -- Step 3: Greeks --
+# -- Step 3: OHLCV Daily Prices via Tradier --
 
-def step_greeks(logger, dry_run=False):
-    logger.info("--- STEP 3: Greeks (IV + Delta) ---")
-    try:
-        from scripts.calculate_greeks import (
-            calculate_all_greeks, get_db_path,
-            get_options_without_greeks, ensure_greeks_table
-        )
-        db_path = get_db_path()
-        ensure_greeks_table(db_path)
-        pending = get_options_without_greeks(db_path)
-        logger.info(f"  Ausstehend: {len(pending):,}")
-        if not pending:
-            logger.info("  Nichts zu tun")
+async def step_ohlcv(logger, status, dry_run=False):
+    logger.info("--- STEP 3: OHLCV Daily Prices (Tradier) ---")
+    last = status.get("ohlcv_max")
+
+    api_key = os.environ.get("TRADIER_API_KEY")
+    if not api_key:
+        logger.error("  TRADIER_API_KEY nicht gesetzt!")
+        return False
+
+    today = date.today()
+    if last:
+        last_date = date.fromisoformat(last)
+        days_since = (today - last_date).days
+        if days_since <= 1 and today.weekday() < 5:
+            logger.info(f"  Aktuell bis {last_date} - nichts zu tun")
             return True
-        if dry_run:
-            logger.info("  [DRY RUN]")
-            return True
-        import multiprocessing
-        workers = min(multiprocessing.cpu_count(), 8)
-        logger.info(f"  Berechne mit {workers} Workers...")
-        calculate_all_greeks(db_path=db_path, workers=workers, batch_size=10000)
-        logger.info("  Fertig")
+        backfill_days = min(days_since + 2, 10)  # Extra Puffer
+        logger.info(f"  Letzter Stand: {last_date} ({days_since}d) - hole {backfill_days} Tage")
+    else:
+        backfill_days = 10
+        logger.info("  Keine OHLCV-Daten - hole letzte 10 Tage")
+
+    if dry_run:
+        logger.info("  [DRY RUN]")
         return True
+
+    try:
+        from src.data_providers.tradier import TradierProvider
+        from src.data_providers.local_db import LocalDBProvider
+        from src.config.watchlist_loader import get_watchlist_loader
+
+        symbols = get_watchlist_loader().get_all_symbols()
+        logger.info(f"  {len(symbols)} Symbole x {backfill_days} Tage")
+
+        local_db = LocalDBProvider()
+        provider = TradierProvider(api_key=api_key, environment="production")
+
+        try:
+            connected = await provider.connect()
+            if not connected:
+                logger.error("  Tradier-Verbindung fehlgeschlagen")
+                return False
+
+            saved_count = 0
+            errors = 0
+
+            for i, symbol in enumerate(symbols, 1):
+                try:
+                    bars = await provider.get_historical(symbol, days=backfill_days)
+                    if bars:
+                        count = await local_db.save_daily_prices(symbol, bars)
+                        if count > 0:
+                            saved_count += 1
+                    if i % 50 == 0:
+                        pct = i / len(symbols) * 100
+                        logger.info(f"  [{pct:5.1f}%] {saved_count} Symbole gespeichert")
+                    # Rate limit
+                    await asyncio.sleep(0.3)
+                except Exception as e:
+                    errors += 1
+                    logger.debug(f"  {symbol}: {e}")
+
+            logger.info(f"  +{saved_count} Symbole mit neuen OHLCV-Daten")
+            if errors:
+                logger.warning(f"  {errors} Fehler")
+            return True
+
+        finally:
+            await provider.disconnect()
+
     except Exception as e:
         logger.error(f"  Fehler: {e}")
         return False
@@ -231,9 +355,9 @@ async def run(args):
     if "vix" in steps:
         results["VIX"] = step_vix(logger, status, args.dry_run)
     if "options" in steps:
-        results["Options"] = await step_options(logger, status, args.dry_run)
-    if "greeks" in steps:
-        results["Greeks"] = step_greeks(logger, args.dry_run)
+        results["Options+Greeks"] = await step_options(logger, status, args.dry_run)
+    if "ohlcv" in steps:
+        results["OHLCV"] = await step_ohlcv(logger, status, args.dry_run)
     elapsed = time.time() - t0
     print()
     logger.info("=" * 50)
