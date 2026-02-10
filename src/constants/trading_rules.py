@@ -58,23 +58,41 @@ ENTRY_VOLUME_MIN = 500_000              # Minimum daily volume
 # Soft filters - WARNING only
 ENTRY_IV_RANK_MIN = 30.0                # IV Rank minimum (warning)
 ENTRY_IV_RANK_MAX = 80.0                # IV Rank maximum (warning)
-ENTRY_OPEN_INTEREST_MIN = 100           # Per strike (warning)
-ENTRY_BID_ASK_SPREAD_MAX = 0.20         # Max bid-ask spread in $ (warning)
+
+# Liquidity thresholds (loaded from config/scoring_weights.yaml)
+def _load_liquidity_config() -> dict:
+    """Load liquidity thresholds from scoring_weights.yaml."""
+    try:
+        from ..config.scoring_config import get_scoring_resolver
+        resolver = get_scoring_resolver()
+        return resolver.get_liquidity_config()
+    except Exception:
+        return {}
+
+_liq = _load_liquidity_config()
+_entry = _liq.get("entry", {})
+_quality = _liq.get("quality", {})
+
+ENTRY_OPEN_INTEREST_MIN = _entry.get("open_interest_min", 100)
+ENTRY_BID_ASK_SPREAD_MAX = _entry.get("bid_ask_spread_max", 0.20)
 
 # Options Liquidity Quality Thresholds (per strike)
-LIQUIDITY_OI_EXCELLENT = 500
-LIQUIDITY_OI_GOOD = 100
-LIQUIDITY_OI_FAIR = 50
+_oi = _quality.get("open_interest", {})
+LIQUIDITY_OI_EXCELLENT = _oi.get("excellent", 500)
+LIQUIDITY_OI_GOOD = _oi.get("good", 100)
+LIQUIDITY_OI_FAIR = _oi.get("fair", 50)
 
-LIQUIDITY_SPREAD_PCT_EXCELLENT = 5.0    # Bid-ask spread as % of mid
-LIQUIDITY_SPREAD_PCT_GOOD = 10.0
-LIQUIDITY_SPREAD_PCT_FAIR = 15.0
+_spread = _quality.get("spread_pct", {})
+LIQUIDITY_SPREAD_PCT_EXCELLENT = _spread.get("excellent", 5.0)
+LIQUIDITY_SPREAD_PCT_GOOD = _spread.get("good", 10.0)
+LIQUIDITY_SPREAD_PCT_FAIR = _spread.get("fair", 15.0)
 
-LIQUIDITY_VOLUME_EXCELLENT = 200
-LIQUIDITY_VOLUME_GOOD = 50
-LIQUIDITY_VOLUME_FAIR = 10
+_vol = _quality.get("volume", {})
+LIQUIDITY_VOLUME_EXCELLENT = _vol.get("excellent", 200)
+LIQUIDITY_VOLUME_GOOD = _vol.get("good", 50)
+LIQUIDITY_VOLUME_FAIR = _vol.get("fair", 10)
 
-LIQUIDITY_MIN_QUALITY_DAILY_PICKS = "good"  # Minimum quality for daily picks
+LIQUIDITY_MIN_QUALITY_DAILY_PICKS = _liq.get("min_quality_daily_picks", "good")
 
 # Blacklist - symbols that must NEVER be traded
 BLACKLIST_SYMBOLS: List[str] = [

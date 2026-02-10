@@ -344,6 +344,21 @@ class RecursiveConfigResolver:
             "training_workers": None,
         })
 
+    def get_liquidity_config(self) -> dict:
+        """Get liquidity threshold configuration."""
+        return self._raw.get("liquidity", {
+            "entry": {
+                "open_interest_min": 100,
+                "bid_ask_spread_max": 0.20,
+            },
+            "quality": {
+                "open_interest": {"excellent": 500, "good": 100, "fair": 50},
+                "spread_pct": {"excellent": 5.0, "good": 10.0, "fair": 15.0},
+                "volume": {"excellent": 200, "good": 50, "fair": 10},
+            },
+            "min_quality_daily_picks": "good",
+        })
+
     def get_feature_engineering_config(self) -> dict:
         """Get feature-engineering thresholds (VWAP, Market Context, Gap)."""
         return self._raw.get("feature_engineering", {
