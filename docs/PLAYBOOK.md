@@ -17,7 +17,7 @@ Jeder Trade muss ALLE harten Filter bestehen. Kein Filter darf übersprungen wer
 | Filter | Schwelle | Aktion bei Verletzung |
 |--------|----------|----------------------|
 | Stability Score | ≥ 70 | NO-GO für Trade Execution. Scanner zeigt Signale ab ≥50 (mit höherer Score-Hürde) |
-| Earnings-Abstand | > 60 Tage | NO-GO, keine Ausnahme (siehe Earnings Pre-Filter Details unten) |
+| Earnings-Abstand | > 45 Tage | NO-GO, keine Ausnahme (siehe Earnings Pre-Filter Details unten) |
 | VIX | < 30 | NO-GO für neue Trades (> 35 = kein Trading) |
 | Blacklist | Symbol nicht auf Liste | NO-GO, keine Ausnahme |
 | Preis | $20 – $1500 | NO-GO |
@@ -36,7 +36,7 @@ Jeder Trade muss ALLE harten Filter bestehen. Kein Filter darf übersprungen wer
 ```
 1. Blacklist-Check     → sofort raus wenn gelistet
 2. Stability ≥ 70     → NO-GO bei Trade Execution (Scanner: ≥50 mit Tier-System)
-3. Earnings > 60 Tage → sofort raus wenn zu nah (Dip-Strategie: kürzliche Earnings erlaubt)
+3. Earnings > 45 Tage → sofort raus wenn zu nah (Dip-Strategie: kürzliche Earnings erlaubt)
 4. VIX < 30           → sofort raus wenn ≥ 30
 5. Preis $20-$1500     → sofort raus wenn außerhalb
 6. Volumen > 500k     → sofort raus wenn zu dünn
@@ -48,14 +48,14 @@ Die Reihenfolge ist optimiert: günstigste Checks zuerst, teure API-Calls zuletz
 
 ### Earnings Pre-Filter Details
 
-Der Scanner filtert Symbole mit Earnings innerhalb von 60 Tagen VOR dem Scan (Pre-Filter). Dies geschieht in zwei Stufen:
+Der Scanner filtert Symbole mit Earnings innerhalb von 45 Tagen VOR dem Scan (Pre-Filter). Dies geschieht in zwei Stufen:
 
-1. **Pre-Filter** (`_apply_earnings_prefilter`): Entfernt Symbole mit anstehenden Earnings < 60 Tage aus der Scan-Liste, BEVOR die Analyse startet. Spart Rechenzeit.
+1. **Pre-Filter** (`_apply_earnings_prefilter`): Entfernt Symbole mit anstehenden Earnings < 45 Tage aus der Scan-Liste, BEVOR die Analyse startet. Spart Rechenzeit.
 2. **Per-Symbol-Filter** (`_should_skip_for_earnings`): Prüft jedes Symbol nochmals einzeln während des Scans.
 
 **Ausnahme Earnings-Dip-Strategie:** Im `ALL`- oder `BEST_SIGNAL`-Modus werden Earnings-Dip-Kandidaten (`include_dip_candidates=True`) vom Pre-Filter ausgenommen, da die Earnings-Dip-Strategie explizit kürzliche Earnings benötigt. Der Per-Symbol-Filter greift dann nur für die anderen Strategien.
 
-**Wichtig:** Der 60-Tage-Abstand bezieht sich auf das nächste Earnings-Datum ab dem Scan-Zeitpunkt. Liegt das Earnings-Datum in der Vergangenheit (bereits berichtet), greift der Filter nicht.
+**Wichtig:** Der 45-Tage-Abstand bezieht sich auf das nächste Earnings-Datum ab dem Scan-Zeitpunkt. Liegt das Earnings-Datum in der Vergangenheit (bereits berichtet), greift der Filter nicht.
 
 ### Dividend-Gap-Handling (E.5)
 
@@ -359,7 +359,7 @@ Symbole mit Stability 70–80 sind für Normal- und Low-Vol-Regime geeignet. Sie
 ENTRY:
   ☐ Blacklist-Check bestanden
   ☐ Stability ≥ 70 (≥80 wenn VIX > 20)
-  ☐ Earnings > 60 Tage
+  ☐ Earnings > 45 Tage
   ☐ VIX < 30
   ☐ Preis $20-$1500, Volumen > 500k
   ☐ DTE 60-90
