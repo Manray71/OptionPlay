@@ -157,6 +157,11 @@ ORDER BY earnings_date ASC LIMIT 1;
 
 ## Code-Konventionen
 
+### Sicherheitsregel: API-Keys
+
+**NIEMALS** API-Keys in `claude_desktop_config.json` oder andere Config-Dateien eintragen.
+Alle Keys gehören ausschließlich in `.env` und werden über `SecureConfig._load_env_file()` geladen.
+
 ### Import-Patterns
 
 ```python
