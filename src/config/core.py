@@ -4,10 +4,10 @@
 #
 # Extrahiert aus config_loader.py im Rahmen des Recursive Logic Refactorings (Phase 2.2)
 
+import logging
 import os
 import threading
-import logging
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from .loader import ConfigLoader, find_config_dir
 from .validation import ConfigValidationError
@@ -27,7 +27,9 @@ _config_lock = threading.Lock()
 
 # A/B Test Weight Selection
 # Set via environment variable or config
-_ab_test_variant: str = os.environ.get("OPTIONPLAY_AB_VARIANT", "A")  # "A" = feature-based, "B" = outcome-based
+_ab_test_variant: str = os.environ.get(
+    "OPTIONPLAY_AB_VARIANT", "A"
+)  # "A" = feature-based, "B" = outcome-based
 
 
 def set_ab_test_variant(variant: str) -> None:
@@ -53,6 +55,7 @@ def get_ab_test_variant() -> str:
 # SINGLETON ACCESS
 # =============================================================================
 
+
 def get_config(config_dir: Optional[str] = None) -> ConfigLoader:
     """
     Globaler Config-Zugriff (Singleton).
@@ -62,6 +65,7 @@ def get_config(config_dir: Optional[str] = None) -> ConfigLoader:
         Will be removed in v4.0.
     """
     from ..utils.deprecation import warn_singleton_usage
+
     warn_singleton_usage("get_config", "container.config")
 
     global _config
@@ -84,6 +88,7 @@ def reset_config() -> None:
 # CONVENIENCE FUNCTIONS
 # =============================================================================
 
+
 def get_scan_config(
     config_dir: Optional[str] = None,
     override_min_score: Optional[float] = None,
@@ -92,7 +97,7 @@ def get_scan_config(
     override_iv_rank_max: Optional[float] = None,
     enable_iv_filter: Optional[bool] = None,
     enable_fundamentals_filter: Optional[bool] = None,
-) -> 'ScanConfig':
+) -> "ScanConfig":
     """
     Erstellt ScanConfig aus YAML-Konfiguration.
 
@@ -129,20 +134,22 @@ def get_scan_config(
         min_score=override_min_score if override_min_score is not None else scanner_cfg.min_score,
         min_actionable_score=scanner_cfg.min_actionable_score,
         exclude_earnings_within_days=(
-            override_earnings_days if override_earnings_days is not None
+            override_earnings_days
+            if override_earnings_days is not None
             else scanner_cfg.exclude_earnings_within_days
         ),
         iv_rank_minimum=(
-            override_iv_rank_min if override_iv_rank_min is not None
+            override_iv_rank_min
+            if override_iv_rank_min is not None
             else scanner_cfg.iv_rank_minimum
         ),
         iv_rank_maximum=(
-            override_iv_rank_max if override_iv_rank_max is not None
+            override_iv_rank_max
+            if override_iv_rank_max is not None
             else scanner_cfg.iv_rank_maximum
         ),
         enable_iv_filter=(
-            enable_iv_filter if enable_iv_filter is not None
-            else scanner_cfg.enable_iv_filter
+            enable_iv_filter if enable_iv_filter is not None else scanner_cfg.enable_iv_filter
         ),
         max_results_per_symbol=scanner_cfg.max_results_per_symbol,
         max_total_results=scanner_cfg.max_total_results,
@@ -152,10 +159,10 @@ def get_scan_config(
         enable_ath_breakout=scanner_cfg.enable_ath_breakout,
         enable_bounce=scanner_cfg.enable_bounce,
         enable_earnings_dip=scanner_cfg.enable_earnings_dip,
-
         # Fundamentals Filter (aus filters.fundamentals)
         enable_fundamentals_filter=(
-            enable_fundamentals_filter if enable_fundamentals_filter is not None
+            enable_fundamentals_filter
+            if enable_fundamentals_filter is not None
             else fundamentals_cfg.enabled
         ),
         fundamentals_min_stability=fundamentals_cfg.min_stability_score,
@@ -172,7 +179,6 @@ def get_scan_config(
         fundamentals_include_market_caps=fundamentals_cfg.include_market_caps,
         fundamentals_blacklist=fundamentals_cfg.blacklist_symbols,
         fundamentals_whitelist=fundamentals_cfg.whitelist_symbols,
-
         # Stability-First-Filter (Phase 6)
         enable_stability_first=scanner_cfg.enable_stability_first,
         stability_premium_threshold=scanner_cfg.stability_premium_threshold,

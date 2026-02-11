@@ -14,11 +14,14 @@ import logging
 from datetime import date
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-from .handler_container import BaseHandler, ServerContext
 from ..constants.trading_rules import (
-    SPREAD_DTE_MIN, SPREAD_DTE_MAX,
-    VIX_LOW_VOL_MAX, VIX_NORMAL_MAX, VIX_ELEVATED_MAX,
+    SPREAD_DTE_MAX,
+    SPREAD_DTE_MIN,
+    VIX_ELEVATED_MAX,
+    VIX_LOW_VOL_MAX,
+    VIX_NORMAL_MAX,
 )
+from .handler_container import BaseHandler, ServerContext
 
 if TYPE_CHECKING:
     pass
@@ -26,17 +29,17 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # Display / UI formatting constants
-DISPLAY_STABILITY_OK = 70        # Stability threshold for "OK" display
-SMA_20_PERIOD = 20               # SMA short period
-SMA_50_PERIOD = 50               # SMA medium period
-SMA_200_PERIOD = 200             # SMA long period
-VOLUME_AVG_PERIOD = 20           # Volume average window (days)
-DISPLAY_SCORE_STRONG = 7         # Score threshold for "Strong" label
-DISPLAY_SCORE_MODERATE = 5       # Score threshold for "Moderate" label
-DISPLAY_SCORE_BEST = 6           # Score threshold for best signal
-DISPLAY_SCORE_OK = 4             # Score threshold for moderate signal
-DISPLAY_REASON_MAX_LEN = 35     # Max length for truncated reason text
-FIBONACCI_LOOKBACK = 60          # Lookback period for Fibonacci high/low
+DISPLAY_STABILITY_OK = 70  # Stability threshold for "OK" display
+SMA_20_PERIOD = 20  # SMA short period
+SMA_50_PERIOD = 50  # SMA medium period
+SMA_200_PERIOD = 200  # SMA long period
+VOLUME_AVG_PERIOD = 20  # Volume average window (days)
+DISPLAY_SCORE_STRONG = 7  # Score threshold for "Strong" label
+DISPLAY_SCORE_MODERATE = 5  # Score threshold for "Moderate" label
+DISPLAY_SCORE_BEST = 6  # Score threshold for best signal
+DISPLAY_SCORE_OK = 4  # Score threshold for moderate signal
+DISPLAY_REASON_MAX_LEN = 35  # Max length for truncated reason text
+FIBONACCI_LOOKBACK = 60  # Lookback period for Fibonacci high/low
 
 
 class AnalysisHandler(BaseHandler):
@@ -61,11 +64,16 @@ class AnalysisHandler(BaseHandler):
         Returns:
             Formatted analysis with technical indicators
         """
-        from ..utils.validation import validate_symbol
-        from ..utils.markdown_builder import MarkdownBuilder
-        from ..vix_strategy import get_strategy_for_vix
-        from ..constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS, ENTRY_VOLUME_MIN, ENTRY_STABILITY_MIN, is_blacklisted
         from ..cache.symbol_fundamentals import get_fundamentals_manager
+        from ..constants.trading_rules import (
+            ENTRY_EARNINGS_MIN_DAYS,
+            ENTRY_STABILITY_MIN,
+            ENTRY_VOLUME_MIN,
+            is_blacklisted,
+        )
+        from ..utils.markdown_builder import MarkdownBuilder
+        from ..utils.validation import validate_symbol
+        from ..vix_strategy import get_strategy_for_vix
 
         symbol = validate_symbol(symbol)
 
@@ -106,7 +114,10 @@ class AnalysisHandler(BaseHandler):
                 stability_icon = "[~]"  # WARNING: 65-70 range
             else:
                 stability_icon = "[X]"
-            b.kv_line("Stability", f"{stability_icon} {stability:.0f}/100 (min: {ENTRY_STABILITY_MIN:.0f})")
+            b.kv_line(
+                "Stability",
+                f"{stability_icon} {stability:.0f}/100 (min: {ENTRY_STABILITY_MIN:.0f})",
+            )
             if fundamentals.sector:
                 b.kv_line("Sector", fundamentals.sector)
             if fundamentals.historical_win_rate:
@@ -125,9 +136,21 @@ class AnalysisHandler(BaseHandler):
         if historical:
             prices, volumes, highs, lows, *_ = historical
             current_price = prices[-1]
-            sma_20 = sum(prices[-SMA_20_PERIOD:]) / SMA_20_PERIOD if len(prices) >= SMA_20_PERIOD else current_price
-            sma_50 = sum(prices[-SMA_50_PERIOD:]) / SMA_50_PERIOD if len(prices) >= SMA_50_PERIOD else current_price
-            sma_200 = sum(prices[-SMA_200_PERIOD:]) / SMA_200_PERIOD if len(prices) >= SMA_200_PERIOD else current_price
+            sma_20 = (
+                sum(prices[-SMA_20_PERIOD:]) / SMA_20_PERIOD
+                if len(prices) >= SMA_20_PERIOD
+                else current_price
+            )
+            sma_50 = (
+                sum(prices[-SMA_50_PERIOD:]) / SMA_50_PERIOD
+                if len(prices) >= SMA_50_PERIOD
+                else current_price
+            )
+            sma_200 = (
+                sum(prices[-SMA_200_PERIOD:]) / SMA_200_PERIOD
+                if len(prices) >= SMA_200_PERIOD
+                else current_price
+            )
 
             b.h2("Technical Indicators")
             up_20 = "[UP]" if current_price > sma_20 else "[DN]"
@@ -140,7 +163,9 @@ class AnalysisHandler(BaseHandler):
             if volumes and len(volumes) >= VOLUME_AVG_PERIOD:
                 avg_vol_20d = sum(volumes[-VOLUME_AVG_PERIOD:]) / VOLUME_AVG_PERIOD
                 vol_icon = "[OK]" if avg_vol_20d >= ENTRY_VOLUME_MIN else "[X]"
-                b.kv_line("Avg Volume (20d)", f"{vol_icon} {avg_vol_20d:,.0f} (min: {ENTRY_VOLUME_MIN:,})")
+                b.kv_line(
+                    "Avg Volume (20d)", f"{vol_icon} {avg_vol_20d:,.0f} (min: {ENTRY_VOLUME_MIN:,})"
+                )
             b.blank()
 
             if current_price > sma_200 and current_price < sma_20:
@@ -175,10 +200,10 @@ class AnalysisHandler(BaseHandler):
         Returns:
             Formatted Markdown analysis with all strategy scores
         """
-        from ..utils.validation import validate_symbol
-        from ..utils.markdown_builder import MarkdownBuilder, truncate
-        from ..constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS, is_blacklisted
         from ..cache import get_earnings_fetcher
+        from ..constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS, is_blacklisted
+        from ..utils.markdown_builder import MarkdownBuilder, truncate
+        from ..utils.validation import validate_symbol
 
         symbol = validate_symbol(symbol)
 
@@ -218,14 +243,18 @@ class AnalysisHandler(BaseHandler):
         signals = scanner.analyze_symbol(symbol, prices, volumes, highs, lows)
 
         strategy_icons = {
-            'pullback': '[PB]', 'bounce': '[BN]',
-            'ath_breakout': '[ATH]', 'earnings_dip': '[ED]',
-            'trend_continuation': '[TC]',
+            "pullback": "[PB]",
+            "bounce": "[BN]",
+            "ath_breakout": "[ATH]",
+            "earnings_dip": "[ED]",
+            "trend_continuation": "[TC]",
         }
         strategy_names = {
-            'pullback': 'Bull-Put-Spread', 'bounce': 'Support Bounce',
-            'ath_breakout': 'ATH Breakout', 'earnings_dip': 'Earnings Dip',
-            'trend_continuation': 'Trend Continuation',
+            "pullback": "Bull-Put-Spread",
+            "bounce": "Support Bounce",
+            "ath_breakout": "ATH Breakout",
+            "earnings_dip": "Earnings Dip",
+            "trend_continuation": "Trend Continuation",
         }
 
         b = MarkdownBuilder()
@@ -239,7 +268,10 @@ class AnalysisHandler(BaseHandler):
 
         if earnings and earnings.earnings_date:
             if earnings.days_to_earnings < ENTRY_EARNINGS_MIN_DAYS:
-                b.kv_line("Earnings", f"[X] {earnings.days_to_earnings}d - DO NOT TRADE (min: {ENTRY_EARNINGS_MIN_DAYS}d)")
+                b.kv_line(
+                    "Earnings",
+                    f"[X] {earnings.days_to_earnings}d - DO NOT TRADE (min: {ENTRY_EARNINGS_MIN_DAYS}d)",
+                )
             else:
                 b.kv_line("Earnings", f"[OK] {earnings.days_to_earnings}d")
         else:
@@ -250,13 +282,17 @@ class AnalysisHandler(BaseHandler):
 
         b.h2("Strategy Scores").blank()
         rows = []
-        for strat in ['pullback', 'bounce', 'ath_breakout', 'earnings_dip', 'trend_continuation']:
-            icon = strategy_icons.get(strat, '*')
+        for strat in ["pullback", "bounce", "ath_breakout", "earnings_dip", "trend_continuation"]:
+            icon = strategy_icons.get(strat, "*")
             name = strategy_names.get(strat, strat)
 
             if strat in signal_by_strategy:
                 sig = signal_by_strategy[strat]
-                status = "[OK] Strong" if sig.score >= DISPLAY_SCORE_STRONG else ("[~] Moderate" if sig.score >= DISPLAY_SCORE_MODERATE else "[X] Weak")
+                status = (
+                    "[OK] Strong"
+                    if sig.score >= DISPLAY_SCORE_STRONG
+                    else ("[~] Moderate" if sig.score >= DISPLAY_SCORE_MODERATE else "[X] Weak")
+                )
                 reason = truncate(sig.reason, DISPLAY_REASON_MAX_LEN) if sig.reason else "-"
                 rows.append([f"{icon} {name}", f"{sig.score:.1f}/10", status, reason])
             else:
@@ -267,7 +303,7 @@ class AnalysisHandler(BaseHandler):
 
         if signals:
             best = max(signals, key=lambda x: x.score)
-            icon = strategy_icons.get(best.strategy, '*')
+            icon = strategy_icons.get(best.strategy, "*")
             name = strategy_names.get(best.strategy, best.strategy)
 
             if best.score >= DISPLAY_SCORE_BEST:
@@ -290,8 +326,8 @@ class AnalysisHandler(BaseHandler):
             Formatted Markdown ensemble recommendation
         """
         from ..backtesting import EnsembleSelector, create_strategy_score
-        from ..utils.validation import validate_symbol
         from ..utils.markdown_builder import MarkdownBuilder
+        from ..utils.validation import validate_symbol
 
         symbol = validate_symbol(symbol)
         vix = await self._get_vix()
@@ -343,8 +379,10 @@ class AnalysisHandler(BaseHandler):
 
         b.h2("Recommended Strategy")
         strategy_icons = {
-            "pullback": "[PB]", "bounce": "[BN]",
-            "ath_breakout": "[ATH]", "earnings_dip": "[ED]",
+            "pullback": "[PB]",
+            "bounce": "[BN]",
+            "ath_breakout": "[ATH]",
+            "earnings_dip": "[ED]",
             "trend_continuation": "[TC]",
         }
 
@@ -362,9 +400,7 @@ class AnalysisHandler(BaseHandler):
         b.text("|----------|-------|------------|----------|")
 
         for strat, score in sorted(
-            rec.strategy_scores.items(),
-            key=lambda x: x[1].adjusted_score,
-            reverse=True
+            rec.strategy_scores.items(), key=lambda x: x[1].adjusted_score, reverse=True
         ):
             marker = " *" if strat == rec.recommended_strategy else ""
             b.text(
@@ -402,7 +438,15 @@ class AnalysisHandler(BaseHandler):
         b.h1("Ensemble Strategy Status").blank()
 
         if vix:
-            regime = "low_vol" if vix < VIX_LOW_VOL_MAX else "normal" if vix < VIX_NORMAL_MAX else "elevated" if vix < VIX_ELEVATED_MAX else "high_vol"
+            regime = (
+                "low_vol"
+                if vix < VIX_LOW_VOL_MAX
+                else (
+                    "normal"
+                    if vix < VIX_NORMAL_MAX
+                    else "elevated" if vix < VIX_ELEVATED_MAX else "high_vol"
+                )
+            )
             b.h2("Current Context")
             b.kv_line("VIX", f"{vix:.2f}")
             b.kv_line("Regime", regime.upper())
@@ -450,10 +494,10 @@ class AnalysisHandler(BaseHandler):
         Returns:
             Formatted strike recommendations
         """
-        from ..utils.validation import validate_symbol
-        from ..utils.markdown_builder import MarkdownBuilder
+        from ..indicators.support_resistance import calculate_fibonacci, find_support_levels
         from ..strike_recommender import StrikeRecommender
-        from ..indicators.support_resistance import find_support_levels, calculate_fibonacci
+        from ..utils.markdown_builder import MarkdownBuilder
+        from ..utils.validation import validate_symbol
 
         symbol = validate_symbol(symbol)
 
@@ -474,8 +518,12 @@ class AnalysisHandler(BaseHandler):
         support_levels = find_support_levels(lows=lows, lookback=90, window=10, max_levels=5)
         support_levels = [s for s in support_levels if s < current_price]
 
-        recent_high = max(highs[-FIBONACCI_LOOKBACK:]) if len(highs) >= FIBONACCI_LOOKBACK else max(highs)
-        recent_low = min(lows[-FIBONACCI_LOOKBACK:]) if len(lows) >= FIBONACCI_LOOKBACK else min(lows)
+        recent_high = (
+            max(highs[-FIBONACCI_LOOKBACK:]) if len(highs) >= FIBONACCI_LOOKBACK else max(highs)
+        )
+        recent_low = (
+            min(lows[-FIBONACCI_LOOKBACK:]) if len(lows) >= FIBONACCI_LOOKBACK else min(lows)
+        )
         fib_levels = calculate_fibonacci(recent_high, recent_low)
 
         options = await self._get_options_chain_with_fallback(
@@ -550,17 +598,20 @@ class AnalysisHandler(BaseHandler):
 
         if options_data and rec:
             from ..options.liquidity import LiquidityAssessor
+
             assessor = LiquidityAssessor()
-            spread_liq = assessor.assess_spread(
-                rec.short_strike, rec.long_strike, options_data
-            )
+            spread_liq = assessor.assess_spread(rec.short_strike, rec.long_strike, options_data)
             if spread_liq:
                 b.h2("Liquidity Assessment")
                 b.kv_line("Overall Quality", spread_liq.overall_quality.upper())
                 b.kv_line("Short Strike OI", f"{spread_liq.short_strike_liquidity.open_interest:,}")
                 b.kv_line("Long Strike OI", f"{spread_liq.long_strike_liquidity.open_interest:,}")
-                b.kv_line("Short Bid-Ask Spread", f"{spread_liq.short_strike_liquidity.spread_pct:.1f}%")
-                b.kv_line("Long Bid-Ask Spread", f"{spread_liq.long_strike_liquidity.spread_pct:.1f}%")
+                b.kv_line(
+                    "Short Bid-Ask Spread", f"{spread_liq.short_strike_liquidity.spread_pct:.1f}%"
+                )
+                b.kv_line(
+                    "Long Bid-Ask Spread", f"{spread_liq.long_strike_liquidity.spread_pct:.1f}%"
+                )
                 if not spread_liq.is_tradeable:
                     b.blank()
                     b.text("**ILLIQUID - Not recommended for trading**")
@@ -583,6 +634,7 @@ class AnalysisHandler(BaseHandler):
     async def _fetch_earnings_cached(self, symbol: str):
         """Fetch earnings info via EarningsFetcher (local DB + yfinance)."""
         import asyncio
+
         from ..cache import get_earnings_fetcher
 
         if self._ctx.earnings_fetcher is None:
@@ -616,7 +668,9 @@ class AnalysisHandler(BaseHandler):
         await self._ensure_connected()
         if self._ctx.tradier_connected and self._ctx.tradier_provider:
             try:
-                data = await self._ctx.tradier_provider.get_historical_for_scanner(symbol, days=days)
+                data = await self._ctx.tradier_provider.get_historical_for_scanner(
+                    symbol, days=days
+                )
                 if data:
                     if self._ctx.historical_cache:
                         self._ctx.historical_cache.set(symbol, data, days=days)
@@ -628,14 +682,22 @@ class AnalysisHandler(BaseHandler):
 
     def _get_scanner(self, min_score=None, earnings_days=None):
         from ..scanner.multi_strategy_scanner import MultiStrategyScanner, ScanConfig
+
         config = ScanConfig(min_score=min_score or 3.5)
         return MultiStrategyScanner(config=config)
 
-    def _get_multi_scanner(self, min_score=3.5, enable_pullback=True,
-                           enable_bounce=True, enable_breakout=True,
-                           enable_earnings_dip=True, enable_trend_continuation=True,
-                           exclude_earnings_within_days=None):
+    def _get_multi_scanner(
+        self,
+        min_score=3.5,
+        enable_pullback=True,
+        enable_bounce=True,
+        enable_breakout=True,
+        enable_earnings_dip=True,
+        enable_trend_continuation=True,
+        exclude_earnings_within_days=None,
+    ):
         from ..scanner.multi_strategy_scanner import MultiStrategyScanner, ScanConfig
+
         config = ScanConfig(
             min_score=min_score,
             enable_pullback=enable_pullback,
@@ -648,7 +710,9 @@ class AnalysisHandler(BaseHandler):
             config.exclude_earnings_within_days = exclude_earnings_within_days
         return MultiStrategyScanner(config=config)
 
-    async def _get_options_chain_with_fallback(self, symbol, dte_min=SPREAD_DTE_MIN, dte_max=SPREAD_DTE_MAX, right="P"):
+    async def _get_options_chain_with_fallback(
+        self, symbol, dte_min=SPREAD_DTE_MIN, dte_max=SPREAD_DTE_MAX, right="P"
+    ):
         options = None
         right_upper = right.upper()
 

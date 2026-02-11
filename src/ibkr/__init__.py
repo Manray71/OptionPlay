@@ -11,15 +11,17 @@ All public names are re-exported here for backward compatibility.
 """
 
 from dataclasses import dataclass, field
-from typing import Optional, Dict, List, Any
+from typing import Any, Dict, List, Optional
 
 # ---------------------------------------------------------------------------
 # Data classes (shared across modules)
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class IBKRNews:
     """News headline from IBKR"""
+
     symbol: str
     headline: str
     time: Optional[str] = None
@@ -29,6 +31,7 @@ class IBKRNews:
 @dataclass
 class MaxPainData:
     """Max Pain data"""
+
     symbol: str
     current_price: float
     max_pain_strike: float
@@ -42,6 +45,7 @@ class MaxPainData:
 @dataclass
 class StrikeRecommendation:
     """Strike recommendation from IBKR"""
+
     symbol: str
     current_price: float
     short_strike: float
@@ -62,16 +66,14 @@ class StrikeRecommendation:
 # ---------------------------------------------------------------------------
 
 from .connection import (
-    IBKRConnection,
-    IBKR_SYMBOL_MAP,
     IBKR_REVERSE_MAP,
-    to_ibkr_symbol,
+    IBKR_SYMBOL_MAP,
+    IBKRConnection,
     from_ibkr_symbol,
+    to_ibkr_symbol,
 )
-
-from .portfolio import IBKRPortfolio
 from .market_data import IBKRMarketData
-
+from .portfolio import IBKRPortfolio
 
 __all__ = [
     # Data classes

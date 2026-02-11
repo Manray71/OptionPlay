@@ -30,20 +30,20 @@ import logging
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Any, Dict, List, Optional, Tuple
 
 from .regime_config import (
+    FIXED_REGIMES,
     RegimeConfig,
-    RegimeType,
     RegimeState,
     RegimeTransition,
-    FIXED_REGIMES,
-    get_regime_for_vix,
-    load_regimes,
-    format_regime_summary,
-    get_trained_model_loader,
-    load_trained_regimes,
+    RegimeType,
     TrainedModelLoader,
+    format_regime_summary,
+    get_regime_for_vix,
+    get_trained_model_loader,
+    load_regimes,
+    load_trained_regimes,
 )
 
 logger = logging.getLogger(__name__)
@@ -53,9 +53,11 @@ logger = logging.getLogger(__name__)
 # DATA CLASSES
 # =============================================================================
 
+
 @dataclass
 class TradingParameters:
     """Current trading parameters based on regime"""
+
     regime: str
     regime_type: RegimeType
     vix: float
@@ -106,6 +108,7 @@ class TradingParameters:
 @dataclass
 class TradeDecision:
     """Decision result for a potential trade"""
+
     should_trade: bool
     reason: str
     regime: str
@@ -131,6 +134,7 @@ class TradeDecision:
 @dataclass
 class RegimeStatus:
     """Current regime status with transition info"""
+
     current_regime: str
     regime_type: RegimeType
     vix: float
@@ -164,6 +168,7 @@ class RegimeStatus:
 # =============================================================================
 # REGIME MODEL
 # =============================================================================
+
 
 class RegimeModel:
     """
@@ -432,7 +437,9 @@ class RegimeModel:
 
         # Check confidence level
         confidence_order = {"high": 3, "medium": 2, "low": 1, "unknown": 0}
-        if confidence_order.get(params.confidence_level, 0) < confidence_order.get(min_confidence, 0):
+        if confidence_order.get(params.confidence_level, 0) < confidence_order.get(
+            min_confidence, 0
+        ):
             return TradeDecision(
                 should_trade=False,
                 reason=f"Confidence {params.confidence_level} below required {min_confidence}",
@@ -456,7 +463,9 @@ class RegimeModel:
 
         # Check if regime is new
         if params.days_in_regime < 3:
-            warnings.append(f"Recently entered {params.regime} regime ({params.days_in_regime} days)")
+            warnings.append(
+                f"Recently entered {params.regime} regime ({params.days_in_regime} days)"
+            )
 
         # Check for symbol-specific optimal strategy
         if symbol and self._trained_loader and self._trained_loader.is_loaded:
@@ -513,12 +522,18 @@ class RegimeModel:
         ]
 
         if self._state:
-            lines.extend([
-                f"  Current Regime:    {self._state.current_regime}",
-                f"  Days in Regime:    {self._state.days_in_regime}",
-                f"  Last VIX:          {self._last_vix:.2f}" if self._last_vix else "",
-                f"  Last Update:       {self._last_update.strftime('%Y-%m-%d %H:%M')}" if self._last_update else "",
-            ])
+            lines.extend(
+                [
+                    f"  Current Regime:    {self._state.current_regime}",
+                    f"  Days in Regime:    {self._state.days_in_regime}",
+                    f"  Last VIX:          {self._last_vix:.2f}" if self._last_vix else "",
+                    (
+                        f"  Last Update:       {self._last_update.strftime('%Y-%m-%d %H:%M')}"
+                        if self._last_update
+                        else ""
+                    ),
+                ]
+            )
 
             if self._state.pending_transition:
                 lines.append(
@@ -552,15 +567,16 @@ class RegimeModel:
             "version": "1.0.0",
             "model_id": self.model_id,
             "saved_date": datetime.now().isoformat(),
-            "regimes": {
-                name: config.to_dict()
-                for name, config in self.regimes.items()
-            },
-            "state": {
-                "current_regime": self._state.current_regime if self._state else None,
-                "days_in_regime": self._state.days_in_regime if self._state else 0,
-                "last_vix": self._last_vix,
-            } if self._state else None,
+            "regimes": {name: config.to_dict() for name, config in self.regimes.items()},
+            "state": (
+                {
+                    "current_regime": self._state.current_regime if self._state else None,
+                    "days_in_regime": self._state.days_in_regime if self._state else 0,
+                    "last_vix": self._last_vix,
+                }
+                if self._state
+                else None
+            ),
         }
 
         with open(filepath, "w", encoding="utf-8") as f:
@@ -662,6 +678,7 @@ class RegimeModel:
 # CONVENIENCE FUNCTIONS
 # =============================================================================
 
+
 def get_regime_recommendation(
     vix: float,
     score: float,
@@ -741,12 +758,14 @@ def format_regime_status(vix: float, model_path: Optional[str] = None) -> str:
     ]
 
     if status.pending_transition:
-        lines.extend([
-            "",
-            "-" * 60,
-            f"  PENDING TRANSITION: {status.pending_transition}",
-            f"  Days Pending: {status.pending_days}",
-        ])
+        lines.extend(
+            [
+                "",
+                "-" * 60,
+                f"  PENDING TRANSITION: {status.pending_transition}",
+                f"  Days Pending: {status.pending_days}",
+            ]
+        )
 
     lines.append("=" * 60)
     return "\n".join(lines)

@@ -52,8 +52,7 @@ class DataPrep:
         }
         """
         segments: Dict[str, Dict] = {
-            name: {"dates": [], "trades": [], "vix_values": []}
-            for name in regimes.keys()
+            name: {"dates": [], "trades": [], "vix_values": []} for name in regimes.keys()
         }
 
         # Get all unique dates with both price and VIX data
@@ -119,11 +118,13 @@ class DataPrep:
                     continue
 
                 bar = bars_by_date[d]
-                opportunities.append({
-                    "symbol": symbol,
-                    "date": d,
-                    "price": bar.get("close", 0),
-                    "volume": bar.get("volume", 0),
-                })
+                opportunities.append(
+                    {
+                        "symbol": symbol,
+                        "date": d,
+                        "price": bar.get("close", 0),
+                        "volume": bar.get("volume", 0),
+                    }
+                )
 
         return opportunities

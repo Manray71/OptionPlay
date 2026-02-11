@@ -49,7 +49,7 @@ class PerformanceAnalyzer:
         # Sharpe (simplified)
         if len(pnls) > 1:
             std = statistics.stdev(pnls)
-            sharpe = (avg_pnl / std) * (252 ** 0.5) if std > 0 else 0
+            sharpe = (avg_pnl / std) * (252**0.5) if std > 0 else 0
         else:
             sharpe = 0
 

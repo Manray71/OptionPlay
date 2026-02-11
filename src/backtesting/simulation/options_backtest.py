@@ -29,42 +29,42 @@ Verwendung:
 import logging
 from datetime import date
 from pathlib import Path
-from typing import List, Dict, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
+from ...constants.trading_rules import SPREAD_DTE_MAX, SPREAD_DTE_MIN
+from ..core.database import DB_PATH, OptionsDatabase
+from ..core.spread_engine import OutcomeCalculator, SpreadFinder
 from ..models.outcomes import (
-    SpreadOutcome,
-    OptionQuote,
-    SpreadEntry,
-    SpreadOutcomeResult,
-    SetupFeatures,
     BacktestTradeRecord,
+    OptionQuote,
+    SetupFeatures,
+    SpreadEntry,
+    SpreadOutcome,
+    SpreadOutcomeResult,
 )
-from ..core.database import OptionsDatabase, DB_PATH
-from ...constants.trading_rules import SPREAD_DTE_MIN, SPREAD_DTE_MAX
-from ..core.spread_engine import SpreadFinder, OutcomeCalculator
+from .outcome_analysis import (
+    analyze_winning_patterns,
+    calculate_symbol_stability,
+    get_blacklisted_symbols,
+    get_recommended_symbols,
+    get_symbol_stability_score,
+    train_component_weights_from_outcomes,
+    train_outcome_predictor,
+)
 
 # Re-export from sub-modules for backward compatibility
 from .outcome_storage import (
     OUTCOME_DB_PATH,
     create_outcome_database,
-    save_outcomes_to_db,
-    load_outcomes_for_training,
-    load_outcomes_dataframe,
     get_outcome_statistics,
     get_trades_without_scores,
-    update_trade_scores,
+    load_outcomes_dataframe,
+    load_outcomes_for_training,
     load_outcomes_with_scores,
-)
-from .outcome_analysis import (
-    train_outcome_predictor,
-    analyze_winning_patterns,
-    calculate_symbol_stability,
-    get_recommended_symbols,
-    get_blacklisted_symbols,
-    get_symbol_stability_score,
-    train_component_weights_from_outcomes,
+    save_outcomes_to_db,
+    update_trade_scores,
 )
 
 logger = logging.getLogger(__name__)
@@ -73,6 +73,7 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 # MAIN BACKTESTER
 # =============================================================================
+
 
 class RealOptionsBacktester:
     """
@@ -125,8 +126,12 @@ class RealOptionsBacktester:
         )
 
         # Finde die spezifischen Puts
-        short_put = next((p for p in puts if p.strike == short_strike and p.expiration == expiration), None)
-        long_put = next((p for p in puts if p.strike == long_strike and p.expiration == expiration), None)
+        short_put = next(
+            (p for p in puts if p.strike == short_strike and p.expiration == expiration), None
+        )
+        long_put = next(
+            (p for p in puts if p.strike == long_strike and p.expiration == expiration), None
+        )
 
         if not short_put or not long_put:
             return None
@@ -275,18 +280,22 @@ class RealOptionsBacktester:
         pnls = [r.pnl_per_contract for r in results]
 
         return {
-            'total_trades': len(results),
-            'wins': len(wins),
-            'losses': len(losses),
-            'win_rate': len(wins) / len(results) * 100,
-            'total_pnl': sum(pnls),
-            'avg_pnl': np.mean(pnls),
-            'median_pnl': np.median(pnls),
-            'std_pnl': np.std(pnls),
-            'max_win': max(pnls) if pnls else 0,
-            'max_loss': min(pnls) if pnls else 0,
-            'profit_factor': abs(sum(p for p in pnls if p > 0) / sum(p for p in pnls if p < 0)) if any(p < 0 for p in pnls) else float('inf'),
-            'outcomes': {
+            "total_trades": len(results),
+            "wins": len(wins),
+            "losses": len(losses),
+            "win_rate": len(wins) / len(results) * 100,
+            "total_pnl": sum(pnls),
+            "avg_pnl": np.mean(pnls),
+            "median_pnl": np.median(pnls),
+            "std_pnl": np.std(pnls),
+            "max_win": max(pnls) if pnls else 0,
+            "max_loss": min(pnls) if pnls else 0,
+            "profit_factor": (
+                abs(sum(p for p in pnls if p > 0) / sum(p for p in pnls if p < 0))
+                if any(p < 0 for p in pnls)
+                else float("inf")
+            ),
+            "outcomes": {
                 outcome.value: len([r for r in results if r.outcome == outcome])
                 for outcome in SpreadOutcome
             },
@@ -300,6 +309,7 @@ class RealOptionsBacktester:
 # =============================================================================
 # CONVENIENCE FUNCTIONS
 # =============================================================================
+
 
 def quick_backtest(
     symbol: str,
@@ -395,7 +405,7 @@ if __name__ == "__main__":
         print(f"  Avg P&L: ${stats['avg_pnl']:.2f}")
         print(f"  Profit Factor: {stats['profit_factor']:.2f}")
         print(f"\nOutcomes:")
-        for outcome, count in stats['outcomes'].items():
+        for outcome, count in stats["outcomes"].items():
             print(f"  {outcome}: {count}")
     else:
         print("No trades found")

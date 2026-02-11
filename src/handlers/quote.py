@@ -14,17 +14,19 @@ import urllib.request
 from datetime import date, datetime
 from typing import Any, Dict, List, Optional
 
+from ..cache import get_earnings_fetcher
+from ..config import get_watchlist_loader
+from ..constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS, SPREAD_DTE_MAX, SPREAD_DTE_MIN
+from ..formatters import formatters
+from ..utils.earnings_aggregator import (
+    EarningsResult,
+    create_earnings_result,
+    get_earnings_aggregator,
+)
 from ..utils.error_handler import mcp_endpoint
 from ..utils.markdown_builder import MarkdownBuilder
-from ..utils.validation import validate_symbol, validate_symbols, validate_dte_range, is_etf
 from ..utils.provider_orchestrator import ProviderType
-from ..formatters import formatters
-from ..config import get_watchlist_loader
-from ..cache import get_earnings_fetcher
-from ..utils.earnings_aggregator import (
-    EarningsResult, get_earnings_aggregator, create_earnings_result
-)
-from ..constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS, SPREAD_DTE_MIN, SPREAD_DTE_MAX
+from ..utils.validation import is_etf, validate_dte_range, validate_symbol, validate_symbols
 from .base import BaseHandlerMixin
 
 logger = logging.getLogger(__name__)
@@ -85,7 +87,7 @@ class QuoteHandlerMixin(BaseHandlerMixin):
             right=right,
             dte_min=dte_min,
             dte_max=dte_max,
-            max_options=max_options
+            max_options=max_options,
         )
 
     def _fetch_yahoo_earnings(self, symbol: str) -> Dict:
@@ -94,35 +96,35 @@ class QuoteHandlerMixin(BaseHandlerMixin):
             url = f"https://query1.finance.yahoo.com/v10/finance/quoteSummary/{symbol}?modules=calendarEvents"
 
             req = urllib.request.Request(url)
-            req.add_header('User-Agent', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)')
+            req.add_header("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)")
 
             with urllib.request.urlopen(req, timeout=10) as response:
                 data = json.loads(response.read().decode())
 
-            calendar = data.get('quoteSummary', {}).get('result', [{}])[0].get('calendarEvents', {})
-            earnings = calendar.get('earnings', {})
+            calendar = data.get("quoteSummary", {}).get("result", [{}])[0].get("calendarEvents", {})
+            earnings = calendar.get("earnings", {})
 
             earnings_date = None
-            earnings_dates = earnings.get('earningsDate', [])
+            earnings_dates = earnings.get("earningsDate", [])
 
             if earnings_dates:
-                timestamp = earnings_dates[0].get('raw')
+                timestamp = earnings_dates[0].get("raw")
                 if timestamp:
                     earnings_date = datetime.fromtimestamp(timestamp).date()
 
             if earnings_date:
                 days_to = (earnings_date - date.today()).days
                 return {
-                    'earnings_date': earnings_date.isoformat(),
-                    'days_to_earnings': days_to if days_to >= 0 else None,
-                    'source': 'yahoo_direct'
+                    "earnings_date": earnings_date.isoformat(),
+                    "days_to_earnings": days_to if days_to >= 0 else None,
+                    "source": "yahoo_direct",
                 }
 
-            return {'earnings_date': None, 'days_to_earnings': None, 'source': 'yahoo_direct'}
+            return {"earnings_date": None, "days_to_earnings": None, "source": "yahoo_direct"}
 
         except Exception as e:
             logger.debug(f"Yahoo earnings API error for {symbol}: {e}")
-            return {'earnings_date': None, 'days_to_earnings': None, 'source': 'error'}
+            return {"earnings_date": None, "days_to_earnings": None, "source": "error"}
 
     @mcp_endpoint(operation="earnings check", symbol_param="symbol")
     async def get_earnings(self, symbol: str, min_days: int = ENTRY_EARNINGS_MIN_DAYS) -> str:
@@ -146,7 +148,7 @@ class QuoteHandlerMixin(BaseHandlerMixin):
                 days_to_earnings=None,
                 min_days=min_days,
                 source="etf",
-                is_etf=True
+                is_etf=True,
             )
 
         earnings_date = None
@@ -170,13 +172,10 @@ class QuoteHandlerMixin(BaseHandlerMixin):
         # 2. Fallback to Yahoo Finance direct
         if not earnings_date:
             try:
-                yahoo_data = await asyncio.to_thread(
-                    self._fetch_yahoo_earnings,
-                    symbol
-                )
-                if yahoo_data.get('earnings_date'):
-                    earnings_date = yahoo_data['earnings_date']
-                    days_to_earnings = yahoo_data['days_to_earnings']
+                yahoo_data = await asyncio.to_thread(self._fetch_yahoo_earnings, symbol)
+                if yahoo_data.get("earnings_date"):
+                    earnings_date = yahoo_data["earnings_date"]
+                    days_to_earnings = yahoo_data["days_to_earnings"]
                     source_used = "yahoo_direct"
             except Exception as e:
                 logger.debug(f"Yahoo direct earnings failed for {symbol}: {e}")
@@ -187,10 +186,7 @@ class QuoteHandlerMixin(BaseHandlerMixin):
                 if self._earnings_fetcher is None:
                     self._earnings_fetcher = get_earnings_fetcher()
 
-                fetched = await asyncio.to_thread(
-                    self._earnings_fetcher.fetch,
-                    symbol
-                )
+                fetched = await asyncio.to_thread(self._earnings_fetcher.fetch, symbol)
                 if fetched and fetched.earnings_date:
                     earnings_date = fetched.earnings_date
                     days_to_earnings = fetched.days_to_earnings
@@ -203,11 +199,13 @@ class QuoteHandlerMixin(BaseHandlerMixin):
             earnings_date=earnings_date,
             days_to_earnings=days_to_earnings,
             min_days=min_days,
-            source=source_used
+            source=source_used,
         )
 
     @mcp_endpoint(operation="aggregated earnings check", symbol_param="symbol")
-    async def get_earnings_aggregated(self, symbol: str, min_days: int = ENTRY_EARNINGS_MIN_DAYS) -> str:
+    async def get_earnings_aggregated(
+        self, symbol: str, min_days: int = ENTRY_EARNINGS_MIN_DAYS
+    ) -> str:
         """
         Check earnings date with multi-source aggregation and majority voting.
 
@@ -232,22 +230,28 @@ class QuoteHandlerMixin(BaseHandlerMixin):
                     return create_earnings_result(
                         source="marketdata",
                         earnings_date=earnings.earnings_date,
-                        days_to_earnings=earnings.days_to_earnings
+                        days_to_earnings=earnings.days_to_earnings,
                     )
-                return create_earnings_result(source="marketdata", earnings_date=None, days_to_earnings=None)
+                return create_earnings_result(
+                    source="marketdata", earnings_date=None, days_to_earnings=None
+                )
             except Exception as e:
-                return create_earnings_result(source="marketdata", earnings_date=None, days_to_earnings=None, error=str(e))
+                return create_earnings_result(
+                    source="marketdata", earnings_date=None, days_to_earnings=None, error=str(e)
+                )
 
         async def fetch_yahoo() -> EarningsResult:
             try:
                 yahoo_data = await asyncio.to_thread(self._fetch_yahoo_earnings, symbol)
                 return create_earnings_result(
                     source="yahoo_direct",
-                    earnings_date=yahoo_data.get('earnings_date'),
-                    days_to_earnings=yahoo_data.get('days_to_earnings')
+                    earnings_date=yahoo_data.get("earnings_date"),
+                    days_to_earnings=yahoo_data.get("days_to_earnings"),
                 )
             except Exception as e:
-                return create_earnings_result(source="yahoo_direct", earnings_date=None, days_to_earnings=None, error=str(e))
+                return create_earnings_result(
+                    source="yahoo_direct", earnings_date=None, days_to_earnings=None, error=str(e)
+                )
 
         async def fetch_yfinance() -> EarningsResult:
             try:
@@ -259,11 +263,15 @@ class QuoteHandlerMixin(BaseHandlerMixin):
                     return create_earnings_result(
                         source="yfinance",
                         earnings_date=fetched.earnings_date,
-                        days_to_earnings=fetched.days_to_earnings
+                        days_to_earnings=fetched.days_to_earnings,
                     )
-                return create_earnings_result(source="yfinance", earnings_date=None, days_to_earnings=None)
+                return create_earnings_result(
+                    source="yfinance", earnings_date=None, days_to_earnings=None
+                )
             except Exception as e:
-                return create_earnings_result(source="yfinance", earnings_date=None, days_to_earnings=None, error=str(e))
+                return create_earnings_result(
+                    source="yfinance", earnings_date=None, days_to_earnings=None, error=str(e)
+                )
 
         results = await asyncio.gather(fetch_marketdata(), fetch_yahoo(), fetch_yfinance())
 
@@ -351,10 +359,7 @@ class QuoteHandlerMixin(BaseHandlerMixin):
                 else:
                     # Fetch from API
                     api_calls += 1
-                    fetched = await asyncio.to_thread(
-                        self._earnings_fetcher.fetch,
-                        symbol
-                    )
+                    fetched = await asyncio.to_thread(self._earnings_fetcher.fetch, symbol)
                     earnings_date = fetched.earnings_date if fetched else None
                     days_to = fetched.days_to_earnings if fetched else None
 
@@ -425,7 +430,7 @@ class QuoteHandlerMixin(BaseHandlerMixin):
         # Usage hint
         b.h2("Next Steps")
         b.text("Use the safe symbols list for scanning:")
-        b.code(f'optionplay_scan_multi symbols={sorted(safe_symbols)[:20]}...')
+        b.code(f"optionplay_scan_multi symbols={sorted(safe_symbols)[:20]}...")
 
         return b.build()
 
@@ -545,10 +550,7 @@ class QuoteHandlerMixin(BaseHandlerMixin):
                 if self._earnings_fetcher is None:
                     self._earnings_fetcher = get_earnings_fetcher()
 
-                fetched = await asyncio.to_thread(
-                    self._earnings_fetcher.fetch,
-                    symbol
-                )
+                fetched = await asyncio.to_thread(self._earnings_fetcher.fetch, symbol)
                 if fetched:
                     earnings_date = fetched.earnings_date
                     days_to_earnings = fetched.days_to_earnings

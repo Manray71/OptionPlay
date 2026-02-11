@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 # IBKR availability flag
 try:
     from ..ibkr_bridge import IBKRBridge, get_ibkr_bridge
+
     IBKR_AVAILABLE = True
 except ImportError:
     IBKR_AVAILABLE = False
@@ -162,10 +163,7 @@ class IbkrHandler(BaseHandler):
         return b.build()
 
     async def get_ibkr_quotes(
-        self,
-        symbols: Optional[List[str]] = None,
-        batch_size: int = 50,
-        pause_seconds: int = 60
+        self, symbols: Optional[List[str]] = None, batch_size: int = 50, pause_seconds: int = 60
     ) -> str:
         """
         Get quotes for watchlist symbols from IBKR in batches.
@@ -178,8 +176,8 @@ class IbkrHandler(BaseHandler):
         Returns:
             Formatted quotes
         """
-        from ..utils.validation import validate_symbols
         from ..config import get_watchlist_loader
+        from ..utils.validation import validate_symbols
 
         if not IBKR_AVAILABLE or not self._ctx.ibkr_bridge:
             return "IBKR Bridge not available."
@@ -193,6 +191,8 @@ class IbkrHandler(BaseHandler):
         else:
             symbols = validate_symbols(symbols, skip_invalid=True)
 
-        return await self._ctx.ibkr_bridge.get_quotes_batch_formatted(symbols, batch_size, pause_seconds)
+        return await self._ctx.ibkr_bridge.get_quotes_batch_formatted(
+            symbols, batch_size, pause_seconds
+        )
 
     # _get_vix() inherited from BaseHandler

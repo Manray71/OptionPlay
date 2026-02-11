@@ -4,11 +4,11 @@
 #
 # Provides access to historical options data for backtesting.
 
-import sqlite3
 import logging
+import sqlite3
 from datetime import date
 from pathlib import Path
-from typing import List, Dict, Optional
+from typing import Dict, List, Optional
 
 from ..models.outcomes import OptionQuote
 
@@ -75,32 +75,38 @@ class OptionsDatabase:
         ORDER BY expiration, strike DESC
         """
 
-        cursor.execute(query, (
-            symbol,
-            quote_date.isoformat(),
-            dte_min,
-            dte_max,
-            moneyness_min,
-            moneyness_max,
-        ))
+        cursor.execute(
+            query,
+            (
+                symbol,
+                quote_date.isoformat(),
+                dte_min,
+                dte_max,
+                moneyness_min,
+                moneyness_max,
+            ),
+        )
 
-        return [OptionQuote(
-                occ_symbol=row['occ_symbol'],
-                underlying=row['underlying'],
-                expiration=date.fromisoformat(row['expiration']),
-                strike=row['strike'],
-                option_type=row['option_type'],
-                quote_date=date.fromisoformat(row['quote_date']),
-                bid=row['bid'] or 0,
-                ask=row['ask'] or 0,
-                mid=row['mid'] or 0,
-                last=row['last'],
-                volume=row['volume'] or 0,
-                open_interest=row['open_interest'] or 0,
-                underlying_price=row['underlying_price'],
-                dte=row['dte'],
-                moneyness=row['moneyness'],
-            ) for row in cursor]
+        return [
+            OptionQuote(
+                occ_symbol=row["occ_symbol"],
+                underlying=row["underlying"],
+                expiration=date.fromisoformat(row["expiration"]),
+                strike=row["strike"],
+                option_type=row["option_type"],
+                quote_date=date.fromisoformat(row["quote_date"]),
+                bid=row["bid"] or 0,
+                ask=row["ask"] or 0,
+                mid=row["mid"] or 0,
+                last=row["last"],
+                volume=row["volume"] or 0,
+                open_interest=row["open_interest"] or 0,
+                underlying_price=row["underlying_price"],
+                dte=row["dte"],
+                moneyness=row["moneyness"],
+            )
+            for row in cursor
+        ]
 
     def get_underlying_prices(
         self,
@@ -130,10 +136,7 @@ class OptionsDatabase:
 
         cursor.execute(query, (symbol, start_date.isoformat(), end_date.isoformat()))
 
-        return {
-            date.fromisoformat(row['quote_date']): row['underlying_price']
-            for row in cursor
-        }
+        return {date.fromisoformat(row["quote_date"]): row["underlying_price"] for row in cursor}
 
     def get_available_dates(
         self,
@@ -182,7 +185,4 @@ class OptionsDatabase:
 
         cursor.execute(query, (start_date.isoformat(), end_date.isoformat()))
 
-        return {
-            date.fromisoformat(row['date']): row['value']
-            for row in cursor.fetchall()
-        }
+        return {date.fromisoformat(row["date"]): row["value"] for row in cursor.fetchall()}

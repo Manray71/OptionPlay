@@ -37,6 +37,7 @@ from typing import Any, Dict, List, Optional, Tuple, cast
 @dataclass
 class MetricValue:
     """Base class for metric values."""
+
     name: str
     help_text: str
     labels: Dict[str, str] = field(default_factory=dict)
@@ -45,7 +46,9 @@ class MetricValue:
 class Metric(ABC):
     """Abstract base class for metrics."""
 
-    def __init__(self, name: str, help_text: str = "", label_names: Optional[List[str]] = None) -> None:
+    def __init__(
+        self, name: str, help_text: str = "", label_names: Optional[List[str]] = None
+    ) -> None:
         self.name = name
         self.help_text = help_text
         self.label_names = label_names or []
@@ -78,7 +81,9 @@ class Counter(Metric):
         requests.inc(5, labels={"method": "POST"})
     """
 
-    def __init__(self, name: str, help_text: str = "", label_names: Optional[List[str]] = None) -> None:
+    def __init__(
+        self, name: str, help_text: str = "", label_names: Optional[List[str]] = None
+    ) -> None:
         super().__init__(name, help_text, label_names)
         self._values: Dict[Tuple, float] = defaultdict(float)
 
@@ -106,7 +111,7 @@ class Counter(Metric):
                     "name": self.name,
                     "type": "counter",
                     "help": self.help_text,
-                    "value": self._values[()]
+                    "value": self._values[()],
                 }
 
             return {
@@ -114,9 +119,8 @@ class Counter(Metric):
                 "type": "counter",
                 "help": self.help_text,
                 "values": [
-                    {"labels": dict(key), "value": val}
-                    for key, val in self._values.items()
-                ]
+                    {"labels": dict(key), "value": val} for key, val in self._values.items()
+                ],
             }
 
 
@@ -131,7 +135,9 @@ class Gauge(Metric):
         active_connections.dec()
     """
 
-    def __init__(self, name: str, help_text: str = "", label_names: Optional[List[str]] = None) -> None:
+    def __init__(
+        self, name: str, help_text: str = "", label_names: Optional[List[str]] = None
+    ) -> None:
         super().__init__(name, help_text, label_names)
         self._values: Dict[Tuple, float] = defaultdict(float)
 
@@ -169,7 +175,7 @@ class Gauge(Metric):
                     "name": self.name,
                     "type": "gauge",
                     "help": self.help_text,
-                    "value": self._values[()]
+                    "value": self._values[()],
                 }
 
             return {
@@ -177,9 +183,8 @@ class Gauge(Metric):
                 "type": "gauge",
                 "help": self.help_text,
                 "values": [
-                    {"labels": dict(key), "value": val}
-                    for key, val in self._values.items()
-                ]
+                    {"labels": dict(key), "value": val} for key, val in self._values.items()
+                ],
             }
 
 
@@ -200,7 +205,7 @@ class Histogram(Metric):
         name: str,
         help_text: str = "",
         label_names: Optional[List[str]] = None,
-        buckets: Optional[Tuple[float, ...]] = None
+        buckets: Optional[Tuple[float, ...]] = None,
     ) -> None:
         super().__init__(name, help_text, label_names)
         self.buckets = buckets or self.DEFAULT_BUCKETS
@@ -229,20 +234,14 @@ class Histogram(Metric):
             "count": total,
             "sum": self._sums.get(key, 0),
             "mean": self._sums.get(key, 0) / total if total > 0 else 0,
-            "buckets": dict(self._counts.get(key, {}))
+            "buckets": dict(self._counts.get(key, {})),
         }
 
     def to_dict(self) -> Dict[str, Any]:
         """Export as dictionary."""
         with self._lock:
             if not self._totals:
-                return {
-                    "name": self.name,
-                    "type": "histogram",
-                    "count": 0,
-                    "sum": 0,
-                    "mean": 0
-                }
+                return {"name": self.name, "type": "histogram", "count": 0, "sum": 0, "mean": 0}
 
             if len(self._totals) == 1 and () in self._totals:
                 total = self._totals[()]
@@ -253,7 +252,7 @@ class Histogram(Metric):
                     "count": total,
                     "sum": self._sums[()],
                     "mean": self._sums[()] / total if total > 0 else 0,
-                    "buckets": dict(self._counts[()])
+                    "buckets": dict(self._counts[()]),
                 }
 
             return {
@@ -266,10 +265,10 @@ class Histogram(Metric):
                         "count": self._totals[key],
                         "sum": self._sums[key],
                         "mean": self._sums[key] / self._totals[key] if self._totals[key] > 0 else 0,
-                        "buckets": dict(self._counts[key])
+                        "buckets": dict(self._counts[key]),
                     }
                     for key in self._totals.keys()
-                ]
+                ],
             }
 
 
@@ -300,7 +299,9 @@ class MetricsRegistry:
         """Get a metric by name."""
         return self._metrics.get(name)
 
-    def counter(self, name: str, help_text: str = "", label_names: Optional[List[str]] = None) -> Counter:
+    def counter(
+        self, name: str, help_text: str = "", label_names: Optional[List[str]] = None
+    ) -> Counter:
         """Create or get a counter."""
         with self._lock:
             if name in self._metrics:
@@ -309,7 +310,9 @@ class MetricsRegistry:
             self._metrics[name] = counter
             return counter
 
-    def gauge(self, name: str, help_text: str = "", label_names: Optional[List[str]] = None) -> Gauge:
+    def gauge(
+        self, name: str, help_text: str = "", label_names: Optional[List[str]] = None
+    ) -> Gauge:
         """Create or get a gauge."""
         with self._lock:
             if name in self._metrics:
@@ -323,7 +326,7 @@ class MetricsRegistry:
         name: str,
         help_text: str = "",
         label_names: Optional[List[str]] = None,
-        buckets: Optional[Tuple[float, ...]] = None
+        buckets: Optional[Tuple[float, ...]] = None,
     ) -> Histogram:
         """Create or get a histogram."""
         with self._lock:
@@ -339,10 +342,7 @@ class MetricsRegistry:
             return {
                 "timestamp": datetime.utcnow().isoformat() + "Z",
                 "uptime_seconds": round(time.time() - self._start_time, 2),
-                "metrics": {
-                    name: metric.to_dict()
-                    for name, metric in self._metrics.items()
-                }
+                "metrics": {name: metric.to_dict() for name, metric in self._metrics.items()},
             }
 
     def to_json(self, indent: int = 2) -> str:
@@ -361,28 +361,32 @@ metrics = MetricsRegistry()
 
 # Pre-defined metrics for OptionPlay
 api_requests = metrics.counter("api_requests_total", "Total API requests", ["endpoint", "status"])
-api_latency = metrics.histogram("api_latency_ms", "API request latency in milliseconds", ["endpoint"])
+api_latency = metrics.histogram(
+    "api_latency_ms", "API request latency in milliseconds", ["endpoint"]
+)
 active_connections = metrics.gauge("active_connections", "Number of active connections")
 cache_hits = metrics.counter("cache_hits_total", "Cache hits", ["cache"])
 cache_misses = metrics.counter("cache_misses_total", "Cache misses", ["cache"])
-circuit_breaker_state = metrics.gauge("circuit_breaker_state", "Circuit breaker state (0=closed, 1=open, 0.5=half-open)", ["name"])
+circuit_breaker_state = metrics.gauge(
+    "circuit_breaker_state", "Circuit breaker state (0=closed, 1=open, 0.5=half-open)", ["name"]
+)
 rate_limit_waits = metrics.counter("rate_limit_waits_total", "Times rate limiter caused waiting")
 errors = metrics.counter("errors_total", "Total errors", ["type", "operation"])
 
 
 __all__ = [
-    'Metric',
-    'Counter',
-    'Gauge',
-    'Histogram',
-    'MetricsRegistry',
-    'metrics',
-    'api_requests',
-    'api_latency',
-    'active_connections',
-    'cache_hits',
-    'cache_misses',
-    'circuit_breaker_state',
-    'rate_limit_waits',
-    'errors',
+    "Metric",
+    "Counter",
+    "Gauge",
+    "Histogram",
+    "MetricsRegistry",
+    "metrics",
+    "api_requests",
+    "api_latency",
+    "active_connections",
+    "cache_hits",
+    "cache_misses",
+    "circuit_breaker_state",
+    "rate_limit_waits",
+    "errors",
 ]

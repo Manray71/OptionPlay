@@ -36,18 +36,12 @@ class ScoreAnalysisMixin:
         results = []
 
         for bucket_min, bucket_max in self.bucket_ranges:
-            bucket_trades = [
-                t for t in trades
-                if bucket_min <= t.pullback_score < bucket_max
-            ]
+            bucket_trades = [t for t in trades if bucket_min <= t.pullback_score < bucket_max]
 
             if not bucket_trades:
                 continue
 
-            stats = self._calculate_bucket_stats(
-                bucket_trades,
-                (bucket_min, bucket_max)
-            )
+            stats = self._calculate_bucket_stats(bucket_trades, (bucket_min, bucket_max))
             results.append(stats)
 
         return sorted(results, key=lambda x: x.bucket_range[0])
@@ -111,8 +105,7 @@ class ScoreAnalysisMixin:
 
         # Filtere Trades mit score_breakdown
         valid_trades = [
-            t for t in trades
-            if hasattr(t, "score_breakdown") and t.score_breakdown is not None
+            t for t in trades if hasattr(t, "score_breakdown") and t.score_breakdown is not None
         ]
 
         if len(valid_trades) < self.min_trades_per_bucket:
@@ -127,19 +120,14 @@ class ScoreAnalysisMixin:
         pnls = [t.realized_pnl for t in valid_trades]
 
         for component in self.SCORE_COMPONENTS:
-            values = [
-                t.score_breakdown.get(component, 0)
-                for t in valid_trades
-            ]
+            values = [t.score_breakdown.get(component, 0) for t in valid_trades]
 
             # Skip wenn alle Werte gleich
             if len(set(values)) <= 1:
                 continue
 
             # Korrelationen
-            win_corr, win_pval = StatisticalCalculator.pearson_correlation(
-                values, outcomes
-            )
+            win_corr, win_pval = StatisticalCalculator.pearson_correlation(values, outcomes)
             pnl_corr, _ = StatisticalCalculator.pearson_correlation(values, pnls)
 
             # Winner/Loser Durchschnitte
@@ -154,29 +142,24 @@ class ScoreAnalysisMixin:
                 win_corr, win_pval, len(valid_trades), self.min_trades_per_bucket
             )
 
-            results.append(ComponentCorrelation(
-                component_name=component,
-                sample_size=len(valid_trades),
-                win_rate_correlation=win_corr,
-                pnl_correlation=pnl_corr,
-                avg_value_winners=avg_winners,
-                avg_value_losers=avg_losers,
-                value_difference=avg_winners - avg_losers,
-                statistical_significance=win_pval,
-                predictive_power=power,
-            ))
+            results.append(
+                ComponentCorrelation(
+                    component_name=component,
+                    sample_size=len(valid_trades),
+                    win_rate_correlation=win_corr,
+                    pnl_correlation=pnl_corr,
+                    avg_value_winners=avg_winners,
+                    avg_value_losers=avg_losers,
+                    value_difference=avg_winners - avg_losers,
+                    statistical_significance=win_pval,
+                    predictive_power=power,
+                )
+            )
 
         # Sortiere nach Korrelationsstärke
-        return sorted(
-            results,
-            key=lambda x: abs(x.win_rate_correlation),
-            reverse=True
-        )
+        return sorted(results, key=lambda x: abs(x.win_rate_correlation), reverse=True)
 
-    def _analyze_by_regime(
-        self,
-        trades: List
-    ) -> Tuple[Dict[str, List], Dict[str, float]]:
+    def _analyze_by_regime(self, trades: List) -> Tuple[Dict[str, List], Dict[str, float]]:
         """Analysiert Score-Effektivität nach VIX-Regime"""
         from .signal_validation import RegimeBucketStats
 
@@ -246,11 +229,7 @@ class ScoreAnalysisMixin:
         corr, _ = StatisticalCalculator.pearson_correlation(scores, outcomes)
         return corr
 
-    def _find_optimal_threshold(
-        self,
-        buckets: List,
-        target_win_rate: float = 60.0
-    ) -> float:
+    def _find_optimal_threshold(self, buckets: List, target_win_rate: float = 60.0) -> float:
         """Findet optimalen Score-Schwellenwert für Ziel-Win-Rate"""
         for bucket in buckets:
             ci_lower = bucket.confidence_interval[0]
@@ -272,20 +251,13 @@ class ScoreAnalysisMixin:
                 return bucket
         return None
 
-    def _calculate_pnl_range(
-        self,
-        score: float,
-        trades: List
-    ) -> Tuple[float, float]:
+    def _calculate_pnl_range(self, score: float, trades: List) -> Tuple[float, float]:
         """Berechnet erwartete P&L-Range (25th-75th Perzentil)"""
         # Finde Trades im passenden Score-Bereich
         matching_trades = []
         for bucket_min, bucket_max in self.bucket_ranges:
             if bucket_min <= score < bucket_max:
-                matching_trades = [
-                    t for t in trades
-                    if bucket_min <= t.pullback_score < bucket_max
-                ]
+                matching_trades = [t for t in trades if bucket_min <= t.pullback_score < bucket_max]
                 break
 
         if len(matching_trades) < 4:
@@ -301,9 +273,7 @@ class ScoreAnalysisMixin:
         return (pnls[p25_idx], pnls[p75_idx])
 
     def _assess_component_strengths(
-        self,
-        breakdown: Dict[str, float],
-        correlations: List
+        self, breakdown: Dict[str, float], correlations: List
     ) -> Dict[str, str]:
         """Bewertet Stärke jeder Komponente im aktuellen Signal"""
         strengths = {}

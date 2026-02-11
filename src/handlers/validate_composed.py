@@ -57,11 +57,11 @@ class ValidateHandler(BaseHandler):
         Returns:
             Formatted Markdown with validation results
         """
-        from ..utils.validation import validate_symbol
         from ..services.trade_validator import (
             TradeValidationRequest,
             get_trade_validator,
         )
+        from ..utils.validation import validate_symbol
 
         symbol = validate_symbol(symbol)
 
@@ -94,8 +94,8 @@ class ValidateHandler(BaseHandler):
         request: Any,
     ) -> str:
         """Format validation result as Markdown."""
-        from ..utils.markdown_builder import MarkdownBuilder
         from ..constants.trading_rules import TradeDecision
+        from ..utils.markdown_builder import MarkdownBuilder
 
         b = MarkdownBuilder()
 
@@ -156,7 +156,7 @@ class ValidateHandler(BaseHandler):
             b.kv_line("Spread-Breite", f"${sizing['spread_width']:.2f}")
             b.kv_line("Max Verlust/Kontrakt", f"${sizing['max_loss_per_contract']:.0f}")
             b.kv_line("Max Risiko", f"{sizing['risk_pct']:.1f}% = ${sizing['max_risk_usd']:.0f}")
-            b.kv_line("Empfohlene Kontrakte", sizing['recommended_contracts'])
+            b.kv_line("Empfohlene Kontrakte", sizing["recommended_contracts"])
             b.kv_line("Gesamt-Credit", f"${sizing['total_credit']:.0f}")
             b.kv_line("Gesamt-Risiko", f"${sizing['total_risk']:.0f}")
             b.blank()
@@ -173,8 +173,8 @@ class ValidateHandler(BaseHandler):
                     if portfolio:
                         return [
                             {
-                                'symbol': p.get('symbol', ''),
-                                'sector': p.get('sector', ''),
+                                "symbol": p.get("symbol", ""),
+                                "sector": p.get("sector", ""),
                             }
                             for p in portfolio
                         ]
@@ -184,12 +184,13 @@ class ValidateHandler(BaseHandler):
             # Fallback: internal portfolio
             try:
                 from ..portfolio import get_portfolio_manager
+
                 portfolio = get_portfolio_manager()
                 positions = portfolio.get_open_positions()
                 return [
                     {
-                        'symbol': p.symbol,
-                        'sector': '',
+                        "symbol": p.symbol,
+                        "sector": "",
                     }
                     for p in positions
                 ]

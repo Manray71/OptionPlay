@@ -55,4 +55,5 @@ def create_tracker(db_path: Optional[str] = None) -> "TradeTracker":
         TradeTracker-Instanz
     """
     from .tracker import TradeTracker
+
     return TradeTracker(db_path)

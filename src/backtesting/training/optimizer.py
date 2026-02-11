@@ -14,15 +14,15 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from ..models import (
-    RegimeConfig,
     RegimeBoundaryMethod,
+    RegimeConfig,
     save_regimes,
 )
 from ..models.training_models import (
+    FullRegimeTrainingResult,
+    RegimeEpochResult,
     RegimeTrainingConfig,
     RegimeTrainingResult,
-    RegimeEpochResult,
-    FullRegimeTrainingResult,
 )
 
 logger = logging.getLogger(__name__)

@@ -16,14 +16,14 @@
 import asyncio
 import logging
 import sqlite3
+from contextlib import contextmanager
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import List, Optional, Dict, Any, Tuple, Callable, TypeVar
-from contextlib import contextmanager
+from typing import Any, Callable, Dict, List, Optional, Tuple, TypeVar
 
-T = TypeVar('T')
+T = TypeVar("T")
 
-from .interface import DataProvider, HistoricalBar, PriceQuote, DataQuality
+from .interface import DataProvider, DataQuality, HistoricalBar, PriceQuote
 
 logger = logging.getLogger(__name__)
 
@@ -117,14 +117,17 @@ class LocalDBProvider(DataProvider):
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
-                cursor.execute("""
+                cursor.execute(
+                    """
                     SELECT underlying_price, quote_date
                     FROM options_prices
                     WHERE underlying = ?
                       AND underlying_price IS NOT NULL
                     ORDER BY quote_date DESC
                     LIMIT 1
-                """, (symbol,))
+                """,
+                    (symbol,),
+                )
                 row = cursor.fetchone()
 
                 if row:
@@ -136,7 +139,7 @@ class LocalDBProvider(DataProvider):
                         volume=None,
                         timestamp=datetime.fromisoformat(row[1] + "T16:00:00"),
                         data_quality=DataQuality.END_OF_DAY,
-                        source="local_db"
+                        source="local_db",
                     )
                 return None
         except Exception as e:
@@ -170,7 +173,7 @@ class LocalDBProvider(DataProvider):
         symbol: str,
         expiration: Optional[date] = None,
         strikes: Optional[List[float]] = None,
-        option_type: Optional[str] = None
+        option_type: Optional[str] = None,
     ) -> List[Any]:
         """
         Get option chain - NOT SUPPORTED by local DB.
@@ -205,23 +208,27 @@ class LocalDBProvider(DataProvider):
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
-                cursor.execute("""
+                cursor.execute(
+                    """
                     SELECT earnings_date, time_of_day
                     FROM earnings_history
                     WHERE symbol = ?
                       AND earnings_date >= date('now')
                     ORDER BY earnings_date ASC
                     LIMIT 1
-                """, (symbol,))
+                """,
+                    (symbol,),
+                )
                 row = cursor.fetchone()
 
                 if row:
                     from ..cache import EarningsInfo, EarningsSource
+
                     return EarningsInfo(
                         symbol=symbol,
                         earnings_date=row[0],
                         source=EarningsSource.DATABASE,
-                        time_of_day=row[1]
+                        time_of_day=row[1],
                     )
                 return None
         except Exception as e:
@@ -241,7 +248,8 @@ class LocalDBProvider(DataProvider):
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
-                cursor.execute("""
+                cursor.execute(
+                    """
                     SELECT quote_date, underlying_price
                     FROM options_prices
                     WHERE underlying = ?
@@ -249,7 +257,9 @@ class LocalDBProvider(DataProvider):
                     GROUP BY quote_date
                     ORDER BY quote_date DESC
                     LIMIT ?
-                """, (symbol, days))
+                """,
+                    (symbol, days),
+                )
 
                 rows = cursor.fetchall()
                 if not rows:
@@ -260,16 +270,18 @@ class LocalDBProvider(DataProvider):
                 bars = []
                 for row in rows:
                     price = float(row[1])
-                    bars.append(HistoricalBar(
-                        symbol=symbol,
-                        date=date.fromisoformat(row[0]),
-                        open=price,
-                        high=price,
-                        low=price,
-                        close=price,
-                        volume=0,
-                        source="local_db"
-                    ))
+                    bars.append(
+                        HistoricalBar(
+                            symbol=symbol,
+                            date=date.fromisoformat(row[0]),
+                            open=price,
+                            high=price,
+                            low=price,
+                            close=price,
+                            volume=0,
+                            source="local_db",
+                        )
+                    )
 
                 return bars
 
@@ -278,10 +290,7 @@ class LocalDBProvider(DataProvider):
             return []
 
     async def get_historical(
-        self,
-        symbol: str,
-        days: int = 90,
-        interval: str = "daily"
+        self, symbol: str, days: int = 90, interval: str = "daily"
     ) -> List[HistoricalBar]:
         """
         Get historical price bars.
@@ -310,7 +319,8 @@ class LocalDBProvider(DataProvider):
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
-                cursor.execute("""
+                cursor.execute(
+                    """
                     SELECT quote_date, underlying_price
                     FROM options_prices
                     WHERE underlying = ?
@@ -318,7 +328,9 @@ class LocalDBProvider(DataProvider):
                     GROUP BY quote_date
                     ORDER BY quote_date DESC
                     LIMIT ?
-                """, (symbol, days))
+                """,
+                    (symbol, days),
+                )
 
                 rows = cursor.fetchall()
 
@@ -338,7 +350,9 @@ class LocalDBProvider(DataProvider):
                 lows = prices.copy()
                 opens = prices.copy()
 
-                logger.debug(f"LocalDB: Loaded {len(prices)} close-only prices for {symbol} (no OHLCV)")
+                logger.debug(
+                    f"LocalDB: Loaded {len(prices)} close-only prices for {symbol} (no OHLCV)"
+                )
                 return prices, volumes, highs, lows, opens
 
         except Exception as e:
@@ -346,9 +360,7 @@ class LocalDBProvider(DataProvider):
             return None
 
     async def get_historical_for_scanner(
-        self,
-        symbol: str,
-        days: int = 260
+        self, symbol: str, days: int = 260
     ) -> Optional[Tuple[List[float], List[int], List[float], List[float], List[float]]]:
         """
         Get historical data in scanner format.
@@ -371,9 +383,7 @@ class LocalDBProvider(DataProvider):
         Returns:
             Tuple of (prices, volumes, highs, lows, opens) or None
         """
-        return await self._run_sync(
-            self._get_historical_for_scanner_sync, symbol.upper(), days
-        )
+        return await self._run_sync(self._get_historical_for_scanner_sync, symbol.upper(), days)
 
     # =========================================================================
     # Daily Prices Table (OHLCV enrichment)
@@ -405,9 +415,7 @@ class LocalDBProvider(DataProvider):
         except Exception as e:
             logger.warning(f"Failed to create daily_prices table: {e}")
 
-    def _save_daily_prices_sync(
-        self, symbol: str, bars: List[HistoricalBar]
-    ) -> int:
+    def _save_daily_prices_sync(self, symbol: str, bars: List[HistoricalBar]) -> int:
         """Save OHLCV bars to daily_prices table. Returns count of saved rows."""
         if not bars:
             return 0
@@ -420,20 +428,27 @@ class LocalDBProvider(DataProvider):
                 cursor = conn.cursor()
                 for bar in bars:
                     try:
-                        cursor.execute("""
+                        cursor.execute(
+                            """
                             INSERT OR REPLACE INTO daily_prices
                                 (symbol, quote_date, open, high, low, close, volume, source)
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                        """, (
-                            symbol,
-                            bar.date.isoformat() if isinstance(bar.date, date) else str(bar.date),
-                            bar.open,
-                            bar.high,
-                            bar.low,
-                            bar.close,
-                            bar.volume,
-                            bar.source or 'tradier',
-                        ))
+                        """,
+                            (
+                                symbol,
+                                (
+                                    bar.date.isoformat()
+                                    if isinstance(bar.date, date)
+                                    else str(bar.date)
+                                ),
+                                bar.open,
+                                bar.high,
+                                bar.low,
+                                bar.close,
+                                bar.volume,
+                                bar.source or "tradier",
+                            ),
+                        )
                         saved += 1
                     except sqlite3.Error as e:
                         logger.warning(f"Error saving daily price for {symbol} {bar.date}: {e}")
@@ -444,14 +459,14 @@ class LocalDBProvider(DataProvider):
         logger.debug(f"Saved {saved} daily prices for {symbol}")
         return saved
 
-    async def save_daily_prices(
-        self, symbol: str, bars: List[HistoricalBar]
-    ) -> int:
+    async def save_daily_prices(self, symbol: str, bars: List[HistoricalBar]) -> int:
         """Save OHLCV bars to daily_prices table (async)."""
         return await self._run_sync(self._save_daily_prices_sync, symbol, bars)
 
     def _save_daily_prices_from_tuple_sync(
-        self, symbol: str, data: Tuple[List[float], List[int], List[float], List[float], List[float]]
+        self,
+        symbol: str,
+        data: Tuple[List[float], List[int], List[float], List[float], List[float]],
     ) -> int:
         """Save scanner-format tuple data to daily_prices. Returns count of saved rows."""
         prices, volumes, highs, lows, opens = data
@@ -470,14 +485,17 @@ class LocalDBProvider(DataProvider):
                 cursor = conn.cursor()
 
                 # Try to get actual dates from options_prices for this symbol
-                cursor.execute("""
+                cursor.execute(
+                    """
                     SELECT DISTINCT quote_date
                     FROM options_prices
                     WHERE underlying = ?
                       AND underlying_price IS NOT NULL
                     ORDER BY quote_date DESC
                     LIMIT ?
-                """, (symbol, num_bars))
+                """,
+                    (symbol, num_bars),
+                )
                 date_rows = cursor.fetchall()
 
                 if date_rows and len(date_rows) >= num_bars:
@@ -496,20 +514,23 @@ class LocalDBProvider(DataProvider):
                 for i in range(num_bars):
                     try:
                         quote_date = dates[i] if isinstance(dates[i], str) else dates[i]
-                        cursor.execute("""
+                        cursor.execute(
+                            """
                             INSERT OR REPLACE INTO daily_prices
                                 (symbol, quote_date, open, high, low, close, volume, source)
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                        """, (
-                            symbol,
-                            quote_date,
-                            opens[i],
-                            highs[i],
-                            lows[i],
-                            prices[i],
-                            volumes[i],
-                            'api',
-                        ))
+                        """,
+                            (
+                                symbol,
+                                quote_date,
+                                opens[i],
+                                highs[i],
+                                lows[i],
+                                prices[i],
+                                volumes[i],
+                                "api",
+                            ),
+                        )
                         saved += 1
                     except (sqlite3.Error, IndexError) as e:
                         logger.warning(f"Error saving daily price tuple for {symbol} idx {i}: {e}")
@@ -524,7 +545,7 @@ class LocalDBProvider(DataProvider):
     async def save_daily_prices_from_tuple(
         self,
         symbol: str,
-        data: Tuple[List[float], List[int], List[float], List[float], List[float]]
+        data: Tuple[List[float], List[int], List[float], List[float], List[float]],
     ) -> int:
         """Save scanner-format tuple data to daily_prices table (async)."""
         return await self._run_sync(self._save_daily_prices_from_tuple_sync, symbol, data)
@@ -536,13 +557,16 @@ class LocalDBProvider(DataProvider):
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
-                cursor.execute("""
+                cursor.execute(
+                    """
                     SELECT quote_date, open, high, low, close, volume
                     FROM daily_prices
                     WHERE symbol = ?
                     ORDER BY quote_date DESC
                     LIMIT ?
-                """, (symbol.upper(), days))
+                """,
+                    (symbol.upper(), days),
+                )
 
                 rows = cursor.fetchall()
                 if not rows:
@@ -640,18 +664,18 @@ class LocalDBProvider(DataProvider):
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
-                cursor.execute("""
+                cursor.execute(
+                    """
                     SELECT MIN(quote_date), MAX(quote_date)
                     FROM options_prices
                     WHERE underlying = ?
-                """, (symbol,))
+                """,
+                    (symbol,),
+                )
                 row = cursor.fetchone()
 
                 if row and row[0] and row[1]:
-                    result = (
-                        date.fromisoformat(row[0]),
-                        date.fromisoformat(row[1])
-                    )
+                    result = (date.fromisoformat(row[0]), date.fromisoformat(row[1]))
                     self._symbol_date_ranges[symbol] = result
                     return result
                 return None
@@ -691,12 +715,15 @@ class LocalDBProvider(DataProvider):
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
-                cursor.execute("""
+                cursor.execute(
+                    """
                     SELECT date, value
                     FROM vix_data
                     ORDER BY date DESC
                     LIMIT ?
-                """, (days,))
+                """,
+                    (days,),
+                )
 
                 rows = cursor.fetchall()
                 if not rows:
@@ -780,6 +807,7 @@ def get_local_db_provider(db_path: Optional[Path] = None) -> LocalDBProvider:
     """
     try:
         from ..utils.deprecation import warn_singleton_usage
+
         warn_singleton_usage("get_local_db_provider", "ServiceContainer.local_db_provider")
     except ImportError:
         pass

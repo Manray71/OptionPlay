@@ -12,18 +12,18 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from ..constants.trading_rules import ExitAction
+from ..services.position_monitor import (
+    MonitorResult,
+    PositionMonitor,
+    PositionSignal,
+    PositionSnapshot,
+    estimate_pnl_from_theta,
+    get_position_monitor,
+    snapshot_from_ibkr,
+    snapshot_from_internal,
+)
 from ..utils.error_handler import mcp_endpoint
 from ..utils.markdown_builder import MarkdownBuilder
-from ..services.position_monitor import (
-    PositionMonitor,
-    PositionSnapshot,
-    PositionSignal,
-    MonitorResult,
-    get_position_monitor,
-    snapshot_from_internal,
-    snapshot_from_ibkr,
-    estimate_pnl_from_theta,
-)
 from .base import BaseHandlerMixin
 
 logger = logging.getLogger(__name__)
@@ -79,8 +79,9 @@ class MonitorHandlerMixin(BaseHandlerMixin):
 
         # Source 1: IBKR Bridge (preferred — has live data)
         try:
-            if hasattr(self, '_ibkr_bridge') and self._ibkr_bridge:
+            if hasattr(self, "_ibkr_bridge") and self._ibkr_bridge:
                 import asyncio
+
                 spreads = await self._ibkr_bridge.get_spreads()
                 if spreads:
                     for spread in spreads:
@@ -99,6 +100,7 @@ class MonitorHandlerMixin(BaseHandlerMixin):
         # Source 2: Internal Portfolio (with theta-estimated P&L)
         try:
             from ..portfolio import get_portfolio_manager
+
             portfolio = get_portfolio_manager()
             open_positions = portfolio.get_open_positions()
 
@@ -141,9 +143,7 @@ class MonitorHandlerMixin(BaseHandlerMixin):
             b.blank()
 
         # Action items first (CLOSE, ROLL, ALERT)
-        action_signals = [
-            s for s in result.signals if s.action != ExitAction.HOLD
-        ]
+        action_signals = [s for s in result.signals if s.action != ExitAction.HOLD]
 
         if action_signals:
             b.h2("Aktionen erforderlich")

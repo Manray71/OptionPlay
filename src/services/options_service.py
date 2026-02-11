@@ -30,20 +30,20 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import datetime
-from typing import Dict, List, Optional, Any
+from typing import Any, Dict, List, Optional
 
-from .base import BaseService, ServiceContext
-from ..constants.trading_rules import SPREAD_DTE_MIN, SPREAD_DTE_MAX
+from ..constants.trading_rules import SPREAD_DTE_MAX, SPREAD_DTE_MIN
+from ..indicators.support_resistance import calculate_fibonacci, find_support_levels
 from ..models.result import ServiceResult
-from ..utils.validation import validate_symbol, validate_dte_range, validate_right, ValidationError
-from ..utils.markdown_builder import MarkdownBuilder, format_price
 from ..strike_recommender import (
-    StrikeRecommender,
-    StrikeRecommendation,
     StrikeQuality,
+    StrikeRecommendation,
+    StrikeRecommender,
 )
-from ..indicators.support_resistance import find_support_levels, calculate_fibonacci
+from ..utils.markdown_builder import MarkdownBuilder, format_price
+from ..utils.validation import ValidationError, validate_dte_range, validate_right, validate_symbol
 from ..vix_strategy import MarketRegime
+from .base import BaseService, ServiceContext
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +77,7 @@ class OptionsService(BaseService):
         symbol: str,
         dte_min: int = SPREAD_DTE_MIN,
         dte_max: int = SPREAD_DTE_MAX,
-        right: str = "P"
+        right: str = "P",
     ) -> ServiceResult[dict[str, Any]]:
         """
         Holt Options-Chain für ein Symbol.
@@ -106,9 +106,7 @@ class OptionsService(BaseService):
 
             async with self._rate_limited():
                 options = await provider.get_option_chain(
-                    symbol=symbol,
-                    dte_min=dte_min,
-                    dte_max=dte_max
+                    symbol=symbol, dte_min=dte_min, dte_max=dte_max
                 )
 
             if not options:
@@ -116,9 +114,9 @@ class OptionsService(BaseService):
 
             # Nach Right filtern
             if right == "P":
-                options = [o for o in options if getattr(o, 'right', '') == 'P']
+                options = [o for o in options if getattr(o, "right", "") == "P"]
             elif right == "C":
-                options = [o for o in options if getattr(o, 'right', '') == 'C']
+                options = [o for o in options if getattr(o, "right", "") == "C"]
 
             # Zu Dicts konvertieren
             options_data = [self._option_to_dict(o) for o in options]
@@ -130,10 +128,10 @@ class OptionsService(BaseService):
                     "right": right,
                     "dte_range": f"{dte_min}-{dte_max}",
                     "count": len(options_data),
-                    "options": options_data
+                    "options": options_data,
                 },
                 source="api",
-                duration_ms=duration_ms
+                duration_ms=duration_ms,
             )
 
         except Exception as e:
@@ -146,7 +144,7 @@ class OptionsService(BaseService):
         dte_min: int = SPREAD_DTE_MIN,
         dte_max: int = SPREAD_DTE_MAX,
         num_alternatives: int = 3,
-        regime: Optional[MarketRegime] = None
+        regime: Optional[MarketRegime] = None,
     ) -> ServiceResult[dict[str, Any]]:
         """
         Generiert Strike-Empfehlung für Bull-Put-Spread.
@@ -193,10 +191,7 @@ class OptionsService(BaseService):
 
             # Support-Levels berechnen
             support_levels = find_support_levels(
-                lows=lows,
-                lookback=min(60, len(lows)),
-                window=5,
-                max_levels=5
+                lows=lows, lookback=min(60, len(lows)), window=5, max_levels=5
             )
 
             # Fibonacci-Levels
@@ -211,12 +206,12 @@ class OptionsService(BaseService):
             try:
                 async with self._rate_limited():
                     options = await provider.get_option_chain(
-                        symbol=symbol,
-                        dte_min=dte_min,
-                        dte_max=dte_max
+                        symbol=symbol, dte_min=dte_min, dte_max=dte_max
                     )
                 if options:
-                    options_data = [self._option_to_dict(o) for o in options if getattr(o, 'right', '') == 'P']
+                    options_data = [
+                        self._option_to_dict(o) for o in options if getattr(o, "right", "") == "P"
+                    ]
             except Exception as e:
                 self._logger.warning(f"Could not fetch options for strike recommendation: {e}")
 
@@ -228,7 +223,7 @@ class OptionsService(BaseService):
                 options_data=options_data,
                 fib_levels=fib_levels,
                 dte=int((dte_min + dte_max) / 2),
-                regime=regime
+                regime=regime,
             )
 
             self._logger.info(
@@ -247,7 +242,7 @@ class OptionsService(BaseService):
                     support_levels=support_levels,
                     options_data=options_data,
                     fib_levels=fib_levels,
-                    num_alternatives=num_alternatives
+                    num_alternatives=num_alternatives,
                 )
 
             duration_ms = (datetime.now() - start_time).total_seconds() * 1000
@@ -258,10 +253,10 @@ class OptionsService(BaseService):
                     "recommendation": recommendation.to_dict(),
                     "alternatives": [a.to_dict() for a in alternatives],
                     "support_levels": support_levels,
-                    "fib_levels": fib_levels
+                    "fib_levels": fib_levels,
                 },
                 source="calculated",
-                duration_ms=duration_ms
+                duration_ms=duration_ms,
             )
 
         except Exception as e:
@@ -273,7 +268,7 @@ class OptionsService(BaseService):
         symbol: str,
         dte_min: int = SPREAD_DTE_MIN,
         dte_max: int = SPREAD_DTE_MAX,
-        right: str = "P"
+        right: str = "P",
     ) -> str:
         """
         Holt Options-Chain und formatiert als Markdown.
@@ -299,7 +294,7 @@ class OptionsService(BaseService):
         symbol: str,
         dte_min: int = SPREAD_DTE_MIN,
         dte_max: int = SPREAD_DTE_MAX,
-        num_alternatives: int = 3
+        num_alternatives: int = 3,
     ) -> str:
         """
         Generiert Strike-Empfehlung und formatiert als Markdown.
@@ -313,9 +308,7 @@ class OptionsService(BaseService):
         Returns:
             Formatierter Markdown-String
         """
-        result = await self.get_strike_recommendation(
-            symbol, dte_min, dte_max, num_alternatives
-        )
+        result = await self.get_strike_recommendation(symbol, dte_min, dte_max, num_alternatives)
 
         if not result.success:
             return f"❌ Strike recommendation failed for {symbol}: {result.error}"
@@ -328,24 +321,25 @@ class OptionsService(BaseService):
 
     def _option_to_dict(self, option: Any) -> dict[str, Any]:
         """Konvertiert Option-Objekt zu Dictionary."""
-        if hasattr(option, 'to_dict'):
+        if hasattr(option, "to_dict"):
             result: dict[str, Any] = option.to_dict()
             return result
 
         return {
-            'strike': getattr(option, 'strike', None),
-            'expiration': str(getattr(option, 'expiration', '')),
-            'right': getattr(option, 'right', None),
-            'bid': getattr(option, 'bid', None),
-            'ask': getattr(option, 'ask', None),
-            'last': getattr(option, 'last', None),
-            'volume': getattr(option, 'volume', None),
-            'open_interest': getattr(option, 'openInterest', None) or getattr(option, 'open_interest', None),
-            'delta': getattr(option, 'delta', None),
-            'gamma': getattr(option, 'gamma', None),
-            'theta': getattr(option, 'theta', None),
-            'vega': getattr(option, 'vega', None),
-            'iv': getattr(option, 'iv', None) or getattr(option, 'impliedVolatility', None),
+            "strike": getattr(option, "strike", None),
+            "expiration": str(getattr(option, "expiration", "")),
+            "right": getattr(option, "right", None),
+            "bid": getattr(option, "bid", None),
+            "ask": getattr(option, "ask", None),
+            "last": getattr(option, "last", None),
+            "volume": getattr(option, "volume", None),
+            "open_interest": getattr(option, "openInterest", None)
+            or getattr(option, "open_interest", None),
+            "delta": getattr(option, "delta", None),
+            "gamma": getattr(option, "gamma", None),
+            "theta": getattr(option, "theta", None),
+            "vega": getattr(option, "vega", None),
+            "iv": getattr(option, "iv", None) or getattr(option, "impliedVolatility", None),
         }
 
     def _format_options_chain(self, data: dict[str, Any]) -> str:
@@ -371,7 +365,7 @@ class OptionsService(BaseService):
         # Gruppiere nach Expiration
         by_expiry: dict[str, list[dict[str, Any]]] = {}
         for opt in options:
-            exp = opt.get('expiration', 'Unknown')[:10]  # Nur Datum
+            exp = opt.get("expiration", "Unknown")[:10]  # Nur Datum
             if exp not in by_expiry:
                 by_expiry[exp] = []
             by_expiry[exp].append(opt)
@@ -380,22 +374,24 @@ class OptionsService(BaseService):
             b.h2(f"Expiry: {expiry}").blank()
 
             rows = []
-            for opt in sorted(opts, key=lambda x: x.get('strike', 0), reverse=True)[:10]:
-                strike = opt.get('strike')
-                bid = opt.get('bid')
-                ask = opt.get('ask')
-                delta = opt.get('delta')
-                iv = opt.get('iv')
-                oi = opt.get('open_interest')
+            for opt in sorted(opts, key=lambda x: x.get("strike", 0), reverse=True)[:10]:
+                strike = opt.get("strike")
+                bid = opt.get("bid")
+                ask = opt.get("ask")
+                delta = opt.get("delta")
+                iv = opt.get("iv")
+                oi = opt.get("open_interest")
 
-                rows.append([
-                    format_price(strike) if strike else "-",
-                    format_price(bid) if bid else "-",
-                    format_price(ask) if ask else "-",
-                    f"{delta:.2f}" if delta else "-",
-                    f"{iv * 100:.1f}%" if iv else "-",
-                    str(oi) if oi else "-"
-                ])
+                rows.append(
+                    [
+                        format_price(strike) if strike else "-",
+                        format_price(bid) if bid else "-",
+                        format_price(ask) if ask else "-",
+                        f"{delta:.2f}" if delta else "-",
+                        f"{iv * 100:.1f}%" if iv else "-",
+                        str(oi) if oi else "-",
+                    ]
+                )
 
             b.table(["Strike", "Bid", "Ask", "Delta", "IV", "OI"], rows)
             b.blank()
@@ -424,12 +420,9 @@ class OptionsService(BaseService):
         confidence = rec.get("confidence_score", 0)
         reason = rec.get("short_strike_reason", "")
 
-        quality_emoji = {
-            "excellent": "🟢",
-            "good": "🟡",
-            "acceptable": "🟠",
-            "poor": "🔴"
-        }.get(quality, "⚪")
+        quality_emoji = {"excellent": "🟢", "good": "🟡", "acceptable": "🟠", "poor": "🔴"}.get(
+            quality, "⚪"
+        )
 
         b.kv("Short Strike", format_price(short_strike) if short_strike else "-")
         b.kv("Long Strike", format_price(long_strike) if long_strike else "-")
@@ -474,13 +467,15 @@ class OptionsService(BaseService):
             rows = []
             for alt in alternatives:
                 alt_quality = alt.get("quality", "?")
-                rows.append([
-                    format_price(alt.get("short_strike")),
-                    format_price(alt.get("long_strike")),
-                    format_price(alt.get("spread_width")),
-                    alt_quality.upper()[:4],
-                    f"{alt.get('confidence_score', 0)}"
-                ])
+                rows.append(
+                    [
+                        format_price(alt.get("short_strike")),
+                        format_price(alt.get("long_strike")),
+                        format_price(alt.get("spread_width")),
+                        alt_quality.upper()[:4],
+                        f"{alt.get('confidence_score', 0)}",
+                    ]
+                )
             b.table(["Short", "Long", "Width", "Qual", "Conf"], rows)
             b.blank()
 

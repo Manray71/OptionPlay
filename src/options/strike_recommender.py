@@ -28,25 +28,26 @@ Usage:
 
 import logging
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional
 from enum import Enum
+from typing import Dict, List, Optional
 
 from ..constants.trading_rules import (
-    SPREAD_SHORT_DELTA_TARGET,
-    SPREAD_SHORT_DELTA_MIN,
-    SPREAD_SHORT_DELTA_MAX,
-    SPREAD_LONG_DELTA_TARGET,
-    SPREAD_LONG_DELTA_MIN,
-    SPREAD_LONG_DELTA_MAX,
-    SPREAD_MIN_CREDIT_PCT,
-    SPREAD_DTE_TARGET,
     ENTRY_OPEN_INTEREST_MIN,
     LIQUIDITY_OI_EXCELLENT,
+    SPREAD_DTE_TARGET,
+    SPREAD_LONG_DELTA_MAX,
+    SPREAD_LONG_DELTA_MIN,
+    SPREAD_LONG_DELTA_TARGET,
+    SPREAD_MIN_CREDIT_PCT,
+    SPREAD_SHORT_DELTA_MAX,
+    SPREAD_SHORT_DELTA_MIN,
+    SPREAD_SHORT_DELTA_TARGET,
 )
 
 # ConfigLoader from config package
 try:
     from ..config import ConfigLoader
+
     _CONFIG_AVAILABLE = True
 except ImportError:
     _CONFIG_AVAILABLE = False
@@ -64,6 +65,7 @@ logger = logging.getLogger(__name__)
 
 class StrikeQuality(Enum):
     """Rating of strike recommendation"""
+
     EXCELLENT = "excellent"
     GOOD = "good"
     ACCEPTABLE = "acceptable"
@@ -73,6 +75,7 @@ class StrikeQuality(Enum):
 @dataclass
 class SupportLevel:
     """Support level with metadata"""
+
     price: float
     touches: int = 1
     strength: str = "moderate"  # weak, moderate, strong
@@ -83,6 +86,7 @@ class SupportLevel:
 @dataclass
 class StrikeRecommendation:
     """Recommended strike combination for Bull-Put-Spread"""
+
     symbol: str
     current_price: float
 
@@ -97,7 +101,7 @@ class StrikeRecommendation:
 
     # Options metrics (if available)
     estimated_delta: Optional[float] = None  # Short Put Delta
-    long_delta: Optional[float] = None       # Long Put Delta
+    long_delta: Optional[float] = None  # Long Put Delta
     estimated_credit: Optional[float] = None
     max_loss: Optional[float] = None
     max_profit: Optional[float] = None
@@ -136,12 +140,16 @@ class StrikeRecommendation:
             "confidence_score": self.confidence_score,
             "warnings": self.warnings,
             "data_source": self.data_source,
-            "support_level": {
-                "price": self.support_level_used.price,
-                "strength": self.support_level_used.strength,
-                "touches": self.support_level_used.touches,
-                "confirmed_by_fib": self.support_level_used.confirmed_by_fib
-            } if self.support_level_used else None
+            "support_level": (
+                {
+                    "price": self.support_level_used.price,
+                    "strength": self.support_level_used.strength,
+                    "touches": self.support_level_used.touches,
+                    "confirmed_by_fib": self.support_level_used.confirmed_by_fib,
+                }
+                if self.support_level_used
+                else None
+            ),
         }
 
 
@@ -168,32 +176,27 @@ class StrikeRecommender(StrikeMetricsMixin):
     DEFAULT_CONFIG = {
         # Short Put Delta targeting (PLAYBOOK §2: -0.20 ±0.03)
         "delta_target": SPREAD_SHORT_DELTA_TARGET,  # -0.20
-        "delta_min": SPREAD_SHORT_DELTA_MIN,         # -0.17
-        "delta_max": SPREAD_SHORT_DELTA_MAX,         # -0.23
-
+        "delta_min": SPREAD_SHORT_DELTA_MIN,  # -0.17
+        "delta_max": SPREAD_SHORT_DELTA_MAX,  # -0.23
         # Long Put Delta targeting (PLAYBOOK §2: -0.05 ±0.02)
         "long_delta_target": SPREAD_LONG_DELTA_TARGET,  # -0.05
-        "long_delta_min": SPREAD_LONG_DELTA_MIN,         # -0.03
-        "long_delta_max": SPREAD_LONG_DELTA_MAX,         # -0.07
-
+        "long_delta_min": SPREAD_LONG_DELTA_MIN,  # -0.03
+        "long_delta_max": SPREAD_LONG_DELTA_MAX,  # -0.07
         # OTM requirements (quality scoring only — does NOT override delta-based selection)
         # Used as: sanity-check for support-based fallback, quality score factor
-        "min_otm_pct": 8.0,    # At least 8% below spot
-        "target_otm_pct": 12.0, # Ideal: 12% below spot
-        "max_otm_pct": 25.0,   # Not further than 25%
-
+        "min_otm_pct": 8.0,  # At least 8% below spot
+        "target_otm_pct": 12.0,  # Ideal: 12% below spot
+        "max_otm_pct": 25.0,  # Not further than 25%
         # Spread width: NO configured value — derived from delta (PLAYBOOK §2)
         # Fallback uses ~12% of stock price as estimate when no options data
-
         # Support level rating
         "min_touches_strong": 3,
         "min_touches_moderate": 2,
-
         # Premium requirements (PLAYBOOK §2: ≥10% Spread-Breite)
         "min_credit_pct": SPREAD_MIN_CREDIT_PCT,  # 10
         "target_credit_pct": 30,  # Ideal: 30%
     }
-    
+
     def __init__(self, config: Optional[Dict] = None, use_config_loader: bool = True) -> None:
         """
         Initializes the Strike Recommender
@@ -211,7 +214,7 @@ class StrikeRecommender(StrikeMetricsMixin):
                 loader = ConfigLoader()
 
                 # Load options settings from settings.yaml
-                if hasattr(loader, 'settings') and loader.settings:
+                if hasattr(loader, "settings") and loader.settings:
                     options_cfg = loader.settings.options
 
                     # Short Put Delta targets
@@ -223,11 +226,17 @@ class StrikeRecommender(StrikeMetricsMixin):
                         self.config["delta_max"] = options_cfg.delta_max
 
                     # Long Put Delta targets
-                    if hasattr(options_cfg, 'long_delta_target') and options_cfg.long_delta_target:
+                    if hasattr(options_cfg, "long_delta_target") and options_cfg.long_delta_target:
                         self.config["long_delta_target"] = options_cfg.long_delta_target
-                    if hasattr(options_cfg, 'long_delta_minimum') and options_cfg.long_delta_minimum:
+                    if (
+                        hasattr(options_cfg, "long_delta_minimum")
+                        and options_cfg.long_delta_minimum
+                    ):
                         self.config["long_delta_min"] = options_cfg.long_delta_minimum
-                    if hasattr(options_cfg, 'long_delta_maximum') and options_cfg.long_delta_maximum:
+                    if (
+                        hasattr(options_cfg, "long_delta_maximum")
+                        and options_cfg.long_delta_maximum
+                    ):
                         self.config["long_delta_max"] = options_cfg.long_delta_maximum
 
                     # Premium requirements
@@ -248,7 +257,7 @@ class StrikeRecommender(StrikeMetricsMixin):
         # Explicit config overrides everything
         if config:
             self.config.update(config)
-    
+
     def get_recommendation(
         self,
         symbol: str,
@@ -258,7 +267,7 @@ class StrikeRecommender(StrikeMetricsMixin):
         options_data: Optional[List[Dict]] = None,
         fib_levels: Optional[List[Dict]] = None,
         dte: int = SPREAD_DTE_TARGET,
-        regime: Optional["MarketRegime"] = None
+        regime: Optional["MarketRegime"] = None,
     ) -> StrikeRecommendation:
         """
         Generates strike recommendation for a Bull-Put-Spread
@@ -279,9 +288,7 @@ class StrikeRecommender(StrikeMetricsMixin):
         logger.info(f"Generating strike recommendation for {symbol} @ ${current_price}")
 
         # 1. Analyze and enrich support levels
-        analyzed_supports = self._analyze_support_levels(
-            current_price, support_levels, fib_levels
-        )
+        analyzed_supports = self._analyze_support_levels(current_price, support_levels, fib_levels)
 
         # 2. Find short strike (delta-based if options data available)
         short_strike, reason, support_used = self._find_short_strike(
@@ -290,14 +297,12 @@ class StrikeRecommender(StrikeMetricsMixin):
 
         # If options data available but no liquid short strike found -> NOT TRADEABLE
         if options_data and short_strike is None:
-            logger.warning(
-                f"{symbol}: No liquid strikes available — NOT TRADEABLE"
-            )
+            logger.warning(f"{symbol}: No liquid strikes available — NOT TRADEABLE")
             return StrikeRecommendation(
                 symbol=symbol,
                 current_price=current_price,
                 short_strike=current_price * 0.90,  # placeholder
-                long_strike=current_price * 0.80,   # placeholder
+                long_strike=current_price * 0.80,  # placeholder
                 spread_width=current_price * 0.10,
                 short_strike_reason=reason,
                 support_level_used=None,
@@ -316,14 +321,10 @@ class StrikeRecommender(StrikeMetricsMixin):
             if result:
                 long_strike, long_delta_found = result
                 selection_method = "delta"
-                logger.info(
-                    f"Delta-based long strike: ${long_strike} (d={long_delta_found:.3f})"
-                )
+                logger.info(f"Delta-based long strike: ${long_strike} (d={long_delta_found:.3f})")
             else:
                 # Options data available but no liquid long strike
-                logger.warning(
-                    f"{symbol}: No liquid long strike — NOT TRADEABLE"
-                )
+                logger.warning(f"{symbol}: No liquid long strike — NOT TRADEABLE")
                 return StrikeRecommendation(
                     symbol=symbol,
                     current_price=current_price,
@@ -347,9 +348,7 @@ class StrikeRecommender(StrikeMetricsMixin):
             )
             spread_widths = self._get_spread_widths_fallback(current_price, regime)
             preferred_width = spread_widths[0]
-            long_strike = self._calculate_long_strike(
-                short_strike, preferred_width, current_price
-            )
+            long_strike = self._calculate_long_strike(short_strike, preferred_width, current_price)
             logger.warning(
                 f"Fallback long strike: ${long_strike} (width=${preferred_width}, "
                 f"price-based ~12% estimate — NOT delta-derived per PLAYBOOK §2)"
@@ -364,19 +363,23 @@ class StrikeRecommender(StrikeMetricsMixin):
             if dte_values:
                 # Use the most common DTE (the expiry most options belong to)
                 from collections import Counter
+
                 options_dte = Counter(dte_values).most_common(1)[0][0]
                 dte = options_dte
 
         # 5. Calculate metrics
         metrics = self._calculate_metrics(
-            short_strike, long_strike, actual_width,
-            current_price, options_data, iv_rank, dte
+            short_strike, long_strike, actual_width, current_price, options_data, iv_rank, dte
         )
 
         # 6. Evaluate quality
         quality, confidence, warnings = self._evaluate_quality(
-            short_strike, long_strike, current_price,
-            support_used, metrics, iv_rank,
+            short_strike,
+            long_strike,
+            current_price,
+            support_used,
+            metrics,
+            iv_rank,
             selection_method=selection_method,
         )
 
@@ -407,9 +410,11 @@ class StrikeRecommender(StrikeMetricsMixin):
             data_source=metrics.get("data_source", "provider"),
         )
 
-        logger.info(f"Recommendation: Short {short_strike} / Long {long_strike}, Quality: {quality.value}")
+        logger.info(
+            f"Recommendation: Short {short_strike} / Long {long_strike}, Quality: {quality.value}"
+        )
         return recommendation
-    
+
     def get_multiple_recommendations(
         self,
         symbol: str,
@@ -417,7 +422,7 @@ class StrikeRecommender(StrikeMetricsMixin):
         support_levels: List[float],
         options_data: Optional[List[Dict]] = None,
         fib_levels: Optional[List[Dict]] = None,
-        num_alternatives: int = 3
+        num_alternatives: int = 3,
     ) -> List[StrikeRecommendation]:
         """
         Generates multiple alternative strike recommendations.
@@ -439,9 +444,7 @@ class StrikeRecommender(StrikeMetricsMixin):
         """
         recommendations = []
 
-        analyzed_supports = self._analyze_support_levels(
-            current_price, support_levels, fib_levels
-        )
+        analyzed_supports = self._analyze_support_levels(current_price, support_levels, fib_levels)
 
         # Find short strike (same for all alternatives)
         short_strike, reason, support_used = self._find_short_strike(
@@ -450,7 +453,11 @@ class StrikeRecommender(StrikeMetricsMixin):
 
         if options_data:
             # Delta-based alternatives: vary long delta target
-            long_delta_targets = [SPREAD_LONG_DELTA_TARGET + 0.01, SPREAD_LONG_DELTA_TARGET, SPREAD_LONG_DELTA_TARGET - 0.01]
+            long_delta_targets = [
+                SPREAD_LONG_DELTA_TARGET + 0.01,
+                SPREAD_LONG_DELTA_TARGET,
+                SPREAD_LONG_DELTA_TARGET - 0.01,
+            ]
             for long_delta_target in long_delta_targets:
                 # Temporarily adjust config for this search
                 orig_target = self.config["long_delta_target"]
@@ -469,14 +476,18 @@ class StrikeRecommender(StrikeMetricsMixin):
                     continue
 
                 metrics = self._calculate_metrics(
-                    short_strike, long_strike, actual_width,
-                    current_price, options_data, None, SPREAD_DTE_TARGET
+                    short_strike,
+                    long_strike,
+                    actual_width,
+                    current_price,
+                    options_data,
+                    None,
+                    SPREAD_DTE_TARGET,
                 )
                 metrics["long_delta"] = long_delta
 
                 quality, confidence, warnings = self._evaluate_quality(
-                    short_strike, long_strike, current_price,
-                    support_used, metrics, None
+                    short_strike, long_strike, current_price, support_used, metrics, None
                 )
 
                 rec = StrikeRecommendation(
@@ -497,7 +508,7 @@ class StrikeRecommender(StrikeMetricsMixin):
                     risk_reward_ratio=metrics.get("risk_reward"),
                     quality=quality,
                     confidence_score=confidence,
-                    warnings=warnings
+                    warnings=warnings,
                 )
                 recommendations.append(rec)
         else:
@@ -505,21 +516,23 @@ class StrikeRecommender(StrikeMetricsMixin):
             spread_widths = self._get_spread_widths_fallback(current_price)
 
             for width in spread_widths:
-                long_strike = self._calculate_long_strike(
-                    short_strike, width, current_price
-                )
+                long_strike = self._calculate_long_strike(short_strike, width, current_price)
 
                 if short_strike >= current_price * 0.92:
                     continue
 
                 metrics = self._calculate_metrics(
-                    short_strike, long_strike, width,
-                    current_price, options_data, None, SPREAD_DTE_TARGET
+                    short_strike,
+                    long_strike,
+                    width,
+                    current_price,
+                    options_data,
+                    None,
+                    SPREAD_DTE_TARGET,
                 )
 
                 quality, confidence, warnings = self._evaluate_quality(
-                    short_strike, long_strike, current_price,
-                    support_used, metrics, None
+                    short_strike, long_strike, current_price, support_used, metrics, None
                 )
 
                 rec = StrikeRecommendation(
@@ -539,7 +552,7 @@ class StrikeRecommender(StrikeMetricsMixin):
                     risk_reward_ratio=metrics.get("risk_reward"),
                     quality=quality,
                     confidence_score=confidence,
-                    warnings=warnings
+                    warnings=warnings,
                 )
                 recommendations.append(rec)
 
@@ -574,10 +587,7 @@ class StrikeRecommender(StrikeMetricsMixin):
         return True
 
     def _find_short_strike(
-        self,
-        current_price: float,
-        supports: List[SupportLevel],
-        options_data: Optional[List[Dict]]
+        self, current_price: float, supports: List[SupportLevel], options_data: Optional[List[Dict]]
     ) -> tuple:
         """
         Finds the optimal short strike
@@ -605,7 +615,7 @@ class StrikeRecommender(StrikeMetricsMixin):
         # Method 1: Delta-based (if options data available)
         if options_data:
             best_delta_match = None
-            best_delta_diff = float('inf')
+            best_delta_diff = float("inf")
 
             for opt in options_data:
                 if opt.get("right") != "P":
@@ -641,11 +651,7 @@ class StrikeRecommender(StrikeMetricsMixin):
 
             if best_delta_match:
                 strike = best_delta_match["strike"]
-                return (
-                    strike,
-                    f"Delta Targeting: d = {best_delta_match['delta']:.2f}",
-                    None
-                )
+                return (strike, f"Delta Targeting: d = {best_delta_match['delta']:.2f}", None)
 
             # Options data available but no liquid strike found in delta range
             logger.warning(
@@ -668,8 +674,7 @@ class StrikeRecommender(StrikeMetricsMixin):
             if best_support:
                 # Strike slightly below support level
                 strike = self._round_strike(
-                    best_support.price * 0.98,  # 2% below support
-                    current_price
+                    best_support.price * 0.98, current_price  # 2% below support
                 )
 
                 reason_parts = [f"Support @ ${best_support.price:.2f}"]
@@ -681,17 +686,12 @@ class StrikeRecommender(StrikeMetricsMixin):
                 return (strike, " + ".join(reason_parts), best_support)
 
         # Method 3: OTM percent-based (Fallback)
-        strike = self._round_strike(
-            current_price * (1 - target_otm / 100),
-            current_price
-        )
+        strike = self._round_strike(current_price * (1 - target_otm / 100), current_price)
 
         return (strike, f"Standard {target_otm}% OTM", None)
-    
+
     def _find_long_strike_by_delta(
-        self,
-        options_data: List[Dict],
-        short_strike: float
+        self, options_data: List[Dict], short_strike: float
     ) -> Optional[tuple]:
         """
         Finds the optimal long strike by delta targeting.
@@ -706,9 +706,9 @@ class StrikeRecommender(StrikeMetricsMixin):
         Returns:
             (long_strike, long_delta) or None if no suitable option found
         """
-        target_delta = self.config["long_delta_target"]   # -0.05
-        delta_min = self.config["long_delta_min"]          # -0.03 (less negative)
-        delta_max = self.config["long_delta_max"]          # -0.07 (more negative)
+        target_delta = self.config["long_delta_target"]  # -0.05
+        delta_min = self.config["long_delta_min"]  # -0.03 (less negative)
+        delta_max = self.config["long_delta_max"]  # -0.07 (more negative)
 
         logger.debug(
             f"Long strike search: target_delta={target_delta}, "
@@ -716,7 +716,7 @@ class StrikeRecommender(StrikeMetricsMixin):
         )
 
         best_match = None
-        best_delta_diff = float('inf')
+        best_delta_diff = float("inf")
 
         for opt in options_data:
             if opt.get("right") != "P":
@@ -779,7 +779,7 @@ def calculate_strike_recommendation(
     support_levels: List[float],
     iv_rank: Optional[float] = None,
     options_data: Optional[List[Dict]] = None,
-    fib_levels: Optional[List[Dict]] = None
+    fib_levels: Optional[List[Dict]] = None,
 ) -> Dict:
     """
     Convenience function for simple invocation
@@ -794,7 +794,7 @@ def calculate_strike_recommendation(
         support_levels=support_levels,
         iv_rank=iv_rank,
         options_data=options_data,
-        fib_levels=fib_levels
+        fib_levels=fib_levels,
     )
     return recommendation.to_dict()
 
@@ -802,12 +802,12 @@ def calculate_strike_recommendation(
 if __name__ == "__main__":
     # Test
     logging.basicConfig(level=logging.INFO)
-    
+
     print("\n=== Strike Recommender Test ===\n")
-    
+
     # Test mit AAPL
     recommender = StrikeRecommender()
-    
+
     rec = recommender.get_recommendation(
         symbol="AAPL",
         current_price=182.50,
@@ -816,10 +816,10 @@ if __name__ == "__main__":
         fib_levels=[
             {"level": 173.5, "fib": 0.382},
             {"level": 168.0, "fib": 0.5},
-            {"level": 162.5, "fib": 0.618}
-        ]
+            {"level": 162.5, "fib": 0.618},
+        ],
     )
-    
+
     print(f"Symbol: {rec.symbol}")
     print(f"Current Price: ${rec.current_price}")
     print(f"")
@@ -850,10 +850,12 @@ if __name__ == "__main__":
         fib_levels=[
             {"level": 173.5, "fib": 0.382},
             {"level": 168.0, "fib": 0.5},
-            {"level": 162.5, "fib": 0.618}
-        ]
+            {"level": 162.5, "fib": 0.618},
+        ],
     )
-    
+
     for i, alt in enumerate(alternatives, 1):
-        print(f"{i}. {alt.short_strike}/{alt.long_strike} (${alt.spread_width} wide) - "
-              f"Conf: {alt.confidence_score}/100 - {alt.quality.value}")
+        print(
+            f"{i}. {alt.short_strike}/{alt.long_strike} (${alt.spread_width} wide) - "
+            f"Conf: {alt.confidence_score}/100 - {alt.quality.value}"
+        )

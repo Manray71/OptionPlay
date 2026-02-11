@@ -34,6 +34,7 @@ class BatchScorer:
     def __init__(self, resolver: Optional[RecursiveConfigResolver] = None) -> None:
         if resolver is None:
             from ..config.scoring_config import get_scoring_resolver
+
             resolver = get_scoring_resolver()
         self._resolver = resolver
 
@@ -117,8 +118,7 @@ class BatchScorer:
         resolved = self._resolver.resolve(strategy, regime, sector)
 
         raw_score = sum(
-            resolved.weights.get(comp, 0.0) * value
-            for comp, value in components.items()
+            resolved.weights.get(comp, 0.0) * value for comp, value in components.items()
         )
 
         if resolved.max_possible > 0:

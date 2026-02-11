@@ -28,19 +28,32 @@ Implementation split into sub-modules:
 """
 
 import logging
+import statistics
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from enum import Enum
-from typing import List, Dict, Optional, Tuple, Callable
-import statistics
+from typing import Callable, Dict, List, Optional, Tuple
 
 from ...constants.trading_rules import (
-    SPREAD_SHORT_DELTA_TARGET, SPREAD_SHORT_DELTA_MIN, SPREAD_SHORT_DELTA_MAX,
-    SPREAD_LONG_DELTA_TARGET, SPREAD_LONG_DELTA_MIN, SPREAD_LONG_DELTA_MAX,
-    SPREAD_DTE_MIN, SPREAD_DTE_MAX,
-    EXIT_PROFIT_PCT_NORMAL, SPREAD_MIN_CREDIT_PCT,
+    EXIT_PROFIT_PCT_NORMAL,
+    SPREAD_DTE_MAX,
+    SPREAD_DTE_MIN,
+    SPREAD_LONG_DELTA_MAX,
+    SPREAD_LONG_DELTA_MIN,
+    SPREAD_LONG_DELTA_TARGET,
+    SPREAD_MIN_CREDIT_PCT,
+    SPREAD_SHORT_DELTA_MAX,
+    SPREAD_SHORT_DELTA_MIN,
+    SPREAD_SHORT_DELTA_TARGET,
 )
-from ..simulation import OptionsSimulator, SpreadEntry, SpreadSnapshot, OptionsSimulatorConfig as SimulatorConfig
+from ..simulation import (
+    OptionsSimulator,
+)
+from ..simulation import OptionsSimulatorConfig as SimulatorConfig
+from ..simulation import (
+    SpreadEntry,
+    SpreadSnapshot,
+)
 from .entry_exit import EntryExitMixin
 from .metrics_calc import MetricsCalcMixin
 
@@ -49,17 +62,19 @@ logger = logging.getLogger(__name__)
 
 class TradeOutcome(Enum):
     """Ergebnis eines Trades"""
-    MAX_PROFIT = "max_profit"      # Expired worthless (100% profit)
+
+    MAX_PROFIT = "max_profit"  # Expired worthless (100% profit)
     PROFIT_TARGET = "profit_target"  # Closed at profit target
-    STOP_LOSS = "stop_loss"        # Closed at stop loss
-    TIME_EXIT = "time_exit"        # Closed due to DTE threshold
-    MAX_LOSS = "max_loss"          # Assigned (100% loss)
+    STOP_LOSS = "stop_loss"  # Closed at stop loss
+    TIME_EXIT = "time_exit"  # Closed due to DTE threshold
+    MAX_LOSS = "max_loss"  # Assigned (100% loss)
     PARTIAL_PROFIT = "partial_profit"  # Closed with some profit
     PARTIAL_LOSS = "partial_loss"  # Closed with some loss
 
 
 class ExitReason(Enum):
     """Grund für Trade-Exit"""
+
     PROFIT_TARGET_HIT = "profit_target"
     STOP_LOSS_HIT = "stop_loss"
     DTE_THRESHOLD = "dte_threshold"
@@ -82,6 +97,7 @@ class BacktestConfig:
     Das Backtesting verwendet jetzt T-1 Daten für Signal-Generierung,
     um Look-Ahead Bias zu vermeiden. Der Entry erfolgt am nächsten Tag.
     """
+
     # Zeitraum
     start_date: date
     end_date: date
@@ -138,6 +154,7 @@ class BacktestConfig:
 @dataclass
 class TradeResult:
     """Ergebnis eines einzelnen Trades"""
+
     symbol: str
     entry_date: date
     exit_date: date
@@ -192,6 +209,7 @@ class TradeResult:
 @dataclass
 class BacktestResult:
     """Gesamtergebnis des Backtests"""
+
     config: BacktestConfig
     trades: List[TradeResult]
 
@@ -325,7 +343,9 @@ class BacktestResult:
         if std_return > 0:
             # Annualisierung: ~252 Handelstage, ~12 Trades/Jahr angenommen
             trades_per_year = 12
-            self.sharpe_ratio = (avg_return * trades_per_year) / (std_return * (trades_per_year ** 0.5))
+            self.sharpe_ratio = (avg_return * trades_per_year) / (
+                std_return * (trades_per_year**0.5)
+            )
 
     def summary(self) -> str:
         """Formatierte Zusammenfassung"""
@@ -439,7 +459,7 @@ class BacktestEngine(MetricsCalcMixin, EntryExitMixin):
             sim_config = SimulatorConfig(
                 entry_slippage_pct=config.slippage_pct,
                 exit_slippage_pct=config.slippage_pct * 1.5,
-                commission_per_contract=config.commission_per_contract
+                commission_per_contract=config.commission_per_contract,
             )
             self._simulator = OptionsSimulator(sim_config)
         else:
@@ -501,7 +521,9 @@ class BacktestEngine(MetricsCalcMixin, EntryExitMixin):
             # 2. Prüfe Entry-Signale für neue Positionen
             for symbol in symbols:
                 # Prüfe Kapital-Limits
-                if current_risk >= self.config.initial_capital * (self.config.max_total_risk_pct / 100):
+                if current_risk >= self.config.initial_capital * (
+                    self.config.max_total_risk_pct / 100
+                ):
                     continue
 
                 # Prüfe ob bereits Position in diesem Symbol
@@ -511,12 +533,15 @@ class BacktestEngine(MetricsCalcMixin, EntryExitMixin):
                 entry_signal = self._check_entry_signal(symbol, current_date, entry_filter)
                 if entry_signal:
                     # Position-Sizing
-                    max_position_risk = self.config.initial_capital * (self.config.max_position_pct / 100)
-                    available_risk = (self.config.initial_capital * (self.config.max_total_risk_pct / 100)) - current_risk
+                    max_position_risk = self.config.initial_capital * (
+                        self.config.max_position_pct / 100
+                    )
+                    available_risk = (
+                        self.config.initial_capital * (self.config.max_total_risk_pct / 100)
+                    ) - current_risk
 
                     position = self._open_position(
-                        symbol, current_date, entry_signal,
-                        min(max_position_risk, available_risk)
+                        symbol, current_date, entry_signal, min(max_position_risk, available_risk)
                     )
                     if position:
                         open_positions.append(position)
@@ -525,8 +550,10 @@ class BacktestEngine(MetricsCalcMixin, EntryExitMixin):
         # Schließe alle verbleibenden Positionen am Ende
         for pos in open_positions:
             trade = self._close_position(
-                pos, self.config.end_date,
-                ExitReason.MANUAL, pos.get("last_price", pos["entry_price"])
+                pos,
+                self.config.end_date,
+                ExitReason.MANUAL,
+                pos.get("last_price", pos["entry_price"]),
             )
             trades.append(trade)
 
@@ -536,12 +563,13 @@ class BacktestEngine(MetricsCalcMixin, EntryExitMixin):
         """E.6: Filter out delisted symbols using symbol_fundamentals table."""
         try:
             from ...cache import get_fundamentals_manager
+
             manager = get_fundamentals_manager()
             filtered = []
             for sym in symbols:
                 f = manager.get_fundamentals(sym)
                 # Check delisted column (added via ALTER TABLE)
-                if f and getattr(f, 'delisted', 0) == 1:
+                if f and getattr(f, "delisted", 0) == 1:
                     logger.info(f"Excluding delisted symbol: {sym}")
                     continue
                 filtered.append(sym)

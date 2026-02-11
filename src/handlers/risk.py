@@ -10,11 +10,11 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
+from ..constants.trading_rules import VIX_NORMAL_MAX
+from ..spread_analyzer import BullPutSpreadParams, SpreadAnalyzer
 from ..utils.error_handler import mcp_endpoint
 from ..utils.markdown_builder import MarkdownBuilder
 from ..utils.validation import validate_symbol
-from ..spread_analyzer import SpreadAnalyzer, BullPutSpreadParams
-from ..constants.trading_rules import VIX_NORMAL_MAX
 from .base import BaseHandlerMixin
 
 logger = logging.getLogger(__name__)
@@ -60,9 +60,9 @@ class RiskHandlerMixin(BaseHandlerMixin):
             Formatted Markdown with position sizing recommendation
         """
         from ..risk.position_sizing import (
+            KellyMode,
             PositionSizer,
             PositionSizerConfig,
-            KellyMode,
         )
 
         # Get current VIX for adjustment
@@ -101,6 +101,7 @@ class RiskHandlerMixin(BaseHandlerMixin):
         # Market conditions
         # Determine VIX regime from the sizer (result doesn't store it)
         from ..risk.position_sizing import VIXRegime
+
         vix_regime = sizer.get_vix_regime(vix)
 
         b.h2("Market Conditions")
@@ -196,7 +197,7 @@ class RiskHandlerMixin(BaseHandlerMixin):
         # VIX context
         b.h2("Market Context")
         b.kv_line("VIX", f"{vix:.1f}")
-        b.kv_line("Regime", result['vix_regime'].upper())
+        b.kv_line("Regime", result["vix_regime"].upper())
         b.blank()
 
         # Recommendation
@@ -288,7 +289,9 @@ class RiskHandlerMixin(BaseHandlerMixin):
 
         # Profitability
         # Calculate ROI: max_profit / max_loss (capital at risk)
-        roi_percent = (analysis.max_profit / analysis.max_loss * 100) if analysis.max_loss > 0 else 0
+        roi_percent = (
+            (analysis.max_profit / analysis.max_loss * 100) if analysis.max_loss > 0 else 0
+        )
         # Annualize: (1 + ROI)^(365/DTE) - 1
         if dte > 0:
             annualized_roi = ((1 + roi_percent / 100) ** (365 / dte) - 1) * 100
@@ -363,8 +366,11 @@ class RiskHandlerMixin(BaseHandlerMixin):
             if data:
                 prices = data[0]
                 import math
-                returns = [math.log(prices[i] / prices[i-1]) for i in range(1, len(prices))]
-                daily_vol = (sum((r - sum(returns)/len(returns))**2 for r in returns) / len(returns)) ** 0.5
+
+                returns = [math.log(prices[i] / prices[i - 1]) for i in range(1, len(prices))]
+                daily_vol = (
+                    sum((r - sum(returns) / len(returns)) ** 2 for r in returns) / len(returns)
+                ) ** 0.5
                 volatility = daily_vol * math.sqrt(252)
             else:
                 volatility = 0.25  # Default 25% annualized

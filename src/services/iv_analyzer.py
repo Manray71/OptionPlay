@@ -30,7 +30,7 @@ import logging
 import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, List, Dict, Any
+from typing import Any, Dict, List, Optional
 
 try:
     from ..cache.iv_cache_impl import (
@@ -38,8 +38,8 @@ try:
         IVData,
         IVFetcher,
         IVSource,
-        calculate_iv_rank,
         calculate_iv_percentile,
+        calculate_iv_rank,
         get_iv_cache,
         get_iv_fetcher,
     )
@@ -50,12 +50,14 @@ except ImportError:
         IVData,
         IVFetcher,
         IVSource,
-        calculate_iv_rank,
         calculate_iv_percentile,
+        calculate_iv_rank,
         get_iv_cache,
         get_iv_fetcher,
     )
-    from cache.symbol_fundamentals import get_fundamentals_manager  # type: ignore[no-redef]  # fallback for non-package execution
+    from cache.symbol_fundamentals import (
+        get_fundamentals_manager,  # type: ignore[no-redef]  # fallback for non-package execution
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -90,15 +92,16 @@ IV_DB_MIN_POINTS = 30
 @dataclass
 class IVMetrics:
     """IV-Metriken für ein Symbol — für EQS und Output."""
+
     symbol: str
-    iv_rank: Optional[float]         # 0-100
-    iv_percentile: Optional[float]   # 0-100
-    current_iv: Optional[float]      # Dezimal (z.B. 0.35)
+    iv_rank: Optional[float]  # 0-100
+    iv_percentile: Optional[float]  # 0-100
+    current_iv: Optional[float]  # Dezimal (z.B. 0.35)
     current_iv_pct: Optional[float]  # Prozent (z.B. 35.0)
-    iv_high_52w: Optional[float]     # Dezimal
-    iv_low_52w: Optional[float]      # Dezimal
-    data_points: int                 # Anzahl historischer Datenpunkte
-    source: str                      # "cache", "db", "fundamentals"
+    iv_high_52w: Optional[float]  # Dezimal
+    iv_low_52w: Optional[float]  # Dezimal
+    data_points: int  # Anzahl historischer Datenpunkte
+    source: str  # "cache", "db", "fundamentals"
 
     @property
     def is_elevated(self) -> bool:
@@ -220,13 +223,23 @@ class IVAnalyzer:
         try:
             iv_data = self.fetcher.get_iv_rank(symbol, current_iv or 0.0)
 
-            if iv_data and iv_data.iv_rank is not None and iv_data.data_points >= IV_CACHE_MIN_POINTS:
+            if (
+                iv_data
+                and iv_data.iv_rank is not None
+                and iv_data.data_points >= IV_CACHE_MIN_POINTS
+            ):
                 return IVMetrics(
                     symbol=symbol,
                     iv_rank=round(iv_data.iv_rank, 1),
-                    iv_percentile=round(iv_data.iv_percentile, 1) if iv_data.iv_percentile is not None else None,
+                    iv_percentile=(
+                        round(iv_data.iv_percentile, 1)
+                        if iv_data.iv_percentile is not None
+                        else None
+                    ),
                     current_iv=iv_data.current_iv,
-                    current_iv_pct=round(iv_data.current_iv * 100, 1) if iv_data.current_iv else None,
+                    current_iv_pct=(
+                        round(iv_data.current_iv * 100, 1) if iv_data.current_iv else None
+                    ),
                     iv_high_52w=iv_data.iv_high_52w,
                     iv_low_52w=iv_data.iv_low_52w,
                     data_points=iv_data.data_points,
@@ -283,10 +296,7 @@ class IVAnalyzer:
                 daily_ivs[qdate].append(iv)
 
             # Durchschnitt pro Tag
-            iv_values = [
-                sum(ivs) / len(ivs)
-                for ivs in daily_ivs.values()
-            ]
+            iv_values = [sum(ivs) / len(ivs) for ivs in daily_ivs.values()]
 
             if len(iv_values) < IV_DB_MIN_POINTS:
                 return None
@@ -328,8 +338,8 @@ class IVAnalyzer:
             if not f:
                 return None
 
-            iv_rank = getattr(f, 'iv_rank_252d', None)
-            iv_percentile = getattr(f, 'iv_percentile_252d', None)
+            iv_rank = getattr(f, "iv_rank_252d", None)
+            iv_percentile = getattr(f, "iv_percentile_252d", None)
 
             if iv_rank is None:
                 return None

@@ -16,6 +16,7 @@ from typing import Any, Optional
 
 class SignalType(Enum):
     """Art des Trading-Signals"""
+
     LONG = "long"
     SHORT = "short"
     NEUTRAL = "neutral"
@@ -23,6 +24,7 @@ class SignalType(Enum):
 
 class SignalStrength(Enum):
     """Stärke des Signals"""
+
     STRONG = "strong"
     MODERATE = "moderate"
     WEAK = "weak"
@@ -31,6 +33,7 @@ class SignalStrength(Enum):
 
 class ValidationError(ValueError):
     """Fehler bei der Validierung von Model-Daten"""
+
     pass
 
 
@@ -54,6 +57,7 @@ class TradeSignal:
         - reliability_grade: A, B, C, D, F
         - reliability_win_rate: 0-100
     """
+
     # Identifikation
     symbol: str
     strategy: str  # Name der Strategie (z.B. "pullback", "breakout")
@@ -178,8 +182,7 @@ class TradeSignal:
         # Raise ValidationError wenn Fehler gefunden
         if errors:
             raise ValidationError(
-                f"TradeSignal validation failed for {self.symbol}: " +
-                "; ".join(errors)
+                f"TradeSignal validation failed for {self.symbol}: " + "; ".join(errors)
             )
 
     def _validate_price_levels(self, errors: list[str]) -> None:
@@ -196,9 +199,7 @@ class TradeSignal:
         if self.signal_type == SignalType.LONG:
             # Long: Stop unter Entry, Target über Entry
             if stop >= entry:
-                errors.append(
-                    f"LONG signal: stop_loss ({stop}) must be < entry_price ({entry})"
-                )
+                errors.append(f"LONG signal: stop_loss ({stop}) must be < entry_price ({entry})")
             if target <= entry:
                 errors.append(
                     f"LONG signal: target_price ({target}) must be > entry_price ({entry})"
@@ -207,9 +208,7 @@ class TradeSignal:
         elif self.signal_type == SignalType.SHORT:
             # Short: Stop über Entry, Target unter Entry
             if stop <= entry:
-                errors.append(
-                    f"SHORT signal: stop_loss ({stop}) must be > entry_price ({entry})"
-                )
+                errors.append(f"SHORT signal: stop_loss ({stop}) must be > entry_price ({entry})")
             if target >= entry:
                 errors.append(
                     f"SHORT signal: target_price ({target}) must be < entry_price ({entry})"
@@ -220,29 +219,26 @@ class TradeSignal:
             errors.append(
                 f"entry_price ({entry}) cannot equal stop_loss (would create infinite risk)"
             )
-    
+
     @property
     def risk_reward_ratio(self) -> Optional[float]:
         """Berechnet Risk/Reward wenn Entry, Stop und Target gesetzt"""
         if not all([self.entry_price, self.stop_loss, self.target_price]):
             return None
-        
+
         risk = abs(self.entry_price - self.stop_loss)
         reward = abs(self.target_price - self.entry_price)
-        
+
         if risk == 0:
             return None
-        
+
         return round(reward / risk, 2)
-    
+
     @property
     def is_actionable(self) -> bool:
         """Signal ist handelbar wenn Score >= 3.5 (normalized 0-10) und LONG/SHORT"""
-        return (
-            self.score >= 3.5 and
-            self.signal_type in [SignalType.LONG, SignalType.SHORT]
-        )
-    
+        return self.score >= 3.5 and self.signal_type in [SignalType.LONG, SignalType.SHORT]
+
     @property
     def reliability_badge(self) -> str:
         """Kurzes Reliability-Badge für CLI-Output"""
@@ -254,31 +250,31 @@ class TradeSignal:
     def to_dict(self) -> dict[str, Any]:
         """Konvertiert zu Dictionary für JSON-Output"""
         result = {
-            'symbol': self.symbol,
-            'strategy': self.strategy,
-            'signal_type': self.signal_type.value,
-            'strength': self.strength.value,
-            'score': self.score,
-            'current_price': self.current_price,
-            'entry_price': self.entry_price,
-            'stop_loss': self.stop_loss,
-            'target_price': self.target_price,
-            'risk_reward': self.risk_reward_ratio,
-            'is_actionable': self.is_actionable,
-            'reason': self.reason,
-            'details': self.details,
-            'warnings': self.warnings,
-            'timestamp': self.timestamp.isoformat(),
-            'expires_at': self.expires_at.isoformat() if self.expires_at else None
+            "symbol": self.symbol,
+            "strategy": self.strategy,
+            "signal_type": self.signal_type.value,
+            "strength": self.strength.value,
+            "score": self.score,
+            "current_price": self.current_price,
+            "entry_price": self.entry_price,
+            "stop_loss": self.stop_loss,
+            "target_price": self.target_price,
+            "risk_reward": self.risk_reward_ratio,
+            "is_actionable": self.is_actionable,
+            "reason": self.reason,
+            "details": self.details,
+            "warnings": self.warnings,
+            "timestamp": self.timestamp.isoformat(),
+            "expires_at": self.expires_at.isoformat() if self.expires_at else None,
         }
 
         # Reliability-Daten hinzufügen wenn vorhanden
         if self.reliability_grade:
-            result['reliability'] = {
-                'grade': self.reliability_grade,
-                'win_rate': self.reliability_win_rate,
-                'confidence_interval': self.reliability_ci,
-                'warnings': self.reliability_warnings,
+            result["reliability"] = {
+                "grade": self.reliability_grade,
+                "win_rate": self.reliability_win_rate,
+                "confidence_interval": self.reliability_ci,
+                "warnings": self.reliability_warnings,
             }
 
         return result

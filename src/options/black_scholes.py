@@ -40,18 +40,19 @@ Verwendung:
     greeks = bs.all_greeks(OptionType.PUT)
 """
 
-import math
 import logging
+import math
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional, Dict, Tuple
 from functools import lru_cache
+from typing import Dict, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
 
 class OptionType(Enum):
     """Optionstyp"""
+
     CALL = "call"
     PUT = "put"
 
@@ -68,20 +69,21 @@ class Greeks:
         vega: Preisänderung pro 1% IV-Änderung
         rho: Preisänderung pro 1% Zinsänderung
     """
+
     delta: float = 0.0
     gamma: float = 0.0
     theta: float = 0.0  # Täglicher Theta (nicht annualisiert)
-    vega: float = 0.0   # Pro 1% IV-Änderung
-    rho: float = 0.0    # Pro 1% Zinsänderung
+    vega: float = 0.0  # Pro 1% IV-Änderung
+    rho: float = 0.0  # Pro 1% Zinsänderung
 
     def to_dict(self) -> Dict[str, float]:
         """Konvertiert zu Dictionary"""
         return {
-            'delta': round(self.delta, 4),
-            'gamma': round(self.gamma, 4),
-            'theta': round(self.theta, 4),
-            'vega': round(self.vega, 4),
-            'rho': round(self.rho, 4),
+            "delta": round(self.delta, 4),
+            "gamma": round(self.gamma, 4),
+            "theta": round(self.theta, 4),
+            "vega": round(self.vega, 4),
+            "rho": round(self.rho, 4),
         }
 
     def __repr__(self) -> str:
@@ -98,6 +100,7 @@ class SpreadGreeks:
 
     Net Greeks = Short Leg Greeks - Long Leg Greeks (für Credit Spreads)
     """
+
     net_delta: float = 0.0
     net_gamma: float = 0.0
     net_theta: float = 0.0
@@ -111,16 +114,16 @@ class SpreadGreeks:
     def to_dict(self) -> Dict[str, any]:
         """Konvertiert zu Dictionary"""
         result = {
-            'net_delta': round(self.net_delta, 4),
-            'net_gamma': round(self.net_gamma, 4),
-            'net_theta': round(self.net_theta, 4),
-            'net_vega': round(self.net_vega, 4),
-            'net_rho': round(self.net_rho, 4),
+            "net_delta": round(self.net_delta, 4),
+            "net_gamma": round(self.net_gamma, 4),
+            "net_theta": round(self.net_theta, 4),
+            "net_vega": round(self.net_vega, 4),
+            "net_rho": round(self.net_rho, 4),
         }
         if self.short_leg:
-            result['short_leg'] = self.short_leg.to_dict()
+            result["short_leg"] = self.short_leg.to_dict()
         if self.long_leg:
-            result['long_leg'] = self.long_leg.to_dict()
+            result["long_leg"] = self.long_leg.to_dict()
         return result
 
 
@@ -182,9 +185,7 @@ class BlackScholes:
         sqrt_T = math.sqrt(T)
 
         # d1 = (ln(S/K) + (r - q + σ²/2)*T) / (σ*√T)
-        self._d1 = (
-            math.log(S / K) + (r - q + 0.5 * σ ** 2) * T
-        ) / (σ * sqrt_T)
+        self._d1 = (math.log(S / K) + (r - q + 0.5 * σ**2) * T) / (σ * sqrt_T)
 
         # d2 = d1 - σ*√T
         self._d2 = self._d1 - σ * sqrt_T
@@ -210,7 +211,7 @@ class BlackScholes:
     @staticmethod
     def _norm_pdf(x: float) -> float:
         """Standardnormalverteilungs-Dichte n(x)"""
-        return math.exp(-0.5 * x ** 2) / math.sqrt(2 * math.pi)
+        return math.exp(-0.5 * x**2) / math.sqrt(2 * math.pi)
 
     # =========================================================================
     # OPTION PRICES
@@ -231,10 +232,7 @@ class BlackScholes:
         r = self.risk_free_rate
         q = self.dividend_yield
 
-        call = (
-            S * math.exp(-q * T) * self._Nd1
-            - K * math.exp(-r * T) * self._Nd2
-        )
+        call = S * math.exp(-q * T) * self._Nd1 - K * math.exp(-r * T) * self._Nd2
 
         return max(0, call)
 
@@ -253,10 +251,7 @@ class BlackScholes:
         r = self.risk_free_rate
         q = self.dividend_yield
 
-        put = (
-            K * math.exp(-r * T) * self._Nnd2
-            - S * math.exp(-q * T) * self._Nnd1
-        )
+        put = K * math.exp(-r * T) * self._Nnd2 - S * math.exp(-q * T) * self._Nnd1
 
         return max(0, put)
 
@@ -307,10 +302,7 @@ class BlackScholes:
         q = self.dividend_yield
         σ = self.volatility
 
-        gamma = (
-            math.exp(-q * T) * self._nd1
-            / (S * σ * math.sqrt(T))
-        )
+        gamma = math.exp(-q * T) * self._nd1 / (S * σ * math.sqrt(T))
 
         return gamma
 
@@ -342,17 +334,9 @@ class BlackScholes:
         first_term = -(S * σ * exp_qT * self._nd1) / (2 * sqrt_T)
 
         if option_type == OptionType.CALL:
-            theta_annual = (
-                first_term
-                - r * K * exp_rT * self._Nd2
-                + q * S * exp_qT * self._Nd1
-            )
+            theta_annual = first_term - r * K * exp_rT * self._Nd2 + q * S * exp_qT * self._Nd1
         else:
-            theta_annual = (
-                first_term
-                + r * K * exp_rT * self._Nnd2
-                - q * S * exp_qT * self._Nnd1
-            )
+            theta_annual = first_term + r * K * exp_rT * self._Nnd2 - q * S * exp_qT * self._Nnd1
 
         # Konvertiere zu täglichem Theta (252 Handelstage)
         return theta_annual / 365
@@ -552,6 +536,7 @@ class BlackScholes:
 # SPREAD PRICING
 # =============================================================================
 
+
 @dataclass
 class BullPutSpread:
     """
@@ -573,6 +558,7 @@ class BullPutSpread:
         volatility: Implizite Volatilität
         risk_free_rate: Risikofreier Zinssatz
     """
+
     spot: float
     short_strike: float
     long_strike: float
@@ -770,34 +756,37 @@ class BullPutSpread:
         """Konvertiert zu Dictionary"""
         greeks = self.greeks()
         return {
-            'structure': {
-                'short_strike': self.short_strike,
-                'long_strike': self.long_strike,
-                'spread_width': round(self.spread_width, 2),
+            "structure": {
+                "short_strike": self.short_strike,
+                "long_strike": self.long_strike,
+                "spread_width": round(self.spread_width, 2),
             },
-            'pricing': {
-                'short_put_price': round(self.short_put_price, 4),
-                'long_put_price': round(self.long_put_price, 4),
-                'net_credit': round(self.net_credit, 4),
+            "pricing": {
+                "short_put_price": round(self.short_put_price, 4),
+                "long_put_price": round(self.long_put_price, 4),
+                "net_credit": round(self.net_credit, 4),
             },
-            'risk_reward': {
-                'max_profit': round(self.max_profit, 4),
-                'max_loss': round(self.max_loss, 4),
-                'break_even': round(self.break_even, 2),
-                'risk_reward_ratio': round(self.max_profit / self.max_loss, 2) if self.max_loss > 0 else float('inf'),
+            "risk_reward": {
+                "max_profit": round(self.max_profit, 4),
+                "max_loss": round(self.max_loss, 4),
+                "break_even": round(self.break_even, 2),
+                "risk_reward_ratio": (
+                    round(self.max_profit / self.max_loss, 2) if self.max_loss > 0 else float("inf")
+                ),
             },
-            'probabilities': {
-                'max_profit': round(self.probability_max_profit() * 100, 1),
-                'any_profit': round(self.probability_any_profit() * 100, 1),
-                'max_loss': round(self.probability_max_loss() * 100, 1),
+            "probabilities": {
+                "max_profit": round(self.probability_max_profit() * 100, 1),
+                "any_profit": round(self.probability_any_profit() * 100, 1),
+                "max_loss": round(self.probability_max_loss() * 100, 1),
             },
-            'greeks': greeks.to_dict(),
+            "greeks": greeks.to_dict(),
         }
 
 
 # =============================================================================
 # UTILITY FUNCTIONS
 # =============================================================================
+
 
 def calculate_put_price(
     spot: float,

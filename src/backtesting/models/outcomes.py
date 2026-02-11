@@ -18,27 +18,30 @@ from datetime import date
 from enum import Enum
 from typing import Dict, Optional
 
-
 # =============================================================================
 # ENUMS
 # =============================================================================
 
+
 class SpreadOutcome(Enum):
     """Mögliche Outcomes eines Bull-Put-Spreads"""
-    MAX_PROFIT = "max_profit"        # Preis > Short Strike bei Expiration (voller Credit behalten)
+
+    MAX_PROFIT = "max_profit"  # Preis > Short Strike bei Expiration (voller Credit behalten)
     PARTIAL_PROFIT = "partial_profit"  # Preis zwischen Strikes, aber netto Gewinn
-    PARTIAL_LOSS = "partial_loss"      # Preis zwischen Strikes, netto Verlust
-    MAX_LOSS = "max_loss"             # Preis <= Long Strike bei Expiration (max Verlust)
-    EARLY_EXIT = "early_exit"         # Vor Expiration geschlossen
+    PARTIAL_LOSS = "partial_loss"  # Preis zwischen Strikes, netto Verlust
+    MAX_LOSS = "max_loss"  # Preis <= Long Strike bei Expiration (max Verlust)
+    EARLY_EXIT = "early_exit"  # Vor Expiration geschlossen
 
 
 # =============================================================================
 # DATA CLASSES
 # =============================================================================
 
+
 @dataclass
 class OptionQuote:
     """Eine einzelne Options-Quote aus der Datenbank"""
+
     occ_symbol: str
     underlying: str
     expiration: date
@@ -58,7 +61,7 @@ class OptionQuote:
     @property
     def is_otm(self) -> bool:
         """Ist die Option Out-of-the-Money?"""
-        if self.option_type == 'P':
+        if self.option_type == "P":
             return self.strike < self.underlying_price
         else:
             return self.strike > self.underlying_price
@@ -66,7 +69,7 @@ class OptionQuote:
     @property
     def otm_pct(self) -> float:
         """Out-of-the-Money Prozent"""
-        if self.option_type == 'P':
+        if self.option_type == "P":
             return (self.underlying_price - self.strike) / self.underlying_price * 100
         else:
             return (self.strike - self.underlying_price) / self.underlying_price * 100
@@ -75,6 +78,7 @@ class OptionQuote:
 @dataclass
 class SpreadEntry:
     """Entry-Daten eines Bull-Put-Spreads mit echten Preisen"""
+
     symbol: str
     entry_date: date
     expiration: date
@@ -100,7 +104,7 @@ class SpreadEntry:
     # Credit (was wir erhalten)
     # Realistisch: Verkaufe Short Put zu Bid, Kaufe Long Put zu Ask
     gross_credit: float  # mid-to-mid
-    net_credit: float    # bid-ask realistic
+    net_credit: float  # bid-ask realistic
 
     # DTE
     dte: int
@@ -124,12 +128,13 @@ class SpreadEntry:
         """Risk/Reward Ratio"""
         if self.max_profit > 0:
             return self.max_loss / self.max_profit
-        return float('inf')
+        return float("inf")
 
 
 @dataclass
 class SpreadOutcomeResult:
     """Ergebnis eines Bull-Put-Spreads bei Expiration"""
+
     entry: SpreadEntry
 
     # Exit-Daten
@@ -141,7 +146,7 @@ class SpreadOutcomeResult:
 
     # P&L
     pnl_per_contract: float  # In Dollar
-    pnl_pct: float           # Prozent vom Max Profit
+    pnl_pct: float  # Prozent vom Max Profit
 
     # Was passierte während der Laufzeit
     min_price_during_trade: float
@@ -156,26 +161,26 @@ class SpreadOutcomeResult:
     def to_dict(self) -> dict:
         """Konvertiert zu Dictionary für Speicherung"""
         return {
-            'symbol': self.entry.symbol,
-            'entry_date': self.entry.entry_date.isoformat(),
-            'exit_date': self.exit_date.isoformat(),
-            'expiration': self.entry.expiration.isoformat(),
-            'entry_price': self.entry.underlying_price,
-            'exit_price': self.exit_underlying_price,
-            'short_strike': self.entry.short_strike,
-            'long_strike': self.entry.long_strike,
-            'spread_width': self.entry.spread_width,
-            'net_credit': self.entry.net_credit,
-            'dte_at_entry': self.entry.dte,
-            'short_otm_pct': self.entry.short_otm_pct,
-            'outcome': self.outcome.value,
-            'pnl': self.pnl_per_contract,
-            'pnl_pct': self.pnl_pct,
-            'min_price': self.min_price_during_trade,
-            'max_price': self.max_price_during_trade,
-            'days_below_short': self.days_below_short_strike,
-            'max_drawdown_pct': self.max_drawdown_pct,
-            'was_profitable': self.was_profitable,
+            "symbol": self.entry.symbol,
+            "entry_date": self.entry.entry_date.isoformat(),
+            "exit_date": self.exit_date.isoformat(),
+            "expiration": self.entry.expiration.isoformat(),
+            "entry_price": self.entry.underlying_price,
+            "exit_price": self.exit_underlying_price,
+            "short_strike": self.entry.short_strike,
+            "long_strike": self.entry.long_strike,
+            "spread_width": self.entry.spread_width,
+            "net_credit": self.entry.net_credit,
+            "dte_at_entry": self.entry.dte,
+            "short_otm_pct": self.entry.short_otm_pct,
+            "outcome": self.outcome.value,
+            "pnl": self.pnl_per_contract,
+            "pnl_pct": self.pnl_pct,
+            "min_price": self.min_price_during_trade,
+            "max_price": self.max_price_during_trade,
+            "days_below_short": self.days_below_short_strike,
+            "max_drawdown_pct": self.max_drawdown_pct,
+            "was_profitable": self.was_profitable,
         }
 
 
@@ -185,6 +190,7 @@ class SetupFeatures:
     Features eines Trading-Setups zum Zeitpunkt des Entries.
     Diese werden später für ML-Training verwendet.
     """
+
     # Symbol & Datum
     symbol: str
     date: date
@@ -241,6 +247,7 @@ class BacktestTradeRecord:
     Vollständiger Record eines backtesteten Trades.
     Enthält Setup-Features UND Outcome - perfekt für ML-Training.
     """
+
     # Setup-Features zum Entry-Zeitpunkt
     features: SetupFeatures
 
@@ -253,14 +260,14 @@ class BacktestTradeRecord:
     def to_dict(self) -> dict:
         """Konvertiert zu Dictionary für Speicherung/Training"""
         return {
-            'features': self.features.to_dict(),
-            'spread': {
-                'short_strike': self.entry.short_strike,
-                'long_strike': self.entry.long_strike,
-                'spread_width': self.entry.spread_width,
-                'net_credit': self.entry.net_credit,
-                'dte': self.entry.dte,
-                'short_otm_pct': self.entry.short_otm_pct,
+            "features": self.features.to_dict(),
+            "spread": {
+                "short_strike": self.entry.short_strike,
+                "long_strike": self.entry.long_strike,
+                "spread_width": self.entry.spread_width,
+                "net_credit": self.entry.net_credit,
+                "dte": self.entry.dte,
+                "short_otm_pct": self.entry.short_otm_pct,
             },
-            'outcome': self.outcome.to_dict(),
+            "outcome": self.outcome.to_dict(),
         }

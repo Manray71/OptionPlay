@@ -9,7 +9,7 @@ Contains: _check_entry_signal, _open_position, _check_exit_signal,
 
 import logging
 from datetime import date, timedelta
-from typing import Dict, List, Optional, Tuple, Callable
+from typing import Callable, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -29,10 +29,7 @@ class EntryExitMixin:
     """
 
     def _check_entry_signal(
-        self,
-        symbol: str,
-        current_date: date,
-        entry_filter: Optional[Callable] = None
+        self, symbol: str, current_date: date, entry_filter: Optional[Callable] = None
     ) -> Optional[Dict]:
         """
         Prüft ob Entry-Signal vorhanden.
@@ -248,9 +245,7 @@ class EntryExitMixin:
 
         # Keltner-Score (simuliert basierend auf Volatilität) - max 0.5 Punkte
         if len(history) >= 10:
-            atr_approx = sum(
-                bar.get("high", 0) - bar.get("low", 0) for bar in history[:10]
-            ) / 10
+            atr_approx = sum(bar.get("high", 0) - bar.get("low", 0) for bar in history[:10]) / 10
             if atr_approx > 0:
                 keltner_upper = sma_20 + 2 * atr_approx
                 keltner_lower = sma_20 - 2 * atr_approx
@@ -266,11 +261,7 @@ class EntryExitMixin:
         return min(score, 12.0)
 
     def _open_position(
-        self,
-        symbol: str,
-        entry_date: date,
-        entry_signal: Dict,
-        max_risk: float
+        self, symbol: str, entry_date: date, entry_signal: Dict, max_risk: float
     ) -> Optional[Dict]:
         """Öffnet eine neue Position"""
         current_price = entry_signal["price"]
@@ -303,7 +294,7 @@ class EntryExitMixin:
                 S=current_price,
                 T=T,
                 sigma=iv,
-                option_type="P"
+                option_type="P",
             )
 
             # Long Put Strike (Delta ~ -0.05)
@@ -312,15 +303,17 @@ class EntryExitMixin:
                 S=current_price,
                 T=T,
                 sigma=iv,
-                option_type="P"
+                option_type="P",
             )
 
             entry_delta = self.config.short_delta_target
 
             # Validierung: Long Strike muss unter Short Strike liegen
             if short_strike and long_strike and long_strike >= short_strike:
-                logger.debug(f"Delta-based strikes invalid for {symbol}: "
-                           f"short={short_strike}, long={long_strike}. Using fallback.")
+                logger.debug(
+                    f"Delta-based strikes invalid for {symbol}: "
+                    f"short={short_strike}, long={long_strike}. Using fallback."
+                )
                 short_strike = None
                 long_strike = None
 
@@ -350,7 +343,7 @@ class EntryExitMixin:
                 iv=iv,
                 entry_date=entry_date,
                 contracts=1,
-                vix=vix
+                vix=vix,
             )
 
             net_credit = temp_entry.net_credit
@@ -372,7 +365,7 @@ class EntryExitMixin:
                 iv=iv,
                 entry_date=entry_date,
                 contracts=contracts,
-                vix=vix
+                vix=vix,
             )
 
             return {
@@ -405,7 +398,7 @@ class EntryExitMixin:
         net_credit = spread_width * credit_pct
 
         # Slippage
-        net_credit *= (1 - self.config.slippage_pct / 100)
+        net_credit *= 1 - self.config.slippage_pct / 100
 
         # Position-Sizing
         max_loss_per_contract = (spread_width - net_credit) * 100
@@ -437,11 +430,7 @@ class EntryExitMixin:
             "last_price": current_price,
         }
 
-    def _check_exit_signal(
-        self,
-        position: Dict,
-        current_date: date
-    ) -> Optional[Tuple]:
+    def _check_exit_signal(self, position: Dict, current_date: date) -> Optional[Tuple]:
         """
         Prüft ob Exit-Signal vorhanden.
 
@@ -486,7 +475,7 @@ class EntryExitMixin:
                 current_date=current_date,
                 current_price=current_price,
                 current_iv=current_iv,
-                vix=vix
+                vix=vix,
             )
 
             # Store snapshot for close calculation
@@ -498,7 +487,7 @@ class EntryExitMixin:
                 entry=spread_entry,
                 profit_target_pct=self.config.profit_target_pct,
                 stop_loss_pct=self.config.stop_loss_pct,
-                dte_exit_threshold=self.config.dte_exit_threshold
+                dte_exit_threshold=self.config.dte_exit_threshold,
             )
 
             if exit_reason == "profit_target":
@@ -531,10 +520,7 @@ class EntryExitMixin:
 
             # Je höher der Preis über Short Strike und je mehr Zeit vergangen,
             # desto mehr hat sich der Spread-Wert reduziert
-            estimated_profit_pct = min(
-                (time_decay_factor * 50) + (price_buffer_pct * 5),
-                100
-            )
+            estimated_profit_pct = min((time_decay_factor * 50) + (price_buffer_pct * 5), 100)
 
             if estimated_profit_pct >= self.config.profit_target_pct:
                 return (ExitReason.PROFIT_TARGET_HIT, current_price)
@@ -552,11 +538,7 @@ class EntryExitMixin:
         return None
 
     def _close_position(
-        self,
-        position: Dict,
-        exit_date: date,
-        exit_reason,  # ExitReason
-        exit_price: float
+        self, position: Dict, exit_date: date, exit_reason, exit_price: float  # ExitReason
     ):
         """Schließt eine Position und berechnet P&L"""
         # Import here to avoid circular imports
@@ -588,7 +570,7 @@ class EntryExitMixin:
                     current_date=exit_date,
                     current_price=exit_price,
                     current_iv=current_iv,
-                    vix=vix
+                    vix=vix,
                 )
                 realized_pnl = snapshot.unrealized_pnl_total
 
@@ -597,6 +579,7 @@ class EntryExitMixin:
                 outcome = TradeOutcome.MAX_PROFIT
             elif realized_pnl >= position["max_profit"] * 0.5:
                 from .engine import ExitReason
+
                 if exit_reason == ExitReason.PROFIT_TARGET_HIT:
                     outcome = TradeOutcome.PROFIT_TARGET
                 else:
@@ -607,6 +590,7 @@ class EntryExitMixin:
                 outcome = TradeOutcome.MAX_LOSS
             elif realized_pnl < 0:
                 from .engine import ExitReason
+
                 if exit_reason == ExitReason.STOP_LOSS_HIT:
                     outcome = TradeOutcome.STOP_LOSS
                 else:
@@ -616,6 +600,7 @@ class EntryExitMixin:
 
         else:
             from .engine import ExitReason
+
             # Fallback: Vereinfachte P&L-Berechnung (alte Methode)
             if exit_price >= short_strike:
                 # Beide Puts OTM - Max Profit

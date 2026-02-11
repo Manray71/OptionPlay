@@ -11,23 +11,26 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import date, datetime
-from typing import Any, Dict, List, Optional, Callable
+from typing import Any, Callable, Dict, List, Optional
 
+from ..cache import get_earnings_fetcher
+from ..config import get_watchlist_loader
 from ..constants.trading_rules import (
-    ENTRY_STABILITY_MIN, SPREAD_DTE_MIN, SPREAD_DTE_MAX,
-    EXIT_PROFIT_PCT_NORMAL, EXIT_STOP_LOSS_MULTIPLIER,
+    ENTRY_STABILITY_MIN,
+    EXIT_PROFIT_PCT_NORMAL,
+    EXIT_STOP_LOSS_MULTIPLIER,
+    SPREAD_DTE_MAX,
+    SPREAD_DTE_MIN,
 )
 from ..scanner.multi_strategy_scanner import ScanMode
 from ..services.recommendation_engine import (
-    DailyRecommendationEngine,
     DailyPick,
+    DailyRecommendationEngine,
     DailyRecommendationResult,
 )
 from ..utils.error_handler import mcp_endpoint
 from ..utils.markdown_builder import MarkdownBuilder, truncate
-from ..utils.validation import validate_symbols, is_etf
-from ..config import get_watchlist_loader
-from ..cache import get_earnings_fetcher
+from ..utils.validation import is_etf, validate_symbols
 from .base import BaseHandlerMixin
 
 logger = logging.getLogger(__name__)
@@ -99,16 +102,19 @@ class ScanHandlerMixin(BaseHandlerMixin):
 
         if scanner_config.auto_earnings_prefilter:
             min_days = scanner_config.earnings_prefilter_min_days
-            for_earnings_dip = (mode == ScanMode.EARNINGS_DIP)
+            for_earnings_dip = mode == ScanMode.EARNINGS_DIP
             # In ALL/BEST_SIGNAL mode, include earnings_dip candidates too.
             # The scanner's per-strategy _should_skip_for_earnings() handles
             # filtering for non-dip strategies, so we must not remove
             # recent-earnings symbols here that the dip analyzer needs.
             include_dip_candidates = mode in (ScanMode.ALL, ScanMode.BEST_SIGNAL)
-            symbols, excluded_by_earnings, earnings_cache_hits = await self._apply_earnings_prefilter(
-                symbols, min_days,
-                for_earnings_dip=for_earnings_dip,
-                include_dip_candidates=include_dip_candidates,
+            symbols, excluded_by_earnings, earnings_cache_hits = (
+                await self._apply_earnings_prefilter(
+                    symbols,
+                    min_days,
+                    for_earnings_dip=for_earnings_dip,
+                    include_dip_candidates=include_dip_candidates,
+                )
             )
             if excluded_by_earnings > 0:
                 if for_earnings_dip:
@@ -143,7 +149,11 @@ class ScanHandlerMixin(BaseHandlerMixin):
             enable_pullback = mode in [ScanMode.PULLBACK_ONLY, ScanMode.ALL, ScanMode.BEST_SIGNAL]
             enable_bounce = mode in [ScanMode.BOUNCE_ONLY, ScanMode.ALL, ScanMode.BEST_SIGNAL]
             enable_breakout = mode in [ScanMode.BREAKOUT_ONLY, ScanMode.ALL, ScanMode.BEST_SIGNAL]
-            enable_earnings_dip = mode in [ScanMode.EARNINGS_DIP, ScanMode.ALL, ScanMode.BEST_SIGNAL]
+            enable_earnings_dip = mode in [
+                ScanMode.EARNINGS_DIP,
+                ScanMode.ALL,
+                ScanMode.BEST_SIGNAL,
+            ]
             enable_trend = mode in [ScanMode.TREND_ONLY, ScanMode.ALL, ScanMode.BEST_SIGNAL]
 
             scanner = self._get_multi_scanner(
@@ -171,11 +181,13 @@ class ScanHandlerMixin(BaseHandlerMixin):
 
             # Determine historical data requirement
             config_days = self._config.settings.performance.historical_days
-            historical_days = max(config_days, min_historical_days) if min_historical_days else config_days
+            historical_days = (
+                max(config_days, min_historical_days) if min_historical_days else config_days
+            )
 
             # Pre-fetch historical data in parallel batches
             prefetch_batch_size = getattr(
-                self._config.settings.performance, 'prefetch_batch_size', 20
+                self._config.settings.performance, "prefetch_batch_size", 20
             )
 
             prefetch_cache: Dict[str, tuple] = {}
@@ -192,7 +204,7 @@ class ScanHandlerMixin(BaseHandlerMixin):
                         prefetch_cache[sym] = result
 
             for i in range(0, len(symbols), prefetch_batch_size):
-                batch = symbols[i:i + prefetch_batch_size]
+                batch = symbols[i : i + prefetch_batch_size]
                 await prefetch_batch(batch)
 
             logger.debug(f"Pre-fetched {len(prefetch_cache)}/{len(symbols)} symbols")
@@ -204,11 +216,7 @@ class ScanHandlerMixin(BaseHandlerMixin):
 
             # Execute scan
             start_time = datetime.now()
-            result = await scanner.scan_async(
-                symbols=symbols,
-                data_fetcher=data_fetcher,
-                mode=mode
-            )
+            result = await scanner.scan_async(symbols=symbols, data_fetcher=data_fetcher, mode=mode)
             duration = (datetime.now() - start_time).total_seconds()
 
             # Cache the result
@@ -250,13 +258,15 @@ class ScanHandlerMixin(BaseHandlerMixin):
                 # Default formatting
                 rows = []
                 for signal in result.signals[:max_results]:
-                    rows.append([
-                        signal.symbol,
-                        f"{signal.score:.1f}",
-                        f"${signal.current_price:.2f}" if signal.current_price else "N/A",
-                        signal.strategy,
-                        truncate(signal.reason, 35) if signal.reason else "-"
-                    ])
+                    rows.append(
+                        [
+                            signal.symbol,
+                            f"{signal.score:.1f}",
+                            f"${signal.current_price:.2f}" if signal.current_price else "N/A",
+                            signal.strategy,
+                            truncate(signal.reason, 35) if signal.reason else "-",
+                        ]
+                    )
                 b.table(["Symbol", "Score", "Price", "Strategy", "Signal"], rows)
         else:
             b.hint(no_results_msg)
@@ -264,11 +274,7 @@ class ScanHandlerMixin(BaseHandlerMixin):
         return b.build()
 
     def _make_scan_cache_key(
-        self,
-        mode: ScanMode,
-        symbols: List[str],
-        min_score: float,
-        max_results: int
+        self, mode: ScanMode, symbols: List[str], min_score: float, max_results: int
     ) -> str:
         """Generate a cache key for scan results."""
         symbols_hash = hash(tuple(sorted(symbols)))
@@ -292,12 +298,13 @@ class ScanHandlerMixin(BaseHandlerMixin):
         Returns:
             Formatted Markdown with scan results
         """
+
         def format_row(signal: Any) -> list[str]:
             return [
                 signal.symbol,
                 f"{signal.score:.1f}",
                 f"${signal.current_price:.2f}" if signal.current_price else "N/A",
-                truncate(signal.reason, 40) if signal.reason else "-"
+                truncate(signal.reason, 40) if signal.reason else "-",
             ]
 
         return await self._execute_scan(
@@ -353,12 +360,13 @@ class ScanHandlerMixin(BaseHandlerMixin):
         Returns:
             Formatted scan results
         """
+
         def format_row(signal: Any) -> list[str]:
             return [
                 signal.symbol,
                 f"{signal.score:.1f}",
                 f"${signal.current_price:.2f}" if signal.current_price else "N/A",
-                truncate(signal.reason, 40) if signal.reason else "-"
+                truncate(signal.reason, 40) if signal.reason else "-",
             ]
 
         return await self._execute_scan(
@@ -394,12 +402,13 @@ class ScanHandlerMixin(BaseHandlerMixin):
         Returns:
             Formatted scan results
         """
+
         def format_row(signal: Any) -> list[str]:
             return [
                 signal.symbol,
                 f"{signal.score:.1f}",
                 f"${signal.current_price:.2f}" if signal.current_price else "N/A",
-                truncate(signal.reason, 40) if signal.reason else "-"
+                truncate(signal.reason, 40) if signal.reason else "-",
             ]
 
         return await self._execute_scan(
@@ -436,12 +445,13 @@ class ScanHandlerMixin(BaseHandlerMixin):
         Returns:
             Formatted scan results
         """
+
         def format_row(signal: Any) -> list[str]:
             return [
                 signal.symbol,
                 f"{signal.score:.1f}",
                 f"${signal.current_price:.2f}" if signal.current_price else "N/A",
-                truncate(signal.reason, 40) if signal.reason else "-"
+                truncate(signal.reason, 40) if signal.reason else "-",
             ]
 
         return await self._execute_scan(
@@ -477,12 +487,13 @@ class ScanHandlerMixin(BaseHandlerMixin):
         Returns:
             Formatted scan results
         """
+
         def format_row(signal: Any) -> list[str]:
             return [
                 signal.symbol,
                 f"{signal.score:.1f}",
                 f"${signal.current_price:.2f}" if signal.current_price else "N/A",
-                truncate(signal.reason, 40) if signal.reason else "-"
+                truncate(signal.reason, 40) if signal.reason else "-",
             ]
 
         return await self._execute_scan(
@@ -539,7 +550,7 @@ class ScanHandlerMixin(BaseHandlerMixin):
                 f"{signal.score:.1f}",
                 f"${signal.current_price:.2f}" if signal.current_price else "N/A",
                 f"{icon} {signal.strategy}",
-                truncate(signal.reason, 30) if signal.reason else "-"
+                truncate(signal.reason, 30) if signal.reason else "-",
             ]
 
         # Adjust title based on list type
@@ -611,7 +622,9 @@ class ScanHandlerMixin(BaseHandlerMixin):
         if scanner_config.auto_earnings_prefilter:
             min_days = scanner_config.earnings_prefilter_min_days
             symbols, excluded_by_earnings, _ = await self._apply_earnings_prefilter(
-                symbols, min_days, for_earnings_dip=False,
+                symbols,
+                min_days,
+                for_earnings_dip=False,
                 include_dip_candidates=True,
             )
             if excluded_by_earnings > 0:
@@ -629,15 +642,16 @@ class ScanHandlerMixin(BaseHandlerMixin):
 
         # Configure recommendation engine (PLAYBOOK-aligned defaults)
         from ..constants.trading_rules import SIZING_MAX_PER_SECTOR, SPREAD_MIN_CREDIT_PCT
+
         engine_config = {
-            'min_stability_score': min_stability,
-            'min_signal_score': min_score,
-            'max_picks': max_picks,
-            'enable_strike_recommendations': include_strikes,
-            'enable_sector_diversification': True,
-            'enable_blacklist_filter': True,
-            'enable_vix_regime_filter': True,
-            'max_per_sector': SIZING_MAX_PER_SECTOR,  # PLAYBOOK §5: 2
+            "min_stability_score": min_stability,
+            "min_signal_score": min_score,
+            "max_picks": max_picks,
+            "enable_strike_recommendations": include_strikes,
+            "enable_sector_diversification": True,
+            "enable_blacklist_filter": True,
+            "enable_vix_regime_filter": True,
+            "max_per_sector": SIZING_MAX_PER_SECTOR,  # PLAYBOOK §5: 2
         }
 
         # Use existing scanner from handler
@@ -660,20 +674,16 @@ class ScanHandlerMixin(BaseHandlerMixin):
 
         # Determine historical data requirement
         historical_days = max(
-            self._config.settings.performance.historical_days,
-            260  # Need 1 year for ATH detection
+            self._config.settings.performance.historical_days, 260  # Need 1 year for ATH detection
         )
 
         # Pre-fetch historical data
-        prefetch_batch_size = getattr(
-            self._config.settings.performance, 'prefetch_batch_size', 20
-        )
+        prefetch_batch_size = getattr(self._config.settings.performance, "prefetch_batch_size", 20)
         prefetch_cache: Dict[str, tuple] = {}
 
         async def prefetch_batch(batch_symbols: List[str]) -> None:
             tasks = [
-                self._fetch_historical_cached(sym, days=historical_days)
-                for sym in batch_symbols
+                self._fetch_historical_cached(sym, days=historical_days) for sym in batch_symbols
             ]
             results = await asyncio.gather(*tasks, return_exceptions=True)
             for sym, result in zip(batch_symbols, results):
@@ -681,7 +691,7 @@ class ScanHandlerMixin(BaseHandlerMixin):
                     prefetch_cache[sym] = result
 
         for i in range(0, len(symbols), prefetch_batch_size):
-            batch = symbols[i:i + prefetch_batch_size]
+            batch = symbols[i : i + prefetch_batch_size]
             await prefetch_batch(batch)
 
         logger.debug(f"Pre-fetched {len(prefetch_cache)}/{len(symbols)} symbols")
@@ -751,15 +761,15 @@ class ScanHandlerMixin(BaseHandlerMixin):
 
         try:
             # Tradier is the primary provider for options chains
-            if hasattr(self, '_tradier') and self._tradier:
+            if hasattr(self, "_tradier") and self._tradier:
                 options_provider = self._tradier
-            elif hasattr(self, '_provider') and self._provider:
+            elif hasattr(self, "_provider") and self._provider:
                 options_provider = self._provider
         except Exception as e:
             logger.debug(f"Could not get options provider: {e}")
 
         try:
-            if hasattr(self, '_ibkr') and self._ibkr:
+            if hasattr(self, "_ibkr") and self._ibkr:
                 ibkr_bridge = self._ibkr
         except Exception as e:
             logger.debug(f"Could not get IBKR bridge: {e}")
@@ -794,9 +804,7 @@ class ScanHandlerMixin(BaseHandlerMixin):
                     )
                 else:
                     chain_rejected += 1
-                    logger.info(
-                        f"Chain REJECTED: {pick.symbol} — {spread.reason}"
-                    )
+                    logger.info(f"Chain REJECTED: {pick.symbol} — {spread.reason}")
             except Exception as e:
                 logger.warning(f"Chain validation error for {pick.symbol}: {e}")
                 # Keep pick without chain data rather than silently dropping
@@ -808,8 +816,7 @@ class ScanHandlerMixin(BaseHandlerMixin):
 
         if chain_rejected > 0:
             logger.info(
-                f"Chain validation: {len(validated_picks)} tradeable, "
-                f"{chain_rejected} rejected"
+                f"Chain validation: {len(validated_picks)} tradeable, " f"{chain_rejected} rejected"
             )
             if not result.warnings:
                 result.warnings = []
@@ -836,16 +843,14 @@ class ScanHandlerMixin(BaseHandlerMixin):
         # Market Overview (compact single-line)
         if result.vix_level:
             regime_display = {
-                'low_vol': 'Normal',
-                'normal': 'Normal',
-                'danger_zone': 'Danger Zone',
-                'elevated': 'Elevated',
-                'high_vol': 'High Volatility',
-                'unknown': 'Unknown',
+                "low_vol": "Normal",
+                "normal": "Normal",
+                "danger_zone": "Danger Zone",
+                "elevated": "Elevated",
+                "high_vol": "High Volatility",
+                "unknown": "Unknown",
             }
-            regime_str = regime_display.get(
-                result.market_regime.value, result.market_regime.value
-            )
+            regime_str = regime_display.get(result.market_regime.value, result.market_regime.value)
             b.kv("Regime", f"{regime_str} (VIX {result.vix_level:.2f})")
 
         b.kv("Scanned", f"{result.symbols_scanned} symbols | Duration: {duration:.1f}s")
@@ -881,11 +886,11 @@ class ScanHandlerMixin(BaseHandlerMixin):
             "ath_breakout": "ATH Breakout",
             "earnings_dip": "Earnings Dip",
         }
-        strategy_str = strategy_display.get(pick.strategy, pick.strategy.replace('_', ' ').title())
+        strategy_str = strategy_display.get(pick.strategy, pick.strategy.replace("_", " ").title())
 
         # EQS display
         eqs_str = ""
-        if pick.entry_quality and hasattr(pick.entry_quality, 'eqs_total'):
+        if pick.entry_quality and hasattr(pick.entry_quality, "eqs_total"):
             eqs_str = f" | EQS {pick.entry_quality.eqs_total:.0f}"
 
         # Header
@@ -915,10 +920,7 @@ class ScanHandlerMixin(BaseHandlerMixin):
                     f"${long.bid:.2f}/${long.ask:.2f}",
                 ],
             ]
-            b.table(
-                ["Strike", "Delta", "IV", "OI", "Bid/Ask"],
-                leg_rows
-            )
+            b.table(["Strike", "Delta", "IV", "OI", "Bid/Ask"], leg_rows)
             b.blank()
 
             # Spread details
@@ -928,7 +930,9 @@ class ScanHandlerMixin(BaseHandlerMixin):
             )
 
             # Credit line
-            credit_check = "OK" if sv.credit_pct and sv.credit_pct >= SPREAD_MIN_CREDIT_PCT else "LOW"
+            credit_check = (
+                "OK" if sv.credit_pct and sv.credit_pct >= SPREAD_MIN_CREDIT_PCT else "LOW"
+            )
             b.text(
                 f"**Credit:** ${sv.credit_bid:.2f} (Bid) -- "
                 f"${sv.credit_mid:.2f} (Mid) | "
@@ -937,7 +941,9 @@ class ScanHandlerMixin(BaseHandlerMixin):
 
             # Risk targets
             max_loss = sv.max_loss_per_contract if sv.max_loss_per_contract else 0
-            profit_target_50 = sv.credit_bid * (EXIT_PROFIT_PCT_NORMAL / 100) if sv.credit_bid else 0
+            profit_target_50 = (
+                sv.credit_bid * (EXIT_PROFIT_PCT_NORMAL / 100) if sv.credit_bid else 0
+            )
             stop_loss_200 = sv.credit_bid * EXIT_STOP_LOSS_MULTIPLIER if sv.credit_bid else 0
             b.text(
                 f"**Max Loss:** ${max_loss:.0f}/Kontrakt | "
@@ -964,7 +970,7 @@ class ScanHandlerMixin(BaseHandlerMixin):
 
         # Entry Quality line (if EQS available)
         eq = pick.entry_quality
-        if eq and hasattr(eq, 'iv_rank'):
+        if eq and hasattr(eq, "iv_rank"):
             parts = []
             if eq.iv_rank is not None:
                 parts.append(f"IV Rank {eq.iv_rank:.0f}%")

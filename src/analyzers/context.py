@@ -15,50 +15,53 @@
 # mypy: warn_unused_ignores=False
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from typing import Any, Optional
-import logging
+
 import numpy as np
 
 # Import optimized support/resistance functions
 # NOTE: Fallback import chains use type: ignore for no-redef (re-importing same names),
 # import-untyped (non-package imports), and assignment (None fallbacks for optional deps).
 try:
-    from ..indicators.support_resistance import (
-        find_support_levels as find_support_optimized,
-        find_resistance_levels as find_resistance_optimized,
-    )
+    from ..indicators.gap_analysis import analyze_gap
     from ..indicators.optimized import (
+        calc_atr_numpy,
+        calc_ema_numpy,
+        calc_fibonacci_levels,
+        calc_macd_numpy,
         calc_rsi_numpy,
         calc_sma_numpy,
-        calc_ema_numpy,
-        calc_macd_numpy,
         calc_stochastic_numpy,
-        calc_atr_numpy,
-        calc_fibonacci_levels,
         find_high_low_numpy,
     )
-    from ..indicators.gap_analysis import analyze_gap
+    from ..indicators.support_resistance import find_resistance_levels as find_resistance_optimized
+    from ..indicators.support_resistance import find_support_levels as find_support_optimized
     from ..models.indicators import GapResult
+
     _NUMPY_AVAILABLE = True
 except ImportError:
     try:
-        from indicators.support_resistance import (  # type: ignore[no-redef,import-untyped]
-            find_support_levels as find_support_optimized,
-            find_resistance_levels as find_resistance_optimized,
-        )
+        from indicators.gap_analysis import analyze_gap  # type: ignore[no-redef,import-untyped]
         from indicators.optimized import (  # type: ignore[no-redef,import-untyped]
+            calc_atr_numpy,
+            calc_ema_numpy,
+            calc_fibonacci_levels,
+            calc_macd_numpy,
             calc_rsi_numpy,
             calc_sma_numpy,
-            calc_ema_numpy,
-            calc_macd_numpy,
             calc_stochastic_numpy,
-            calc_atr_numpy,
-            calc_fibonacci_levels,
             find_high_low_numpy,
         )
-        from indicators.gap_analysis import analyze_gap  # type: ignore[no-redef,import-untyped]
+        from indicators.support_resistance import (
+            find_resistance_levels as find_resistance_optimized,
+        )
+        from indicators.support_resistance import (
+            find_support_levels as find_support_optimized,  # type: ignore[no-redef,import-untyped]
+        )
         from models.indicators import GapResult  # type: ignore[no-redef,import-untyped]
+
         _NUMPY_AVAILABLE = True
     except ImportError:
         _NUMPY_AVAILABLE = False
@@ -68,14 +71,20 @@ except ImportError:
 # Import canonical indicator functions (used in Python fallback path)
 # NOTE: Same fallback pattern — no-redef for duplicate imports, assignment for None sentinels.
 try:
-    from ..indicators.momentum import calculate_rsi, calculate_macd, calculate_stochastic
+    from ..indicators.momentum import calculate_macd, calculate_rsi, calculate_stochastic
     from ..indicators.trend import calculate_ema
     from ..indicators.volatility import calculate_atr_simple
 except ImportError:
     try:
-        from indicators.momentum import calculate_rsi, calculate_macd, calculate_stochastic  # type: ignore[no-redef,import-untyped]
+        from indicators.momentum import (  # type: ignore[no-redef,import-untyped]
+            calculate_macd,
+            calculate_rsi,
+            calculate_stochastic,
+        )
         from indicators.trend import calculate_ema  # type: ignore[no-redef,import-untyped]
-        from indicators.volatility import calculate_atr_simple  # type: ignore[no-redef,import-untyped]
+        from indicators.volatility import (
+            calculate_atr_simple,  # type: ignore[no-redef,import-untyped]
+        )
     except ImportError:
         calculate_rsi = None  # type: ignore[assignment]
         calculate_macd = None  # type: ignore[assignment]
@@ -149,8 +158,8 @@ class AnalysisContext:
     gap_score: float = 0.0  # -1 to +1, positive = bullish for entry
 
     # Regime & Sector (Step 7: threading through call stack)
-    regime: str = "normal"           # VIX regime (low_vol, normal, elevated, high_vol, danger)
-    sector: Optional[str] = None     # Sector name from fundamentals
+    regime: str = "normal"  # VIX regime (low_vol, normal, elevated, high_vol, danger)
+    sector: Optional[str] = None  # Sector name from fundamentals
 
     # E.5: Dividend-Gap-Handling — set by scanner before analysis
     is_near_ex_dividend: bool = False
@@ -161,7 +170,7 @@ class AnalysisContext:
     market_context_trend: Optional[str] = None
 
     # Strategy context (v3: for strategy-differentiated scoring)
-    strategy: str = ""               # Current strategy being evaluated (pullback, bounce, etc.)
+    strategy: str = ""  # Current strategy being evaluated (pullback, bounce, etc.)
 
     # Internal: open prices for gap calculation (prefixed _ but needs slot)
     _opens: Optional[list[float]] = field(default=None, repr=False)
@@ -179,7 +188,7 @@ class AnalysisContext:
         regime: str = "normal",
         sector: Optional[str] = None,
         strategy: str = "",
-    ) -> 'AnalysisContext':
+    ) -> "AnalysisContext":
         """
         Create context with pre-calculated values from price data.
 
@@ -230,7 +239,7 @@ class AnalysisContext:
         volumes: list[int],
         highs: list[float],
         lows: list[float],
-        opens: Optional[list[float]] = None
+        opens: Optional[list[float]] = None,
     ) -> None:
         """
         Calculate all technical indicators.
@@ -249,7 +258,7 @@ class AnalysisContext:
         volumes: list[int],
         highs: list[float],
         lows: list[float],
-        opens: Optional[list[float]] = None
+        opens: Optional[list[float]] = None,
     ) -> None:
         """
         Calculate indicators using NumPy (5-10x faster).
@@ -302,7 +311,7 @@ class AnalysisContext:
             window=5,
             max_levels=5,
             volumes=volumes if volumes else None,
-            tolerance_pct=1.5
+            tolerance_pct=1.5,
         )
         self.resistance_levels = find_resistance_optimized(
             highs=highs,
@@ -310,7 +319,7 @@ class AnalysisContext:
             window=5,
             max_levels=5,
             volumes=volumes if volumes else None,
-            tolerance_pct=1.5
+            tolerance_pct=1.5,
         )
 
         # Fibonacci (vectorized high/low finding)
@@ -350,7 +359,7 @@ class AnalysisContext:
         volumes: list[int],
         highs: list[float],
         lows: list[float],
-        opens: Optional[list[float]] = None
+        opens: Optional[list[float]] = None,
     ) -> None:
         """
         Calculate indicators using pure Python (fallback).
@@ -392,7 +401,7 @@ class AnalysisContext:
             window=5,
             max_levels=5,
             volumes=volumes if volumes else None,
-            tolerance_pct=1.5
+            tolerance_pct=1.5,
         )
         self.resistance_levels = find_resistance_optimized(
             highs=highs,
@@ -400,7 +409,7 @@ class AnalysisContext:
             window=5,
             max_levels=5,
             volumes=volumes if volumes else None,
-            tolerance_pct=1.5
+            tolerance_pct=1.5,
         )
 
         # Fibonacci (last 60 days)
@@ -479,7 +488,7 @@ class AnalysisContext:
         lows: list[float],
         prices: list[float],
         k_period: int = 14,
-        d_period: int = 3
+        d_period: int = 3,
     ) -> None:
         """
         Calculate Stochastic oscillator with proper %D.
@@ -519,21 +528,17 @@ class AnalysisContext:
         """Calculate Fibonacci retracement levels."""
         diff = high - low
         return {
-            '0.0': high,
-            '0.236': high - diff * 0.236,
-            '0.382': high - diff * 0.382,
-            '0.5': high - diff * 0.5,
-            '0.618': high - diff * 0.618,
-            '0.786': high - diff * 0.786,
-            '1.0': low
+            "0.0": high,
+            "0.236": high - diff * 0.236,
+            "0.382": high - diff * 0.382,
+            "0.5": high - diff * 0.5,
+            "0.618": high - diff * 0.618,
+            "0.786": high - diff * 0.786,
+            "1.0": low,
         }
 
     def _calc_atr(
-        self,
-        highs: list[float],
-        lows: list[float],
-        prices: list[float],
-        period: int = 14
+        self, highs: list[float], lows: list[float], prices: list[float], period: int = 14
     ) -> Optional[float]:
         """Calculate Average True Range."""
         if len(prices) < period + 1:
@@ -542,9 +547,7 @@ class AnalysisContext:
         true_ranges = []
         for i in range(1, len(prices)):
             tr = max(
-                highs[i] - lows[i],
-                abs(highs[i] - prices[i-1]),
-                abs(lows[i] - prices[i-1])
+                highs[i] - lows[i], abs(highs[i] - prices[i - 1]), abs(lows[i] - prices[i - 1])
             )
             true_ranges.append(tr)
 
@@ -553,12 +556,7 @@ class AnalysisContext:
 
         return sum(true_ranges[-period:]) / period
 
-    def _calculate_gap(
-        self,
-        prices: list[float],
-        highs: list[float],
-        lows: list[float]
-    ) -> None:
+    def _calculate_gap(self, prices: list[float], highs: list[float], lows: list[float]) -> None:
         """
         Calculate gap analysis for medium-term trading strategies.
 
@@ -574,7 +572,7 @@ class AnalysisContext:
 
         try:
             # Use real opens if available, otherwise approximate from closes
-            if hasattr(self, '_opens') and self._opens and len(self._opens) == len(prices):
+            if hasattr(self, "_opens") and self._opens and len(self._opens) == len(prices):
                 opens = self._opens
             else:
                 # Fallback: approximate opens from previous closes
@@ -606,32 +604,32 @@ class AnalysisContext:
         self.above_sma200 = self.current_price > self.sma_200 if self.sma_200 else None
 
         if self.above_sma200 and self.above_sma20:
-            self.trend = 'uptrend'
+            self.trend = "uptrend"
         elif self.above_sma200 is False and self.above_sma20 is False:
-            self.trend = 'downtrend'
+            self.trend = "downtrend"
         else:
-            self.trend = 'sideways'
+            self.trend = "sideways"
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for debugging/logging."""
         return {
-            'symbol': self.symbol,
-            'current_price': self.current_price,
-            'rsi_14': self.rsi_14,
-            'sma_20': self.sma_20,
-            'sma_50': self.sma_50,
-            'sma_200': self.sma_200,
-            'macd_line': self.macd_line,
-            'macd_signal': self.macd_signal,
-            'stoch_k': self.stoch_k,
-            'support_levels': self.support_levels,
-            'resistance_levels': self.resistance_levels,
-            'trend': self.trend,
-            'volume_ratio': self.volume_ratio,
-            'pct_from_ath': self.pct_from_ath,
-            'gap_score': self.gap_score,
-            'gap_type': self.gap_result.gap_type if self.gap_result else None,
-            'regime': self.regime,
-            'sector': self.sector,
-            'strategy': self.strategy,
+            "symbol": self.symbol,
+            "current_price": self.current_price,
+            "rsi_14": self.rsi_14,
+            "sma_20": self.sma_20,
+            "sma_50": self.sma_50,
+            "sma_200": self.sma_200,
+            "macd_line": self.macd_line,
+            "macd_signal": self.macd_signal,
+            "stoch_k": self.stoch_k,
+            "support_levels": self.support_levels,
+            "resistance_levels": self.resistance_levels,
+            "trend": self.trend,
+            "volume_ratio": self.volume_ratio,
+            "pct_from_ath": self.pct_from_ath,
+            "gap_score": self.gap_score,
+            "gap_type": self.gap_result.gap_type if self.gap_result else None,
+            "regime": self.regime,
+            "sector": self.sector,
+            "strategy": self.strategy,
         }

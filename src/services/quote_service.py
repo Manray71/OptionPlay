@@ -31,12 +31,12 @@ import asyncio
 import logging
 from collections import OrderedDict
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
-from .base import BaseService, ServiceContext
 from ..models.result import ServiceResult
-from ..utils.validation import validate_symbol, validate_symbols, ValidationError
 from ..utils.markdown_builder import MarkdownBuilder, format_price, format_volume
+from ..utils.validation import ValidationError, validate_symbol, validate_symbols
+from .base import BaseService, ServiceContext
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +63,7 @@ class QuoteService(BaseService):
         self,
         context: ServiceContext,
         cache_ttl_seconds: int = 60,
-        max_cache_size: int = MAX_CACHE_SIZE
+        max_cache_size: int = MAX_CACHE_SIZE,
     ) -> None:
         """
         Initialisiert den Quote Service.
@@ -82,11 +82,7 @@ class QuoteService(BaseService):
         self._cache_misses = 0
         self._cache_evictions = 0
 
-    async def get_quote(
-        self,
-        symbol: str,
-        use_cache: bool = True
-    ) -> ServiceResult[dict[str, Any]]:
+    async def get_quote(self, symbol: str, use_cache: bool = True) -> ServiceResult[dict[str, Any]]:
         """
         Holt Quote für ein Symbol.
 
@@ -111,11 +107,7 @@ class QuoteService(BaseService):
             if cached is not None:
                 self._cache_hits += 1
                 duration_ms = (datetime.now() - start_time).total_seconds() * 1000
-                return ServiceResult.ok(
-                    data=cached,
-                    source="cache",
-                    duration_ms=duration_ms
-                )
+                return ServiceResult.ok(data=cached, source="cache", duration_ms=duration_ms)
 
         self._cache_misses += 1
 
@@ -135,21 +127,14 @@ class QuoteService(BaseService):
             self._set_cache(symbol, quote_data)
 
             duration_ms = (datetime.now() - start_time).total_seconds() * 1000
-            return ServiceResult.ok(
-                data=quote_data,
-                source="api",
-                duration_ms=duration_ms
-            )
+            return ServiceResult.ok(data=quote_data, source="api", duration_ms=duration_ms)
 
         except Exception as e:
             self._logger.error(f"Failed to get quote for {symbol}: {e}")
             return ServiceResult.fail(f"Quote fetch failed: {e}")
 
     async def get_batch_quotes(
-        self,
-        symbols: list[str],
-        use_cache: bool = True,
-        max_concurrent: int = 10
+        self, symbols: list[str], use_cache: bool = True, max_concurrent: int = 10
     ) -> ServiceResult[dict[str, dict[str, Any]]]:
         """
         Holt Quotes für mehrere Symbole.
@@ -196,13 +181,10 @@ class QuoteService(BaseService):
 
                 # Batch in Chunks aufteilen
                 for i in range(0, len(to_fetch), max_concurrent):
-                    chunk = to_fetch[i:i + max_concurrent]
+                    chunk = to_fetch[i : i + max_concurrent]
 
                     # Parallele Requests
-                    tasks = [
-                        self._fetch_single_quote(provider, symbol)
-                        for symbol in chunk
-                    ]
+                    tasks = [self._fetch_single_quote(provider, symbol) for symbol in chunk]
                     chunk_results = await asyncio.gather(*tasks, return_exceptions=True)
 
                     # Ergebnisse verarbeiten
@@ -229,9 +211,7 @@ class QuoteService(BaseService):
 
         duration_ms = (datetime.now() - start_time).total_seconds() * 1000
         return ServiceResult.ok(
-            data=results,
-            source="api" if to_fetch else "cache",
-            duration_ms=duration_ms
+            data=results, source="api" if to_fetch else "cache", duration_ms=duration_ms
         )
 
     async def get_quote_formatted(self, symbol: str) -> str:
@@ -272,7 +252,7 @@ class QuoteService(BaseService):
         """Gibt Cache-Statistiken zurück inkl. LRU-Metriken."""
         total = self._cache_hits + self._cache_misses
         hit_rate = (self._cache_hits / total * 100) if total > 0 else 0
-        usage_pct = (len(self._quote_cache) / self._max_cache_size * 100)
+        usage_pct = len(self._quote_cache) / self._max_cache_size * 100
 
         return {
             "entries": len(self._quote_cache),
@@ -337,11 +317,7 @@ class QuoteService(BaseService):
         # Add new entry at end
         self._quote_cache[symbol] = (quote_data, datetime.now())
 
-    async def _fetch_single_quote(
-        self,
-        provider: Any,
-        symbol: str
-    ) -> Optional[dict[str, Any]]:
+    async def _fetch_single_quote(self, provider: Any, symbol: str) -> Optional[dict[str, Any]]:
         """Holt einzelnes Quote mit Rate Limiting."""
         try:
             async with self._rate_limited():
@@ -356,43 +332,43 @@ class QuoteService(BaseService):
     def _quote_to_dict(self, quote: Any, symbol: str) -> dict[str, Any]:
         """Konvertiert Quote-Objekt zu Dictionary."""
         # Handle verschiedene Quote-Formate
-        if hasattr(quote, 'to_dict'):
+        if hasattr(quote, "to_dict"):
             result: dict[str, Any] = quote.to_dict()
             return result
 
-        if hasattr(quote, '__dict__'):
+        if hasattr(quote, "__dict__"):
             data: dict[str, Any] = quote.__dict__.copy()
-            data['symbol'] = symbol
+            data["symbol"] = symbol
             return data
 
         # Fallback für dict-like objects
         if isinstance(quote, dict):
             result = dict(quote)
-            result['symbol'] = symbol
+            result["symbol"] = symbol
             return result
 
         # Minimal quote
         return {
-            'symbol': symbol,
-            'last': getattr(quote, 'last', None) or getattr(quote, 'price', None),
-            'bid': getattr(quote, 'bid', None),
-            'ask': getattr(quote, 'ask', None),
-            'volume': getattr(quote, 'volume', None),
-            'change': getattr(quote, 'change', None),
-            'change_pct': getattr(quote, 'change_pct', None) or getattr(quote, 'changepct', None),
+            "symbol": symbol,
+            "last": getattr(quote, "last", None) or getattr(quote, "price", None),
+            "bid": getattr(quote, "bid", None),
+            "ask": getattr(quote, "ask", None),
+            "volume": getattr(quote, "volume", None),
+            "change": getattr(quote, "change", None),
+            "change_pct": getattr(quote, "change_pct", None) or getattr(quote, "changepct", None),
         }
 
     def _format_quote(self, quote_data: dict[str, Any]) -> str:
         """Formatiert einzelnes Quote als Markdown."""
         b = MarkdownBuilder()
 
-        symbol = quote_data.get('symbol', 'Unknown')
-        last = quote_data.get('last')
-        bid = quote_data.get('bid')
-        ask = quote_data.get('ask')
-        volume = quote_data.get('volume')
-        change = quote_data.get('change')
-        change_pct = quote_data.get('change_pct')
+        symbol = quote_data.get("symbol", "Unknown")
+        last = quote_data.get("last")
+        bid = quote_data.get("bid")
+        ask = quote_data.get("ask")
+        volume = quote_data.get("volume")
+        change = quote_data.get("change")
+        change_pct = quote_data.get("change_pct")
 
         b.h1(f"📈 {symbol} Quote").blank()
 
@@ -427,21 +403,23 @@ class QuoteService(BaseService):
         # Tabelle erstellen
         rows = []
         for symbol, quote_data in sorted(quotes.items()):
-            last = quote_data.get('last')
-            change_pct = quote_data.get('change_pct')
-            volume = quote_data.get('volume')
+            last = quote_data.get("last")
+            change_pct = quote_data.get("change_pct")
+            volume = quote_data.get("volume")
 
             change_str = "-"
             if change_pct is not None:
                 sign = "+" if change_pct >= 0 else ""
                 change_str = f"{sign}{change_pct:.2f}%"
 
-            rows.append([
-                symbol,
-                format_price(last) if last else "-",
-                change_str,
-                format_volume(volume) if volume else "-"
-            ])
+            rows.append(
+                [
+                    symbol,
+                    format_price(last) if last else "-",
+                    change_str,
+                    format_volume(volume) if volume else "-",
+                ]
+            )
 
         b.table(["Symbol", "Last", "Change", "Volume"], rows)
 

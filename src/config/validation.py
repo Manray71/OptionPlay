@@ -4,7 +4,7 @@
 #
 # Extrahiert aus config_loader.py im Rahmen des Recursive Logic Refactorings (Phase 2.2)
 
-from typing import List, TYPE_CHECKING
+from typing import TYPE_CHECKING, List
 
 if TYPE_CHECKING:
     from .models import Settings
@@ -18,7 +18,7 @@ class ConfigValidationError(Exception):
         super().__init__(f"Configuration validation failed: {'; '.join(errors)}")
 
 
-def validate_settings(settings: 'Settings') -> None:
+def validate_settings(settings: "Settings") -> None:
     """
     Validates configuration values for consistency and valid ranges.
 
@@ -34,9 +34,7 @@ def validate_settings(settings: 'Settings') -> None:
             f"RSI extreme_oversold ({rsi.extreme_oversold}) must be < oversold ({rsi.oversold})"
         )
     if rsi.oversold >= rsi.neutral:
-        errors.append(
-            f"RSI oversold ({rsi.oversold}) must be < neutral ({rsi.neutral})"
-        )
+        errors.append(f"RSI oversold ({rsi.oversold}) must be < neutral ({rsi.neutral})")
     if not (0 <= rsi.extreme_oversold <= 100):
         errors.append(f"RSI extreme_oversold ({rsi.extreme_oversold}) must be 0-100")
     if not (0 <= rsi.oversold <= 100):
@@ -84,9 +82,13 @@ def validate_settings(settings: 'Settings') -> None:
 
     # Long put delta validation
     if not (-1.0 <= opts.long_delta_minimum <= 0):
-        errors.append(f"Long put delta_minimum ({opts.long_delta_minimum}) must be between -1.0 and 0")
+        errors.append(
+            f"Long put delta_minimum ({opts.long_delta_minimum}) must be between -1.0 and 0"
+        )
     if not (-1.0 <= opts.long_delta_maximum <= 0):
-        errors.append(f"Long put delta_maximum ({opts.long_delta_maximum}) must be between -1.0 and 0")
+        errors.append(
+            f"Long put delta_maximum ({opts.long_delta_maximum}) must be between -1.0 and 0"
+        )
 
     # Filter validation
     filters = settings.filters
@@ -122,11 +124,17 @@ def validate_settings(settings: 'Settings') -> None:
     fund = filters.fundamentals
     if fund.enabled:
         if not (0 <= fund.min_stability_score <= 100):
-            errors.append(f"Fundamentals min_stability_score ({fund.min_stability_score}) must be 0-100")
+            errors.append(
+                f"Fundamentals min_stability_score ({fund.min_stability_score}) must be 0-100"
+            )
         if not (0 <= fund.min_historical_win_rate <= 100):
-            errors.append(f"Fundamentals min_historical_win_rate ({fund.min_historical_win_rate}) must be 0-100")
+            errors.append(
+                f"Fundamentals min_historical_win_rate ({fund.min_historical_win_rate}) must be 0-100"
+            )
         if fund.max_historical_volatility <= 0:
-            errors.append(f"Fundamentals max_historical_volatility ({fund.max_historical_volatility}) must be > 0")
+            errors.append(
+                f"Fundamentals max_historical_volatility ({fund.max_historical_volatility}) must be > 0"
+            )
         if fund.max_beta <= 0:
             errors.append(f"Fundamentals max_beta ({fund.max_beta}) must be > 0")
 

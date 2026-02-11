@@ -32,19 +32,23 @@ import os
 import uuid
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
-from dateutil.relativedelta import relativedelta
 from pathlib import Path
-from typing import List, Dict, Optional, Tuple, Any
+from typing import Any, Dict, List, Optional, Tuple
+
+from dateutil.relativedelta import relativedelta
 
 from ...constants.trading_rules import (
-    VIX_LOW_VOL_MAX, VIX_NORMAL_MAX, VIX_ELEVATED_MAX,
-    EXIT_PROFIT_PCT_NORMAL, EXIT_STOP_LOSS_MULTIPLIER,
+    EXIT_PROFIT_PCT_NORMAL,
+    EXIT_STOP_LOSS_MULTIPLIER,
+    VIX_ELEVATED_MAX,
+    VIX_LOW_VOL_MAX,
+    VIX_NORMAL_MAX,
 )
-from ..core import BacktestEngine, BacktestConfig, BacktestResult, TradeResult
+from ..core import BacktestConfig, BacktestEngine, BacktestResult, TradeResult
 from ..validation import (
-    SignalValidator,
-    SignalValidationResult,
     SignalReliability,
+    SignalValidationResult,
+    SignalValidator,
     StatisticalCalculator,
 )
 from .wf_epoch_runner import WFEpochRunnerMixin
@@ -56,6 +60,7 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 # Configuration
 # =============================================================================
+
 
 @dataclass
 class TrainingConfig:
@@ -106,6 +111,7 @@ class TrainingConfig:
 # =============================================================================
 # Result Data Classes
 # =============================================================================
+
 
 @dataclass
 class EpochResult:
@@ -239,9 +245,7 @@ class TrainingResult:
             "recommendations": {
                 "min_score": self.recommended_min_score,
                 "top_predictors": self.top_predictors,
-                "component_weights": {
-                    k: round(v, 3) for k, v in self.component_weights.items()
-                },
+                "component_weights": {k: round(v, 3) for k, v in self.component_weights.items()},
                 "regime_adjustments": {
                     regime: {k: round(v, 1) for k, v in adjustments.items()}
                     for regime, adjustments in self.regime_adjustments.items()
@@ -295,12 +299,14 @@ class TrainingResult:
                 lines.append(f"    {regime:12s}: {adj:+.1f}% Win Rate")
 
         if self.warnings:
-            lines.extend([
-                "",
-                "-" * 70,
-                "  WARNINGS",
-                "-" * 70,
-            ])
+            lines.extend(
+                [
+                    "",
+                    "-" * 70,
+                    "  WARNINGS",
+                    "-" * 70,
+                ]
+            )
             for warning in self.warnings:
                 lines.append(f"  ! {warning}")
 
@@ -311,6 +317,7 @@ class TrainingResult:
 # =============================================================================
 # Walk-Forward Trainer
 # =============================================================================
+
 
 class WalkForwardTrainer(WFResultAggregatorMixin, WFEpochRunnerMixin):
     """
@@ -333,8 +340,8 @@ class WalkForwardTrainer(WFResultAggregatorMixin, WFEpochRunnerMixin):
 
     # Overfitting-Schwellenwerte
     OVERFIT_THRESHOLDS = {
-        "none": 5.0,       # < 5% Degradation
-        "mild": 10.0,      # 5-10% Degradation
+        "none": 5.0,  # < 5% Degradation
+        "mild": 10.0,  # 5-10% Degradation
         "moderate": 15.0,  # 10-15% Degradation
         "severe": float("inf"),  # > 15% Degradation
     }
@@ -363,9 +370,7 @@ class WalkForwardTrainer(WFResultAggregatorMixin, WFEpochRunnerMixin):
         if data_start is None or data_end is None:
             raise ValueError("Keine gültigen Daten gefunden.")
 
-        logger.info(
-            f"Training mit {len(test_symbols)} Symbolen von {data_start} bis {data_end}"
-        )
+        logger.info(f"Training mit {len(test_symbols)} Symbolen von {data_start} bis {data_end}")
 
         epochs_config = self._generate_epochs(data_start, data_end)
 
@@ -397,9 +402,7 @@ class WalkForwardTrainer(WFResultAggregatorMixin, WFEpochRunnerMixin):
             epoch_results.append(epoch_result)
 
             if not epoch_result.is_valid:
-                logger.warning(
-                    f"Epoche {i + 1} übersprungen: {epoch_result.skip_reason}"
-                )
+                logger.warning(f"Epoche {i + 1} übersprungen: {epoch_result.skip_reason}")
 
         result = self._aggregate_results(
             training_id=training_id,
@@ -412,7 +415,9 @@ class WalkForwardTrainer(WFResultAggregatorMixin, WFEpochRunnerMixin):
         return result
 
     def _generate_epochs(
-        self, data_start: date, data_end: date,
+        self,
+        data_start: date,
+        data_end: date,
     ) -> List[Tuple[date, date, date, date]]:
         epochs = []
         train_start = data_start
@@ -437,7 +442,9 @@ class WalkForwardTrainer(WFResultAggregatorMixin, WFEpochRunnerMixin):
         return epochs
 
     def _get_data_range(
-        self, historical_data: Dict[str, List[Dict]], symbols: List[str],
+        self,
+        historical_data: Dict[str, List[Dict]],
+        symbols: List[str],
     ) -> Tuple[Optional[date], Optional[date]]:
         all_dates = []
         for symbol in symbols:
@@ -529,7 +536,9 @@ class WalkForwardTrainer(WFResultAggregatorMixin, WFEpochRunnerMixin):
     # Produktions-Methoden
     # =========================================================================
 
-    def get_signal_reliability(self, score: float, vix: Optional[float] = None) -> SignalReliability:
+    def get_signal_reliability(
+        self, score: float, vix: Optional[float] = None
+    ) -> SignalReliability:
         if self._last_result is None:
             raise ValueError(
                 "Keine Training-Ergebnisse verfügbar. "
@@ -544,9 +553,7 @@ class WalkForwardTrainer(WFResultAggregatorMixin, WFEpochRunnerMixin):
             regime = self._get_regime_for_vix(vix)
             regime_context = f"VIX={vix:.1f} ({regime})"
             if regime in result.regime_adjustments:
-                regime_adjustment = result.regime_adjustments[regime].get(
-                    "win_rate_adjustment", 0
-                )
+                regime_adjustment = result.regime_adjustments[regime].get("win_rate_adjustment", 0)
 
         base_win_rate = result.avg_out_sample_win_rate
         adjusted_win_rate = base_win_rate + regime_adjustment
@@ -593,7 +600,9 @@ class WalkForwardTrainer(WFResultAggregatorMixin, WFEpochRunnerMixin):
             warnings=warnings,
         )
 
-    def should_trade(self, score: float, vix: Optional[float] = None, min_grade: str = "C") -> Tuple[bool, str]:
+    def should_trade(
+        self, score: float, vix: Optional[float] = None, min_grade: str = "C"
+    ) -> Tuple[bool, str]:
         if self._last_result is None:
             return False, "Keine Training-Ergebnisse verfügbar."
 
@@ -644,6 +653,7 @@ class WalkForwardTrainer(WFResultAggregatorMixin, WFEpochRunnerMixin):
 # =============================================================================
 # Utility Functions
 # =============================================================================
+
 
 def format_training_summary(result: TrainingResult) -> str:
     """Formatiert TrainingResult als lesbaren Summary"""

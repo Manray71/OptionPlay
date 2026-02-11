@@ -33,39 +33,39 @@ if TYPE_CHECKING:
     from ..cache.earnings_history import EarningsHistoryManager
 
 from ..constants.trading_rules import (
-    TradeDecision,
-    VIXRegime,
-    ENTRY_STABILITY_MIN,
+    BLACKLIST_SYMBOLS,
     ENTRY_EARNINGS_MIN_DAYS,
+    ENTRY_IV_RANK_MAX,
+    ENTRY_IV_RANK_MIN,
+    ENTRY_PRICE_MAX,
+    ENTRY_PRICE_MIN,
+    ENTRY_STABILITY_MIN,
     ENTRY_VIX_MAX_NEW_TRADES,
     ENTRY_VIX_NO_TRADING,
-    ENTRY_PRICE_MIN,
-    ENTRY_PRICE_MAX,
     ENTRY_VOLUME_MIN,
-    ENTRY_IV_RANK_MIN,
-    ENTRY_IV_RANK_MAX,
-    BLACKLIST_SYMBOLS,
-    is_blacklisted,
-    get_adjusted_stability_min,
-    SPREAD_DTE_MIN,
-    SPREAD_DTE_MAX,
-    SPREAD_SHORT_DELTA_TARGET,
-    SPREAD_SHORT_DELTA_MIN,
-    SPREAD_SHORT_DELTA_MAX,
-    SPREAD_LONG_DELTA_TARGET,
-    SPREAD_LONG_DELTA_MIN,
-    SPREAD_LONG_DELTA_MAX,
-    SPREAD_MIN_CREDIT_PCT,
-    SPREAD_MIN_CREDIT_ABSOLUTE,
-    SPREAD_FEE_WARNING_THRESHOLD,
-    SPREAD_IBKR_ROUND_TRIP_FEE,
+    FILTER_ORDER,
+    SIZING_MAX_NEW_TRADES_PER_DAY,
     SIZING_MAX_OPEN_POSITIONS,
     SIZING_MAX_PER_SECTOR,
     SIZING_MAX_RISK_PER_TRADE_PCT,
-    SIZING_MAX_NEW_TRADES_PER_DAY,
-    get_vix_regime,
+    SPREAD_DTE_MAX,
+    SPREAD_DTE_MIN,
+    SPREAD_FEE_WARNING_THRESHOLD,
+    SPREAD_IBKR_ROUND_TRIP_FEE,
+    SPREAD_LONG_DELTA_MAX,
+    SPREAD_LONG_DELTA_MIN,
+    SPREAD_LONG_DELTA_TARGET,
+    SPREAD_MIN_CREDIT_ABSOLUTE,
+    SPREAD_MIN_CREDIT_PCT,
+    SPREAD_SHORT_DELTA_MAX,
+    SPREAD_SHORT_DELTA_MIN,
+    SPREAD_SHORT_DELTA_TARGET,
+    TradeDecision,
+    VIXRegime,
+    get_adjusted_stability_min,
     get_regime_rules,
-    FILTER_ORDER,
+    get_vix_regime,
+    is_blacklisted,
 )
 
 logger = logging.getLogger(__name__)
@@ -75,8 +75,10 @@ logger = logging.getLogger(__name__)
 # TYPED DICTS
 # =============================================================================
 
+
 class SizingRecommendation(TypedDict):
     """Position sizing recommendation returned by _calculate_sizing."""
+
     spread_width: float
     credit_per_contract: float
     max_loss_per_contract: float
@@ -89,6 +91,7 @@ class SizingRecommendation(TypedDict):
 
 class OpenPositionInfo(TypedDict, total=False):
     """Minimal position info needed for portfolio constraint checks."""
+
     symbol: str
     sector: str
 
@@ -97,13 +100,15 @@ class OpenPositionInfo(TypedDict, total=False):
 # DATA CLASSES
 # =============================================================================
 
+
 @dataclass
 class TradeValidationRequest:
     """Input for trade validation."""
+
     symbol: str
     short_strike: Optional[float] = None
     long_strike: Optional[float] = None
-    expiration: Optional[str] = None    # YYYY-MM-DD
+    expiration: Optional[str] = None  # YYYY-MM-DD
     credit: Optional[float] = None
     contracts: Optional[int] = None
     portfolio_value: Optional[float] = None
@@ -112,9 +117,10 @@ class TradeValidationRequest:
 @dataclass
 class ValidationCheck:
     """Result of a single validation check."""
+
     name: str
     passed: bool
-    decision: TradeDecision       # GO, NO_GO, or WARNING
+    decision: TradeDecision  # GO, NO_GO, or WARNING
     message: str
     details: dict[str, Any] = field(default_factory=dict)
 
@@ -122,6 +128,7 @@ class ValidationCheck:
 @dataclass
 class TradeValidationResult:
     """Complete validation result."""
+
     symbol: str
     decision: TradeDecision
     checks: list[ValidationCheck]
@@ -164,6 +171,7 @@ class TradeValidationResult:
 # TRADE VALIDATOR
 # =============================================================================
 
+
 class TradeValidator:
     """
     Validates trades against PLAYBOOK rules.
@@ -186,6 +194,7 @@ class TradeValidator:
         if self._fundamentals_manager is None:
             try:
                 from ..cache import get_fundamentals_manager
+
                 self._fundamentals_manager = get_fundamentals_manager()
             except ImportError:
                 logger.warning("Fundamentals manager not available")
@@ -197,6 +206,7 @@ class TradeValidator:
         if self._earnings_manager is None:
             try:
                 from ..cache import get_earnings_history_manager
+
                 self._earnings_manager = get_earnings_history_manager()
             except ImportError:
                 logger.warning("Earnings history manager not available")
@@ -253,16 +263,17 @@ class TradeValidator:
 
         # Portfolio checks (if positions provided)
         if open_positions is not None:
-            checks.extend(self._check_portfolio(
-                symbol, fundamentals, open_positions, current_vix
-            ))
+            checks.extend(self._check_portfolio(symbol, fundamentals, open_positions, current_vix))
 
         # Position sizing recommendation
         sizing = None
-        if request.portfolio_value and request.short_strike and request.long_strike and request.credit:
-            sizing = self._calculate_sizing(
-                request, fundamentals, current_vix
-            )
+        if (
+            request.portfolio_value
+            and request.short_strike
+            and request.long_strike
+            and request.credit
+        ):
+            sizing = self._calculate_sizing(request, fundamentals, current_vix)
 
         # Determine overall decision
         has_blocker = any(c.decision == TradeDecision.NO_GO for c in checks)
@@ -465,27 +476,26 @@ class TradeValidator:
 
             url = f"https://query1.finance.yahoo.com/v10/finance/quoteSummary/{symbol}?modules=calendarEvents"
             req = urllib.request.Request(url)
-            req.add_header('User-Agent', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)')
+            req.add_header("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)")
 
             def _fetch() -> Any:
                 with urllib.request.urlopen(req, timeout=10) as response:
                     return json.loads(response.read().decode())
 
             data = await asyncio.to_thread(_fetch)
-            calendar = data.get('quoteSummary', {}).get('result', [{}])[0].get('calendarEvents', {})
-            earnings_dates = calendar.get('earnings', {}).get('earningsDate', [])
+            calendar = data.get("quoteSummary", {}).get("result", [{}])[0].get("calendarEvents", {})
+            earnings_dates = calendar.get("earnings", {}).get("earningsDate", [])
 
             if earnings_dates:
                 from datetime import datetime as dt
-                timestamp = earnings_dates[0].get('raw')
+
+                timestamp = earnings_dates[0].get("raw")
                 if timestamp:
                     earnings_date = dt.fromtimestamp(timestamp).date()
                     days_to = (earnings_date - date.today()).days
                     is_safe = days_to >= ENTRY_EARNINGS_MIN_DAYS
 
-                    self._save_earnings_to_db(
-                        symbol, earnings_date.isoformat(), days_to
-                    )
+                    self._save_earnings_to_db(symbol, earnings_date.isoformat(), days_to)
 
                     return (is_safe, days_to, "api_yahoo_direct")
         except Exception as e:
@@ -493,18 +503,21 @@ class TradeValidator:
 
         return (None, None, "none")
 
-    def _save_earnings_to_db(
-        self, symbol: str, earnings_date: str, days_to: Optional[int]
-    ) -> None:
+    def _save_earnings_to_db(self, symbol: str, earnings_date: str, days_to: Optional[int]) -> None:
         """Write-through cache: save API earnings result to DB."""
         if self.earnings is None or days_to is None or days_to < 0:
             return
 
         try:
-            self.earnings.save_earnings(symbol, [{
-                "earnings_date": earnings_date,
-                "source": "api_fallback",
-            }])
+            self.earnings.save_earnings(
+                symbol,
+                [
+                    {
+                        "earnings_date": earnings_date,
+                        "source": "api_fallback",
+                    }
+                ],
+            )
             logger.debug(f"Saved API earnings for {symbol}: {earnings_date}")
         except Exception as e:
             logger.debug(f"Failed to save earnings for {symbol}: {e}")
@@ -554,7 +567,9 @@ class TradeValidator:
             details={"vix": current_vix, "regime": regime.value},
         )
 
-    def _check_price(self, symbol: str, fundamentals: Optional[SymbolFundamentals]) -> ValidationCheck:
+    def _check_price(
+        self, symbol: str, fundamentals: Optional[SymbolFundamentals]
+    ) -> ValidationCheck:
         """Check 5: Price range (PLAYBOOK §1)."""
         if fundamentals is None or fundamentals.current_price is None:
             return ValidationCheck(
@@ -583,7 +598,9 @@ class TradeValidator:
             details={"price": price},
         )
 
-    async def _check_volume(self, symbol: str, fundamentals: Optional[SymbolFundamentals]) -> ValidationCheck:
+    async def _check_volume(
+        self, symbol: str, fundamentals: Optional[SymbolFundamentals]
+    ) -> ValidationCheck:
         """Check 6: Volume (PLAYBOOK §1).
 
         Requires quote_provider for live volume data.
@@ -639,7 +656,9 @@ class TradeValidator:
                 details={"error": str(e)},
             )
 
-    def _check_iv_rank(self, symbol: str, fundamentals: Optional[SymbolFundamentals]) -> ValidationCheck:
+    def _check_iv_rank(
+        self, symbol: str, fundamentals: Optional[SymbolFundamentals]
+    ) -> ValidationCheck:
         """Check 7: IV Rank (PLAYBOOK §1 — soft filter)."""
         if fundamentals is None or fundamentals.iv_rank_252d is None:
             return ValidationCheck(
@@ -814,21 +833,25 @@ class TradeValidator:
             max_positions = regime_rules.max_positions
 
         if num_positions >= max_positions:
-            checks.append(ValidationCheck(
-                name="max_positions",
-                passed=False,
-                decision=TradeDecision.NO_GO,
-                message=f"Positions-Limit erreicht: {num_positions}/{max_positions}",
-                details={"current": num_positions, "max": max_positions},
-            ))
+            checks.append(
+                ValidationCheck(
+                    name="max_positions",
+                    passed=False,
+                    decision=TradeDecision.NO_GO,
+                    message=f"Positions-Limit erreicht: {num_positions}/{max_positions}",
+                    details={"current": num_positions, "max": max_positions},
+                )
+            )
         else:
-            checks.append(ValidationCheck(
-                name="max_positions",
-                passed=True,
-                decision=TradeDecision.GO,
-                message=f"Positionen: {num_positions}/{max_positions}",
-                details={"current": num_positions, "max": max_positions},
-            ))
+            checks.append(
+                ValidationCheck(
+                    name="max_positions",
+                    passed=True,
+                    decision=TradeDecision.GO,
+                    message=f"Positionen: {num_positions}/{max_positions}",
+                    details={"current": num_positions, "max": max_positions},
+                )
+            )
 
         # Sector limit
         if fundamentals and fundamentals.sector:
@@ -838,27 +861,28 @@ class TradeValidator:
                 regime_rules = get_regime_rules(current_vix)
                 max_sector = regime_rules.max_per_sector
 
-            sector_count = sum(
-                1 for p in open_positions
-                if p.get('sector', '') == sector
-            )
+            sector_count = sum(1 for p in open_positions if p.get("sector", "") == sector)
 
             if sector_count >= max_sector:
-                checks.append(ValidationCheck(
-                    name="sector_limit",
-                    passed=False,
-                    decision=TradeDecision.NO_GO,
-                    message=f"Sektor-Limit {sector}: {sector_count}/{max_sector}",
-                    details={"sector": sector, "count": sector_count, "max": max_sector},
-                ))
+                checks.append(
+                    ValidationCheck(
+                        name="sector_limit",
+                        passed=False,
+                        decision=TradeDecision.NO_GO,
+                        message=f"Sektor-Limit {sector}: {sector_count}/{max_sector}",
+                        details={"sector": sector, "count": sector_count, "max": max_sector},
+                    )
+                )
             elif sector_count > 0:
-                checks.append(ValidationCheck(
-                    name="sector_limit",
-                    passed=True,
-                    decision=TradeDecision.WARNING,
-                    message=f"Bereits {sector_count} Position(en) in {sector}",
-                    details={"sector": sector, "count": sector_count, "max": max_sector},
-                ))
+                checks.append(
+                    ValidationCheck(
+                        name="sector_limit",
+                        passed=True,
+                        decision=TradeDecision.WARNING,
+                        message=f"Bereits {sector_count} Position(en) in {sector}",
+                        details={"sector": sector, "count": sector_count, "max": max_sector},
+                    )
+                )
 
         return checks
 
@@ -879,10 +903,16 @@ class TradeValidator:
             risk_pct = regime_rules.risk_per_trade_pct
 
         max_risk_usd = request.portfolio_value * (risk_pct / 100.0)
-        recommended_contracts = int(max_risk_usd / max_loss_per_contract) if max_loss_per_contract > 0 else 0
+        recommended_contracts = (
+            int(max_risk_usd / max_loss_per_contract) if max_loss_per_contract > 0 else 0
+        )
 
         # Ensure at least 1 contract if valid
-        if recommended_contracts == 0 and max_loss_per_contract > 0 and max_loss_per_contract <= max_risk_usd:
+        if (
+            recommended_contracts == 0
+            and max_loss_per_contract > 0
+            and max_loss_per_contract <= max_risk_usd
+        ):
             recommended_contracts = 1
 
         return SizingRecommendation(
@@ -903,16 +933,14 @@ class TradeValidator:
     @staticmethod
     def _read_vix_from_db() -> Optional[float]:
         """Sync DB read for VIX value. Runs in thread pool."""
-        import sqlite3
         import os
+        import sqlite3
 
         db_path = os.path.expanduser("~/.optionplay/trades.db")
         if not os.path.exists(db_path):
             return None
         conn = sqlite3.connect(db_path)
-        cursor = conn.execute(
-            "SELECT value FROM vix_data ORDER BY date DESC LIMIT 1"
-        )
+        cursor = conn.execute("SELECT value FROM vix_data ORDER BY date DESC LIMIT 1")
         row = cursor.fetchone()
         conn.close()
         if row:
@@ -923,6 +951,7 @@ class TradeValidator:
         """Get current VIX from cache or DB."""
         try:
             from ..cache.vix_cache import get_vix_manager
+
             manager = get_vix_manager()
             return await asyncio.to_thread(manager.get_latest_vix)
         except ImportError:

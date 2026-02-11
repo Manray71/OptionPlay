@@ -17,9 +17,7 @@ class StatisticalCalculator:
 
     @staticmethod
     def wilson_confidence_interval(
-        wins: int,
-        total: int,
-        confidence: float = 0.95
+        wins: int, total: int, confidence: float = 0.95
     ) -> Tuple[float, float]:
         """
         Berechnet Wilson Score Confidence Interval für Win Rate.
@@ -39,9 +37,7 @@ class StatisticalCalculator:
         center = (p + z * z / (2 * total)) / denominator
 
         # Margin of error
-        margin = (z / denominator) * math.sqrt(
-            p * (1 - p) / total + z * z / (4 * total * total)
-        )
+        margin = (z / denominator) * math.sqrt(p * (1 - p) / total + z * z / (4 * total * total))
 
         lower = max(0, center - margin) * 100
         upper = min(1, center + margin) * 100
@@ -49,10 +45,7 @@ class StatisticalCalculator:
         return (lower, upper)
 
     @staticmethod
-    def pearson_correlation(
-        x: List[float],
-        y: List[float]
-    ) -> Tuple[float, float]:
+    def pearson_correlation(x: List[float], y: List[float]) -> Tuple[float, float]:
         """
         Berechnet Pearson Korrelation und p-Wert.
 
@@ -104,9 +97,7 @@ class StatisticalCalculator:
 
     @staticmethod
     def calculate_sharpe(
-        returns: List[float],
-        risk_free_rate: float = 0.05,
-        periods_per_year: float = 12.0
+        returns: List[float], risk_free_rate: float = 0.05, periods_per_year: float = 12.0
     ) -> float:
         """
         Berechnet Sharpe Ratio.
@@ -144,10 +135,7 @@ class StatisticalCalculator:
 
     @staticmethod
     def assess_predictive_power(
-        correlation: float,
-        p_value: float,
-        sample_size: int,
-        min_samples: int = 30
+        correlation: float, p_value: float, sample_size: int, min_samples: int = 30
     ) -> str:
         """
         Bewertet die Vorhersagekraft einer Korrelation.

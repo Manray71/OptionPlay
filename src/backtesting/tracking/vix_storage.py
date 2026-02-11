@@ -5,7 +5,7 @@
 # Contains: store, get, count VIX data
 
 import logging
-from datetime import datetime, date
+from datetime import date, datetime
 from typing import List, Optional, Tuple
 
 from .models import VixDataPoint
@@ -47,10 +47,13 @@ class VixStorage:
             cursor = conn.cursor()
 
             for point in vix_points:
-                cursor.execute("""
+                cursor.execute(
+                    """
                     INSERT OR REPLACE INTO vix_data (date, value, created_at)
                     VALUES (?, ?, ?)
-                """, (point.date.isoformat(), point.value, now))
+                """,
+                    (point.date.isoformat(), point.value, now),
+                )
                 count += 1
 
             logger.info(f"Stored {count} VIX data points")
@@ -85,16 +88,19 @@ class VixStorage:
 
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute(f"""
+            cursor.execute(
+                f"""
                 SELECT date, value FROM vix_data
                 WHERE {where_clause}
                 ORDER BY date
-            """, params)
+            """,
+                params,
+            )
 
             return [
                 VixDataPoint(
-                    date=date.fromisoformat(row['date']),
-                    value=row['value'],
+                    date=date.fromisoformat(row["date"]),
+                    value=row["value"],
                 )
                 for row in cursor.fetchall()
             ]
@@ -116,24 +122,30 @@ class VixStorage:
             cursor = conn.cursor()
 
             # Exaktes Datum
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT value FROM vix_data WHERE date = ?
-            """, (target_date.isoformat(),))
+            """,
+                (target_date.isoformat(),),
+            )
             row = cursor.fetchone()
 
             if row:
-                return row['value']
+                return row["value"]
 
             # Nächster verfügbarer Wert davor
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT value FROM vix_data
                 WHERE date < ?
                 ORDER BY date DESC
                 LIMIT 1
-            """, (target_date.isoformat(),))
+            """,
+                (target_date.isoformat(),),
+            )
             row = cursor.fetchone()
 
-            return row['value'] if row else None
+            return row["value"] if row else None
 
     def get_vix_range(self) -> Optional[Tuple[date, date]]:
         """
@@ -150,12 +162,12 @@ class VixStorage:
             """)
             row = cursor.fetchone()
 
-            if row['min_date'] is None:
+            if row["min_date"] is None:
                 return None
 
             return (
-                date.fromisoformat(row['min_date']),
-                date.fromisoformat(row['max_date']),
+                date.fromisoformat(row["min_date"]),
+                date.fromisoformat(row["max_date"]),
             )
 
     def count_vix_data(self) -> int:

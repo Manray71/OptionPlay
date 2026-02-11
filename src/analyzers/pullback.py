@@ -4,52 +4,81 @@
 #
 # Scoring methods are in pullback_scoring.py (PullbackScoringMixin).
 
-import numpy as np
-from typing import List, Dict, Optional, Tuple
-from datetime import datetime
 import logging
+from datetime import datetime
+from typing import Dict, List, Optional, Tuple
 
-from .base import BaseAnalyzer
-from .context import AnalysisContext
-from .pullback_scoring import PullbackScoringMixin
-from .score_normalization import normalize_score, get_signal_strength, STRATEGY_SCORE_CONFIGS
+import numpy as np
 
-from ..models.base import TradeSignal, SignalType, SignalStrength
-from ..models.indicators import MACDResult, StochasticResult, TechnicalIndicators, KeltnerChannelResult, RSIDivergenceResult
-from ..models.candidates import PullbackCandidate, ScoreBreakdown
 from ..config import PullbackScoringConfig
-
-# Import shared indicators
-from ..indicators.momentum import calculate_rsi_divergence, calculate_macd, calculate_stochastic
-from ..indicators.trend import calculate_ema
 
 # Import central constants (with alias to avoid naming conflicts)
 from ..constants import (
-    MACD_FAST as _MACD_FAST,
-    MACD_SLOW as _MACD_SLOW,
-    MACD_SIGNAL as _MACD_SIGNAL,
-    STOCH_K_PERIOD as _STOCH_K,
-    STOCH_D_PERIOD as _STOCH_D,
-    STOCH_SMOOTH as _STOCH_SMOOTH,
-    STOCH_OVERSOLD as _STOCH_OVERSOLD,
-    STOCH_OVERBOUGHT as _STOCH_OVERBOUGHT,
-    RSI_PERIOD, RSI_OVERSOLD, RSI_OVERBOUGHT,
-    SMA_SHORT, SMA_MEDIUM, SMA_LONG,
-    FIB_LEVELS, FIB_LOOKBACK_DAYS,
-    SUPPORT_LOOKBACK_DAYS, SUPPORT_WINDOW, SUPPORT_MAX_LEVELS, SUPPORT_TOLERANCE_PCT,
-    VOLUME_AVG_PERIOD, VOLUME_SPIKE_MULTIPLIER,
-    KELTNER_ATR_MULTIPLIER, KELTNER_LOWER_THRESHOLD, KELTNER_NEUTRAL_LOW,
-    DIVERGENCE_SWING_WINDOW, DIVERGENCE_MIN_BARS, DIVERGENCE_MAX_BARS,
-    VWAP_PERIOD, VWAP_STRONG_ABOVE, VWAP_ABOVE, VWAP_BELOW, VWAP_STRONG_BELOW,
-    GAP_LOOKBACK_DAYS, GAP_SIZE_LARGE, GAP_SIZE_MEDIUM, GAP_SIZE_SMALL_NEG, GAP_SIZE_LARGE_NEG,
+    DIVERGENCE_MAX_BARS,
+    DIVERGENCE_MIN_BARS,
+    DIVERGENCE_SWING_WINDOW,
+    FIB_LEVELS,
+    FIB_LOOKBACK_DAYS,
+    GAP_LOOKBACK_DAYS,
+    GAP_SIZE_LARGE,
+    GAP_SIZE_LARGE_NEG,
+    GAP_SIZE_MEDIUM,
+    GAP_SIZE_SMALL_NEG,
+    KELTNER_ATR_MULTIPLIER,
+    KELTNER_LOWER_THRESHOLD,
+    KELTNER_NEUTRAL_LOW,
+)
+from ..constants import MACD_FAST as _MACD_FAST
+from ..constants import MACD_SIGNAL as _MACD_SIGNAL
+from ..constants import MACD_SLOW as _MACD_SLOW
+from ..constants import (
     PRICE_TOLERANCE,
+    RSI_OVERBOUGHT,
+    RSI_OVERSOLD,
+    RSI_PERIOD,
+    SMA_LONG,
+    SMA_MEDIUM,
+    SMA_SHORT,
+)
+from ..constants import STOCH_D_PERIOD as _STOCH_D
+from ..constants import STOCH_K_PERIOD as _STOCH_K
+from ..constants import STOCH_OVERBOUGHT as _STOCH_OVERBOUGHT
+from ..constants import STOCH_OVERSOLD as _STOCH_OVERSOLD
+from ..constants import STOCH_SMOOTH as _STOCH_SMOOTH
+from ..constants import (
+    SUPPORT_LOOKBACK_DAYS,
+    SUPPORT_MAX_LEVELS,
+    SUPPORT_TOLERANCE_PCT,
+    SUPPORT_WINDOW,
+    VOLUME_AVG_PERIOD,
+    VOLUME_SPIKE_MULTIPLIER,
+    VWAP_ABOVE,
+    VWAP_BELOW,
+    VWAP_PERIOD,
+    VWAP_STRONG_ABOVE,
+    VWAP_STRONG_BELOW,
 )
 
+# Import shared indicators
+from ..indicators.momentum import calculate_macd, calculate_rsi_divergence, calculate_stochastic
+
 # Import optimized support/resistance functions
-from ..indicators.support_resistance import (
-    find_support_levels as find_support_optimized,
-    find_resistance_levels as find_resistance_optimized,
+from ..indicators.support_resistance import find_resistance_levels as find_resistance_optimized
+from ..indicators.support_resistance import find_support_levels as find_support_optimized
+from ..indicators.trend import calculate_ema
+from ..models.base import SignalStrength, SignalType, TradeSignal
+from ..models.candidates import PullbackCandidate, ScoreBreakdown
+from ..models.indicators import (
+    KeltnerChannelResult,
+    MACDResult,
+    RSIDivergenceResult,
+    StochasticResult,
+    TechnicalIndicators,
 )
+from .base import BaseAnalyzer
+from .context import AnalysisContext
+from .pullback_scoring import PullbackScoringMixin
+from .score_normalization import STRATEGY_SCORE_CONFIGS, get_signal_strength, normalize_score
 
 logger = logging.getLogger(__name__)
 
@@ -100,15 +129,15 @@ class PullbackAnalyzer(PullbackScoringMixin, BaseAnalyzer):
 
     # MACD Default Parameter (from src/constants)
     # Variable names kept for backward compatibility
-    MACD_FAST = _MACD_FAST       # 12 - Fast EMA
-    MACD_SLOW = _MACD_SLOW       # 26 - Slow EMA
-    MACD_SIGNAL = _MACD_SIGNAL   # 9  - Signal Line
+    MACD_FAST = _MACD_FAST  # 12 - Fast EMA
+    MACD_SLOW = _MACD_SLOW  # 26 - Slow EMA
+    MACD_SIGNAL = _MACD_SIGNAL  # 9  - Signal Line
 
     # Stochastic Default Parameters (from src/constants)
-    STOCH_K = _STOCH_K            # 14
-    STOCH_D = _STOCH_D            # 3
+    STOCH_K = _STOCH_K  # 14
+    STOCH_D = _STOCH_D  # 3
     STOCH_SMOOTH = _STOCH_SMOOTH  # 3
-    STOCH_OVERSOLD = _STOCH_OVERSOLD   # 20
+    STOCH_OVERSOLD = _STOCH_OVERSOLD  # 20
     STOCH_OVERBOUGHT = _STOCH_OVERBOUGHT  # 80
 
     def __init__(self, config: PullbackScoringConfig) -> None:
@@ -130,7 +159,7 @@ class PullbackAnalyzer(PullbackScoringMixin, BaseAnalyzer):
         highs: List[float],
         lows: List[float],
         context: Optional[AnalysisContext] = None,
-        **kwargs
+        **kwargs,
     ) -> TradeSignal:
         """
         Analyzes a symbol for pullback setup.
@@ -145,7 +174,11 @@ class PullbackAnalyzer(PullbackScoringMixin, BaseAnalyzer):
         candidate = self.analyze_detailed(symbol, prices, volumes, highs, lows, context=context)
 
         # Normalize score to 0-10 scale for fair cross-strategy comparison
-        max_possible = candidate.score_breakdown.max_possible if hasattr(candidate.score_breakdown, 'max_possible') else 26
+        max_possible = (
+            candidate.score_breakdown.max_possible
+            if hasattr(candidate.score_breakdown, "max_possible")
+            else 26
+        )
         normalized_score = (candidate.score / max_possible) * 10 if max_possible > 0 else 0
 
         # Convert to TradeSignal (based on normalized 0-10 scale)
@@ -168,14 +201,15 @@ class PullbackAnalyzer(PullbackScoringMixin, BaseAnalyzer):
 
         if candidate.support_levels:
             # Stop below the nearest support
-            nearest_support = min(candidate.support_levels,
-                                  key=lambda x: abs(x - entry_price))
+            nearest_support = min(candidate.support_levels, key=lambda x: abs(x - entry_price))
             stop_loss = nearest_support * PULLBACK_STOP_BUFFER  # 2% unter Support
 
             # Target at next resistance or 2:1 R/R
             if candidate.resistance_levels:
-                target_price = min(candidate.resistance_levels,
-                                   key=lambda x: x if x > entry_price else float('inf'))
+                target_price = min(
+                    candidate.resistance_levels,
+                    key=lambda x: x if x > entry_price else float("inf"),
+                )
 
             if not target_price or target_price <= entry_price:
                 # Fallback: 2:1 Risk/Reward
@@ -194,13 +228,13 @@ class PullbackAnalyzer(PullbackScoringMixin, BaseAnalyzer):
             target_price=target_price,
             reason=self._build_reason(candidate),
             details={
-                'rsi': candidate.technicals.rsi_14,
-                'trend': candidate.technicals.trend,
-                'support_levels': candidate.support_levels,
-                'score_breakdown': candidate.score_breakdown.to_dict(),
-                'raw_score': candidate.score,
-                'max_possible': max_possible
-            }
+                "rsi": candidate.technicals.rsi_14,
+                "trend": candidate.technicals.trend,
+                "support_levels": candidate.support_levels,
+                "score_breakdown": candidate.score_breakdown.to_dict(),
+                "raw_score": candidate.score,
+                "max_possible": max_possible,
+            },
         )
 
     def analyze_detailed(
@@ -210,7 +244,7 @@ class PullbackAnalyzer(PullbackScoringMixin, BaseAnalyzer):
         volumes: List[int],
         highs: List[float],
         lows: List[float],
-        context: Optional[AnalysisContext] = None
+        context: Optional[AnalysisContext] = None,
     ) -> PullbackCandidate:
         """
         Complete pullback analysis for a symbol.
@@ -264,7 +298,7 @@ class PullbackAnalyzer(PullbackScoringMixin, BaseAnalyzer):
             if context.macd_line is not None:
                 crossover = None
                 if context.macd_histogram:
-                    crossover = 'bullish' if context.macd_histogram > 0 else 'bearish'
+                    crossover = "bullish" if context.macd_histogram > 0 else "bearish"
                 macd_result = MACDResult(
                     macd_line=context.macd_line,
                     signal_line=context.macd_signal,
@@ -277,11 +311,11 @@ class PullbackAnalyzer(PullbackScoringMixin, BaseAnalyzer):
             # Stochastic
             if context.stoch_k is not None:
                 if context.stoch_k < self.STOCH_OVERSOLD:
-                    zone = 'oversold'
+                    zone = "oversold"
                 elif context.stoch_k > self.STOCH_OVERBOUGHT:
-                    zone = 'overbought'
+                    zone = "overbought"
                 else:
-                    zone = 'neutral'
+                    zone = "neutral"
                 stoch_result = StochasticResult(
                     k=context.stoch_k,
                     d=context.stoch_d,
@@ -304,11 +338,11 @@ class PullbackAnalyzer(PullbackScoringMixin, BaseAnalyzer):
             above_sma200 = current_price > sma_200
 
             if above_sma200 and above_sma20:
-                trend = 'uptrend'
+                trend = "uptrend"
             elif not above_sma200 and not above_sma20:
-                trend = 'downtrend'
+                trend = "downtrend"
             else:
-                trend = 'sideways'
+                trend = "sideways"
 
             # Support/Resistance (using optimized O(n) algorithm)
             support_levels = find_support_optimized(
@@ -317,7 +351,7 @@ class PullbackAnalyzer(PullbackScoringMixin, BaseAnalyzer):
                 window=PULLBACK_SUPPORT_WINDOW,
                 max_levels=PULLBACK_MAX_SUPPORT_LEVELS,
                 volumes=volumes if volumes else None,
-                tolerance_pct=PULLBACK_SUPPORT_TOLERANCE_PCT
+                tolerance_pct=PULLBACK_SUPPORT_TOLERANCE_PCT,
             )
             resistance_levels = find_resistance_optimized(
                 highs=highs,
@@ -325,7 +359,7 @@ class PullbackAnalyzer(PullbackScoringMixin, BaseAnalyzer):
                 window=PULLBACK_RESISTANCE_WINDOW,
                 max_levels=PULLBACK_MAX_RESISTANCE_LEVELS,
                 volumes=volumes if volumes else None,
-                tolerance_pct=PULLBACK_RESISTANCE_TOLERANCE_PCT
+                tolerance_pct=PULLBACK_RESISTANCE_TOLERANCE_PCT,
             )
 
         technicals = TechnicalIndicators(
@@ -338,15 +372,12 @@ class PullbackAnalyzer(PullbackScoringMixin, BaseAnalyzer):
             above_sma20=above_sma20,
             above_sma50=above_sma50,
             above_sma200=above_sma200,
-            trend=trend
+            trend=trend,
         )
 
         # Fibonacci
         lookback = self.config.fibonacci.lookback_days
-        fib_levels = self._calculate_fibonacci(
-            max(highs[-lookback:]),
-            min(lows[-lookback:])
-        )
+        fib_levels = self._calculate_fibonacci(max(highs[-lookback:]), min(lows[-lookback:]))
 
         # Scoring
         breakdown = ScoreBreakdown()
@@ -365,13 +396,17 @@ class PullbackAnalyzer(PullbackScoringMixin, BaseAnalyzer):
             lookback=PULLBACK_DIVERGENCE_LOOKBACK,
             swing_window=PULLBACK_DIVERGENCE_SWING_WINDOW,  # Relaxiert für bessere Swing-Erkennung
             min_divergence_bars=PULLBACK_DIVERGENCE_MIN_BARS,
-            max_divergence_bars=PULLBACK_DIVERGENCE_MAX_BARS  # Längere Formationen erlauben
+            max_divergence_bars=PULLBACK_DIVERGENCE_MAX_BARS,  # Längere Formationen erlauben
         )
         div_score_result = self._score_rsi_divergence(divergence_result)
         breakdown.rsi_divergence_score = div_score_result[0]
-        breakdown.rsi_divergence_type = divergence_result.divergence_type if divergence_result else None
+        breakdown.rsi_divergence_type = (
+            divergence_result.divergence_type if divergence_result else None
+        )
         breakdown.rsi_divergence_strength = divergence_result.strength if divergence_result else 0
-        breakdown.rsi_divergence_formation_days = divergence_result.formation_days if divergence_result else 0
+        breakdown.rsi_divergence_formation_days = (
+            divergence_result.formation_days if divergence_result else 0
+        )
         breakdown.rsi_divergence_reason = div_score_result[1]
 
         # 2. Support Score with strength rating (0-2.5 points)
@@ -388,8 +423,9 @@ class PullbackAnalyzer(PullbackScoringMixin, BaseAnalyzer):
             breakdown.support_distance_pct = abs(current_price - nearest) / current_price * 100
 
         # 3. Fibonacci Score (0-2 points)
-        breakdown.fibonacci_score, breakdown.fib_level, breakdown.fib_reason = \
+        breakdown.fibonacci_score, breakdown.fib_level, breakdown.fib_reason = (
             self._score_fibonacci(current_price, fib_levels)
+        )
 
         # 4. Moving Average Score (0-2 points)
         breakdown.ma_score, breakdown.ma_reason = self._score_moving_averages(
@@ -406,7 +442,7 @@ class PullbackAnalyzer(PullbackScoringMixin, BaseAnalyzer):
         breakdown.trend_reason = trend_result[3]
 
         # 6. Volume Score with trend (0-1 point) - IMPROVED
-        avg_volume = int(np.mean(volumes[-self.config.volume.average_period:]))
+        avg_volume = int(np.mean(volumes[-self.config.volume.average_period :]))
         vol_result = self._score_volume(current_volume, avg_volume)
         breakdown.volume_score = vol_result[0]
         breakdown.volume_reason = vol_result[1]
@@ -421,9 +457,12 @@ class PullbackAnalyzer(PullbackScoringMixin, BaseAnalyzer):
             if div_amount and prices[-2] > 0:
                 expected_gap_pct = -(div_amount / prices[-2]) * 100
                 # If observed gap is within 50% of expected dividend gap, neutralize
-                if overnight_gap_pct < 0 and abs(overnight_gap_pct - expected_gap_pct) < abs(expected_gap_pct) * 0.5:
+                if (
+                    overnight_gap_pct < 0
+                    and abs(overnight_gap_pct - expected_gap_pct) < abs(expected_gap_pct) * 0.5
+                ):
                     # Neutralize gap score — this is a dividend gap, not a bearish signal
-                    if hasattr(breakdown, 'gap_score'):
+                    if hasattr(breakdown, "gap_score"):
                         breakdown.gap_score = 0.0
                     warnings.append(
                         f"Dividend gap neutralized (${div_amount:.2f}, gap {overnight_gap_pct:.1f}%)"
@@ -438,7 +477,10 @@ class PullbackAnalyzer(PullbackScoringMixin, BaseAnalyzer):
             # Heuristic fallback when no dividend data available
             overnight_gap_pct = (prices[-1] - prices[-2]) / prices[-2] * 100
             vol_ratio = current_volume / avg_volume
-            if PULLBACK_GAP_WARNING_MIN <= overnight_gap_pct <= PULLBACK_GAP_WARNING_MAX and vol_ratio < PULLBACK_GAP_VOL_THRESHOLD:
+            if (
+                PULLBACK_GAP_WARNING_MIN <= overnight_gap_pct <= PULLBACK_GAP_WARNING_MAX
+                and vol_ratio < PULLBACK_GAP_VOL_THRESHOLD
+            ):
                 warnings.append(
                     f"Potential dividend gap ({overnight_gap_pct:.1f}%, vol {vol_ratio:.1f}x)"
                 )
@@ -481,7 +523,7 @@ class PullbackAnalyzer(PullbackScoringMixin, BaseAnalyzer):
             breakdown.market_context_score = context.market_context_score
             breakdown.spy_trend = context.market_context_trend or "unknown"
             breakdown.market_context_reason = f"Market: {context.market_context_trend}"
-        elif context and hasattr(context, 'spy_prices') and context.spy_prices:
+        elif context and hasattr(context, "spy_prices") and context.spy_prices:
             market_result = self._score_market_context(context.spy_prices)
             breakdown.market_context_score = market_result[0]
             breakdown.spy_trend = market_result[1]
@@ -506,8 +548,8 @@ class PullbackAnalyzer(PullbackScoringMixin, BaseAnalyzer):
         breakdown.gap_reason = gap_result[4]
 
         # Resolve weights from config (4-layer: Base -> Regime -> Sector -> Regime x Sector)
-        regime = getattr(context, 'regime', 'normal') if context else 'normal'
-        sector = getattr(context, 'sector', None) if context else None
+        regime = getattr(context, "regime", "normal") if context else "normal"
+        sector = getattr(context, "sector", None) if context else None
         try:
             resolved = self.get_weights(regime=regime, sector=sector)
             w = resolved.weights
@@ -516,10 +558,20 @@ class PullbackAnalyzer(PullbackScoringMixin, BaseAnalyzer):
 
         # Default max weights per component (used when YAML weight matches original)
         _DEFAULTS = {
-            'rsi': 3.0, 'rsi_divergence': 3.0, 'support': 2.5, 'fibonacci': 2.0,
-            'ma': 2.0, 'trend_strength': 2.0, 'volume': 1.0, 'macd': 2.0,
-            'stoch': 2.0, 'keltner': 2.0, 'vwap': 3.0, 'market_context': 2.0,
-            'sector': 1.0, 'gap': 1.0,
+            "rsi": 3.0,
+            "rsi_divergence": 3.0,
+            "support": 2.5,
+            "fibonacci": 2.0,
+            "ma": 2.0,
+            "trend_strength": 2.0,
+            "volume": 1.0,
+            "macd": 2.0,
+            "stoch": 2.0,
+            "keltner": 2.0,
+            "vwap": 3.0,
+            "market_context": 2.0,
+            "sector": 1.0,
+            "gap": 1.0,
         }
 
         def _scale(component: str, raw: float) -> float:
@@ -534,20 +586,20 @@ class PullbackAnalyzer(PullbackScoringMixin, BaseAnalyzer):
 
         # Total Score with config-based weight scaling
         breakdown.total_score = (
-            _scale('rsi', breakdown.rsi_score) +
-            _scale('rsi_divergence', breakdown.rsi_divergence_score) +
-            _scale('support', breakdown.support_score) +
-            _scale('fibonacci', breakdown.fibonacci_score) +
-            _scale('ma', breakdown.ma_score) +
-            _scale('trend_strength', breakdown.trend_strength_score) +
-            _scale('volume', breakdown.volume_score) +
-            _scale('macd', breakdown.macd_score) +
-            _scale('stoch', breakdown.stoch_score) +
-            _scale('keltner', breakdown.keltner_score) +
-            _scale('vwap', breakdown.vwap_score) +
-            _scale('market_context', breakdown.market_context_score) +
-            _scale('sector', breakdown.sector_score) +
-            _scale('gap', breakdown.gap_score)
+            _scale("rsi", breakdown.rsi_score)
+            + _scale("rsi_divergence", breakdown.rsi_divergence_score)
+            + _scale("support", breakdown.support_score)
+            + _scale("fibonacci", breakdown.fibonacci_score)
+            + _scale("ma", breakdown.ma_score)
+            + _scale("trend_strength", breakdown.trend_strength_score)
+            + _scale("volume", breakdown.volume_score)
+            + _scale("macd", breakdown.macd_score)
+            + _scale("stoch", breakdown.stoch_score)
+            + _scale("keltner", breakdown.keltner_score)
+            + _scale("vwap", breakdown.vwap_score)
+            + _scale("market_context", breakdown.market_context_score)
+            + _scale("sector", breakdown.sector_score)
+            + _scale("gap", breakdown.gap_score)
         )
 
         # Apply sector_factor as multiplicative adjustment (Iter 4 trained)
@@ -558,11 +610,12 @@ class PullbackAnalyzer(PullbackScoringMixin, BaseAnalyzer):
         if w:
             breakdown.max_possible = resolved.max_possible
         else:
-            breakdown.max_possible = STRATEGY_SCORE_CONFIGS['pullback'].max_possible
+            breakdown.max_possible = STRATEGY_SCORE_CONFIGS["pullback"].max_possible
 
         # Normalize score to 0-10 scale for fair cross-strategy comparison
         normalized_score = normalize_score(
-            breakdown.total_score, 'pullback',
+            breakdown.total_score,
+            "pullback",
             max_possible=breakdown.max_possible,
         )
 
@@ -679,10 +732,10 @@ class PullbackAnalyzer(PullbackScoringMixin, BaseAnalyzer):
         prices: List[float],
         volumes: List[int],
         highs: List[float],
-        lows: List[float]
+        lows: List[float],
     ) -> None:
         """Validates all input arrays for consistency and validity."""
-        arrays = {'prices': prices, 'volumes': volumes, 'highs': highs, 'lows': lows}
+        arrays = {"prices": prices, "volumes": volumes, "highs": highs, "lows": lows}
         lengths = {name: len(arr) for name, arr in arrays.items()}
         unique_lengths = set(lengths.values())
 
@@ -695,17 +748,14 @@ class PullbackAnalyzer(PullbackScoringMixin, BaseAnalyzer):
         if len(prices) == 0:
             raise ValueError("Input arrays cannot be empty")
 
-        for name, arr in [('prices', prices), ('highs', highs), ('lows', lows)]:
+        for name, arr in [("prices", prices), ("highs", highs), ("lows", lows)]:
             if any(v is None for v in arr):
                 raise ValueError(f"{name} contains None values")
 
         if any(p <= 0 for p in prices):
             raise ValueError("All prices must be positive (> 0)")
 
-        invalid_bars = [
-            (i, h, l) for i, (h, l) in enumerate(zip(highs, lows))
-            if h < l
-        ]
+        invalid_bars = [(i, h, l) for i, (h, l) in enumerate(zip(highs, lows)) if h < l]
         if invalid_bars:
             first_invalid = invalid_bars[0]
             raise ValueError(
@@ -717,8 +767,7 @@ class PullbackAnalyzer(PullbackScoringMixin, BaseAnalyzer):
         for i, (p, h, l) in enumerate(zip(prices, highs, lows)):
             if p > h * (1 + tolerance) or p < l * (1 - tolerance):
                 logger.warning(
-                    f"{symbol}: Close price {p} outside High/Low range "
-                    f"[{l}, {h}] at index {i}"
+                    f"{symbol}: Close price {p} outside High/Low range " f"[{l}, {h}] at index {i}"
                 )
 
     # =========================================================================
@@ -763,32 +812,33 @@ class PullbackAnalyzer(PullbackScoringMixin, BaseAnalyzer):
             prices,
             fast_period=self.MACD_FAST,
             slow_period=self.MACD_SLOW,
-            signal_period=self.MACD_SIGNAL
+            signal_period=self.MACD_SIGNAL,
         )
 
     def _calculate_stochastic(
-        self,
-        highs: List[float],
-        lows: List[float],
-        closes: List[float]
+        self, highs: List[float], lows: List[float], closes: List[float]
     ) -> Optional[StochasticResult]:
         """Calculates Stochastic Oscillator. Delegates to shared indicators library."""
         return calculate_stochastic(
-            highs=highs, lows=lows, closes=closes,
-            k_period=self.STOCH_K, d_period=self.STOCH_D,
+            highs=highs,
+            lows=lows,
+            closes=closes,
+            k_period=self.STOCH_K,
+            d_period=self.STOCH_D,
             smooth=self.STOCH_SMOOTH,
-            oversold=self.STOCH_OVERSOLD, overbought=self.STOCH_OVERBOUGHT
+            oversold=self.STOCH_OVERSOLD,
+            overbought=self.STOCH_OVERBOUGHT,
         )
 
     def _calculate_fibonacci(self, high: float, low: float) -> Dict[str, float]:
         """Fibonacci Retracement Levels"""
         diff = high - low
         return {
-            '0.0%': high,
-            '23.6%': high - diff * 0.236,
-            '38.2%': high - diff * 0.382,
-            '50.0%': high - diff * 0.5,
-            '61.8%': high - diff * 0.618,
-            '78.6%': high - diff * 0.786,
-            '100.0%': low
+            "0.0%": high,
+            "23.6%": high - diff * 0.236,
+            "38.2%": high - diff * 0.382,
+            "50.0%": high - diff * 0.5,
+            "61.8%": high - diff * 0.618,
+            "78.6%": high - diff * 0.786,
+            "100.0%": low,
         }

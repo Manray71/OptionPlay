@@ -10,16 +10,16 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import List, Optional, Tuple, Dict, Any, TYPE_CHECKING
-from pathlib import Path
 import logging
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 # Lazy imports for matplotlib (may not be installed)
 if TYPE_CHECKING:
     import matplotlib.pyplot as plt
-    from matplotlib.figure import Figure
     from matplotlib.axes import Axes
+    from matplotlib.figure import Figure
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +55,7 @@ class SRChartConfig:
         vp_width_pct: Breite des Volume Profile (% der Chart-Breite)
         vp_num_zones: Anzahl der Preiszonen
     """
+
     # Figure settings
     figsize: Tuple[float, float] = (14, 8)
     dpi: int = 150
@@ -62,19 +63,19 @@ class SRChartConfig:
     label_fontsize: int = 10
 
     # Colors
-    support_color: str = '#00C853'  # Grün
-    resistance_color: str = '#FF1744'  # Rot
-    price_color: str = '#1976D2'  # Blau
-    volume_color: str = '#78909C'  # Grau-Blau
-    hvn_color: str = '#7B1FA2'  # Lila
-    poc_color: str = '#FF6F00'  # Orange
-    value_area_color: str = '#E3F2FD'  # Hellblau
-    candle_up_color: str = '#00C853'
-    candle_down_color: str = '#FF1744'
+    support_color: str = "#00C853"  # Grün
+    resistance_color: str = "#FF1744"  # Rot
+    price_color: str = "#1976D2"  # Blau
+    volume_color: str = "#78909C"  # Grau-Blau
+    hvn_color: str = "#7B1FA2"  # Lila
+    poc_color: str = "#FF6F00"  # Orange
+    value_area_color: str = "#E3F2FD"  # Hellblau
+    candle_up_color: str = "#00C853"
+    candle_down_color: str = "#FF1744"
 
     # Line styles
-    support_linestyle: str = '--'
-    resistance_linestyle: str = '--'
+    support_linestyle: str = "--"
+    resistance_linestyle: str = "--"
     support_linewidth: float = 1.5
     resistance_linewidth: float = 1.5
 
@@ -93,15 +94,15 @@ class SRChartConfig:
     grid_alpha: float = 0.3
 
     # Background
-    background_color: str = '#FAFAFA'
+    background_color: str = "#FAFAFA"
 
     def to_dict(self) -> Dict[str, Any]:
         """Konvertiert zu Dictionary"""
         return {
-            'figsize': self.figsize,
-            'dpi': self.dpi,
-            'support_color': self.support_color,
-            'resistance_color': self.resistance_color,
+            "figsize": self.figsize,
+            "dpi": self.dpi,
+            "support_color": self.support_color,
+            "resistance_color": self.resistance_color,
         }
 
 
@@ -109,6 +110,7 @@ def _check_matplotlib() -> bool:
     """Prüft ob matplotlib verfügbar ist."""
     try:
         import matplotlib
+
         return True
     except ImportError:
         logger.warning("matplotlib not installed. Install with: pip install matplotlib")
@@ -164,8 +166,8 @@ def plot_support_resistance(
     if not _check_matplotlib():
         return None, None
 
-    import matplotlib.pyplot as plt
     import matplotlib.dates as mdates
+    import matplotlib.pyplot as plt
     from matplotlib.patches import Rectangle
 
     config = config or SRChartConfig()
@@ -183,12 +185,10 @@ def plot_support_resistance(
     x = list(range(len(prices)))
 
     # Zeichne Preis als Linie (vereinfacht, ohne Candlesticks)
-    ax.plot(x, prices, color=config.price_color, linewidth=1.5,
-            label='Close', zorder=5)
+    ax.plot(x, prices, color=config.price_color, linewidth=1.5, label="Close", zorder=5)
 
     # Zeichne High/Low Range als gefüllter Bereich
-    ax.fill_between(x, lows, highs, alpha=0.15, color=config.price_color,
-                    label='High/Low Range')
+    ax.fill_between(x, lows, highs, alpha=0.15, color=config.price_color, label="High/Low Range")
 
     # Support Levels
     if support_levels:
@@ -208,7 +208,7 @@ def plot_support_resistance(
                 linewidth=linewidth,
                 alpha=alpha,
                 zorder=3,
-                label=f'Support' if i == 0 else None
+                label=f"Support" if i == 0 else None,
             )
 
             if config.show_level_labels:
@@ -226,9 +226,9 @@ def plot_support_resistance(
                     fontsize=config.label_fontsize - 2,
                     color=config.support_color,
                     alpha=alpha,
-                    va='center',
-                    ha='left',
-                    fontweight='bold' if strength > 0.6 else 'normal'
+                    va="center",
+                    ha="left",
+                    fontweight="bold" if strength > 0.6 else "normal",
                 )
 
     # Resistance Levels
@@ -249,7 +249,7 @@ def plot_support_resistance(
                 linewidth=linewidth,
                 alpha=alpha,
                 zorder=3,
-                label=f'Resistance' if i == 0 else None
+                label=f"Resistance" if i == 0 else None,
             )
 
             if config.show_level_labels:
@@ -267,45 +267,41 @@ def plot_support_resistance(
                     fontsize=config.label_fontsize - 2,
                     color=config.resistance_color,
                     alpha=alpha,
-                    va='center',
-                    ha='left',
-                    fontweight='bold' if strength > 0.6 else 'normal'
+                    va="center",
+                    ha="left",
+                    fontweight="bold" if strength > 0.6 else "normal",
                 )
 
     # Aktueller Preis
     current_price = prices[-1]
     ax.axhline(
-        y=current_price,
-        color=config.price_color,
-        linestyle='-',
-        linewidth=2,
-        alpha=0.8,
-        zorder=4
+        y=current_price, color=config.price_color, linestyle="-", linewidth=2, alpha=0.8, zorder=4
     )
     ax.annotate(
         f"${current_price:.2f}",
         xy=(len(x) - 1, current_price),
         fontsize=config.label_fontsize,
         color=config.price_color,
-        va='bottom',
-        ha='right',
-        fontweight='bold'
+        va="bottom",
+        ha="right",
+        fontweight="bold",
     )
 
     # Grid
     if config.show_grid:
-        ax.grid(True, alpha=config.grid_alpha, linestyle='-', linewidth=0.5)
+        ax.grid(True, alpha=config.grid_alpha, linestyle="-", linewidth=0.5)
 
     # Labels und Titel
     title = f"{symbol} - Support/Resistance Analysis" if symbol else "Support/Resistance Analysis"
-    ax.set_title(title, fontsize=config.title_fontsize, fontweight='bold')
+    ax.set_title(title, fontsize=config.title_fontsize, fontweight="bold")
     ax.set_xlabel("Trading Days", fontsize=config.label_fontsize)
     ax.set_ylabel("Price ($)", fontsize=config.label_fontsize)
 
     # Legende
-    ax.legend(loc='upper left', fontsize=config.label_fontsize - 2)
+    ax.legend(loc="upper left", fontsize=config.label_fontsize - 2)
 
     import warnings
+
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         try:
@@ -417,7 +413,7 @@ def plot_volume_profile(
         height=zone_height * 0.9,
         color=colors,
         alpha=0.7,
-        edgecolor='none'
+        edgecolor="none",
     )
 
     # POC Label
@@ -427,14 +423,14 @@ def plot_volume_profile(
         xy=(norm_volumes[poc_idx], poc_price),
         fontsize=config.label_fontsize - 1,
         color=config.poc_color,
-        fontweight='bold',
-        va='center',
-        ha='left'
+        fontweight="bold",
+        va="center",
+        ha="left",
     )
 
     # Labels
     title = f"{symbol} Volume Profile" if symbol else "Volume Profile"
-    ax.set_title(title, fontsize=config.title_fontsize - 2, fontweight='bold')
+    ax.set_title(title, fontsize=config.title_fontsize - 2, fontweight="bold")
     ax.set_xlabel("Relative Volume", fontsize=config.label_fontsize - 1)
     ax.set_ylabel("Price ($)", fontsize=config.label_fontsize - 1)
 
@@ -442,7 +438,7 @@ def plot_volume_profile(
     ax.set_ylim(price_low - zone_height, price_high + zone_height)
 
     if config.show_grid:
-        ax.grid(True, alpha=config.grid_alpha, axis='y', linestyle='-', linewidth=0.5)
+        ax.grid(True, alpha=config.grid_alpha, axis="y", linestyle="-", linewidth=0.5)
 
     plt.tight_layout()
 
@@ -525,7 +521,7 @@ def plot_sr_with_volume_profile(
         resistance_touches=resistance_touches,
         symbol=symbol,
         config=config,
-        ax=ax_price
+        ax=ax_price,
     )
 
     # Volume Profile
@@ -584,7 +580,7 @@ def plot_sr_with_volume_profile(
             height=zone_height * 0.9,
             color=colors,
             alpha=0.7,
-            edgecolor='none'
+            edgecolor="none",
         )
 
         # POC Label
@@ -594,19 +590,20 @@ def plot_sr_with_volume_profile(
             xy=(norm_volumes[poc_idx] + 0.05, poc_price),
             fontsize=config.label_fontsize - 2,
             color=config.poc_color,
-            fontweight='bold',
-            va='center'
+            fontweight="bold",
+            va="center",
         )
 
-    ax_volume.set_title("Volume Profile", fontsize=config.title_fontsize - 2, fontweight='bold')
+    ax_volume.set_title("Volume Profile", fontsize=config.title_fontsize - 2, fontweight="bold")
     ax_volume.set_xlabel("Vol", fontsize=config.label_fontsize - 1)
     ax_volume.tick_params(labelleft=False)
     ax_volume.set_xlim(0, 1.2)
 
     if config.show_grid:
-        ax_volume.grid(True, alpha=config.grid_alpha, axis='y', linestyle='-', linewidth=0.5)
+        ax_volume.grid(True, alpha=config.grid_alpha, axis="y", linestyle="-", linewidth=0.5)
 
     import warnings
+
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         try:
@@ -647,15 +644,15 @@ def save_chart(
 
         # Format aus Dateiendung wenn nicht angegeben
         if format is None:
-            format = path.suffix.lstrip('.') or 'png'
+            format = path.suffix.lstrip(".") or "png"
 
         fig.savefig(
             filepath,
             dpi=dpi or fig.dpi,
             format=format,
             transparent=transparent,
-            bbox_inches='tight',
-            pad_inches=0.1
+            bbox_inches="tight",
+            pad_inches=0.1,
         )
 
         logger.info(f"Chart saved: {filepath}")
@@ -697,13 +694,9 @@ def create_sr_report_chart(
 
     # Import S/R Analyse
     try:
-        from ..indicators.support_resistance import (
-            analyze_support_resistance_with_validation
-        )
+        from ..indicators.support_resistance import analyze_support_resistance_with_validation
     except ImportError:
-        from indicators.support_resistance import (
-            analyze_support_resistance_with_validation
-        )
+        from indicators.support_resistance import analyze_support_resistance_with_validation
 
     # Analysiere S/R mit Volumen-Validierung
     result = analyze_support_resistance_with_validation(
@@ -712,7 +705,7 @@ def create_sr_report_chart(
         lows=lows,
         volumes=volumes,
         lookback=min(60, len(prices)),
-        include_volume_profile=True
+        include_volume_profile=True,
     )
 
     # Extrahiere Daten
@@ -737,7 +730,7 @@ def create_sr_report_chart(
         support_touches=support_touches,
         resistance_touches=resistance_touches,
         symbol=symbol,
-        config=config
+        config=config,
     )
 
     # Speichern wenn Pfad angegeben
@@ -757,8 +750,8 @@ def plot_volume_profile_with_buysell(
     volumes: List[int],
     symbol: str = "",
     num_zones: int = 30,
-    buy_color: str = '#00C853',
-    sell_color: str = '#FF1744',
+    buy_color: str = "#00C853",
+    sell_color: str = "#FF1744",
     alpha: float = 0.4,
     figsize: Tuple[float, float] = (14, 6),
     dpi: int = 150,
@@ -842,10 +835,7 @@ def plot_volume_profile_with_buysell(
                     zone_sell_volumes[i] += allocated_vol
 
     # Normalisiere für Darstellung
-    max_total_vol = max(
-        zone_buy_volumes[i] + zone_sell_volumes[i]
-        for i in range(num_zones)
-    )
+    max_total_vol = max(zone_buy_volumes[i] + zone_sell_volumes[i] for i in range(num_zones))
     if max_total_vol == 0:
         max_total_vol = 1
 
@@ -854,8 +844,8 @@ def plot_volume_profile_with_buysell(
 
     # Erstelle Figure
     fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
-    fig.patch.set_facecolor('#FAFAFA')
-    ax.set_facecolor('#FAFAFA')
+    fig.patch.set_facecolor("#FAFAFA")
+    ax.set_facecolor("#FAFAFA")
 
     # Zeichne Kauf-Balken (grün)
     ax.barh(
@@ -864,8 +854,8 @@ def plot_volume_profile_with_buysell(
         height=zone_height * 0.9,
         color=buy_color,
         alpha=alpha,
-        label='Kauf (Close > Open)',
-        edgecolor='none'
+        label="Kauf (Close > Open)",
+        edgecolor="none",
     )
 
     # Zeichne Verkauf-Balken (rot) - gestapelt rechts neben Kauf
@@ -876,8 +866,8 @@ def plot_volume_profile_with_buysell(
         color=sell_color,
         alpha=alpha,
         left=norm_buy,
-        label='Verkauf (Close < Open)',
-        edgecolor='none'
+        label="Verkauf (Close < Open)",
+        edgecolor="none",
     )
 
     # POC (Point of Control) - Zone mit höchstem Gesamtvolumen
@@ -888,11 +878,11 @@ def plot_volume_profile_with_buysell(
     # POC Linie
     ax.axhline(
         y=poc_price,
-        color='#FF6F00',
-        linestyle='--',
+        color="#FF6F00",
+        linestyle="--",
         linewidth=2,
         alpha=0.8,
-        label=f'POC ${poc_price:.2f}'
+        label=f"POC ${poc_price:.2f}",
     )
 
     # Aktueller Preis
@@ -900,24 +890,24 @@ def plot_volume_profile_with_buysell(
         current_price = closes[-1]
         ax.axhline(
             y=current_price,
-            color='#1976D2',
-            linestyle='-',
+            color="#1976D2",
+            linestyle="-",
             linewidth=2,
             alpha=0.9,
-            label=f'Preis ${current_price:.2f}'
+            label=f"Preis ${current_price:.2f}",
         )
 
     # Styling
     title = f"{symbol} Volume Profile (Buy/Sell)" if symbol else "Volume Profile (Buy/Sell)"
-    ax.set_title(title, fontsize=14, fontweight='bold')
+    ax.set_title(title, fontsize=14, fontweight="bold")
     ax.set_xlabel("Relatives Volumen", fontsize=10)
     ax.set_ylabel("Preis ($)", fontsize=10)
 
     ax.set_xlim(0, 1.1)
     ax.set_ylim(price_low - zone_height, price_high + zone_height)
 
-    ax.grid(True, alpha=0.3, axis='y', linestyle='-', linewidth=0.5)
-    ax.legend(loc='upper right', fontsize=9)
+    ax.grid(True, alpha=0.3, axis="y", linestyle="-", linewidth=0.5)
+    ax.legend(loc="upper right", fontsize=9)
 
     plt.tight_layout()
 
@@ -933,8 +923,8 @@ def plot_price_with_volume_profile(
     dates: Optional[List[Any]] = None,
     symbol: str = "",
     num_zones: int = 30,
-    buy_color: str = '#00C853',
-    sell_color: str = '#FF1744',
+    buy_color: str = "#00C853",
+    sell_color: str = "#FF1744",
     alpha: float = 0.4,
     figsize: Tuple[float, float] = (16, 8),
     dpi: int = 150,
@@ -974,8 +964,8 @@ def plot_price_with_volume_profile(
         return None, (None, None)
 
     import matplotlib.pyplot as plt
-    from matplotlib.gridspec import GridSpec
     import numpy as np
+    from matplotlib.gridspec import GridSpec
 
     if len(opens) < 10:
         logger.warning(f"Not enough data: {len(opens)} bars")
@@ -987,7 +977,7 @@ def plot_price_with_volume_profile(
 
     # Erstelle Figure mit GridSpec
     fig = plt.figure(figsize=figsize, dpi=dpi)
-    fig.patch.set_facecolor('#FAFAFA')
+    fig.patch.set_facecolor("#FAFAFA")
 
     gs = GridSpec(1, 2, width_ratios=[price_ratio, vp_ratio], wspace=0.02)
 
@@ -995,7 +985,7 @@ def plot_price_with_volume_profile(
     ax_volume = fig.add_subplot(gs[1], sharey=ax_price)
 
     # === Linker Chart: Preis mit Candlesticks ===
-    ax_price.set_facecolor('#FAFAFA')
+    ax_price.set_facecolor("#FAFAFA")
 
     x = list(range(len(closes)))
 
@@ -1013,31 +1003,25 @@ def plot_price_with_volume_profile(
 
     # Aktueller Preis
     current_price = closes[-1]
-    ax_price.axhline(
-        y=current_price,
-        color='#1976D2',
-        linestyle='-',
-        linewidth=2,
-        alpha=0.8
-    )
+    ax_price.axhline(y=current_price, color="#1976D2", linestyle="-", linewidth=2, alpha=0.8)
     ax_price.annotate(
         f"${current_price:.2f}",
         xy=(len(x) - 1, current_price),
         fontsize=10,
-        color='#1976D2',
-        va='bottom',
-        ha='right',
-        fontweight='bold'
+        color="#1976D2",
+        va="bottom",
+        ha="right",
+        fontweight="bold",
     )
 
-    ax_price.grid(True, alpha=0.3, linestyle='-', linewidth=0.5)
+    ax_price.grid(True, alpha=0.3, linestyle="-", linewidth=0.5)
     title = f"{symbol} Price + Volume Profile" if symbol else "Price + Volume Profile"
-    ax_price.set_title(title, fontsize=14, fontweight='bold')
+    ax_price.set_title(title, fontsize=14, fontweight="bold")
     ax_price.set_xlabel("Trading Days", fontsize=10)
     ax_price.set_ylabel("Preis ($)", fontsize=10)
 
     # === Rechter Chart: Volume Profile ===
-    ax_volume.set_facecolor('#FAFAFA')
+    ax_volume.set_facecolor("#FAFAFA")
 
     # Berechne Preis-Range
     price_high = max(highs)
@@ -1075,10 +1059,7 @@ def plot_price_with_volume_profile(
                     zone_sell_volumes[i] += allocated_vol
 
     # Normalisiere
-    max_total_vol = max(
-        zone_buy_volumes[i] + zone_sell_volumes[i]
-        for i in range(num_zones)
-    )
+    max_total_vol = max(zone_buy_volumes[i] + zone_sell_volumes[i] for i in range(num_zones))
     if max_total_vol == 0:
         max_total_vol = 1
 
@@ -1092,8 +1073,8 @@ def plot_price_with_volume_profile(
         height=zone_height * 0.9,
         color=buy_color,
         alpha=alpha,
-        label='Kauf',
-        edgecolor='none'
+        label="Kauf",
+        edgecolor="none",
     )
 
     ax_volume.barh(
@@ -1103,8 +1084,8 @@ def plot_price_with_volume_profile(
         color=sell_color,
         alpha=alpha,
         left=norm_buy,
-        label='Verkauf',
-        edgecolor='none'
+        label="Verkauf",
+        edgecolor="none",
     )
 
     # POC
@@ -1112,24 +1093,20 @@ def plot_price_with_volume_profile(
     poc_idx = total_volumes.index(max(total_volumes))
     poc_price = zone_centers[poc_idx]
 
-    ax_volume.axhline(y=poc_price, color='#FF6F00', linestyle='--', linewidth=2, alpha=0.8)
+    ax_volume.axhline(y=poc_price, color="#FF6F00", linestyle="--", linewidth=2, alpha=0.8)
     ax_volume.annotate(
-        "POC",
-        xy=(0.95, poc_price),
-        fontsize=9,
-        color='#FF6F00',
-        fontweight='bold',
-        va='center'
+        "POC", xy=(0.95, poc_price), fontsize=9, color="#FF6F00", fontweight="bold", va="center"
     )
 
-    ax_volume.set_title("Volume Profile", fontsize=12, fontweight='bold')
+    ax_volume.set_title("Volume Profile", fontsize=12, fontweight="bold")
     ax_volume.set_xlabel("Vol", fontsize=9)
     ax_volume.tick_params(labelleft=False)
     ax_volume.set_xlim(0, 1.1)
-    ax_volume.grid(True, alpha=0.3, axis='y', linestyle='-', linewidth=0.5)
-    ax_volume.legend(loc='upper right', fontsize=8)
+    ax_volume.grid(True, alpha=0.3, axis="y", linestyle="-", linewidth=0.5)
+    ax_volume.legend(loc="upper right", fontsize=8)
 
     import warnings
+
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         try:

@@ -5,16 +5,16 @@
 # Contains: add, get, close, update, delete, query, count trades
 
 import json
-import sqlite3
 import logging
-from datetime import datetime, date
-from typing import List, Dict, Optional, Any
+import sqlite3
 from contextlib import contextmanager
+from datetime import date, datetime
+from typing import Any, Dict, List, Optional
 
 from .models import (
-    TradeStatus,
-    TradeOutcome,
     TrackedTrade,
+    TradeOutcome,
+    TradeStatus,
 )
 
 logger = logging.getLogger(__name__)
@@ -49,7 +49,8 @@ class TradeCRUD:
 
             now = datetime.now().isoformat()
 
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT INTO trades (
                     symbol, strategy,
                     signal_date, signal_score, signal_strength, score_breakdown,
@@ -61,33 +62,35 @@ class TradeCRUD:
                     signal_reliability_grade, signal_reliability_win_rate,
                     created_at, updated_at, notes, tags
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                trade.symbol,
-                trade.strategy,
-                trade.signal_date.isoformat() if trade.signal_date else None,
-                trade.signal_score,
-                trade.signal_strength,
-                json.dumps(trade.score_breakdown),
-                trade.vix_at_signal,
-                trade.iv_rank_at_signal,
-                trade.entry_price,
-                trade.stop_loss,
-                trade.target_price,
-                trade.status.value,
-                trade.outcome.value,
-                trade.exit_date.isoformat() if trade.exit_date else None,
-                trade.exit_price,
-                trade.exit_reason,
-                trade.pnl_amount,
-                trade.pnl_percent,
-                trade.holding_days,
-                trade.signal_reliability_grade,
-                trade.signal_reliability_win_rate,
-                now,
-                now,
-                trade.notes,
-                json.dumps(trade.tags),
-            ))
+            """,
+                (
+                    trade.symbol,
+                    trade.strategy,
+                    trade.signal_date.isoformat() if trade.signal_date else None,
+                    trade.signal_score,
+                    trade.signal_strength,
+                    json.dumps(trade.score_breakdown),
+                    trade.vix_at_signal,
+                    trade.iv_rank_at_signal,
+                    trade.entry_price,
+                    trade.stop_loss,
+                    trade.target_price,
+                    trade.status.value,
+                    trade.outcome.value,
+                    trade.exit_date.isoformat() if trade.exit_date else None,
+                    trade.exit_price,
+                    trade.exit_reason,
+                    trade.pnl_amount,
+                    trade.pnl_percent,
+                    trade.holding_days,
+                    trade.signal_reliability_grade,
+                    trade.signal_reliability_win_rate,
+                    now,
+                    now,
+                    trade.notes,
+                    json.dumps(trade.tags),
+                ),
+            )
 
             trade_id = cursor.lastrowid
             logger.info(f"Added trade {trade_id}: {trade.symbol} {trade.strategy}")
@@ -116,32 +119,36 @@ class TradeCRUD:
     def _row_to_trade(self, row: sqlite3.Row) -> TrackedTrade:
         """Konvertiert DB-Row zu TrackedTrade"""
         return TrackedTrade(
-            id=row['id'],
-            symbol=row['symbol'],
-            strategy=row['strategy'],
-            signal_date=date.fromisoformat(row['signal_date']) if row['signal_date'] else None,
-            signal_score=row['signal_score'] or 0.0,
-            signal_strength=row['signal_strength'] or '',
-            score_breakdown=json.loads(row['score_breakdown']) if row['score_breakdown'] else {},
-            vix_at_signal=row['vix_at_signal'],
-            iv_rank_at_signal=row['iv_rank_at_signal'],
-            entry_price=row['entry_price'],
-            stop_loss=row['stop_loss'],
-            target_price=row['target_price'],
-            status=TradeStatus(row['status']),
-            outcome=TradeOutcome(row['outcome']),
-            exit_date=date.fromisoformat(row['exit_date']) if row['exit_date'] else None,
-            exit_price=row['exit_price'],
-            exit_reason=row['exit_reason'] or '',
-            pnl_amount=row['pnl_amount'],
-            pnl_percent=row['pnl_percent'],
-            holding_days=row['holding_days'],
-            signal_reliability_grade=row['signal_reliability_grade'],
-            signal_reliability_win_rate=row['signal_reliability_win_rate'],
-            created_at=datetime.fromisoformat(row['created_at']) if row['created_at'] else datetime.now(),
-            updated_at=datetime.fromisoformat(row['updated_at']) if row['updated_at'] else datetime.now(),
-            notes=row['notes'] or '',
-            tags=json.loads(row['tags']) if row['tags'] else [],
+            id=row["id"],
+            symbol=row["symbol"],
+            strategy=row["strategy"],
+            signal_date=date.fromisoformat(row["signal_date"]) if row["signal_date"] else None,
+            signal_score=row["signal_score"] or 0.0,
+            signal_strength=row["signal_strength"] or "",
+            score_breakdown=json.loads(row["score_breakdown"]) if row["score_breakdown"] else {},
+            vix_at_signal=row["vix_at_signal"],
+            iv_rank_at_signal=row["iv_rank_at_signal"],
+            entry_price=row["entry_price"],
+            stop_loss=row["stop_loss"],
+            target_price=row["target_price"],
+            status=TradeStatus(row["status"]),
+            outcome=TradeOutcome(row["outcome"]),
+            exit_date=date.fromisoformat(row["exit_date"]) if row["exit_date"] else None,
+            exit_price=row["exit_price"],
+            exit_reason=row["exit_reason"] or "",
+            pnl_amount=row["pnl_amount"],
+            pnl_percent=row["pnl_percent"],
+            holding_days=row["holding_days"],
+            signal_reliability_grade=row["signal_reliability_grade"],
+            signal_reliability_win_rate=row["signal_reliability_win_rate"],
+            created_at=(
+                datetime.fromisoformat(row["created_at"]) if row["created_at"] else datetime.now()
+            ),
+            updated_at=(
+                datetime.fromisoformat(row["updated_at"]) if row["updated_at"] else datetime.now()
+            ),
+            notes=row["notes"] or "",
+            tags=json.loads(row["tags"]) if row["tags"] else [],
         )
 
     def close_trade(
@@ -190,7 +197,8 @@ class TradeCRUD:
 
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
                 UPDATE trades SET
                     status = ?,
                     outcome = ?,
@@ -202,18 +210,20 @@ class TradeCRUD:
                     holding_days = ?,
                     updated_at = ?
                 WHERE id = ?
-            """, (
-                TradeStatus.CLOSED.value,
-                outcome.value,
-                exit_date.isoformat(),
-                exit_price,
-                exit_reason,
-                pnl_amount,
-                pnl_percent,
-                holding_days,
-                datetime.now().isoformat(),
-                trade_id,
-            ))
+            """,
+                (
+                    TradeStatus.CLOSED.value,
+                    outcome.value,
+                    exit_date.isoformat(),
+                    exit_price,
+                    exit_reason,
+                    pnl_amount,
+                    pnl_percent,
+                    holding_days,
+                    datetime.now().isoformat(),
+                    trade_id,
+                ),
+            )
 
             pnl_str = f"{pnl_percent:.2f}%" if pnl_percent is not None else "N/A"
             logger.info(f"Closed trade {trade_id}: {outcome.value}, P&L: {pnl_str}")
@@ -231,8 +241,12 @@ class TradeCRUD:
             True wenn erfolgreich
         """
         allowed_fields = {
-            'notes', 'tags', 'stop_loss', 'target_price',
-            'vix_at_signal', 'iv_rank_at_signal',
+            "notes",
+            "tags",
+            "stop_loss",
+            "target_price",
+            "vix_at_signal",
+            "iv_rank_at_signal",
         }
 
         # Filter nur erlaubte Felder
@@ -245,16 +259,19 @@ class TradeCRUD:
             cursor = conn.cursor()
 
             # JSON-Felder konvertieren
-            if 'tags' in updates:
-                updates['tags'] = json.dumps(updates['tags'])
+            if "tags" in updates:
+                updates["tags"] = json.dumps(updates["tags"])
 
             set_clause = ", ".join(f"{k} = ?" for k in updates.keys())
             values = list(updates.values()) + [datetime.now().isoformat(), trade_id]
 
-            cursor.execute(f"""
+            cursor.execute(
+                f"""
                 UPDATE trades SET {set_clause}, updated_at = ?
                 WHERE id = ?
-            """, values)
+            """,
+                values,
+            )
 
             return cursor.rowcount > 0
 
@@ -330,12 +347,15 @@ class TradeCRUD:
 
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute(f"""
+            cursor.execute(
+                f"""
                 SELECT * FROM trades
                 WHERE {where_clause}
                 ORDER BY signal_date DESC
                 LIMIT ?
-            """, params + [limit])
+            """,
+                params + [limit],
+            )
 
             return [self._row_to_trade(row) for row in cursor]
 

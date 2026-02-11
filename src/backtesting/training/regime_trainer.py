@@ -9,14 +9,14 @@
 #
 # This file re-exports everything for backward compatibility.
 
-from .trainer import RegimeTrainer
 from ..models.training_models import (
-    RegimeTrainingConfig,
-    RegimeTrainingResult,
     FullRegimeTrainingResult,
     RegimeEpochResult,
+    RegimeTrainingConfig,
+    RegimeTrainingResult,
     StrategyPerformance,
 )
+from .trainer import RegimeTrainer
 
 __all__ = [
     "RegimeTrainer",

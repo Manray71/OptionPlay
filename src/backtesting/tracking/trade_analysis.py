@@ -5,15 +5,15 @@
 # Contains: get_stats, export_for_training, export_for_backtesting, get_storage_stats
 
 import logging
-from datetime import datetime, date
+from datetime import date, datetime
 from pathlib import Path
-from typing import List, Dict, Optional, Any
+from typing import Any, Dict, List, Optional
 
 from .models import (
-    TradeStatus,
-    TradeOutcome,
     TrackedTrade,
+    TradeOutcome,
     TradeStats,
+    TradeStatus,
 )
 
 logger = logging.getLogger(__name__)
@@ -78,7 +78,9 @@ class TradeAnalysis:
             pnls = [t.pnl_percent for t in closed_trades if t.pnl_percent is not None]
             if pnls:
                 stats.avg_pnl_percent = sum(pnls) / len(pnls)
-                stats.total_pnl = sum(t.pnl_amount for t in closed_trades if t.pnl_amount is not None)
+                stats.total_pnl = sum(
+                    t.pnl_amount for t in closed_trades if t.pnl_amount is not None
+                )
 
             holding_days = [t.holding_days for t in closed_trades if t.holding_days is not None]
             if holding_days:
@@ -123,9 +125,9 @@ class TradeAnalysis:
             if bucket_trades:
                 wins = sum(1 for t in bucket_trades if t.outcome == TradeOutcome.WIN)
                 result[bucket_name] = {
-                    'count': len(bucket_trades),
-                    'wins': wins,
-                    'win_rate': (wins / len(bucket_trades)) * 100,
+                    "count": len(bucket_trades),
+                    "wins": wins,
+                    "win_rate": (wins / len(bucket_trades)) * 100,
                 }
 
         return result
@@ -143,9 +145,9 @@ class TradeAnalysis:
         for strategy_name, strategy_trades in by_strategy.items():
             wins = sum(1 for t in strategy_trades if t.outcome == TradeOutcome.WIN)
             result[strategy_name] = {
-                'count': len(strategy_trades),
-                'wins': wins,
-                'win_rate': (wins / len(strategy_trades)) * 100,
+                "count": len(strategy_trades),
+                "wins": wins,
+                "win_rate": (wins / len(strategy_trades)) * 100,
             }
 
         return result
@@ -196,28 +198,38 @@ class TradeAnalysis:
         # Konvertiere zu Training-Format
         training_data = []
         for trade in all_trades:
-            training_data.append({
-                'symbol': trade.symbol,
-                'strategy': trade.strategy,
-                'signal_date': trade.signal_date.isoformat() if trade.signal_date else None,
-                'score': trade.signal_score,
-                'score_breakdown': trade.score_breakdown,
-                'vix': trade.vix_at_signal,
-                'outcome': 1 if trade.outcome == TradeOutcome.WIN else 0,
-                'pnl_percent': trade.pnl_percent,
-                'holding_days': trade.holding_days,
-            })
+            training_data.append(
+                {
+                    "symbol": trade.symbol,
+                    "strategy": trade.strategy,
+                    "signal_date": trade.signal_date.isoformat() if trade.signal_date else None,
+                    "score": trade.signal_score,
+                    "score_breakdown": trade.score_breakdown,
+                    "vix": trade.vix_at_signal,
+                    "outcome": 1 if trade.outcome == TradeOutcome.WIN else 0,
+                    "pnl_percent": trade.pnl_percent,
+                    "holding_days": trade.holding_days,
+                }
+            )
 
         return {
-            'version': '1.0.0',
-            'export_date': datetime.now().isoformat(),
-            'total_trades': len(all_trades),
-            'date_range': {
-                'min': min(t.signal_date for t in all_trades if t.signal_date).isoformat() if all_trades else None,
-                'max': max(t.signal_date for t in all_trades if t.signal_date).isoformat() if all_trades else None,
+            "version": "1.0.0",
+            "export_date": datetime.now().isoformat(),
+            "total_trades": len(all_trades),
+            "date_range": {
+                "min": (
+                    min(t.signal_date for t in all_trades if t.signal_date).isoformat()
+                    if all_trades
+                    else None
+                ),
+                "max": (
+                    max(t.signal_date for t in all_trades if t.signal_date).isoformat()
+                    if all_trades
+                    else None
+                ),
             },
-            'strategies': list(set(t.strategy for t in all_trades)),
-            'trades': training_data,
+            "strategies": list(set(t.strategy for t in all_trades)),
+            "trades": training_data,
         }
 
     def export_for_backtesting(
@@ -243,9 +255,7 @@ class TradeAnalysis:
         """
         # Sammle Preisdaten
         price_data = {}
-        symbol_list = symbols or [
-            s['symbol'] for s in price_storage.list_symbols_with_price_data()
-        ]
+        symbol_list = symbols or [s["symbol"] for s in price_storage.list_symbols_with_price_data()]
 
         for symbol in symbol_list:
             data = price_storage.get_price_data(symbol, start_date, end_date)
@@ -263,21 +273,21 @@ class TradeAnalysis:
         )
 
         return {
-            'version': '2.0.0',
-            'export_date': datetime.now().isoformat(),
-            'date_range': {
-                'start': start_date.isoformat() if start_date else None,
-                'end': end_date.isoformat() if end_date else None,
+            "version": "2.0.0",
+            "export_date": datetime.now().isoformat(),
+            "date_range": {
+                "start": start_date.isoformat() if start_date else None,
+                "end": end_date.isoformat() if end_date else None,
             },
-            'symbols': list(price_data.keys()),
-            'price_data': price_data,
-            'vix_data': vix_data,
-            'trades': [t.to_dict() for t in trades],
-            'summary': {
-                'symbols_count': len(price_data),
-                'total_bars': sum(len(bars) for bars in price_data.values()),
-                'vix_points': len(vix_data),
-                'trades_count': len(trades),
+            "symbols": list(price_data.keys()),
+            "price_data": price_data,
+            "vix_data": vix_data,
+            "trades": [t.to_dict() for t in trades],
+            "summary": {
+                "symbols_count": len(price_data),
+                "total_bars": sum(len(bars) for bars in price_data.values()),
+                "vix_points": len(vix_data),
+                "trades_count": len(trades),
             },
         }
 
@@ -316,10 +326,10 @@ class TradeAnalysis:
             db_size = Path(db_path).stat().st_size if Path(db_path).exists() else 0
 
             return {
-                'trades_count': trades_count,
-                'symbols_with_price_data': symbols_count,
-                'total_price_bars': total_bars,
-                'price_data_compressed_kb': compressed_bytes / 1024,
-                'vix_data_points': vix_count,
-                'database_size_mb': db_size / (1024 * 1024),
+                "trades_count": trades_count,
+                "symbols_with_price_data": symbols_count,
+                "total_price_bars": total_bars,
+                "price_data_compressed_kb": compressed_bytes / 1024,
+                "vix_data_points": vix_count,
+                "database_size_mb": db_size / (1024 * 1024),
             }

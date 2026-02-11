@@ -27,22 +27,22 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Optional
 
-from ..state import ServerState, ConnectionStatus
-from ..container import ServiceContainer
 from ..config import get_config
-from ..utils.secure_config import get_api_key, mask_api_key
+from ..container import ServiceContainer
+from ..state import ConnectionStatus, ServerState
+from ..utils.circuit_breaker import CircuitBreakerOpen, get_circuit_breaker
 from ..utils.rate_limiter import get_marketdata_limiter
-from ..utils.circuit_breaker import get_circuit_breaker, CircuitBreakerOpen
+from ..utils.secure_config import get_api_key, mask_api_key
 
 if TYPE_CHECKING:
     from ..data_providers.marketdata import MarketDataProvider
     from .base import ServiceContext
-    from .quote_service import QuoteService
     from .options_service import OptionsService
-    from .vix_service import VIXService
+    from .quote_service import QuoteService
     from .scanner_service import ScannerService
+    from .vix_service import VIXService
 
 logger = logging.getLogger(__name__)
 
@@ -74,13 +74,13 @@ class ServerCore:
     _api_key: str = field(default="", repr=False)
 
     # Provider (lazy-loaded)
-    _provider: Optional['MarketDataProvider'] = field(default=None, repr=False)
+    _provider: Optional["MarketDataProvider"] = field(default=None, repr=False)
 
     # Services (lazy-initialized)
-    _quote_service: Optional['QuoteService'] = field(default=None, repr=False)
-    _options_service: Optional['OptionsService'] = field(default=None, repr=False)
-    _vix_service: Optional['VIXService'] = field(default=None, repr=False)
-    _scanner_service: Optional['ScannerService'] = field(default=None, repr=False)
+    _quote_service: Optional["QuoteService"] = field(default=None, repr=False)
+    _options_service: Optional["OptionsService"] = field(default=None, repr=False)
+    _vix_service: Optional["VIXService"] = field(default=None, repr=False)
+    _scanner_service: Optional["ScannerService"] = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
         """Initialize after dataclass creation."""
@@ -95,7 +95,7 @@ class ServerCore:
     # =========================================================================
 
     @classmethod
-    def create_default(cls, api_key: Optional[str] = None) -> 'ServerCore':
+    def create_default(cls, api_key: Optional[str] = None) -> "ServerCore":
         """
         Erstellt ServerCore mit Standard-Konfiguration.
 
@@ -118,7 +118,7 @@ class ServerCore:
         cls,
         container: Optional[ServiceContainer] = None,
         state: Optional[ServerState] = None,
-    ) -> 'ServerCore':
+    ) -> "ServerCore":
         """
         Erstellt ServerCore für Tests mit Mock-Dependencies.
 
@@ -136,12 +136,13 @@ class ServerCore:
         )
 
     # Service context (lazy-created)
-    _service_context: Optional['ServiceContext'] = field(default=None, repr=False)
+    _service_context: Optional["ServiceContext"] = field(default=None, repr=False)
 
-    def _get_service_context(self) -> 'ServiceContext':
+    def _get_service_context(self) -> "ServiceContext":
         """Lazy-creates shared ServiceContext."""
         if self._service_context is None:
             from .base import ServiceContext
+
             self._service_context = ServiceContext(api_key=self._api_key)
         return self._service_context
 
@@ -150,39 +151,43 @@ class ServerCore:
     # =========================================================================
 
     @property
-    def quotes(self) -> 'QuoteService':
+    def quotes(self) -> "QuoteService":
         """QuoteService (lazy-loaded)."""
         if self._quote_service is None:
             from .quote_service import QuoteService
+
             self._quote_service = QuoteService(context=self._get_service_context())
         return self._quote_service
 
     @property
-    def options(self) -> 'OptionsService':
+    def options(self) -> "OptionsService":
         """OptionsService (lazy-loaded)."""
         if self._options_service is None:
             from .options_service import OptionsService
+
             self._options_service = OptionsService(context=self._get_service_context())
         return self._options_service
 
     @property
-    def vix(self) -> 'VIXService':
+    def vix(self) -> "VIXService":
         """VIXService (lazy-loaded)."""
         if self._vix_service is None:
             from .vix_service import VIXService
+
             self._vix_service = VIXService(context=self._get_service_context())
         return self._vix_service
 
     @property
-    def scanner(self) -> 'ScannerService':
+    def scanner(self) -> "ScannerService":
         """ScannerService (lazy-loaded)."""
         if self._scanner_service is None:
             from .scanner_service import ScannerService
+
             self._scanner_service = ScannerService(context=self._get_service_context())
         return self._scanner_service
 
     @property
-    def provider(self) -> Optional['MarketDataProvider']:
+    def provider(self) -> Optional["MarketDataProvider"]:
         """Data Provider (may be None if not connected)."""
         return self._provider
 
@@ -226,6 +231,7 @@ class ServerCore:
             # Initialize provider
             if self._provider is None:
                 from ..data_providers.marketdata import MarketDataProvider
+
                 self._provider = MarketDataProvider(self._api_key)
 
             # Connect with rate limiting
@@ -272,7 +278,7 @@ class ServerCore:
         self.state.connection.mark_disconnected()
         logger.info("Disconnected")
 
-    async def ensure_connected(self) -> 'MarketDataProvider':
+    async def ensure_connected(self) -> "MarketDataProvider":
         """
         Stellt sicher, dass Provider verbunden ist.
 
@@ -294,7 +300,7 @@ class ServerCore:
     # ASYNC CONTEXT MANAGER
     # =========================================================================
 
-    async def __aenter__(self) -> 'ServerCore':
+    async def __aenter__(self) -> "ServerCore":
         """Enter async context - connect."""
         await self.connect()
         return self

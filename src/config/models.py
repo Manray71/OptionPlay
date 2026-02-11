@@ -4,33 +4,49 @@
 #
 # Extrahiert aus config_loader.py im Rahmen des Recursive Logic Refactorings (Phase 2.2)
 
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any
 import os
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional
 
 try:
     from ..constants.trading_rules import (
         ENTRY_EARNINGS_MIN_DAYS,
+        ENTRY_IV_RANK_MAX,
+        ENTRY_IV_RANK_MIN,
+        ENTRY_PRICE_MAX,
+        ENTRY_PRICE_MIN,
         ENTRY_STABILITY_MIN,
-        ENTRY_PRICE_MIN, ENTRY_PRICE_MAX,
         ENTRY_VOLUME_MIN,
-        ENTRY_IV_RANK_MIN, ENTRY_IV_RANK_MAX,
-        SPREAD_SHORT_DELTA_TARGET, SPREAD_SHORT_DELTA_MIN, SPREAD_SHORT_DELTA_MAX,
-        SPREAD_LONG_DELTA_TARGET, SPREAD_LONG_DELTA_MIN, SPREAD_LONG_DELTA_MAX,
-        SPREAD_DTE_MIN, SPREAD_DTE_MAX, SPREAD_DTE_TARGET,
+        SPREAD_DTE_MAX,
+        SPREAD_DTE_MIN,
+        SPREAD_DTE_TARGET,
+        SPREAD_LONG_DELTA_MAX,
+        SPREAD_LONG_DELTA_MIN,
+        SPREAD_LONG_DELTA_TARGET,
         SPREAD_MIN_CREDIT_PCT,
+        SPREAD_SHORT_DELTA_MAX,
+        SPREAD_SHORT_DELTA_MIN,
+        SPREAD_SHORT_DELTA_TARGET,
     )
 except ImportError:
     from constants.trading_rules import (
         ENTRY_EARNINGS_MIN_DAYS,
+        ENTRY_IV_RANK_MAX,
+        ENTRY_IV_RANK_MIN,
+        ENTRY_PRICE_MAX,
+        ENTRY_PRICE_MIN,
         ENTRY_STABILITY_MIN,
-        ENTRY_PRICE_MIN, ENTRY_PRICE_MAX,
         ENTRY_VOLUME_MIN,
-        ENTRY_IV_RANK_MIN, ENTRY_IV_RANK_MAX,
-        SPREAD_SHORT_DELTA_TARGET, SPREAD_SHORT_DELTA_MIN, SPREAD_SHORT_DELTA_MAX,
-        SPREAD_LONG_DELTA_TARGET, SPREAD_LONG_DELTA_MIN, SPREAD_LONG_DELTA_MAX,
-        SPREAD_DTE_MIN, SPREAD_DTE_MAX, SPREAD_DTE_TARGET,
+        SPREAD_DTE_MAX,
+        SPREAD_DTE_MIN,
+        SPREAD_DTE_TARGET,
+        SPREAD_LONG_DELTA_MAX,
+        SPREAD_LONG_DELTA_MIN,
+        SPREAD_LONG_DELTA_TARGET,
         SPREAD_MIN_CREDIT_PCT,
+        SPREAD_SHORT_DELTA_MAX,
+        SPREAD_SHORT_DELTA_MIN,
+        SPREAD_SHORT_DELTA_TARGET,
     )
 
 
@@ -38,9 +54,11 @@ except ImportError:
 # CONNECTION & PROVIDER CONFIGS
 # =============================================================================
 
+
 @dataclass
 class ConnectionConfig:
     """Verbindungseinstellungen"""
+
     host: str = "127.0.0.1"
     port: int = 7497
     client_id: int = 1
@@ -51,6 +69,7 @@ class ConnectionConfig:
 @dataclass
 class TradierConfig:
     """Tradier API Konfiguration"""
+
     enabled: bool = True
     environment: str = "sandbox"  # "sandbox" oder "production"
     api_key: str = ""
@@ -78,9 +97,11 @@ class TradierConfig:
 # INDICATOR SCORING CONFIGS
 # =============================================================================
 
+
 @dataclass
 class RSIConfig:
     """RSI Scoring Parameter"""
+
     period: int = 14
     extreme_oversold: int = 30
     oversold: int = 40
@@ -93,6 +114,7 @@ class RSIConfig:
 @dataclass
 class SupportConfig:
     """Support Level Scoring"""
+
     lookback_days: int = 60
     proximity_percent: float = 3.0
     proximity_percent_wide: float = 5.0
@@ -105,6 +127,7 @@ class SupportConfig:
 @dataclass
 class FibonacciLevel:
     """Einzelnes Fibonacci Level"""
+
     level: float
     tolerance: float
     points: int
@@ -113,17 +136,21 @@ class FibonacciLevel:
 @dataclass
 class FibonacciConfig:
     """Fibonacci Retracement Config"""
+
     lookback_days: int = 90
-    levels: List[FibonacciLevel] = field(default_factory=lambda: [
-        FibonacciLevel(0.618, 0.02, 2),
-        FibonacciLevel(0.500, 0.02, 2),
-        FibonacciLevel(0.382, 0.02, 1)
-    ])
+    levels: List[FibonacciLevel] = field(
+        default_factory=lambda: [
+            FibonacciLevel(0.618, 0.02, 2),
+            FibonacciLevel(0.500, 0.02, 2),
+            FibonacciLevel(0.382, 0.02, 1),
+        ]
+    )
 
 
 @dataclass
 class MovingAverageConfig:
     """Moving Average Parameter"""
+
     short_period: int = 20
     long_period: int = 200
 
@@ -131,6 +158,7 @@ class MovingAverageConfig:
 @dataclass
 class VolumeConfig:
     """Volumen Scoring"""
+
     average_period: int = 20
     spike_multiplier: float = 1.5
     # NEW: Volume-Trend Scoring
@@ -138,12 +166,13 @@ class VolumeConfig:
     decrease_threshold: float = 0.7  # Vol < 70% des Durchschnitts = "decreasing"
     # E.3: Very low volume penalty
     very_low_threshold: float = 0.5  # Vol < 50% = very low (weak conviction)
-    weight_very_low: float = -0.5   # Penalty for very low volume
+    weight_very_low: float = -0.5  # Penalty for very low volume
 
 
 @dataclass
 class MACDScoringConfig:
     """MACD Scoring Konfiguration"""
+
     weight_bullish_cross: float = 2.0  # Bullish Cross = starkes Signal
     weight_bullish: float = 1.0  # Histogram positiv
     weight_neutral: float = 0.0
@@ -152,6 +181,7 @@ class MACDScoringConfig:
 @dataclass
 class StochasticScoringConfig:
     """Stochastik Scoring Konfiguration"""
+
     oversold_threshold: int = 20
     overbought_threshold: int = 80
     weight_oversold_cross: float = 2.0  # Oversold + Bullish Cross
@@ -161,6 +191,7 @@ class StochasticScoringConfig:
 @dataclass
 class TrendStrengthConfig:
     """Trend-Stärke Konfiguration"""
+
     # SMA-Alignment Scoring
     weight_strong_alignment: float = 2.0  # SMA20 > SMA50 > SMA200
     weight_moderate_alignment: float = 1.0  # Preis > SMA200, aber nicht perfektes Alignment
@@ -172,6 +203,7 @@ class TrendStrengthConfig:
 @dataclass
 class KeltnerChannelConfig:
     """Keltner Channel Konfiguration"""
+
     # Channel-Parameter
     ema_period: int = 20  # EMA für Mittellinie
     atr_period: int = 10  # ATR-Periode
@@ -194,9 +226,11 @@ class KeltnerChannelConfig:
 # STRATEGY SCORING CONFIGS
 # =============================================================================
 
+
 @dataclass
 class PullbackScoringConfig:
     """Gesamte Pullback Scoring Konfiguration"""
+
     rsi: RSIConfig = field(default_factory=RSIConfig)
     support: SupportConfig = field(default_factory=SupportConfig)
     fibonacci: FibonacciConfig = field(default_factory=FibonacciConfig)
@@ -215,9 +249,11 @@ class PullbackScoringConfig:
 # BOUNCE ANALYZER CONFIG
 # =============================================================================
 
+
 @dataclass
 class BounceSupportConfig:
     """Support Detection für Bounce"""
+
     lookback_days: int = 60
     touches_min: int = 2
     tolerance_pct: float = 1.5  # Support-Zone Toleranz
@@ -229,6 +265,7 @@ class BounceSupportConfig:
 @dataclass
 class BounceCandlestickConfig:
     """Candlestick Pattern Scoring für Bounce"""
+
     weight_hammer: float = 2.0
     weight_engulfing: float = 2.0
     weight_doji: float = 1.0
@@ -238,6 +275,7 @@ class BounceCandlestickConfig:
 @dataclass
 class BounceScoringConfig:
     """Gesamte Bounce Scoring Konfiguration"""
+
     support: BounceSupportConfig = field(default_factory=BounceSupportConfig)
     candlestick: BounceCandlestickConfig = field(default_factory=BounceCandlestickConfig)
     volume: VolumeConfig = field(default_factory=VolumeConfig)
@@ -262,9 +300,11 @@ class BounceScoringConfig:
 # ATH BREAKOUT ANALYZER CONFIG
 # =============================================================================
 
+
 @dataclass
 class ATHDetectionConfig:
     """ATH Detection Konfiguration"""
+
     lookback_days: int = 252  # 1 Jahr
     consolidation_days: int = 20
     breakout_threshold_pct: float = 1.0  # Min % über altem ATH
@@ -275,6 +315,7 @@ class ATHDetectionConfig:
 @dataclass
 class MomentumConfig:
     """Momentum/ROC Konfiguration"""
+
     roc_period: int = 10  # Rate of Change Periode
     weight_strong_momentum: float = 2.0  # ROC > 5%
     weight_moderate_momentum: float = 1.0  # ROC > 2%
@@ -285,6 +326,7 @@ class MomentumConfig:
 @dataclass
 class RelativeStrengthConfig:
     """Relative Strength vs SPY"""
+
     lookback_days: int = 20
     weight_strong_outperformance: float = 2.0  # > 5% Outperformance
     weight_moderate_outperformance: float = 1.0  # > 2%
@@ -295,6 +337,7 @@ class RelativeStrengthConfig:
 @dataclass
 class ATHBreakoutScoringConfig:
     """Gesamte ATH Breakout Scoring Konfiguration"""
+
     ath_detection: ATHDetectionConfig = field(default_factory=ATHDetectionConfig)
     volume: VolumeConfig = field(default_factory=VolumeConfig)
     momentum: MomentumConfig = field(default_factory=MomentumConfig)
@@ -316,9 +359,11 @@ class ATHBreakoutScoringConfig:
 # EARNINGS DIP ANALYZER CONFIG
 # =============================================================================
 
+
 @dataclass
 class DipDetectionConfig:
     """Earnings Dip Detection Konfiguration"""
+
     min_dip_pct: float = 5.0
     max_dip_pct: float = 25.0
     ideal_max_dip_pct: float = 10.0
@@ -331,6 +376,7 @@ class DipDetectionConfig:
 @dataclass
 class GapAnalysisConfig:
     """Gap Analysis Konfiguration"""
+
     min_gap_pct: float = 2.0
     gap_fill_threshold: float = 50.0  # Ab 50% gilt als "filling"
     weight_gap_detected: float = 1.0
@@ -339,6 +385,7 @@ class GapAnalysisConfig:
 @dataclass
 class StabilizationConfig:
     """Stabilization Scoring"""
+
     min_days_for_full_score: int = 2
     weight_stable: float = 2.0
     weight_beginning: float = 1.0
@@ -347,6 +394,7 @@ class StabilizationConfig:
 @dataclass
 class EarningsDipScoringConfig:
     """Gesamte Earnings Dip Scoring Konfiguration"""
+
     dip_detection: DipDetectionConfig = field(default_factory=DipDetectionConfig)
     gap_analysis: GapAnalysisConfig = field(default_factory=GapAnalysisConfig)
     stabilization: StabilizationConfig = field(default_factory=StabilizationConfig)
@@ -371,17 +419,33 @@ class EarningsDipScoringConfig:
 # FILTER CONFIGS
 # =============================================================================
 
+
 def _get_default_blacklist() -> List[str]:
     """Lädt die Default-Blacklist aus fundamentals_constants."""
     try:
         from .fundamentals_constants import DEFAULT_BLACKLIST
+
         return DEFAULT_BLACKLIST.copy()
     except ImportError:
         # Fallback wenn Import fehlschlägt
         return [
-            "ROKU", "SNAP", "UPST", "AFRM", "MRNA",
-            "RUN", "MSTR", "TSLA", "COIN", "SQ",
-            "DAVE", "IONQ", "QBTS", "QMCO", "QUBT", "RDW", "RGTI"
+            "ROKU",
+            "SNAP",
+            "UPST",
+            "AFRM",
+            "MRNA",
+            "RUN",
+            "MSTR",
+            "TSLA",
+            "COIN",
+            "SQ",
+            "DAVE",
+            "IONQ",
+            "QBTS",
+            "QMCO",
+            "QUBT",
+            "RDW",
+            "RGTI",
         ]
 
 
@@ -399,12 +463,15 @@ class FundamentalsFilterConfig:
 
     Konstanten sind zentral definiert in: src/config/fundamentals_constants.py
     """
+
     # Aktivierung
     enabled: bool = True
 
     # Stability Filter (aus outcomes.db)
     # Stability Score >= 70 → 94.5% Win Rate (vs. 66% bei <50)
-    min_stability_score: float = ENTRY_STABILITY_MIN  # PLAYBOOK §1: ≥65 (65-70=WARNING, ≥80 bei VIX>20)
+    min_stability_score: float = (
+        ENTRY_STABILITY_MIN  # PLAYBOOK §1: ≥65 (65-70=WARNING, ≥80 bei VIX>20)
+    )
     warn_below_stability: float = 60.0  # Warnung wenn unter diesem Wert
     boost_above_stability: float = 70.0  # Score-Boost ab diesem Wert
 
@@ -448,6 +515,7 @@ class FundamentalsFilterConfig:
 @dataclass
 class FilterConfig:
     """Filter Einstellungen"""
+
     earnings_exclude_days: int = ENTRY_EARNINGS_MIN_DAYS
     price_minimum: float = ENTRY_PRICE_MIN
     price_maximum: float = ENTRY_PRICE_MAX
@@ -462,6 +530,7 @@ class FilterConfig:
 # SCANNER & OPTIONS CONFIGS
 # =============================================================================
 
+
 @dataclass
 class ScannerConfig:
     """
@@ -469,6 +538,7 @@ class ScannerConfig:
 
     Wird verwendet, um ScanConfig im MultiStrategyScanner zu initialisieren.
     """
+
     # Score-Filter
     min_score: float = 5.0
     min_actionable_score: float = 6.0
@@ -486,9 +556,9 @@ class ScannerConfig:
     earnings_allow_bmo_same_day: bool = False  # Konservativ: BMO-Tag nicht handeln
 
     # IV-Rank Filter (für Credit-Spreads wichtig!)
-    iv_rank_minimum: float = ENTRY_IV_RANK_MIN   # Min IV-Rank für ausreichend Prämie
-    iv_rank_maximum: float = ENTRY_IV_RANK_MAX   # Max IV-Rank (zu hohe IV = erhöhtes Risiko)
-    enable_iv_filter: bool = True   # IV-Filter aktivieren/deaktivieren
+    iv_rank_minimum: float = ENTRY_IV_RANK_MIN  # Min IV-Rank für ausreichend Prämie
+    iv_rank_maximum: float = ENTRY_IV_RANK_MAX  # Max IV-Rank (zu hohe IV = erhöhtes Risiko)
+    enable_iv_filter: bool = True  # IV-Filter aktivieren/deaktivieren
 
     # Output-Limits
     max_results_per_symbol: int = 3
@@ -510,28 +580,29 @@ class ScannerConfig:
     # Stability ist der stärkste Prädiktor für Win Rate!
     enable_stability_first: bool = True  # Stability-First-Filterung aktivieren
     stability_premium_threshold: float = 80.0  # Premium-Symbole (94.5% WR)
-    stability_premium_min_score: float = 4.0   # Niedrigerer Score OK für Premium
-    stability_good_threshold: float = 70.0     # Gute Symbole (86.1% WR)
-    stability_good_min_score: float = 5.0      # Standard Score für gute Symbole
-    stability_ok_threshold: float = 50.0       # Akzeptable Symbole
-    stability_ok_min_score: float = 6.0        # Höherer Score für grenzwertige Symbole
+    stability_premium_min_score: float = 4.0  # Niedrigerer Score OK für Premium
+    stability_good_threshold: float = 70.0  # Gute Symbole (86.1% WR)
+    stability_good_min_score: float = 5.0  # Standard Score für gute Symbole
+    stability_ok_threshold: float = 50.0  # Akzeptable Symbole
+    stability_ok_min_score: float = 6.0  # Höherer Score für grenzwertige Symbole
 
 
 @dataclass
 class OptionsConfig:
     """Options Analyse Parameter"""
+
     dte_minimum: int = SPREAD_DTE_MIN
     dte_maximum: int = SPREAD_DTE_MAX
     dte_target: int = SPREAD_DTE_TARGET
     # Short Put (verkauft) - Delta ±0.20 (PLAYBOOK §2: ±0.03)
     # Note: delta_minimum = less aggressive (smaller |delta|, closer to 0)
     #       delta_maximum = more aggressive (larger |delta|, further from 0)
-    delta_minimum: float = SPREAD_SHORT_DELTA_MIN   # Less aggressive boundary (PLAYBOOK §2)
-    delta_maximum: float = SPREAD_SHORT_DELTA_MAX   # More aggressive boundary (PLAYBOOK §2)
+    delta_minimum: float = SPREAD_SHORT_DELTA_MIN  # Less aggressive boundary (PLAYBOOK §2)
+    delta_maximum: float = SPREAD_SHORT_DELTA_MAX  # More aggressive boundary (PLAYBOOK §2)
     delta_target: float = SPREAD_SHORT_DELTA_TARGET
     # Long Put (gekauft) - Delta (PLAYBOOK §2: ±0.02)
-    long_delta_minimum: float = SPREAD_LONG_DELTA_MIN   # Less aggressive boundary (PLAYBOOK §2)
-    long_delta_maximum: float = SPREAD_LONG_DELTA_MAX   # More aggressive boundary (PLAYBOOK §2)
+    long_delta_minimum: float = SPREAD_LONG_DELTA_MIN  # Less aggressive boundary (PLAYBOOK §2)
+    long_delta_maximum: float = SPREAD_LONG_DELTA_MAX  # More aggressive boundary (PLAYBOOK §2)
     long_delta_target: float = SPREAD_LONG_DELTA_TARGET
     # Spread-Breite: NICHT konfigurierbar — ergibt sich aus Delta-Differenz (PLAYBOOK §2)
     min_credit_pct: float = SPREAD_MIN_CREDIT_PCT  # PLAYBOOK §2: ≥10% Spread-Breite
@@ -563,9 +634,11 @@ class OptionsConfig:
 # PERFORMANCE & INFRASTRUCTURE CONFIGS
 # =============================================================================
 
+
 @dataclass
 class PerformanceConfig:
     """Performance und Cache Parameter"""
+
     request_timeout: int = 30
     batch_delay: float = 1.0
     max_concurrent_requests: int = 5
@@ -580,6 +653,7 @@ class PerformanceConfig:
 @dataclass
 class ApiConnectionConfig:
     """API Verbindungs-Parameter"""
+
     max_retries: int = 3
     retry_base_delay: int = 2
     vix_cache_seconds: int = 300
@@ -589,6 +663,7 @@ class ApiConnectionConfig:
 @dataclass
 class CircuitBreakerConfig:
     """Circuit Breaker Parameter"""
+
     failure_threshold: int = 5
     recovery_timeout: float = 60.0
     half_open_max_calls: int = 3
@@ -598,6 +673,7 @@ class CircuitBreakerConfig:
 @dataclass
 class LocalDatabaseConfig:
     """Local database configuration for historical data."""
+
     enabled: bool = True
     db_path: str = "~/.optionplay/trades.db"
     max_data_age_days: int = 7
@@ -607,19 +683,22 @@ class LocalDatabaseConfig:
 @dataclass
 class DataSourcesConfig:
     """Data sources configuration for historical data priority."""
+
     local_database: LocalDatabaseConfig = field(default_factory=LocalDatabaseConfig)
-    provider_priority: List[str] = field(default_factory=lambda: [
-        "local_db", "tradier", "marketdata", "yahoo"
-    ])
+    provider_priority: List[str] = field(
+        default_factory=lambda: ["local_db", "tradier", "marketdata", "yahoo"]
+    )
 
 
 # =============================================================================
 # MAIN SETTINGS
 # =============================================================================
 
+
 @dataclass
 class Settings:
     """Haupt-Konfigurationsklasse"""
+
     data_sources: DataSourcesConfig = field(default_factory=DataSourcesConfig)
     connection: ConnectionConfig = field(default_factory=ConnectionConfig)
     tradier: TradierConfig = field(default_factory=TradierConfig)
@@ -640,9 +719,11 @@ class Settings:
 # TRAINED WEIGHTS (ML)
 # =============================================================================
 
+
 @dataclass
 class TrainedWeights:
     """Trained component weights for a strategy."""
+
     weights: Dict[str, float] = field(default_factory=dict)
     roll_params: Dict[str, float] = field(default_factory=dict)
     performance: Dict[str, float] = field(default_factory=dict)
@@ -651,6 +732,7 @@ class TrainedWeights:
 @dataclass
 class GapBoostConfig:
     """Gap Boost configuration for score enhancement based on gap signals."""
+
     enabled: bool = True
     # Default thresholds (in %)
     large_gap_pct: float = 3.0
@@ -671,7 +753,7 @@ class GapBoostConfig:
         Returns:
             Multiplier to apply to final score (1.0 = no change)
         """
-        if not self.enabled or gap_type == 'none':
+        if not self.enabled or gap_type == "none":
             return 1.0
 
         boosts = self.strategy_boosts.get(strategy, {})
@@ -679,19 +761,19 @@ class GapBoostConfig:
             return 1.0
 
         abs_size = abs(gap_size_pct)
-        is_down = gap_type in ('down', 'partial_down')
-        is_up = gap_type in ('up', 'partial_up')
+        is_down = gap_type in ("down", "partial_down")
+        is_up = gap_type in ("up", "partial_up")
 
         if is_down:
             if abs_size >= self.large_gap_pct:
-                return boosts.get('large_down_gap', 1.0)
+                return boosts.get("large_down_gap", 1.0)
             elif abs_size >= self.medium_gap_pct:
-                return boosts.get('medium_down_gap', 1.0)
+                return boosts.get("medium_down_gap", 1.0)
             elif abs_size >= self.small_gap_pct:
-                return boosts.get('small_down_gap', 1.0)
+                return boosts.get("small_down_gap", 1.0)
         elif is_up:
             if abs_size >= self.large_gap_pct:
-                return boosts.get('large_up_gap', 1.0)
+                return boosts.get("large_up_gap", 1.0)
             # Medium/small up-gaps get no boost by default
 
         return 1.0
@@ -700,6 +782,7 @@ class GapBoostConfig:
 @dataclass
 class TrainedWeightsConfig:
     """All trained weights from ML training."""
+
     version: str = "1.0.0"
     training_date: str = ""
     pullback: TrainedWeights = field(default_factory=TrainedWeights)
@@ -712,10 +795,10 @@ class TrainedWeightsConfig:
     def get_strategy_weights(self, strategy: str) -> Dict[str, float]:
         """Get weights for a specific strategy."""
         strategy_map = {
-            'pullback': self.pullback,
-            'bounce': self.bounce,
-            'ath_breakout': self.ath_breakout,
-            'earnings_dip': self.earnings_dip,
+            "pullback": self.pullback,
+            "bounce": self.bounce,
+            "ath_breakout": self.ath_breakout,
+            "earnings_dip": self.earnings_dip,
         }
         tw = strategy_map.get(strategy)
         return tw.weights if tw else {}
@@ -723,10 +806,10 @@ class TrainedWeightsConfig:
     def get_roll_params(self, strategy: str) -> Dict[str, float]:
         """Get roll parameters for a specific strategy."""
         strategy_map = {
-            'pullback': self.pullback,
-            'bounce': self.bounce,
-            'ath_breakout': self.ath_breakout,
-            'earnings_dip': self.earnings_dip,
+            "pullback": self.pullback,
+            "bounce": self.bounce,
+            "ath_breakout": self.ath_breakout,
+            "earnings_dip": self.earnings_dip,
         }
         tw = strategy_map.get(strategy)
         return tw.roll_params if tw else {}

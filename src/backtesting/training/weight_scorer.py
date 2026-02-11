@@ -9,7 +9,7 @@ Contains: WeightedScorer class
 import logging
 from typing import Any, Dict, Optional
 
-from ...constants.trading_rules import VIX_LOW_VOL_MAX, VIX_NORMAL_MAX, VIX_ELEVATED_MAX
+from ...constants.trading_rules import VIX_ELEVATED_MAX, VIX_LOW_VOL_MAX, VIX_NORMAL_MAX
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +32,7 @@ class WeightedScorer:
         """
         self._result = optimization_result
         from .ml_weight_optimizer import DEFAULT_WEIGHTS
+
         self._default_weights = DEFAULT_WEIGHTS.copy()
 
     def score(
@@ -92,17 +93,16 @@ class WeightedScorer:
             "method": config.method.value,
             "confidence": config.confidence,
             "validation_score": config.validation_score,
-            "top_weights": dict(sorted(
-                config.weights.items(),
-                key=lambda x: x[1],
-                reverse=True
-            )[:5]),
+            "top_weights": dict(
+                sorted(config.weights.items(), key=lambda x: x[1], reverse=True)[:5]
+            ),
         }
 
     @classmethod
     def load_latest(cls) -> "WeightedScorer":
         """Load scorer with latest optimization"""
         from .ml_weight_optimizer import MLWeightOptimizer
+
         result = MLWeightOptimizer.load_latest()
         return cls(result)
 
@@ -110,5 +110,6 @@ class WeightedScorer:
     def from_file(cls, filepath: str) -> "WeightedScorer":
         """Load scorer from specific file"""
         from .ml_weight_optimizer import MLWeightOptimizer
+
         result = MLWeightOptimizer.load(filepath)
         return cls(result)

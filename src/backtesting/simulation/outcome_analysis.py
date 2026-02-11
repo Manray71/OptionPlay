@@ -55,51 +55,54 @@ def train_outcome_predictor(
 
     # Berechne bedingte Statistiken
     predictor = {
-        'total_trades': len(rows),
-        'base_win_rate': sum(1 for r in rows if r['was_profitable']) / len(rows),
-        'by_otm_bucket': {},
-        'by_vix_regime': {},
-        'by_dte_bucket': {},
+        "total_trades": len(rows),
+        "base_win_rate": sum(1 for r in rows if r["was_profitable"]) / len(rows),
+        "by_otm_bucket": {},
+        "by_vix_regime": {},
+        "by_dte_bucket": {},
     }
 
     # OTM% Buckets
     for bucket_name, (low, high) in [
-        ('5-10%', (5, 10)),
-        ('10-15%', (10, 15)),
-        ('15-20%', (15, 20)),
-        ('20%+', (20, 100)),
+        ("5-10%", (5, 10)),
+        ("10-15%", (10, 15)),
+        ("15-20%", (15, 20)),
+        ("20%+", (20, 100)),
     ]:
-        bucket_trades = [r for r in rows if low <= r['short_otm_pct'] < high]
+        bucket_trades = [r for r in rows if low <= r["short_otm_pct"] < high]
         if bucket_trades:
-            predictor['by_otm_bucket'][bucket_name] = {
-                'trades': len(bucket_trades),
-                'win_rate': sum(1 for r in bucket_trades if r['was_profitable']) / len(bucket_trades),
-                'avg_pnl': sum(r['pnl'] for r in bucket_trades) / len(bucket_trades),
+            predictor["by_otm_bucket"][bucket_name] = {
+                "trades": len(bucket_trades),
+                "win_rate": sum(1 for r in bucket_trades if r["was_profitable"])
+                / len(bucket_trades),
+                "avg_pnl": sum(r["pnl"] for r in bucket_trades) / len(bucket_trades),
             }
 
     # VIX Regimes
-    for regime in ['low', 'medium', 'high', 'extreme']:
-        regime_trades = [r for r in rows if r['vix_regime'] == regime]
+    for regime in ["low", "medium", "high", "extreme"]:
+        regime_trades = [r for r in rows if r["vix_regime"] == regime]
         if regime_trades:
-            predictor['by_vix_regime'][regime] = {
-                'trades': len(regime_trades),
-                'win_rate': sum(1 for r in regime_trades if r['was_profitable']) / len(regime_trades),
-                'avg_pnl': sum(r['pnl'] for r in regime_trades) / len(regime_trades),
+            predictor["by_vix_regime"][regime] = {
+                "trades": len(regime_trades),
+                "win_rate": sum(1 for r in regime_trades if r["was_profitable"])
+                / len(regime_trades),
+                "avg_pnl": sum(r["pnl"] for r in regime_trades) / len(regime_trades),
             }
 
     # DTE Buckets
     for bucket_name, (low, high) in [
-        ('30-45', (30, 45)),
-        ('45-60', (45, 60)),
-        ('60-90', (60, 90)),
-        ('90+', (90, 365)),
+        ("30-45", (30, 45)),
+        ("45-60", (45, 60)),
+        ("60-90", (60, 90)),
+        ("90+", (90, 365)),
     ]:
-        bucket_trades = [r for r in rows if low <= r['dte_at_entry'] < high]
+        bucket_trades = [r for r in rows if low <= r["dte_at_entry"] < high]
         if bucket_trades:
-            predictor['by_dte_bucket'][bucket_name] = {
-                'trades': len(bucket_trades),
-                'win_rate': sum(1 for r in bucket_trades if r['was_profitable']) / len(bucket_trades),
-                'avg_pnl': sum(r['pnl'] for r in bucket_trades) / len(bucket_trades),
+            predictor["by_dte_bucket"][bucket_name] = {
+                "trades": len(bucket_trades),
+                "win_rate": sum(1 for r in bucket_trades if r["was_profitable"])
+                / len(bucket_trades),
+                "avg_pnl": sum(r["pnl"] for r in bucket_trades) / len(bucket_trades),
             }
 
     return predictor
@@ -120,12 +123,12 @@ def analyze_winning_patterns(
 
     # Gewinner vs. Verlierer vergleichen
     patterns = {
-        'winners': {},
-        'losers': {},
-        'recommendations': [],
+        "winners": {},
+        "losers": {},
+        "recommendations": [],
     }
 
-    for label, condition in [('winners', 'was_profitable = 1'), ('losers', 'was_profitable = 0')]:
+    for label, condition in [("winners", "was_profitable = 1"), ("losers", "was_profitable = 0")]:
         cursor.execute(f"""
         SELECT
             AVG(short_otm_pct) as avg_otm,
@@ -142,26 +145,26 @@ def analyze_winning_patterns(
         row = cursor.fetchone()
         if row:
             patterns[label] = {
-                'avg_otm_pct': round(row['avg_otm'] or 0, 1),
-                'avg_dte': round(row['avg_dte'] or 0, 0),
-                'avg_spread_width': round(row['avg_width'] or 0, 1),
-                'avg_credit': round(row['avg_credit'] or 0, 2),
-                'avg_vix': round(row['avg_vix'] or 0, 1),
-                'avg_drawdown_pct': round(row['avg_drawdown'] or 0, 1),
-                'hold_to_expiration_pct': round((row['hold_to_exp_pct'] or 0) * 100, 1),
+                "avg_otm_pct": round(row["avg_otm"] or 0, 1),
+                "avg_dte": round(row["avg_dte"] or 0, 0),
+                "avg_spread_width": round(row["avg_width"] or 0, 1),
+                "avg_credit": round(row["avg_credit"] or 0, 2),
+                "avg_vix": round(row["avg_vix"] or 0, 1),
+                "avg_drawdown_pct": round(row["avg_drawdown"] or 0, 1),
+                "hold_to_expiration_pct": round((row["hold_to_exp_pct"] or 0) * 100, 1),
             }
 
     # Empfehlungen generieren
-    w = patterns.get('winners', {})
-    l = patterns.get('losers', {})
+    w = patterns.get("winners", {})
+    l = patterns.get("losers", {})
 
     if w and l:
-        if w.get('avg_otm_pct', 0) > l.get('avg_otm_pct', 0):
-            patterns['recommendations'].append(
+        if w.get("avg_otm_pct", 0) > l.get("avg_otm_pct", 0):
+            patterns["recommendations"].append(
                 f"Winners have higher OTM%: {w['avg_otm_pct']}% vs {l['avg_otm_pct']}%"
             )
-        if w.get('avg_vix', 0) < l.get('avg_vix', 0):
-            patterns['recommendations'].append(
+        if w.get("avg_vix", 0) < l.get("avg_vix", 0):
+            patterns["recommendations"].append(
                 f"Winners tend to enter at lower VIX: {w['avg_vix']} vs {l['avg_vix']}"
             )
 
@@ -183,7 +186,8 @@ def calculate_symbol_stability(
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
 
-    cursor.execute("""
+    cursor.execute(
+        """
     SELECT
         symbol,
         COUNT(*) as trades,
@@ -198,34 +202,36 @@ def calculate_symbol_stability(
     GROUP BY symbol
     HAVING trades >= ?
     ORDER BY trades DESC
-    """, (min_trades,))
+    """,
+        (min_trades,),
+    )
 
     results = {}
     for row in cursor.fetchall():
-        win_rate = row['wins'] / row['trades'] * 100 if row['trades'] > 0 else 0
-        avg_pnl = row['avg_pnl'] or 0
-        avg_drawdown = abs(row['avg_drawdown'] or 0)
+        win_rate = row["wins"] / row["trades"] * 100 if row["trades"] > 0 else 0
+        avg_pnl = row["avg_pnl"] or 0
+        avg_drawdown = abs(row["avg_drawdown"] or 0)
 
         # Stability Score: Kombination aus Win Rate, Konsistenz und Drawdown
         # Higher is better (0-100)
-        consistency = _calculate_consistency(row['outcome_sequence'])
+        consistency = _calculate_consistency(row["outcome_sequence"])
 
         stability = (
-            win_rate * 0.4 +           # 40% Win Rate
-            consistency * 0.3 +        # 30% Konsistenz
-            max(0, 100 - avg_drawdown) * 0.3  # 30% niedriger Drawdown
+            win_rate * 0.4  # 40% Win Rate
+            + consistency * 0.3  # 30% Konsistenz
+            + max(0, 100 - avg_drawdown) * 0.3  # 30% niedriger Drawdown
         )
 
-        results[row['symbol']] = {
-            'trades': row['trades'],
-            'win_rate': round(win_rate, 1),
-            'avg_pnl': round(avg_pnl, 2),
-            'avg_pnl_pct': round(row['avg_pnl_pct'] or 0, 2),
-            'avg_drawdown_pct': round(avg_drawdown, 1),
-            'worst_trade': round(row['worst_pnl'] or 0, 2),
-            'best_trade': round(row['best_pnl'] or 0, 2),
-            'consistency': round(consistency, 1),
-            'stability_score': round(stability, 1),
+        results[row["symbol"]] = {
+            "trades": row["trades"],
+            "win_rate": round(win_rate, 1),
+            "avg_pnl": round(avg_pnl, 2),
+            "avg_pnl_pct": round(row["avg_pnl_pct"] or 0, 2),
+            "avg_drawdown_pct": round(avg_drawdown, 1),
+            "worst_trade": round(row["worst_pnl"] or 0, 2),
+            "best_trade": round(row["best_pnl"] or 0, 2),
+            "consistency": round(consistency, 1),
+            "stability_score": round(stability, 1),
         }
 
     conn.close()
@@ -240,22 +246,19 @@ def _calculate_consistency(outcome_sequence: str) -> float:
     if not outcome_sequence:
         return 50.0
 
-    outcomes = outcome_sequence.split(',')
+    outcomes = outcome_sequence.split(",")
     if len(outcomes) < 3:
         return 50.0
 
     # Zähle Streak-Wechsel
-    changes = sum(
-        1 for i in range(1, len(outcomes))
-        if outcomes[i] != outcomes[i-1]
-    )
+    changes = sum(1 for i in range(1, len(outcomes)) if outcomes[i] != outcomes[i - 1])
 
     # Weniger Wechsel = mehr Konsistenz (bei hoher Win Rate = gut)
     max_changes = len(outcomes) - 1
     change_rate = changes / max_changes if max_changes > 0 else 0
 
     # Konsistenz = 100 * (1 - change_rate) * win_adjustment
-    wins = sum(1 for o in outcomes if o == '1')
+    wins = sum(1 for o in outcomes if o == "1")
     win_rate = wins / len(outcomes)
 
     # Hohe Win Rate + niedrige Change Rate = hohe Konsistenz
@@ -277,13 +280,13 @@ def get_recommended_symbols(
     stability = calculate_symbol_stability(db_path, min_trades)
 
     recommended = [
-        symbol for symbol, data in stability.items()
-        if data['win_rate'] >= min_win_rate
-        and data['stability_score'] >= min_stability
+        symbol
+        for symbol, data in stability.items()
+        if data["win_rate"] >= min_win_rate and data["stability_score"] >= min_stability
     ]
 
     # Sortiere nach Stability Score
-    recommended.sort(key=lambda s: stability[s]['stability_score'], reverse=True)
+    recommended.sort(key=lambda s: stability[s]["stability_score"], reverse=True)
 
     return recommended
 
@@ -299,9 +302,9 @@ def get_blacklisted_symbols(
     stability = calculate_symbol_stability(db_path, min_trades)
 
     blacklisted = [
-        symbol for symbol, data in stability.items()
-        if data['win_rate'] < max_win_rate
-        or data['stability_score'] < 30
+        symbol
+        for symbol, data in stability.items()
+        if data["win_rate"] < max_win_rate or data["stability_score"] < 30
     ]
 
     return blacklisted
@@ -321,7 +324,7 @@ def get_symbol_stability_score(
     stability = calculate_symbol_stability(db_path, min_trades)
     data = stability.get(symbol)
     if data:
-        return data['stability_score']
+        return data["stability_score"]
     return None
 
 
@@ -346,10 +349,20 @@ def train_component_weights_from_outcomes(
 
     # Score-Spalten die in der DB verfügbar sind
     score_columns = [
-        'rsi_score', 'support_score', 'fibonacci_score', 'ma_score',
-        'volume_score', 'macd_score', 'stoch_score', 'keltner_score',
-        'trend_strength_score', 'momentum_score', 'rs_score',
-        'vwap_score', 'market_context_score', 'sector_score',
+        "rsi_score",
+        "support_score",
+        "fibonacci_score",
+        "ma_score",
+        "volume_score",
+        "macd_score",
+        "stoch_score",
+        "keltner_score",
+        "trend_strength_score",
+        "momentum_score",
+        "rs_score",
+        "vwap_score",
+        "market_context_score",
+        "sector_score",
     ]
 
     # Lade Trades mit Scores
@@ -358,7 +371,7 @@ def train_component_weights_from_outcomes(
     FROM trade_outcomes
     WHERE pullback_score IS NOT NULL
        OR bounce_score IS NOT NULL
-    """.format(', '.join(score_columns))
+    """.format(", ".join(score_columns))
 
     cursor.execute(query)
     rows = cursor.fetchall()
@@ -369,7 +382,7 @@ def train_component_weights_from_outcomes(
         return None
 
     # Berechne Korrelation jeder Komponente mit was_profitable
-    outcomes = np.array([r['was_profitable'] for r in rows])
+    outcomes = np.array([r["was_profitable"] for r in rows])
     weights = {}
 
     for col in score_columns:

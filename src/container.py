@@ -22,18 +22,18 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
+    from .cache.earnings_cache_impl import EarningsCache, EarningsFetcher
+    from .cache.historical_cache import HistoricalCache
+    from .cache.iv_cache_impl import IVCache, IVFetcher
+    from .config import ConfigLoader
     from .data_providers.marketdata import MarketDataProvider
     from .data_providers.tradier import TradierProvider
-    from .cache.earnings_cache_impl import EarningsCache, EarningsFetcher
-    from .cache.iv_cache_impl import IVCache, IVFetcher
-    from .cache.historical_cache import HistoricalCache
-    from .utils.rate_limiter import AdaptiveRateLimiter
     from .utils.circuit_breaker import CircuitBreaker, CircuitBreakerRegistry
     from .utils.earnings_aggregator import EarningsAggregator
-    from .config import ConfigLoader
+    from .utils.rate_limiter import AdaptiveRateLimiter
 
 logger = logging.getLogger(__name__)
 
@@ -65,24 +65,24 @@ class ServiceContainer:
     """
 
     # Core configuration
-    config: Optional['ConfigLoader'] = None
+    config: Optional["ConfigLoader"] = None
 
     # Rate limiting and resilience
-    rate_limiter: Optional['AdaptiveRateLimiter'] = None
-    circuit_breaker: Optional['CircuitBreaker'] = None
-    circuit_breaker_registry: Optional['CircuitBreakerRegistry'] = None
+    rate_limiter: Optional["AdaptiveRateLimiter"] = None
+    circuit_breaker: Optional["CircuitBreaker"] = None
+    circuit_breaker_registry: Optional["CircuitBreakerRegistry"] = None
 
     # Caching
-    historical_cache: Optional['HistoricalCache'] = None
-    earnings_cache: Optional['EarningsCache'] = None
-    earnings_fetcher: Optional['EarningsFetcher'] = None
-    earnings_aggregator: Optional['EarningsAggregator'] = None
-    iv_cache: Optional['IVCache'] = None
-    iv_fetcher: Optional['IVFetcher'] = None
+    historical_cache: Optional["HistoricalCache"] = None
+    earnings_cache: Optional["EarningsCache"] = None
+    earnings_fetcher: Optional["EarningsFetcher"] = None
+    earnings_aggregator: Optional["EarningsAggregator"] = None
+    iv_cache: Optional["IVCache"] = None
+    iv_fetcher: Optional["IVFetcher"] = None
 
     # Data providers (lazy-loaded)
-    provider: Optional['MarketDataProvider'] = None
-    tradier_provider: Optional['TradierProvider'] = None
+    provider: Optional["MarketDataProvider"] = None
+    tradier_provider: Optional["TradierProvider"] = None
 
     # Active provider name (for routing)
     active_provider: str = field(default="marketdata", repr=False)
@@ -96,7 +96,7 @@ class ServiceContainer:
             self._initialized = True
 
     @classmethod
-    def create_default(cls, api_key: Optional[str] = None) -> 'ServiceContainer':
+    def create_default(cls, api_key: Optional[str] = None) -> "ServiceContainer":
         """
         Create a container with default production services.
 
@@ -115,13 +115,13 @@ class ServiceContainer:
             >>> assert container.rate_limiter is not None
         """
         # Import here to avoid circular imports
-        from .config import get_config
-        from .utils.rate_limiter import get_marketdata_limiter
-        from .utils.circuit_breaker import CircuitBreaker, get_circuit_breaker_registry
-        from .cache.historical_cache import get_historical_cache
         from .cache.earnings_cache_impl import get_earnings_cache, get_earnings_fetcher
+        from .cache.historical_cache import get_historical_cache
         from .cache.iv_cache_impl import get_iv_cache, get_iv_fetcher
+        from .config import get_config
+        from .utils.circuit_breaker import CircuitBreaker, get_circuit_breaker_registry
         from .utils.earnings_aggregator import get_earnings_aggregator
+        from .utils.rate_limiter import get_marketdata_limiter
         from .utils.secure_config import get_api_key
 
         # Load configuration
@@ -168,14 +168,14 @@ class ServiceContainer:
     @classmethod
     def create_for_testing(
         cls,
-        config: Optional['ConfigLoader'] = None,
-        rate_limiter: Optional['AdaptiveRateLimiter'] = None,
-        circuit_breaker: Optional['CircuitBreaker'] = None,
-        historical_cache: Optional['HistoricalCache'] = None,
-        earnings_fetcher: Optional['EarningsFetcher'] = None,
-        provider: Optional['MarketDataProvider'] = None,
-        **overrides
-    ) -> 'ServiceContainer':
+        config: Optional["ConfigLoader"] = None,
+        rate_limiter: Optional["AdaptiveRateLimiter"] = None,
+        circuit_breaker: Optional["CircuitBreaker"] = None,
+        historical_cache: Optional["HistoricalCache"] = None,
+        earnings_fetcher: Optional["EarningsFetcher"] = None,
+        provider: Optional["MarketDataProvider"] = None,
+        **overrides,
+    ) -> "ServiceContainer":
         """
         Create a container for testing with mock services.
 
@@ -225,7 +225,7 @@ class ServiceContainer:
         return container
 
     @classmethod
-    def create_minimal(cls) -> 'ServiceContainer':
+    def create_minimal(cls) -> "ServiceContainer":
         """
         Create a minimal container with only config loaded.
 
@@ -238,7 +238,7 @@ class ServiceContainer:
 
         return cls(config=get_config())
 
-    async def ensure_provider(self, api_key: Optional[str] = None) -> 'MarketDataProvider':
+    async def ensure_provider(self, api_key: Optional[str] = None) -> "MarketDataProvider":
         """
         Ensure data provider is initialized and connected.
 
@@ -265,7 +265,7 @@ class ServiceContainer:
 
         return self.provider
 
-    async def ensure_tradier_provider(self, api_key: Optional[str] = None) -> 'TradierProvider':
+    async def ensure_tradier_provider(self, api_key: Optional[str] = None) -> "TradierProvider":
         """
         Ensure Tradier provider is initialized and connected.
 
@@ -282,7 +282,7 @@ class ServiceContainer:
             ValueError: If API key not found
         """
         if self.tradier_provider is None:
-            from .data_providers.tradier import TradierProvider, TradierEnvironment
+            from .data_providers.tradier import TradierEnvironment, TradierProvider
             from .utils.secure_config import get_api_key
 
             resolved_key = api_key or get_api_key("TRADIER_API_KEY")
@@ -299,10 +299,7 @@ class ServiceContainer:
                 if tradier_cfg.is_production:
                     env = TradierEnvironment.PRODUCTION
 
-            self.tradier_provider = TradierProvider(
-                api_key=resolved_key,
-                environment=env
-            )
+            self.tradier_provider = TradierProvider(api_key=resolved_key, environment=env)
 
         if not await self.tradier_provider.is_connected():
             connected = await self.tradier_provider.connect()
@@ -314,6 +311,7 @@ class ServiceContainer:
     def is_tradier_configured(self) -> bool:
         """Check if Tradier API key is configured."""
         from .utils.secure_config import get_api_key
+
         try:
             key = get_api_key("TRADIER_API_KEY", required=False)
             return bool(key)
@@ -322,11 +320,11 @@ class ServiceContainer:
 
     async def disconnect(self) -> None:
         """Disconnect all services that have connections."""
-        if self.provider and hasattr(self.provider, 'disconnect'):
+        if self.provider and hasattr(self.provider, "disconnect"):
             await self.provider.disconnect()
             logger.debug("Marketdata provider disconnected")
 
-        if self.tradier_provider and hasattr(self.tradier_provider, 'disconnect'):
+        if self.tradier_provider and hasattr(self.tradier_provider, "disconnect"):
             await self.tradier_provider.disconnect()
             logger.debug("Tradier provider disconnected")
 
@@ -340,32 +338,38 @@ class ServiceContainer:
         stats = {}
 
         if self.rate_limiter:
-            stats['rate_limiter'] = self.rate_limiter.stats()
+            stats["rate_limiter"] = self.rate_limiter.stats()
 
         if self.circuit_breaker:
-            stats['circuit_breaker'] = self.circuit_breaker.stats()
+            stats["circuit_breaker"] = self.circuit_breaker.stats()
 
         if self.historical_cache:
-            stats['historical_cache'] = {
-                'size': len(self.historical_cache) if hasattr(self.historical_cache, '__len__') else 'N/A',
+            stats["historical_cache"] = {
+                "size": (
+                    len(self.historical_cache)
+                    if hasattr(self.historical_cache, "__len__")
+                    else "N/A"
+                ),
             }
 
         if self.earnings_cache:
-            stats['earnings_cache'] = {
-                'size': len(self.earnings_cache) if hasattr(self.earnings_cache, '__len__') else 'N/A',
+            stats["earnings_cache"] = {
+                "size": (
+                    len(self.earnings_cache) if hasattr(self.earnings_cache, "__len__") else "N/A"
+                ),
             }
 
         return stats
 
     def reset(self) -> None:
         """Reset all resettable services (useful for testing)."""
-        if self.rate_limiter and hasattr(self.rate_limiter, 'reset'):
+        if self.rate_limiter and hasattr(self.rate_limiter, "reset"):
             self.rate_limiter.reset()
 
-        if self.circuit_breaker and hasattr(self.circuit_breaker, 'reset'):
+        if self.circuit_breaker and hasattr(self.circuit_breaker, "reset"):
             self.circuit_breaker.reset()
 
-        if self.historical_cache and hasattr(self.historical_cache, 'clear'):
+        if self.historical_cache and hasattr(self.historical_cache, "clear"):
             self.historical_cache.clear()
 
         logger.debug("ServiceContainer reset")
@@ -374,7 +378,7 @@ class ServiceContainer:
     # ASYNC CONTEXT MANAGER
     # =========================================================================
 
-    async def __aenter__(self) -> 'ServiceContainer':
+    async def __aenter__(self) -> "ServiceContainer":
         """
         Enter async context - ensure provider is connected.
 
@@ -424,6 +428,7 @@ def get_container() -> ServiceContainer:
         The default ServiceContainer instance
     """
     from .utils.deprecation import warn_singleton_usage
+
     warn_singleton_usage("get_container", "ServiceContainer.create_default()")
 
     global _default_container

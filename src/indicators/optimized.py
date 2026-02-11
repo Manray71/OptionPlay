@@ -18,10 +18,11 @@
 
 from __future__ import annotations
 
-import numpy as np
-from typing import Optional, Tuple, Dict, List
-from dataclasses import dataclass
 import logging
+from dataclasses import dataclass
+from typing import Dict, List, Optional, Tuple
+
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -30,9 +31,11 @@ logger = logging.getLogger(__name__)
 # DATA TYPES
 # =============================================================================
 
+
 @dataclass
 class MACDValues:
     """MACD calculation result."""
+
     macd_line: float
     signal_line: float
     histogram: float
@@ -42,6 +45,7 @@ class MACDValues:
 @dataclass
 class StochasticValues:
     """Stochastic oscillator result."""
+
     k: float
     d: float
     zone: str  # 'oversold', 'overbought', 'neutral'
@@ -51,6 +55,7 @@ class StochasticValues:
 @dataclass
 class IndicatorBundle:
     """All indicators calculated at once for maximum efficiency."""
+
     rsi_14: float
     sma_20: float
     sma_50: Optional[float]
@@ -68,10 +73,8 @@ class IndicatorBundle:
 # RSI CALCULATION (Vectorized)
 # =============================================================================
 
-def calc_rsi_numpy(
-    prices: np.ndarray | List[float],
-    period: int = 14
-) -> Optional[float]:
+
+def calc_rsi_numpy(prices: np.ndarray | List[float], period: int = 14) -> Optional[float]:
     """
     Calculate RSI using Wilder's smoothing method (vectorized).
 
@@ -115,9 +118,7 @@ def calc_rsi_numpy(
 
 
 def calc_rsi_batch(
-    prices: np.ndarray,
-    period: int = 14,
-    return_full: bool = False
+    prices: np.ndarray, period: int = 14, return_full: bool = False
 ) -> np.ndarray | float:
     """
     Calculate RSI for all points (useful for backtesting).
@@ -165,10 +166,8 @@ def calc_rsi_batch(
 # MOVING AVERAGES (Vectorized)
 # =============================================================================
 
-def calc_sma_numpy(
-    prices: np.ndarray | List[float],
-    period: int
-) -> Optional[float]:
+
+def calc_sma_numpy(prices: np.ndarray | List[float], period: int) -> Optional[float]:
     """
     Calculate Simple Moving Average (vectorized).
 
@@ -187,10 +186,7 @@ def calc_sma_numpy(
     return float(np.mean(prices[-period:]))
 
 
-def calc_sma_series(
-    prices: np.ndarray,
-    period: int
-) -> np.ndarray:
+def calc_sma_series(prices: np.ndarray, period: int) -> np.ndarray:
     """
     Calculate rolling SMA for all points using cumsum trick.
 
@@ -214,9 +210,7 @@ def calc_sma_series(
 
 
 def calc_ema_numpy(
-    prices: np.ndarray | List[float],
-    period: int,
-    return_last_only: bool = True
+    prices: np.ndarray | List[float], period: int, return_last_only: bool = True
 ) -> float | np.ndarray | None:
     """
     Calculate Exponential Moving Average.
@@ -249,7 +243,7 @@ def calc_ema_numpy(
         ema = np.zeros(len(prices) - period + 1)
         ema[0] = np.mean(prices[:period])
         for i, price in enumerate(prices[period:], 1):
-            ema[i] = (price - ema[i-1]) * multiplier + ema[i-1]
+            ema[i] = (price - ema[i - 1]) * multiplier + ema[i - 1]
         return ema
 
 
@@ -257,11 +251,9 @@ def calc_ema_numpy(
 # MACD CALCULATION (Vectorized)
 # =============================================================================
 
+
 def calc_macd_numpy(
-    prices: np.ndarray | List[float],
-    fast: int = 12,
-    slow: int = 26,
-    signal: int = 9
+    prices: np.ndarray | List[float], fast: int = 12, slow: int = 26, signal: int = 9
 ) -> Optional[MACDValues]:
     """
     Calculate MACD with signal line and histogram.
@@ -313,21 +305,22 @@ def calc_macd_numpy(
         prev_diff = macd_line[-2] - signal_line[-2]
         curr_diff = macd_line[-1] - signal_line[-1]
         if prev_diff < 0 and curr_diff > 0:
-            crossover = 'bullish'
+            crossover = "bullish"
         elif prev_diff > 0 and curr_diff < 0:
-            crossover = 'bearish'
+            crossover = "bearish"
 
     return MACDValues(
         macd_line=float(macd_line[-1]),
         signal_line=float(signal_line[-1]),
         histogram=float(histogram),
-        crossover=crossover
+        crossover=crossover,
     )
 
 
 # =============================================================================
 # STOCHASTIC OSCILLATOR (Optimized Rolling Min/Max)
 # =============================================================================
+
 
 def _rolling_minmax(arr: np.ndarray, window: int) -> Tuple[np.ndarray, np.ndarray]:
     """
@@ -355,7 +348,7 @@ def calc_stochastic_numpy(
     lows: np.ndarray | List[float],
     closes: np.ndarray | List[float],
     k_period: int = 14,
-    d_period: int = 3
+    d_period: int = 3,
 ) -> Optional[StochasticValues]:
     """
     Calculate Stochastic oscillator using optimized rolling window.
@@ -386,7 +379,7 @@ def calc_stochastic_numpy(
     rolling_high = rolling_high_from_high
 
     # Calculate %K for all valid points
-    closes_aligned = closes[k_period - 1:]
+    closes_aligned = closes[k_period - 1 :]
     denom = rolling_high - rolling_low
 
     # Avoid division by zero
@@ -405,11 +398,11 @@ def calc_stochastic_numpy(
 
     # Determine zone
     if k < 20:
-        zone = 'oversold'
+        zone = "oversold"
     elif k > 80:
-        zone = 'overbought'
+        zone = "overbought"
     else:
-        zone = 'neutral'
+        zone = "neutral"
 
     # Detect crossover
     crossover = None
@@ -417,27 +410,23 @@ def calc_stochastic_numpy(
         prev_k, curr_k = k_values[-2], k_values[-1]
         prev_d, curr_d = d_values[-2], d_values[-1]
         if prev_k < prev_d and curr_k > curr_d:
-            crossover = 'bullish'
+            crossover = "bullish"
         elif prev_k > prev_d and curr_k < curr_d:
-            crossover = 'bearish'
+            crossover = "bearish"
 
-    return StochasticValues(
-        k=k,
-        d=d,
-        zone=zone,
-        crossover=crossover
-    )
+    return StochasticValues(k=k, d=d, zone=zone, crossover=crossover)
 
 
 # =============================================================================
 # ATR CALCULATION (Vectorized)
 # =============================================================================
 
+
 def calc_atr_numpy(
     highs: np.ndarray | List[float],
     lows: np.ndarray | List[float],
     closes: np.ndarray | List[float],
-    period: int = 14
+    period: int = 14,
 ) -> Optional[float]:
     """
     Calculate Average True Range using NumPy.
@@ -476,10 +465,8 @@ def calc_atr_numpy(
 # SUPPORT/RESISTANCE HELPERS
 # =============================================================================
 
-def calc_fibonacci_levels(
-    high: float,
-    low: float
-) -> Dict[str, float]:
+
+def calc_fibonacci_levels(high: float, low: float) -> Dict[str, float]:
     """
     Calculate Fibonacci retracement levels.
 
@@ -492,20 +479,18 @@ def calc_fibonacci_levels(
     """
     diff = high - low
     return {
-        '0.0': high,
-        '0.236': high - diff * 0.236,
-        '0.382': high - diff * 0.382,
-        '0.5': high - diff * 0.5,
-        '0.618': high - diff * 0.618,
-        '0.786': high - diff * 0.786,
-        '1.0': low
+        "0.0": high,
+        "0.236": high - diff * 0.236,
+        "0.382": high - diff * 0.382,
+        "0.5": high - diff * 0.5,
+        "0.618": high - diff * 0.618,
+        "0.786": high - diff * 0.786,
+        "1.0": low,
     }
 
 
 def find_high_low_numpy(
-    highs: np.ndarray | List[float],
-    lows: np.ndarray | List[float],
-    lookback: int
+    highs: np.ndarray | List[float], lows: np.ndarray | List[float], lookback: int
 ) -> Tuple[float, float]:
     """
     Find highest high and lowest low efficiently.
@@ -529,11 +514,12 @@ def find_high_low_numpy(
 # BUNDLE CALCULATION (All indicators at once)
 # =============================================================================
 
+
 def calc_all_indicators(
     prices: np.ndarray | List[float],
     highs: np.ndarray | List[float],
     lows: np.ndarray | List[float],
-    volumes: np.ndarray | List[int]
+    volumes: np.ndarray | List[int],
 ) -> Optional[IndicatorBundle]:
     """
     Calculate all indicators in one pass for maximum efficiency.
@@ -607,7 +593,7 @@ def calc_all_indicators(
         stochastic=stochastic,
         atr_14=atr_14,
         volume_ratio=volume_ratio,
-        avg_volume_20=avg_volume_20
+        avg_volume_20=avg_volume_20,
     )
 
 
@@ -617,32 +603,25 @@ def calc_all_indicators(
 
 __all__ = [
     # Data types
-    'MACDValues',
-    'StochasticValues',
-    'IndicatorBundle',
-
+    "MACDValues",
+    "StochasticValues",
+    "IndicatorBundle",
     # RSI
-    'calc_rsi_numpy',
-    'calc_rsi_batch',
-
+    "calc_rsi_numpy",
+    "calc_rsi_batch",
     # Moving Averages
-    'calc_sma_numpy',
-    'calc_sma_series',
-    'calc_ema_numpy',
-
+    "calc_sma_numpy",
+    "calc_sma_series",
+    "calc_ema_numpy",
     # MACD
-    'calc_macd_numpy',
-
+    "calc_macd_numpy",
     # Stochastic
-    'calc_stochastic_numpy',
-
+    "calc_stochastic_numpy",
     # ATR
-    'calc_atr_numpy',
-
+    "calc_atr_numpy",
     # Support/Resistance helpers
-    'calc_fibonacci_levels',
-    'find_high_low_numpy',
-
+    "calc_fibonacci_levels",
+    "find_high_low_numpy",
     # Bundle
-    'calc_all_indicators',
+    "calc_all_indicators",
 ]

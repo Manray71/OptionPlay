@@ -12,9 +12,9 @@ from typing import Any, Dict, List, Tuple
 
 from ..models import RegimeConfig
 from ..models.training_models import (
+    RegimeEpochResult,
     RegimeTrainingConfig,
     StrategyPerformance,
-    RegimeEpochResult,
 )
 from .performance import PerformanceAnalyzer
 
@@ -228,13 +228,15 @@ class EpochRunner:
 
                 strategy = random.choice(self.ALL_STRATEGIES)
 
-                trades.append({
-                    "symbol": symbol,
-                    "date": d,
-                    "score": score,
-                    "pnl": pnl,
-                    "is_winner": is_winner,
-                    "strategy": strategy,
-                })
+                trades.append(
+                    {
+                        "symbol": symbol,
+                        "date": d,
+                        "score": score,
+                        "pnl": pnl,
+                        "is_winner": is_winner,
+                        "strategy": strategy,
+                    }
+                )
 
         return trades

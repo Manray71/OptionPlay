@@ -12,12 +12,11 @@ import logging
 import sqlite3
 from datetime import date
 from pathlib import Path
-from typing import List, Dict, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
-from ...constants.trading_rules import VIX_LOW_VOL_MAX, VIX_NORMAL_MAX, VIX_ELEVATED_MAX
-
+from ...constants.trading_rules import VIX_ELEVATED_MAX, VIX_LOW_VOL_MAX, VIX_NORMAL_MAX
 from ..models.outcomes import SpreadOutcomeResult
 
 logger = logging.getLogger(__name__)
@@ -55,20 +54,40 @@ def _validate_db_path(db_path: Path) -> Path:
 
 
 # Whitelist for valid strategy names (used in dynamic column references)
-VALID_STRATEGIES = frozenset([
-    'pullback', 'bounce', 'ath_breakout', 'earnings_dip', 'trend_continuation'
-])
+VALID_STRATEGIES = frozenset(
+    ["pullback", "bounce", "ath_breakout", "earnings_dip", "trend_continuation"]
+)
 
 # Whitelist for valid column names in ALTER TABLE operations
-VALID_COMPONENT_COLUMNS = frozenset([
-    'rsi_score', 'support_score', 'fibonacci_score', 'ma_score', 'volume_score',
-    'macd_score', 'stoch_score', 'keltner_score', 'trend_strength_score',
-    'momentum_score', 'rs_score', 'candlestick_score',
-    'vwap_score', 'market_context_score', 'sector_score', 'gap_score',
-    'pullback_score', 'bounce_score', 'ath_breakout_score', 'earnings_dip_score',
-    'trend_continuation_score',
-    'rsi_value', 'distance_to_support_pct', 'spy_trend', 'score_breakdown_json',
-])
+VALID_COMPONENT_COLUMNS = frozenset(
+    [
+        "rsi_score",
+        "support_score",
+        "fibonacci_score",
+        "ma_score",
+        "volume_score",
+        "macd_score",
+        "stoch_score",
+        "keltner_score",
+        "trend_strength_score",
+        "momentum_score",
+        "rs_score",
+        "candlestick_score",
+        "vwap_score",
+        "market_context_score",
+        "sector_score",
+        "gap_score",
+        "pullback_score",
+        "bounce_score",
+        "ath_breakout_score",
+        "earnings_dip_score",
+        "trend_continuation_score",
+        "rsi_value",
+        "distance_to_support_pct",
+        "spy_trend",
+        "score_breakdown_json",
+    ]
+)
 
 
 def create_outcome_database(db_path: Path = OUTCOME_DB_PATH) -> sqlite3.Connection:
@@ -146,25 +165,21 @@ def create_outcome_database(db_path: Path = OUTCOME_DB_PATH) -> sqlite3.Connecti
         ("momentum_score", "REAL"),
         ("rs_score", "REAL"),
         ("candlestick_score", "REAL"),
-
         # Feature Engineering Scores
         ("vwap_score", "REAL"),
         ("market_context_score", "REAL"),
         ("sector_score", "REAL"),
         ("gap_score", "REAL"),
-
         # Strategie-spezifische Scores
         ("pullback_score", "REAL"),
         ("bounce_score", "REAL"),
         ("ath_breakout_score", "REAL"),
         ("earnings_dip_score", "REAL"),
         ("trend_continuation_score", "REAL"),
-
         # Zusätzliche technische Daten
         ("rsi_value", "REAL"),
         ("distance_to_support_pct", "REAL"),
         ("spy_trend", "TEXT"),
-
         # Score Breakdown als JSON (für detaillierte Analyse)
         ("score_breakdown_json", "TEXT"),
     ]
@@ -201,7 +216,9 @@ def create_outcome_database(db_path: Path = OUTCOME_DB_PATH) -> sqlite3.Connecti
     # Indices für Performance
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_outcomes_symbol ON trade_outcomes(symbol)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_outcomes_date ON trade_outcomes(entry_date)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_outcomes_profitable ON trade_outcomes(was_profitable)")
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_outcomes_profitable ON trade_outcomes(was_profitable)"
+    )
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_outcomes_outcome ON trade_outcomes(outcome)")
 
     conn.commit()
@@ -253,7 +270,8 @@ def save_outcomes_to_db(
             scores = component_scores.get(key, {})
 
         try:
-            cursor.execute("""
+            cursor.execute(
+                """
             INSERT OR REPLACE INTO trade_outcomes (
                 symbol, entry_date, exit_date, expiration,
                 entry_price, short_strike, long_strike, spread_width, net_credit,
@@ -271,57 +289,59 @@ def save_outcomes_to_db(
                 rsi_value, distance_to_support_pct, spy_trend, score_breakdown_json
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                       ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                entry.symbol,
-                entry.entry_date.isoformat(),
-                result.exit_date.isoformat(),
-                entry.expiration.isoformat(),
-                entry.underlying_price,
-                entry.short_strike,
-                entry.long_strike,
-                entry.spread_width,
-                entry.net_credit,
-                entry.dte,
-                entry.short_otm_pct,
-                result.exit_underlying_price,
-                result.outcome.value,
-                result.pnl_per_contract,
-                result.pnl_pct,
-                1 if result.was_profitable else 0,
-                result.min_price_during_trade,
-                result.max_price_during_trade,
-                result.days_below_short_strike,
-                result.max_drawdown_pct,
-                1 if result.held_to_expiration else 0,
-                vix,
-                vix_regime,
-                # Komponenten-Scores
-                scores.get('rsi_score'),
-                scores.get('support_score'),
-                scores.get('fibonacci_score'),
-                scores.get('ma_score'),
-                scores.get('volume_score'),
-                scores.get('macd_score'),
-                scores.get('stoch_score'),
-                scores.get('keltner_score'),
-                scores.get('trend_strength_score'),
-                scores.get('momentum_score'),
-                scores.get('rs_score'),
-                scores.get('candlestick_score'),
-                scores.get('vwap_score'),
-                scores.get('market_context_score'),
-                scores.get('sector_score'),
-                scores.get('gap_score'),
-                scores.get('pullback_score'),
-                scores.get('bounce_score'),
-                scores.get('ath_breakout_score'),
-                scores.get('earnings_dip_score'),
-                scores.get('trend_continuation_score'),
-                scores.get('rsi_value'),
-                scores.get('distance_to_support_pct'),
-                scores.get('spy_trend'),
-                scores.get('score_breakdown_json'),
-            ))
+            """,
+                (
+                    entry.symbol,
+                    entry.entry_date.isoformat(),
+                    result.exit_date.isoformat(),
+                    entry.expiration.isoformat(),
+                    entry.underlying_price,
+                    entry.short_strike,
+                    entry.long_strike,
+                    entry.spread_width,
+                    entry.net_credit,
+                    entry.dte,
+                    entry.short_otm_pct,
+                    result.exit_underlying_price,
+                    result.outcome.value,
+                    result.pnl_per_contract,
+                    result.pnl_pct,
+                    1 if result.was_profitable else 0,
+                    result.min_price_during_trade,
+                    result.max_price_during_trade,
+                    result.days_below_short_strike,
+                    result.max_drawdown_pct,
+                    1 if result.held_to_expiration else 0,
+                    vix,
+                    vix_regime,
+                    # Komponenten-Scores
+                    scores.get("rsi_score"),
+                    scores.get("support_score"),
+                    scores.get("fibonacci_score"),
+                    scores.get("ma_score"),
+                    scores.get("volume_score"),
+                    scores.get("macd_score"),
+                    scores.get("stoch_score"),
+                    scores.get("keltner_score"),
+                    scores.get("trend_strength_score"),
+                    scores.get("momentum_score"),
+                    scores.get("rs_score"),
+                    scores.get("candlestick_score"),
+                    scores.get("vwap_score"),
+                    scores.get("market_context_score"),
+                    scores.get("sector_score"),
+                    scores.get("gap_score"),
+                    scores.get("pullback_score"),
+                    scores.get("bounce_score"),
+                    scores.get("ath_breakout_score"),
+                    scores.get("earnings_dip_score"),
+                    scores.get("trend_continuation_score"),
+                    scores.get("rsi_value"),
+                    scores.get("distance_to_support_pct"),
+                    scores.get("spy_trend"),
+                    scores.get("score_breakdown_json"),
+                ),
+            )
             saved += 1
         except sqlite3.IntegrityError:
             pass  # Duplicate, skip
@@ -367,14 +387,21 @@ def load_outcomes_for_training(
         return np.array([]), np.array([])
 
     # Features: DTE, OTM%, Spread Width, Credit, VIX
-    X = np.array([
-        [r['dte_at_entry'], r['short_otm_pct'], r['spread_width'],
-         r['net_credit'], r['vix_at_entry']]
-        for r in rows
-    ])
+    X = np.array(
+        [
+            [
+                r["dte_at_entry"],
+                r["short_otm_pct"],
+                r["spread_width"],
+                r["net_credit"],
+                r["vix_at_entry"],
+            ]
+            for r in rows
+        ]
+    )
 
     # Labels: profitable oder nicht
-    y = np.array([r['was_profitable'] for r in rows])
+    y = np.array([r["was_profitable"] for r in rows])
 
     return X, y
 
@@ -396,7 +423,7 @@ def load_outcomes_dataframe(
     conn.close()
 
     # Konvertiere Datumsfelder
-    for col in ['entry_date', 'exit_date', 'expiration']:
+    for col in ["entry_date", "exit_date", "expiration"]:
         df[col] = pd.to_datetime(df[col])
 
     return df
@@ -423,12 +450,12 @@ def get_outcome_statistics(db_path: Path = OUTCOME_DB_PATH) -> Dict:
     row = cursor.fetchone()
 
     stats = {
-        'total_trades': row[0],
-        'wins': row[1] or 0,
-        'win_rate': (row[1] or 0) / row[0] * 100 if row[0] > 0 else 0,
-        'avg_pnl': row[2] or 0,
-        'total_pnl': row[3] or 0,
-        'unique_symbols': row[4] or 0,
+        "total_trades": row[0],
+        "wins": row[1] or 0,
+        "win_rate": (row[1] or 0) / row[0] * 100 if row[0] > 0 else 0,
+        "avg_pnl": row[2] or 0,
+        "total_pnl": row[3] or 0,
+        "unique_symbols": row[4] or 0,
     }
 
     # Per Outcome
@@ -437,7 +464,7 @@ def get_outcome_statistics(db_path: Path = OUTCOME_DB_PATH) -> Dict:
     FROM trade_outcomes
     GROUP BY outcome
     """)
-    stats['outcomes'] = {row[0]: row[1] for row in cursor.fetchall()}
+    stats["outcomes"] = {row[0]: row[1] for row in cursor.fetchall()}
 
     # Per VIX Regime
     cursor.execute("""
@@ -450,11 +477,11 @@ def get_outcome_statistics(db_path: Path = OUTCOME_DB_PATH) -> Dict:
     WHERE vix_regime IS NOT NULL
     GROUP BY vix_regime
     """)
-    stats['by_vix_regime'] = {
+    stats["by_vix_regime"] = {
         row[0]: {
-            'total': row[1],
-            'win_rate': row[2] / row[1] * 100 if row[1] > 0 else 0,
-            'avg_pnl': row[3],
+            "total": row[1],
+            "win_rate": row[2] / row[1] * 100 if row[1] > 0 else 0,
+            "avg_pnl": row[3],
         }
         for row in cursor.fetchall()
     }
@@ -518,12 +545,31 @@ def update_trade_scores(
 
     # Baue UPDATE-Statement dynamisch
     score_columns = [
-        'rsi_score', 'support_score', 'fibonacci_score', 'ma_score', 'volume_score',
-        'macd_score', 'stoch_score', 'keltner_score', 'trend_strength_score',
-        'momentum_score', 'rs_score', 'candlestick_score',
-        'vwap_score', 'market_context_score', 'sector_score', 'gap_score',
-        'pullback_score', 'bounce_score', 'ath_breakout_score', 'earnings_dip_score', 'trend_continuation_score',
-        'rsi_value', 'distance_to_support_pct', 'spy_trend', 'score_breakdown_json',
+        "rsi_score",
+        "support_score",
+        "fibonacci_score",
+        "ma_score",
+        "volume_score",
+        "macd_score",
+        "stoch_score",
+        "keltner_score",
+        "trend_strength_score",
+        "momentum_score",
+        "rs_score",
+        "candlestick_score",
+        "vwap_score",
+        "market_context_score",
+        "sector_score",
+        "gap_score",
+        "pullback_score",
+        "bounce_score",
+        "ath_breakout_score",
+        "earnings_dip_score",
+        "trend_continuation_score",
+        "rsi_value",
+        "distance_to_support_pct",
+        "spy_trend",
+        "score_breakdown_json",
     ]
 
     updates = []
@@ -537,10 +583,7 @@ def update_trade_scores(
         return False
 
     values.append(trade_id)
-    cursor.execute(
-        f"UPDATE trade_outcomes SET {', '.join(updates)} WHERE id = ?",
-        values
-    )
+    cursor.execute(f"UPDATE trade_outcomes SET {', '.join(updates)} WHERE id = ?", values)
 
     conn.commit()
     success = cursor.rowcount > 0
@@ -569,8 +612,7 @@ def load_outcomes_with_scores(
     if strategy:
         if strategy not in VALID_STRATEGIES:
             raise ValueError(
-                f"Invalid strategy: {strategy!r}. "
-                f"Must be one of: {sorted(VALID_STRATEGIES)}"
+                f"Invalid strategy: {strategy!r}. " f"Must be one of: {sorted(VALID_STRATEGIES)}"
             )
         score_col = f"{strategy}_score"
     else:
@@ -588,8 +630,6 @@ def load_outcomes_with_scores(
     conn.close()
 
     if len(df) < min_trades_with_scores:
-        logger.warning(
-            f"Only {len(df)} trades with {score_col}, need {min_trades_with_scores}"
-        )
+        logger.warning(f"Only {len(df)} trades with {score_col}, need {min_trades_with_scores}")
 
     return df

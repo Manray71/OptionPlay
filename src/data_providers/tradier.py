@@ -10,38 +10,32 @@
 #
 # Verwendung:
 #     from data_providers.tradier import TradierProvider
-#     
+#
 #     provider = TradierProvider(api_key="your_key")
 #     await provider.connect()
-#     
+#
 #     chain = await provider.get_option_chain("AAPL", dte_min=30, dte_max=60)
 #     quote = await provider.get_quote("AAPL")
 
 import asyncio
-import aiohttp
 import json
 import logging
-import urllib.request
 import urllib.error
+import urllib.request
 from dataclasses import dataclass
-from datetime import datetime, date, timedelta
-from typing import List, Optional, Dict, Any, Tuple
+from datetime import date, datetime, timedelta
 from enum import Enum
+from typing import Any, Dict, List, Optional, Tuple
 
-from .interface import (
-    DataProvider,
-    DataQuality,
-    PriceQuote,
-    OptionQuote,
-    HistoricalBar
-)
+import aiohttp
 
 from ..cache import EarningsInfo, EarningsSource
-
+from .interface import DataProvider, DataQuality, HistoricalBar, OptionQuote, PriceQuote
 
 # =============================================================================
 # HISTORICAL OPTIONS DATA
 # =============================================================================
+
 
 @dataclass
 class HistoricalOptionBar:
@@ -50,7 +44,8 @@ class HistoricalOptionBar:
 
     Tradier liefert OHLCV-Daten für Options via OCC-Symbol.
     """
-    symbol: str           # OCC Symbol (z.B. AAPL240119P00150000)
+
+    symbol: str  # OCC Symbol (z.B. AAPL240119P00150000)
     date: date
     open: float
     high: float
@@ -60,10 +55,10 @@ class HistoricalOptionBar:
     underlying_symbol: str
     strike: float
     expiry: date
-    option_type: str      # 'P' or 'C'
+    option_type: str  # 'P' or 'C'
 
     @classmethod
-    def from_occ_symbol(cls, occ_symbol: str, bar_data: Dict) -> 'HistoricalOptionBar':
+    def from_occ_symbol(cls, occ_symbol: str, bar_data: Dict) -> "HistoricalOptionBar":
         """
         Erstellt HistoricalOptionBar aus OCC-Symbol und Tradier Bar-Daten.
 
@@ -87,7 +82,7 @@ class HistoricalOptionBar:
             underlying_symbol=underlying,
             strike=strike,
             expiry=expiry,
-            option_type=opt_type
+            option_type=opt_type,
         )
 
 
@@ -111,7 +106,7 @@ def parse_occ_symbol(occ_symbol: str) -> Tuple[str, date, str, float]:
 
     # Extract from the end
     strike_str = occ_symbol[-8:]  # Last 8 digits
-    opt_type = occ_symbol[-9]     # P or C
+    opt_type = occ_symbol[-9]  # P or C
     expiry_str = occ_symbol[-15:-9]  # YYMMDD
     underlying = occ_symbol[:-15]  # Everything before
 
@@ -127,12 +122,7 @@ def parse_occ_symbol(occ_symbol: str) -> Tuple[str, date, str, float]:
     return (underlying, expiry, opt_type, strike)
 
 
-def build_occ_symbol(
-    underlying: str,
-    expiry: date,
-    option_type: str,
-    strike: float
-) -> str:
+def build_occ_symbol(underlying: str, expiry: date, option_type: str, strike: float) -> str:
     """
     Erstellt ein OCC-Options-Symbol.
 
@@ -160,7 +150,8 @@ def build_occ_symbol(
 
     return f"{underlying}{expiry_str}{opt_type}{strike_str}"
 
-from ..cache import IVData, IVSource, IVCache, get_iv_cache
+
+from ..cache import IVCache, IVData, IVSource, get_iv_cache
 
 logger = logging.getLogger(__name__)
 
@@ -169,8 +160,10 @@ logger = logging.getLogger(__name__)
 # CONFIGURATION
 # =============================================================================
 
+
 class TradierEnvironment(Enum):
     """Tradier API Umgebungen"""
+
     PRODUCTION = "production"
     SANDBOX = "sandbox"
 
@@ -178,50 +171,49 @@ class TradierEnvironment(Enum):
 @dataclass
 class TradierConfig:
     """Tradier Konfiguration"""
+
     api_key: str
     environment: TradierEnvironment = TradierEnvironment.PRODUCTION
     timeout_seconds: int = 30
     max_retries: int = 3
     retry_delay_seconds: float = 1.0
     rate_limit_per_minute: int = 120  # Tradier Standard-Limit
-    
+
     @property
     def base_url(self) -> str:
         if self.environment == TradierEnvironment.SANDBOX:
             return "https://sandbox.tradier.com"
         return "https://api.tradier.com"
-    
+
     @property
     def headers(self) -> Dict[str, str]:
-        return {
-            "Authorization": f"Bearer {self.api_key}",
-            "Accept": "application/json"
-        }
+        return {"Authorization": f"Bearer {self.api_key}", "Accept": "application/json"}
 
 
 # =============================================================================
 # TRADIER PROVIDER
 # =============================================================================
 
+
 class TradierProvider(DataProvider):
     """
     Tradier API Data Provider.
-    
+
     Implementiert das DataProvider Interface für Tradier's Brokerage API.
-    
+
     Features:
     - Quotes (real-time mit Brokerage Account)
     - Options Chains mit Greeks und IV
     - Historische Preisdaten (Aktien und Optionen)
     - Verfallstermine
-    
+
     Hinweis: Greeks und IV-Daten werden von ORATS bereitgestellt.
-    
+
     Verwendung als Context Manager (empfohlen):
         async with TradierProvider(api_key) as provider:
             chain = await provider.get_option_chain("AAPL")
             # Session wird automatisch geschlossen
-    
+
     Oder manuell:
         provider = TradierProvider(api_key)
         await provider.connect()
@@ -230,45 +222,42 @@ class TradierProvider(DataProvider):
         finally:
             await provider.disconnect()
     """
-    
+
     def __init__(
         self,
         api_key: str,
         environment: TradierEnvironment = TradierEnvironment.PRODUCTION,
         iv_cache: Optional[IVCache] = None,
-        config: Optional[TradierConfig] = None
+        config: Optional[TradierConfig] = None,
     ) -> None:
-        self.config = config or TradierConfig(
-            api_key=api_key,
-            environment=environment
-        )
+        self.config = config or TradierConfig(api_key=api_key, environment=environment)
         self._session: Optional[aiohttp.ClientSession] = None
         self._connected = False
         self._iv_cache = iv_cache or get_iv_cache()
         self._request_count = 0
         self._last_request_time: Optional[datetime] = None
-    
-    async def __aenter__(self) -> 'TradierProvider':
+
+    async def __aenter__(self) -> "TradierProvider":
         """Async Context Manager Entry - verbindet automatisch."""
         await self.connect()
         return self
-    
+
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
         """Async Context Manager Exit - trennt automatisch."""
         await self.disconnect()
-    
+
     # =========================================================================
     # DataProvider Interface Implementation
     # =========================================================================
-    
+
     @property
     def name(self) -> str:
         return "tradier"
-    
+
     @property
     def supported_features(self) -> List[str]:
         return ["quotes", "options", "historical", "expirations", "strikes"]
-    
+
     async def connect(self) -> bool:
         """Verbindung herstellen (Test mit Market Clock)"""
         # Using urllib instead of aiohttp for Python 3.14 compatibility
@@ -296,46 +285,43 @@ class TradierProvider(DataProvider):
     async def is_connected(self) -> bool:
         """Verbindungsstatus"""
         return self._connected
-    
+
     async def get_quote(self, symbol: str) -> Optional[PriceQuote]:
         """Einzelnes Quote abrufen"""
         quotes = await self.get_quotes([symbol])
         return quotes.get(symbol.upper())
-    
+
     async def get_quotes(self, symbols: List[str]) -> Dict[str, PriceQuote]:
         """Mehrere Quotes abrufen"""
         if not symbols:
             return {}
-        
+
         symbols_str = ",".join(s.upper() for s in symbols)
-        
+
         data = await self._get("/v1/markets/quotes", params={"symbols": symbols_str})
-        
+
         if not data or "quotes" not in data:
             return {}
-        
+
         quotes_data = data["quotes"]
-        
+
         # Handle single quote vs multiple quotes
         if "quote" not in quotes_data:
             return {}
-        
+
         quote_list = quotes_data["quote"]
         if isinstance(quote_list, dict):
             quote_list = [quote_list]
-        
+
         result = {}
         for q in quote_list:
             if q.get("symbol"):
                 result[q["symbol"]] = self._parse_quote(q)
-        
+
         return result
-    
+
     async def get_historical(
-        self,
-        symbol: str,
-        days: int = 90,
-        interval: str = "daily"
+        self, symbol: str, days: int = 90, interval: str = "daily"
     ) -> List[HistoricalBar]:
         """
         Historische Preisdaten abrufen.
@@ -351,27 +337,27 @@ class TradierProvider(DataProvider):
         """
         end_date = date.today()
         start_date = end_date - timedelta(days=int(days * 1.5))  # Buffer für Wochenenden
-        
+
         params = {
             "symbol": symbol.upper(),
             "interval": interval,
             "start": start_date.isoformat(),
-            "end": end_date.isoformat()
+            "end": end_date.isoformat(),
         }
-        
+
         data = await self._get("/v1/markets/history", params=params)
-        
+
         if not data or "history" not in data:
             return []
-        
+
         history = data["history"]
         if not history or "day" not in history:
             return []
-        
+
         days_data = history["day"]
         if isinstance(days_data, dict):
             days_data = [days_data]
-        
+
         bars = []
         for day in days_data:
             try:
@@ -383,13 +369,13 @@ class TradierProvider(DataProvider):
                     low=float(day["low"]),
                     close=float(day["close"]),
                     volume=int(day.get("volume", 0)),
-                    source="tradier"
+                    source="tradier",
                 )
                 bars.append(bar)
             except (KeyError, ValueError) as e:
                 logger.warning(f"Fehler beim Parsen von Bar: {e}")
                 continue
-        
+
         # Nach Datum sortieren und auf gewünschte Anzahl begrenzen
         bars.sort(key=lambda x: x.date)
         if len(bars) > days:
@@ -398,9 +384,7 @@ class TradierProvider(DataProvider):
         return bars
 
     async def get_historical_for_scanner(
-        self,
-        symbol: str,
-        days: int = 260
+        self, symbol: str, days: int = 260
     ) -> Optional[Tuple[List[float], List[int], List[float], List[float], List[float]]]:
         """
         Historische Daten im Scanner-Format.
@@ -427,11 +411,11 @@ class TradierProvider(DataProvider):
         expiry: Optional[date] = None,
         dte_min: int = 30,
         dte_max: int = 60,
-        right: str = "P"
+        right: str = "P",
     ) -> List[OptionQuote]:
         """
         Options-Chain abrufen.
-        
+
         Args:
             symbol: Underlying Symbol
             expiry: Spezifisches Verfallsdatum (optional)
@@ -440,15 +424,15 @@ class TradierProvider(DataProvider):
             right: "P" für Puts, "C" für Calls, "PC" für beide
         """
         symbol = symbol.upper()
-        
+
         # Underlying-Preis holen
         quote = await self.get_quote(symbol)
         underlying_price = quote.last if quote else None
-        
+
         if not underlying_price:
             logger.warning(f"Kein Underlying-Preis für {symbol}")
             return []
-        
+
         # Verfallstermine bestimmen
         if expiry:
             expirations = [expiry]
@@ -456,152 +440,141 @@ class TradierProvider(DataProvider):
             all_expirations = await self.get_expirations(symbol)
             today = date.today()
             expirations = [
-                exp for exp in all_expirations
-                if dte_min <= (exp - today).days <= dte_max
+                exp for exp in all_expirations if dte_min <= (exp - today).days <= dte_max
             ]
-        
+
         if not expirations:
             logger.warning(f"Keine passenden Verfallstermine für {symbol}")
             return []
-        
+
         # Options-Chain für jeden Verfall holen
         all_options = []
-        
+
         for exp in expirations:
-            params = {
-                "symbol": symbol,
-                "expiration": exp.isoformat(),
-                "greeks": "true"
-            }
-            
+            params = {"symbol": symbol, "expiration": exp.isoformat(), "greeks": "true"}
+
             data = await self._get("/v1/markets/options/chains", params=params)
-            
+
             if not data or "options" not in data:
                 continue
-            
+
             options_data = data["options"]
             if not options_data or "option" not in options_data:
                 continue
-            
+
             option_list = options_data["option"]
             if isinstance(option_list, dict):
                 option_list = [option_list]
-            
+
             for opt in option_list:
                 option_type = opt.get("option_type", "").upper()
-                
+
                 # Filter nach gewünschtem Typ
                 if right == "P" and option_type != "PUT":
                     continue
                 if right == "C" and option_type != "CALL":
                     continue
-                
+
                 parsed = self._parse_option(opt, symbol, underlying_price, exp)
                 if parsed:
                     all_options.append(parsed)
-        
+
         return all_options
-    
+
     async def get_expirations(self, symbol: str) -> List[date]:
         """Verfügbare Verfallstermine"""
         params = {"symbol": symbol.upper()}
-        
+
         data = await self._get("/v1/markets/options/expirations", params=params)
-        
+
         if not data or "expirations" not in data:
             return []
-        
+
         exp_data = data["expirations"]
         if not exp_data or "date" not in exp_data:
             return []
-        
+
         dates = exp_data["date"]
         if isinstance(dates, str):
             dates = [dates]
-        
+
         result = []
         for d in dates:
             try:
                 result.append(datetime.strptime(d, "%Y-%m-%d").date())
             except ValueError:
                 continue
-        
+
         return sorted(result)
-    
+
     async def get_strikes(self, symbol: str, expiry: date) -> List[float]:
         """Verfügbare Strikes für einen Verfall"""
-        params = {
-            "symbol": symbol.upper(),
-            "expiration": expiry.isoformat()
-        }
-        
+        params = {"symbol": symbol.upper(), "expiration": expiry.isoformat()}
+
         data = await self._get("/v1/markets/options/strikes", params=params)
-        
+
         if not data or "strikes" not in data:
             return []
-        
+
         strikes_data = data["strikes"]
         if not strikes_data or "strike" not in strikes_data:
             return []
-        
+
         strikes = strikes_data["strike"]
         if isinstance(strikes, (int, float)):
             strikes = [strikes]
-        
+
         return sorted([float(s) for s in strikes])
-    
+
     async def get_iv_data(self, symbol: str) -> Optional[IVData]:
         """
         IV-Daten abrufen.
-        
+
         Extrahiert ATM-IV aus der Options-Chain und kombiniert
         sie mit gecachten historischen Daten für IV-Rank.
         """
         symbol = symbol.upper()
-        
+
         # Aktuelle Options-Chain für ATM-IV
         chain = await self.get_option_chain(symbol, dte_min=20, dte_max=45, right="P")
-        
+
         if not chain:
             return None
-        
+
         # Quote für ATM-Bestimmung
         quote = await self.get_quote(symbol)
         if not quote or not quote.last:
             return None
-        
+
         # ATM-Option finden (nächster Strike zum Preis)
         atm_iv = self._extract_atm_iv(chain, quote.last)
-        
+
         if atm_iv is None:
             return None
-        
+
         # IV zu Cache hinzufügen für zukünftige IV-Rank Berechnung
         self._iv_cache.add_iv_point(symbol, atm_iv, IVSource.TRADIER)
-        
+
         # IV-Daten aus Cache holen (mit History für IV-Rank)
         return self._iv_cache.get_iv_data(symbol, atm_iv)
-    
+
     async def get_earnings_date(self, symbol: str) -> Optional[EarningsInfo]:
         """
         Earnings-Datum abrufen.
-        
+
         HINWEIS: Tradier bietet keine Earnings-Daten.
         Diese Methode gibt None zurück. Verwende stattdessen
         den EarningsFetcher mit yfinance.
         """
         logger.debug(f"Tradier hat keine Earnings-Daten für {symbol}")
         return None
-    
+
     # =========================================================================
     # Historical Options Data (NEU)
     # =========================================================================
 
     async def get_option_history(
-        self,
-        occ_symbol: str,
-        days: int = 90,
-        interval: str = "daily"
+        self, occ_symbol: str, days: int = 90, interval: str = "daily"
     ) -> List[HistoricalOptionBar]:
         """
         Historische Preisdaten für eine Option abrufen.
@@ -621,7 +594,7 @@ class TradierProvider(DataProvider):
             "symbol": occ_symbol,
             "interval": interval,
             "start": start_date.isoformat(),
-            "end": end_date.isoformat()
+            "end": end_date.isoformat(),
         }
 
         data = await self._get("/v1/markets/history", params=params)
@@ -654,12 +627,7 @@ class TradierProvider(DataProvider):
         return bars
 
     async def get_option_history_for_spread(
-        self,
-        underlying: str,
-        short_strike: float,
-        long_strike: float,
-        expiry: date,
-        days: int = 90
+        self, underlying: str, short_strike: float, long_strike: float, expiry: date, days: int = 90
     ) -> Dict[str, List[HistoricalOptionBar]]:
         """
         Historische Daten für einen Bull-Put-Spread.
@@ -687,7 +655,7 @@ class TradierProvider(DataProvider):
             "short": short_bars,
             "long": long_bars,
             "short_symbol": short_occ,
-            "long_symbol": long_occ
+            "long_symbol": long_occ,
         }
 
     async def find_historical_options(
@@ -696,7 +664,7 @@ class TradierProvider(DataProvider):
         target_date: date,
         strike_range: Tuple[float, float],
         dte_range: Tuple[int, int] = (30, 60),
-        option_type: str = "P"
+        option_type: str = "P",
     ) -> List[str]:
         """
         Findet verfügbare historische Options für ein Datum.
@@ -760,7 +728,7 @@ class TradierProvider(DataProvider):
         """Marktstatus und Handelszeiten"""
         data = await self._get("/v1/markets/clock")
         return data.get("clock") if data else None
-    
+
     async def get_market_calendar(self, month: int = None, year: int = None) -> List[Dict]:
         """Handelskalender"""
         params = {}
@@ -768,102 +736,100 @@ class TradierProvider(DataProvider):
             params["month"] = month
         if year:
             params["year"] = year
-        
+
         data = await self._get("/v1/markets/calendar", params=params)
-        
+
         if not data or "calendar" not in data:
             return []
-        
+
         cal = data["calendar"]
         if "days" not in cal or "day" not in cal["days"]:
             return []
-        
+
         days = cal["days"]["day"]
         return days if isinstance(days, list) else [days]
-    
+
     async def search_symbols(self, query: str) -> List[Dict]:
         """Symbol-Suche"""
         params = {"q": query}
-        
+
         data = await self._get("/v1/markets/search", params=params)
-        
+
         if not data or "securities" not in data:
             return []
-        
+
         securities = data["securities"]
         if not securities or "security" not in securities:
             return []
-        
+
         result = securities["security"]
         return result if isinstance(result, list) else [result]
-    
+
     async def lookup_symbol(self, query: str) -> List[Dict]:
         """Symbol Lookup (exakter Match)"""
         params = {"q": query}
-        
+
         data = await self._get("/v1/markets/lookup", params=params)
-        
+
         if not data or "securities" not in data:
             return []
-        
+
         securities = data["securities"]
         if not securities or "security" not in securities:
             return []
-        
+
         result = securities["security"]
         return result if isinstance(result, list) else [result]
-    
+
     async def get_etb_securities(self) -> List[str]:
         """Easy-to-Borrow Liste"""
         data = await self._get("/v1/markets/etb")
-        
+
         if not data or "securities" not in data:
             return []
-        
+
         securities = data["securities"]
         if not securities or "security" not in securities:
             return []
-        
+
         sec_list = securities["security"]
         if isinstance(sec_list, dict):
             sec_list = [sec_list]
-        
+
         return [s.get("symbol") for s in sec_list if s.get("symbol")]
-    
+
     # =========================================================================
     # Bulk Operations
     # =========================================================================
-    
+
     async def get_quotes_bulk(
-        self,
-        symbols: List[str],
-        batch_size: int = 100
+        self, symbols: List[str], batch_size: int = 100
     ) -> Dict[str, PriceQuote]:
         """
         Quotes für viele Symbole in Batches.
-        
+
         Tradier erlaubt bis zu 100 Symbole pro Request.
         """
         all_quotes = {}
-        
+
         for i in range(0, len(symbols), batch_size):
-            batch = symbols[i:i + batch_size]
+            batch = symbols[i : i + batch_size]
             quotes = await self.get_quotes(batch)
             all_quotes.update(quotes)
-            
+
             # Kurze Pause zwischen Batches
             if i + batch_size < len(symbols):
                 await asyncio.sleep(0.1)
-        
+
         return all_quotes
-    
+
     async def get_option_chains_bulk(
         self,
         symbols: List[str],
         dte_min: int = 30,
         dte_max: int = 60,
         right: str = "P",
-        max_concurrent: int = 5
+        max_concurrent: int = 5,
     ) -> Dict[str, List[OptionQuote]]:
         """
         Options-Chains für mehrere Symbole (parallelisiert).
@@ -887,10 +853,7 @@ class TradierProvider(DataProvider):
             async with semaphore:
                 try:
                     chain = await self.get_option_chain(
-                        symbol,
-                        dte_min=dte_min,
-                        dte_max=dte_max,
-                        right=right
+                        symbol, dte_min=dte_min, dte_max=dte_max, right=right
                     )
                     completed += 1
                     logger.info(f"[{completed}/{total}] {symbol}: {len(chain)} Optionen")
@@ -909,11 +872,9 @@ class TradierProvider(DataProvider):
             result[symbol] = chain
 
         return result
-    
+
     async def update_iv_cache_from_chains(
-        self,
-        symbols: List[str],
-        max_concurrent: int = 5
+        self, symbols: List[str], max_concurrent: int = 5
     ) -> Dict[str, bool]:
         """
         IV-Cache für mehrere Symbole aus Options-Chains aktualisieren (parallelisiert).
@@ -960,12 +921,14 @@ class TradierProvider(DataProvider):
         logger.info(f"IV-Cache Update: {successful}/{len(symbols)} erfolgreich")
 
         return results
-    
+
     # =========================================================================
     # Private Helpers
     # =========================================================================
-    
-    async def _get(self, endpoint: str, params: Optional[Dict] = None, _skip_connect_check: bool = False) -> Optional[Dict]:
+
+    async def _get(
+        self, endpoint: str, params: Optional[Dict] = None, _skip_connect_check: bool = False
+    ) -> Optional[Dict]:
         """GET Request mit Retry-Logik (urllib für Python 3.14 Kompatibilität)"""
         # Using synchronous urllib for Python 3.14 compatibility
         url = f"{self.config.base_url}{endpoint}"
@@ -976,12 +939,14 @@ class TradierProvider(DataProvider):
         for attempt in range(self.config.max_retries):
             try:
                 req = urllib.request.Request(url)
-                req.add_header('Authorization', f'Bearer {self.config.api_key}')
-                req.add_header('Accept', 'application/json')
+                req.add_header("Authorization", f"Bearer {self.config.api_key}")
+                req.add_header("Accept", "application/json")
 
                 # Run synchronous urllib in thread pool
                 def do_request() -> Any:
-                    with urllib.request.urlopen(req, timeout=self.config.timeout_seconds) as response:
+                    with urllib.request.urlopen(
+                        req, timeout=self.config.timeout_seconds
+                    ) as response:
                         return json.loads(response.read().decode())
 
                 data = await asyncio.to_thread(do_request)
@@ -1011,7 +976,7 @@ class TradierProvider(DataProvider):
                 await asyncio.sleep(self.config.retry_delay_seconds)
 
         return None
-    
+
     def _parse_quote(self, data: Dict) -> PriceQuote:
         """Tradier Quote zu PriceQuote konvertieren"""
         return PriceQuote(
@@ -1022,20 +987,16 @@ class TradierProvider(DataProvider):
             volume=self._safe_int(data.get("volume")),
             timestamp=datetime.now(),
             data_quality=DataQuality.REALTIME if data.get("last") else DataQuality.DELAYED_15MIN,
-            source="tradier"
+            source="tradier",
         )
-    
+
     def _parse_option(
-        self, 
-        data: Dict, 
-        underlying: str, 
-        underlying_price: float,
-        expiry: date
+        self, data: Dict, underlying: str, underlying_price: float, expiry: date
     ) -> Optional[OptionQuote]:
         """Tradier Option zu OptionQuote konvertieren"""
         try:
             greeks = data.get("greeks", {}) or {}
-            
+
             return OptionQuote(
                 symbol=data.get("symbol", ""),
                 underlying=underlying,
@@ -1055,29 +1016,22 @@ class TradierProvider(DataProvider):
                 vega=self._safe_float(greeks.get("vega")),
                 timestamp=datetime.now(),
                 data_quality=DataQuality.REALTIME,
-                source="tradier"
+                source="tradier",
             )
         except Exception as e:
             logger.warning(f"Fehler beim Parsen von Option: {e}")
             return None
-    
-    def _extract_atm_iv(
-        self, 
-        chain: List[OptionQuote], 
-        underlying_price: float
-    ) -> Optional[float]:
+
+    def _extract_atm_iv(self, chain: List[OptionQuote], underlying_price: float) -> Optional[float]:
         """ATM-IV aus Options-Chain extrahieren"""
         if not chain or not underlying_price:
             return None
-        
+
         # Finde Option mit nächstem Strike zum Underlying-Preis
-        atm_option = min(
-            chain,
-            key=lambda opt: abs(opt.strike - underlying_price)
-        )
-        
+        atm_option = min(chain, key=lambda opt: abs(opt.strike - underlying_price))
+
         return atm_option.implied_volatility
-    
+
     @staticmethod
     def _safe_float(value: Any) -> Optional[float]:
         """Sichere Float-Konvertierung (erlaubt negative Werte für Delta/Theta)"""
@@ -1085,11 +1039,12 @@ class TradierProvider(DataProvider):
             return None
         try:
             import math
+
             f = float(value)
             return f if not math.isnan(f) else None
         except (ValueError, TypeError):
             return None
-    
+
     @staticmethod
     def _safe_int(value: Any) -> Optional[int]:
         """Sichere Int-Konvertierung"""
@@ -1109,8 +1064,7 @@ _default_provider: Optional[TradierProvider] = None
 
 
 def get_tradier_provider(
-    api_key: Optional[str] = None,
-    environment: TradierEnvironment = TradierEnvironment.PRODUCTION
+    api_key: Optional[str] = None, environment: TradierEnvironment = TradierEnvironment.PRODUCTION
 ) -> TradierProvider:
     """
     Gibt globale Tradier Provider Instanz zurück.
@@ -1122,6 +1076,7 @@ def get_tradier_provider(
     """
     try:
         from ..utils.deprecation import warn_singleton_usage
+
         warn_singleton_usage("get_tradier_provider", "container.tradier_provider")
     except ImportError:
         pass
@@ -1137,29 +1092,22 @@ def get_tradier_provider(
 
 
 async def fetch_option_chain(
-    symbol: str,
-    api_key: str,
-    dte_min: int = 30,
-    dte_max: int = 60,
-    right: str = "P"
+    symbol: str, api_key: str, dte_min: int = 30, dte_max: int = 60, right: str = "P"
 ) -> List[OptionQuote]:
     """
     Convenience-Funktion für schnellen Options-Chain Abruf.
-    
+
     Beispiel:
         >>> chain = await fetch_option_chain("AAPL", "your_key")
         >>> for opt in chain[:5]:
         ...     print(f"{opt.strike}: IV={opt.implied_volatility:.1%}")
     """
     provider = TradierProvider(api_key)
-    
+
     try:
         await provider.connect()
         return await provider.get_option_chain(
-            symbol, 
-            dte_min=dte_min, 
-            dte_max=dte_max, 
-            right=right
+            symbol, dte_min=dte_min, dte_max=dte_max, right=right
         )
     finally:
         await provider.disconnect()
@@ -1170,7 +1118,7 @@ async def fetch_quote(symbol: str, api_key: str) -> Optional[PriceQuote]:
     Convenience-Funktion für schnellen Quote-Abruf.
     """
     provider = TradierProvider(api_key)
-    
+
     try:
         await provider.connect()
         return await provider.get_quote(symbol)

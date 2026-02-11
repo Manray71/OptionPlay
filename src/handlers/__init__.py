@@ -28,38 +28,39 @@ Modules:
 - monitor_composed: Position monitoring for exit signals
 """
 
-# Composition-based handler system (active)
-from .handler_container import (
-    HandlerContainer,
-    ServerContext,
-    BaseHandler,
-    create_handler_container_from_server,
-)
-
-# Composed handlers (active)
-from .vix_composed import VixHandler
-from .scan_composed import ScanHandler
-from .quote_composed import QuoteHandler
+from .analysis import AnalysisHandlerMixin
 from .analysis_composed import AnalysisHandler
-from .portfolio_composed import PortfolioHandler
-from .ibkr_composed import IbkrHandler
-from .report_composed import ReportHandler
-from .risk_composed import RiskHandler
-from .validate_composed import ValidateHandler
-from .monitor_composed import MonitorHandler
 
 # Legacy Mixins (deprecated — kept for test compatibility)
 from .base import BaseHandlerMixin
-from .vix import VixHandlerMixin
-from .scan import ScanHandlerMixin
-from .quote import QuoteHandlerMixin
-from .analysis import AnalysisHandlerMixin
-from .portfolio import PortfolioHandlerMixin
+
+# Composition-based handler system (active)
+from .handler_container import (
+    BaseHandler,
+    HandlerContainer,
+    ServerContext,
+    create_handler_container_from_server,
+)
 from .ibkr import IbkrHandlerMixin
-from .report import ReportHandlerMixin
-from .risk import RiskHandlerMixin
-from .validate import ValidateHandlerMixin
+from .ibkr_composed import IbkrHandler
 from .monitor import MonitorHandlerMixin
+from .monitor_composed import MonitorHandler
+from .portfolio import PortfolioHandlerMixin
+from .portfolio_composed import PortfolioHandler
+from .quote import QuoteHandlerMixin
+from .quote_composed import QuoteHandler
+from .report import ReportHandlerMixin
+from .report_composed import ReportHandler
+from .risk import RiskHandlerMixin
+from .risk_composed import RiskHandler
+from .scan import ScanHandlerMixin
+from .scan_composed import ScanHandler
+from .validate import ValidateHandlerMixin
+from .validate_composed import ValidateHandler
+from .vix import VixHandlerMixin
+
+# Composed handlers (active)
+from .vix_composed import VixHandler
 
 __all__ = [
     # Composition-based infrastructure

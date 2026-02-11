@@ -5,44 +5,44 @@
 # Phase 6e: RegimeTrainer broken into sub-modules:
 #   data_prep.py, epoch_runner.py, performance.py, optimizer.py, trainer.py
 
-from .walk_forward import (
-    WalkForwardTrainer,
-    TrainingConfig,
-    TrainingResult,
-    EpochResult,
-    format_training_summary,
-)
-from .regime_trainer import (
-    RegimeTrainer,
-    RegimeTrainingConfig,
-    RegimeTrainingResult,
-    FullRegimeTrainingResult,
-    RegimeEpochResult,
-    StrategyPerformance,
-)
+from .data_prep import DataPrep
+from .epoch_runner import EpochRunner
 from .ml_weight_optimizer import (
+    ALL_COMPONENTS,
+    DEFAULT_WEIGHTS,
+    STRATEGY_COMPONENTS,
+    ComponentStats,
+    FeatureExtractor,
     MLWeightOptimizer,
     OptimizationMethod,
     OptimizationResult,
-    WeightConfig,
-    ComponentStats,
-    WeightedScorer,
     TradeFeatures,
-    FeatureExtractor,
-    STRATEGY_COMPONENTS,
-    ALL_COMPONENTS,
-    DEFAULT_WEIGHTS,
+    WeightConfig,
+    WeightedScorer,
+)
+from .optimizer import ParameterOptimizer, ResultProcessor
+from .performance import PerformanceAnalyzer
+from .regime_trainer import (
+    FullRegimeTrainingResult,
+    RegimeEpochResult,
+    RegimeTrainer,
+    RegimeTrainingConfig,
+    RegimeTrainingResult,
+    StrategyPerformance,
 )
 from .strategy_weight_trainer import (
-    StrategyWeightTrainer,
+    STRATEGY_OBJECTIVES,
     StrategyTrainingConfig,
     StrategyTrainingResult,
-    STRATEGY_OBJECTIVES,
+    StrategyWeightTrainer,
 )
-from .data_prep import DataPrep
-from .epoch_runner import EpochRunner
-from .performance import PerformanceAnalyzer
-from .optimizer import ParameterOptimizer, ResultProcessor
+from .walk_forward import (
+    EpochResult,
+    TrainingConfig,
+    TrainingResult,
+    WalkForwardTrainer,
+    format_training_summary,
+)
 
 __all__ = [
     # Walk-Forward Training

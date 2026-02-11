@@ -28,14 +28,24 @@ Alle Tools sind hier definiert mit:
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Awaitable, Union
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Union
 
 from mcp.types import Tool
 
 try:
-    from .constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS, SPREAD_DTE_MIN, SPREAD_DTE_MAX, SPREAD_DTE_TARGET
+    from .constants.trading_rules import (
+        ENTRY_EARNINGS_MIN_DAYS,
+        SPREAD_DTE_MAX,
+        SPREAD_DTE_MIN,
+        SPREAD_DTE_TARGET,
+    )
 except ImportError:
-    from constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS, SPREAD_DTE_MIN, SPREAD_DTE_MAX, SPREAD_DTE_TARGET
+    from constants.trading_rules import (
+        ENTRY_EARNINGS_MIN_DAYS,
+        SPREAD_DTE_MAX,
+        SPREAD_DTE_MIN,
+        SPREAD_DTE_TARGET,
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -60,9 +70,11 @@ ToolHandler = Union[ToolHandlerAsync, ToolHandlerSync]
 # TOOL REGISTRY CLASS
 # =============================================================================
 
+
 @dataclass
 class ToolDefinition:
     """Vollständige Tool-Definition mit Handler."""
+
     name: str
     description: str
     input_schema: JsonSchema
@@ -91,6 +103,7 @@ class ToolRegistry:
         is_async: bool = True,
     ) -> Callable[[ToolHandler], ToolHandler]:
         """Decorator zum Registrieren eines Tool-Handlers."""
+
         def decorator(func: ToolHandler) -> ToolHandler:
             tool = ToolDefinition(
                 name=name,
@@ -102,10 +115,11 @@ class ToolRegistry:
             )
             self._tools[name] = tool
 
-            for alias in (aliases or []):
+            for alias in aliases or []:
                 self._aliases[alias] = name
 
             return func
+
         return decorator
 
     def resolve_alias(self, name: str) -> str:
@@ -146,19 +160,23 @@ class ToolRegistry:
 
         for tool_def in self._tools.values():
             # Haupt-Tool
-            tools.append(Tool(
-                name=tool_def.name,
-                description=tool_def.description,
-                inputSchema=tool_def.input_schema,
-            ))
+            tools.append(
+                Tool(
+                    name=tool_def.name,
+                    description=tool_def.description,
+                    inputSchema=tool_def.input_schema,
+                )
+            )
 
             # Alias-Tools
             for alias in tool_def.aliases:
-                tools.append(Tool(
-                    name=alias,
-                    description=f"[Alias for {tool_def.name}] {tool_def.description}",
-                    inputSchema=tool_def.input_schema,
-                ))
+                tools.append(
+                    Tool(
+                        name=alias,
+                        description=f"[Alias for {tool_def.name}] {tool_def.description}",
+                        inputSchema=tool_def.input_schema,
+                    )
+                )
 
         return tools
 
@@ -192,19 +210,29 @@ SYMBOL_SCHEMA = {
 
 SYMBOLS_SCHEMA = {
     "type": "object",
-    "properties": {"symbols": {"type": "array", "items": {"type": "string"}, "description": "List of ticker symbols"}},
+    "properties": {
+        "symbols": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "List of ticker symbols",
+        }
+    },
 }
 
 SCAN_SCHEMA = {
     "type": "object",
     "properties": {
-        "symbols": {"type": "array", "items": {"type": "string"}, "description": "Optional specific symbols"},
+        "symbols": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "Optional specific symbols",
+        },
         "max_results": {"type": "number", "description": "Maximum candidates (default: 10)"},
         "min_score": {"type": "number", "description": "Minimum score threshold"},
         "list_type": {
             "type": "string",
             "enum": ["stable", "risk", "all"],
-            "description": "Which watchlist to scan: 'stable' (default, Stability>=60), 'risk' (Stability<60), or 'all'"
+            "description": "Which watchlist to scan: 'stable' (default, Stability>=60), 'risk' (Stability<60), or 'all'",
         },
     },
 }
@@ -213,6 +241,7 @@ SCAN_SCHEMA = {
 # =============================================================================
 # VIX & STRATEGY TOOLS (6)
 # =============================================================================
+
 
 @tool_registry.register(
     name="optionplay_vix",
@@ -249,7 +278,9 @@ async def handle_strategy_for_stock(server: Any, arguments: ToolArguments) -> st
     description="Get upcoming market events (FOMC, OPEX, CPI, NFP). Helps plan around macro events.",
     input_schema={
         "type": "object",
-        "properties": {"days": {"type": "number", "description": "Days to look ahead (default: 30)"}},
+        "properties": {
+            "days": {"type": "number", "description": "Days to look ahead (default: 30)"}
+        },
     },
     aliases=["events"],
 )
@@ -270,6 +301,7 @@ async def handle_health(server: Any, arguments: ToolArguments) -> str:
 # =============================================================================
 # SCAN TOOLS (7)
 # =============================================================================
+
 
 @tool_registry.register(
     name="optionplay_scan",
@@ -362,11 +394,24 @@ async def handle_scan_multi(server: Any, arguments: ToolArguments) -> str:
     input_schema={
         "type": "object",
         "properties": {
-            "symbols": {"type": "array", "items": {"type": "string"}, "description": "Optional specific symbols (default: watchlist)"},
+            "symbols": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Optional specific symbols (default: watchlist)",
+            },
             "max_picks": {"type": "number", "description": "Maximum recommendations (default: 5)"},
-            "min_score": {"type": "number", "description": "Minimum signal score for ranking (default: 3.5)"},
-            "min_stability": {"type": "number", "description": "Minimum stability score 0-100 (default: 70)"},
-            "include_strikes": {"type": "boolean", "description": "Include strike recommendations (default: true)"},
+            "min_score": {
+                "type": "number",
+                "description": "Minimum signal score for ranking (default: 3.5)",
+            },
+            "min_stability": {
+                "type": "number",
+                "description": "Minimum stability score 0-100 (default: 70)",
+            },
+            "include_strikes": {
+                "type": "boolean",
+                "description": "Include strike recommendations (default: true)",
+            },
         },
     },
     aliases=["daily", "picks", "recommendations"],
@@ -389,7 +434,10 @@ async def handle_daily_picks(server: Any, arguments: ToolArguments) -> str:
         "properties": {
             "min_days": {"type": "number", "description": "Minimum days to earnings (default: 45)"},
             "symbols": {"type": "array", "items": {"type": "string"}},
-            "show_excluded": {"type": "boolean", "description": "Show excluded symbols (default: false)"},
+            "show_excluded": {
+                "type": "boolean",
+                "description": "Show excluded symbols (default: false)",
+            },
         },
     },
     aliases=["prefilter"],
@@ -405,6 +453,7 @@ async def handle_earnings_prefilter(server: Any, arguments: ToolArguments) -> st
 # =============================================================================
 # QUOTE & DATA TOOLS (7)
 # =============================================================================
+
 
 @tool_registry.register(
     name="optionplay_quote",
@@ -563,6 +612,7 @@ async def handle_max_pain(server: Any, arguments: ToolArguments) -> str:
 # ANALYSIS TOOLS (5)
 # =============================================================================
 
+
 @tool_registry.register(
     name="optionplay_analyze",
     description="Complete analysis of a symbol for Bull-Put-Spread suitability.",
@@ -612,7 +662,10 @@ async def handle_ensemble_status(server: Any, arguments: ToolArguments) -> str:
             "symbol": {"type": "string"},
             "dte_min": {"type": "number", "description": "Min DTE (default: 60)"},
             "dte_max": {"type": "number", "description": "Max DTE (default: 90)"},
-            "num_alternatives": {"type": "number", "description": "Number of alternatives (default: 3)"},
+            "num_alternatives": {
+                "type": "number",
+                "description": "Number of alternatives (default: 3)",
+            },
         },
         "required": ["symbol"],
     },
@@ -631,6 +684,7 @@ async def handle_recommend_strikes(server: Any, arguments: ToolArguments) -> str
 # PORTFOLIO TOOLS (13)
 # =============================================================================
 
+
 @tool_registry.register(
     name="optionplay_portfolio",
     description="Show INTERNAL tracking portfolio summary. NOTE: For LIVE IBKR positions, use optionplay_ibkr_portfolio!",
@@ -647,7 +701,9 @@ def handle_portfolio(server: Any, arguments: ToolArguments) -> str:
     description="List portfolio positions with optional status filter (open, closed, all).",
     input_schema={
         "type": "object",
-        "properties": {"status": {"type": "string", "description": "Filter: open, closed, all (default: all)"}},
+        "properties": {
+            "status": {"type": "string", "description": "Filter: open, closed, all (default: all)"}
+        },
     },
     aliases=["pf_positions"],
     is_async=False,
@@ -745,7 +801,9 @@ def handle_portfolio_expire(server: Any, arguments: ToolArguments) -> str:
     description="List positions expiring within specified days.",
     input_schema={
         "type": "object",
-        "properties": {"days": {"type": "number", "description": "Days to look ahead (default: 7)"}},
+        "properties": {
+            "days": {"type": "number", "description": "Days to look ahead (default: 7)"}
+        },
     },
     aliases=["pf_expiring"],
     is_async=False,
@@ -759,7 +817,9 @@ def handle_portfolio_expiring(server: Any, arguments: ToolArguments) -> str:
     description="Show trade history with recent entries and exits.",
     input_schema={
         "type": "object",
-        "properties": {"limit": {"type": "number", "description": "Max trades to show (default: 20)"}},
+        "properties": {
+            "limit": {"type": "number", "description": "Max trades to show (default: 20)"}
+        },
     },
     aliases=["pf_trades"],
     is_async=False,
@@ -825,6 +885,7 @@ def handle_portfolio_constraints(server: Any, arguments: ToolArguments) -> str:
 # =============================================================================
 # IBKR TOOLS (7)
 # =============================================================================
+
 
 @tool_registry.register(
     name="optionplay_ibkr_status",
@@ -909,6 +970,7 @@ async def handle_news(server: Any, arguments: ToolArguments) -> str:
 # REPORT TOOLS (2)
 # =============================================================================
 
+
 @tool_registry.register(
     name="optionplay_report",
     description="Generate a detailed PDF report for a trading candidate. Saved to reports/ directory.",
@@ -917,7 +979,10 @@ async def handle_news(server: Any, arguments: ToolArguments) -> str:
         "properties": {
             "symbol": {"type": "string"},
             "strategy": {"type": "string", "description": "Strategy type (default: pullback)"},
-            "include_options": {"type": "boolean", "description": "Include options chain (default: true)"},
+            "include_options": {
+                "type": "boolean",
+                "description": "Include options chain (default: true)",
+            },
             "include_news": {"type": "boolean", "description": "Include news (default: true)"},
         },
         "required": ["symbol"],
@@ -939,7 +1004,10 @@ async def handle_report(server: Any, arguments: ToolArguments) -> str:
     input_schema={
         "type": "object",
         "properties": {
-            "strategy": {"type": "string", "description": "Strategy: pullback, bounce, breakout, dip, multi (default: multi)"},
+            "strategy": {
+                "type": "string",
+                "description": "Strategy: pullback, bounce, breakout, dip, multi (default: multi)",
+            },
             "symbols": {"type": "array", "items": {"type": "string"}},
             "min_score": {"type": "number", "description": "Minimum score (default: 5.0)"},
             "max_candidates": {"type": "number", "description": "Max candidates (default: 20)"},
@@ -960,6 +1028,7 @@ async def handle_scan_report(server: Any, arguments: ToolArguments) -> str:
 # RISK TOOLS (4)
 # =============================================================================
 
+
 @tool_registry.register(
     name="optionplay_position_size",
     description="Calculate optimal position size using Kelly Criterion. Adjusts for VIX, signal quality, and portfolio exposure.",
@@ -967,13 +1036,22 @@ async def handle_scan_report(server: Any, arguments: ToolArguments) -> str:
         "type": "object",
         "properties": {
             "account_size": {"type": "number", "description": "Total account size in USD"},
-            "max_loss_per_contract": {"type": "number", "description": "Maximum loss per contract in USD"},
+            "max_loss_per_contract": {
+                "type": "number",
+                "description": "Maximum loss per contract in USD",
+            },
             "win_rate": {"type": "number", "description": "Historical win rate (default: 0.65)"},
             "avg_win": {"type": "number", "description": "Average win in USD (default: 100)"},
             "avg_loss": {"type": "number", "description": "Average loss in USD (default: 350)"},
-            "signal_score": {"type": "number", "description": "Signal quality score (default: 7.0)"},
+            "signal_score": {
+                "type": "number",
+                "description": "Signal quality score (default: 7.0)",
+            },
             "reliability_grade": {"type": "string", "description": "A, B, or C grade"},
-            "current_exposure": {"type": "number", "description": "Current portfolio exposure (default: 0)"},
+            "current_exposure": {
+                "type": "number",
+                "description": "Current portfolio exposure (default: 0)",
+            },
         },
         "required": ["account_size", "max_loss_per_contract"],
     },
@@ -1051,7 +1129,10 @@ async def handle_spread_analysis(server: Any, arguments: ToolArguments) -> str:
             "long_strike": {"type": "number"},
             "net_credit": {"type": "number"},
             "dte": {"type": "number", "description": "Days to expiration (default: 75)"},
-            "num_simulations": {"type": "number", "description": "Number of simulations (default: 500)"},
+            "num_simulations": {
+                "type": "number",
+                "description": "Number of simulations (default: 500)",
+            },
             "volatility": {"type": "number", "description": "Override volatility (optional)"},
         },
         "required": ["symbol", "short_strike", "long_strike", "net_credit"],
@@ -1073,6 +1154,7 @@ async def handle_monte_carlo(server: Any, arguments: ToolArguments) -> str:
 # =============================================================================
 # SYSTEM TOOLS (2)
 # =============================================================================
+
 
 @tool_registry.register(
     name="optionplay_cache_stats",
@@ -1098,6 +1180,7 @@ def handle_watchlist_info(server: Any, arguments: ToolArguments) -> str:
 # =============================================================================
 # SECTOR CYCLE TOOLS (1)
 # =============================================================================
+
 
 @tool_registry.register(
     name="optionplay_sector_status",

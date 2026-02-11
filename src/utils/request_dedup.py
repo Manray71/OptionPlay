@@ -129,8 +129,7 @@ class RequestDeduplicator:
     def stats(self) -> Dict[str, Any]:
         """Get deduplication statistics."""
         dedup_rate = (
-            (self._deduplicated / self._total_requests * 100)
-            if self._total_requests > 0 else 0
+            (self._deduplicated / self._total_requests * 100) if self._total_requests > 0 else 0
         )
         return {
             "total_requests": self._total_requests,
@@ -161,6 +160,7 @@ def get_request_deduplicator() -> RequestDeduplicator:
     """
     try:
         from .deprecation import warn_singleton_usage
+
         warn_singleton_usage("get_request_deduplicator", "ServiceContainer.request_deduplicator")
     except ImportError:
         pass

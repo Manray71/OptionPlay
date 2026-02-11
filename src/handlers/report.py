@@ -10,16 +10,21 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import date, datetime, timedelta
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-from ..constants.trading_rules import SPREAD_SHORT_DELTA_TARGET, SPREAD_DTE_MIN, SPREAD_DTE_MAX, ENTRY_EARNINGS_MIN_DAYS
+from ..cache import get_earnings_fetcher
+from ..config import get_watchlist_loader
+from ..constants.trading_rules import (
+    ENTRY_EARNINGS_MIN_DAYS,
+    SPREAD_DTE_MAX,
+    SPREAD_DTE_MIN,
+    SPREAD_SHORT_DELTA_TARGET,
+)
+from ..indicators.support_resistance import calculate_fibonacci, find_support_levels
+from ..strike_recommender import StrikeRecommender
 from ..utils.error_handler import mcp_endpoint
 from ..utils.markdown_builder import MarkdownBuilder
 from ..utils.validation import validate_symbol
-from ..config import get_watchlist_loader
-from ..cache import get_earnings_fetcher
-from ..strike_recommender import StrikeRecommender
-from ..indicators.support_resistance import find_support_levels, calculate_fibonacci
 from .base import BaseHandlerMixin
 
 if TYPE_CHECKING:
@@ -30,6 +35,7 @@ logger = logging.getLogger(__name__)
 # IBKR availability
 try:
     from ..ibkr_bridge import IBKRBridge
+
     IBKR_AVAILABLE = True
 except ImportError:
     IBKR_AVAILABLE = False
@@ -115,14 +121,16 @@ class ReportHandlerMixin(BaseHandlerMixin):
         vix_data = {
             "value": vix_value or "N/A",
             "regime": regime.name if regime else "Unknown",
-            "recommended_strategy": strategy_rec.profile_name.title() if strategy_rec else 'Standard',
+            "recommended_strategy": (
+                strategy_rec.profile_name.title() if strategy_rec else "Standard"
+            ),
             "parameters": {
                 "delta": strategy_rec.delta_target if strategy_rec else SPREAD_SHORT_DELTA_TARGET,
                 "spread_width": strategy_rec.spread_width if strategy_rec else None,
                 "min_score": min_score,
                 "min_dte": strategy_rec.dte_min if strategy_rec else SPREAD_DTE_MIN,
                 "max_dte": strategy_rec.dte_max if strategy_rec else SPREAD_DTE_MAX,
-            }
+            },
         }
 
         # 2. Get symbols list
@@ -140,18 +148,22 @@ class ReportHandlerMixin(BaseHandlerMixin):
         for symbol in symbols[:100]:  # Limit for performance
             try:
                 earnings_info = await self._check_earnings_async(symbol)
-                days = earnings_info.get('days_to_earnings')
+                days = earnings_info.get("days_to_earnings")
                 earnings_data[symbol] = {
-                    'days_to_earnings': days,
-                    'next_date': earnings_info.get('next_date'),
-                    'safe': days is None or days >= ENTRY_EARNINGS_MIN_DAYS,
+                    "days_to_earnings": days,
+                    "next_date": earnings_info.get("next_date"),
+                    "safe": days is None or days >= ENTRY_EARNINGS_MIN_DAYS,
                 }
-                if earnings_data[symbol]['safe']:
+                if earnings_data[symbol]["safe"]:
                     safe_symbols.append(symbol)
             except Exception as e:
                 logger.debug(f"Earnings check failed for {symbol}: {e}")
                 safe_symbols.append(symbol)
-                earnings_data[symbol] = {'days_to_earnings': None, 'next_date': 'Unknown', 'safe': True}
+                earnings_data[symbol] = {
+                    "days_to_earnings": None,
+                    "next_date": "Unknown",
+                    "safe": True,
+                }
 
         # 4. Run scan
         scanner = self._get_multi_scanner(min_score=0)
@@ -169,9 +181,9 @@ class ReportHandlerMixin(BaseHandlerMixin):
 
                 # Set earnings date if known
                 e_info = earnings_data.get(symbol, {})
-                if e_info.get('next_date') and e_info['next_date'] != 'Unknown':
+                if e_info.get("next_date") and e_info["next_date"] != "Unknown":
                     try:
-                        earnings_date = date.fromisoformat(e_info['next_date'])
+                        earnings_date = date.fromisoformat(e_info["next_date"])
                         scanner.set_earnings_date(symbol, earnings_date)
                     except (ValueError, TypeError):
                         pass
@@ -201,13 +213,15 @@ class ReportHandlerMixin(BaseHandlerMixin):
         b.kv_line("Results", len(scan_results))
         b.kv_line(f"Qualified (>={min_score})", len(qualified))
         b.kv_line("VIX", f"{vix_value:.1f}" if vix_value else "N/A")
-        b.kv_line("Strategy", vix_data['recommended_strategy'])
+        b.kv_line("Strategy", vix_data["recommended_strategy"])
         b.blank()
 
         if qualified:
             b.h2("Top Picks")
             for i, sig in enumerate(qualified[:5], 1):
-                b.bullet(f"**#{i} {sig.symbol}**: Score {sig.score:.1f}/10, ${sig.current_price:.2f}")
+                b.bullet(
+                    f"**#{i} {sig.symbol}**: Score {sig.score:.1f}/10, ${sig.current_price:.2f}"
+                )
             b.blank()
 
         # Results table
@@ -215,12 +229,14 @@ class ReportHandlerMixin(BaseHandlerMixin):
             b.h2("All Candidates")
             rows = []
             for sig in scan_results[:20]:
-                rows.append([
-                    sig.symbol,
-                    f"{sig.score:.1f}",
-                    f"${sig.current_price:.2f}" if sig.current_price else "N/A",
-                    sig.strategy,
-                ])
+                rows.append(
+                    [
+                        sig.symbol,
+                        f"{sig.score:.1f}",
+                        f"${sig.current_price:.2f}" if sig.current_price else "N/A",
+                        sig.strategy,
+                    ]
+                )
             b.table(["Symbol", "Score", "Price", "Strategy"], rows)
 
         return b.build()
@@ -237,32 +253,29 @@ class ReportHandlerMixin(BaseHandlerMixin):
                     earnings_date = date.fromisoformat(cached.earnings_date)
                     days = (earnings_date - date.today()).days
                     return {
-                        'days_to_earnings': days,
-                        'next_date': cached.earnings_date,
+                        "days_to_earnings": days,
+                        "next_date": cached.earnings_date,
                     }
                 except (ValueError, TypeError):
                     pass
 
             # Fetch if not cached
-            result = await asyncio.to_thread(
-                self._earnings_fetcher.fetch,
-                symbol
-            )
+            result = await asyncio.to_thread(self._earnings_fetcher.fetch, symbol)
             if result and result.earnings_date:
                 try:
                     earnings_date = date.fromisoformat(result.earnings_date)
                     days = (earnings_date - date.today()).days
                     return {
-                        'days_to_earnings': days,
-                        'next_date': result.earnings_date,
+                        "days_to_earnings": days,
+                        "next_date": result.earnings_date,
                     }
                 except (ValueError, TypeError):
                     pass
 
-            return {'days_to_earnings': None, 'next_date': None}
+            return {"days_to_earnings": None, "next_date": None}
         except Exception as e:
             logger.debug(f"Earnings check error for {symbol}: {e}")
-            return {'days_to_earnings': None, 'next_date': None}
+            return {"days_to_earnings": None, "next_date": None}
 
     def _format_market_cap(self, value: Optional[float]) -> str:
         """Format market cap to readable string."""

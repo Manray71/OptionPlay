@@ -38,10 +38,13 @@ import logging
 import math
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional, Dict, List
+from typing import Dict, List, Optional
 
 from ..constants.trading_rules import (
-    VIX_LOW_VOL_MAX, VIX_NORMAL_MAX, VIX_ELEVATED_MAX, VIX_NO_TRADING_THRESHOLD,
+    VIX_ELEVATED_MAX,
+    VIX_LOW_VOL_MAX,
+    VIX_NO_TRADING_THRESHOLD,
+    VIX_NORMAL_MAX,
 )
 
 logger = logging.getLogger(__name__)
@@ -49,24 +52,27 @@ logger = logging.getLogger(__name__)
 
 class KellyMode(Enum):
     """Kelly Criterion Modus"""
-    FULL = "full"           # Volle Kelly-Fraktion
-    HALF = "half"           # Half-Kelly (konservativer)
-    QUARTER = "quarter"     # Quarter-Kelly (sehr konservativ)
-    FIXED = "fixed"         # Feste Prozent, kein Kelly
+
+    FULL = "full"  # Volle Kelly-Fraktion
+    HALF = "half"  # Half-Kelly (konservativer)
+    QUARTER = "quarter"  # Quarter-Kelly (sehr konservativ)
+    FIXED = "fixed"  # Feste Prozent, kein Kelly
 
 
 class VIXRegime(Enum):
     """VIX-basierte Markt-Regime"""
-    LOW = "low"             # VIX < 15
-    NORMAL = "normal"       # VIX 15-20
-    ELEVATED = "elevated"   # VIX 20-30
-    HIGH = "high"           # VIX 30-40
-    EXTREME = "extreme"     # VIX > 40
+
+    LOW = "low"  # VIX < 15
+    NORMAL = "normal"  # VIX 15-20
+    ELEVATED = "elevated"  # VIX 20-30
+    HIGH = "high"  # VIX 30-40
+    EXTREME = "extreme"  # VIX > 40
 
 
 @dataclass
 class PositionSizeResult:
     """Ergebnis der Position Sizing Berechnung"""
+
     # Empfohlene Positionsgröße
     contracts: int
     capital_at_risk: float
@@ -95,30 +101,30 @@ class PositionSizeResult:
     def to_dict(self) -> Dict:
         """Konvertiert zu Dictionary"""
         return {
-            'position': {
-                'contracts': self.contracts,
-                'capital_at_risk': round(self.capital_at_risk, 2),
-                'risk_per_contract': round(self.risk_per_contract, 2),
+            "position": {
+                "contracts": self.contracts,
+                "capital_at_risk": round(self.capital_at_risk, 2),
+                "risk_per_contract": round(self.risk_per_contract, 2),
             },
-            'kelly': {
-                'fraction': round(self.kelly_fraction * 100, 2),
-                'optimal_contracts': round(self.kelly_optimal_contracts, 2),
-                'mode': self.kelly_mode_used.value,
+            "kelly": {
+                "fraction": round(self.kelly_fraction * 100, 2),
+                "optimal_contracts": round(self.kelly_optimal_contracts, 2),
+                "mode": self.kelly_mode_used.value,
             },
-            'adjustments': {
-                'vix': round(self.vix_adjustment, 2),
-                'reliability': round(self.reliability_adjustment, 2),
-                'score': round(self.score_adjustment, 2),
+            "adjustments": {
+                "vix": round(self.vix_adjustment, 2),
+                "reliability": round(self.reliability_adjustment, 2),
+                "score": round(self.score_adjustment, 2),
             },
-            'limits': {
-                'max_by_risk': self.max_contracts_by_risk,
-                'max_by_capital': self.max_contracts_by_capital,
-                'limiting_factor': self.limiting_factor,
+            "limits": {
+                "max_by_risk": self.max_contracts_by_risk,
+                "max_by_capital": self.max_contracts_by_capital,
+                "limiting_factor": self.limiting_factor,
             },
-            'metrics': {
-                'expected_value': round(self.expected_value, 2),
-                'risk_reward': round(self.risk_reward_ratio, 2),
-                'prob_profit': round(self.probability_of_profit * 100, 1),
+            "metrics": {
+                "expected_value": round(self.expected_value, 2),
+                "risk_reward": round(self.risk_reward_ratio, 2),
+                "prob_profit": round(self.probability_of_profit * 100, 1),
             },
         }
 
@@ -126,6 +132,7 @@ class PositionSizeResult:
 @dataclass
 class PositionSizerConfig:
     """Konfiguration für Position Sizer"""
+
     # Basis-Limits
     max_risk_per_trade: float = 0.02  # 2% max pro Trade
     max_portfolio_risk: float = 0.20  # 20% max Gesamt-Exposure
@@ -142,18 +149,18 @@ class PositionSizerConfig:
     vix_high_threshold: float = VIX_NO_TRADING_THRESHOLD
 
     # VIX Skalierungsfaktoren (Multiplikatoren)
-    vix_scale_low: float = 1.0       # Keine Reduktion bei low VIX
-    vix_scale_normal: float = 1.0    # Keine Reduktion
+    vix_scale_low: float = 1.0  # Keine Reduktion bei low VIX
+    vix_scale_normal: float = 1.0  # Keine Reduktion
     vix_scale_elevated: float = 0.75  # 25% Reduktion
-    vix_scale_high: float = 0.50     # 50% Reduktion
+    vix_scale_high: float = 0.50  # 50% Reduktion
     vix_scale_extreme: float = 0.25  # 75% Reduktion
 
     # Reliability Adjustments
-    reliability_a_factor: float = 1.0    # Grade A: 100%
-    reliability_b_factor: float = 0.85   # Grade B: 85%
-    reliability_c_factor: float = 0.70   # Grade C: 70%
-    reliability_d_factor: float = 0.50   # Grade D: 50%
-    reliability_f_factor: float = 0.0    # Grade F: Kein Trade
+    reliability_a_factor: float = 1.0  # Grade A: 100%
+    reliability_b_factor: float = 0.85  # Grade B: 85%
+    reliability_c_factor: float = 0.70  # Grade C: 70%
+    reliability_d_factor: float = 0.50  # Grade D: 50%
+    reliability_f_factor: float = 0.0  # Grade F: Kein Trade
 
     # Score-basierte Adjustments
     min_score_for_trade: float = 5.0
@@ -162,7 +169,7 @@ class PositionSizerConfig:
 
     # Stop Loss Einstellungen (NEU - korrigiert von 200%)
     default_stop_loss_pct: float = 100.0  # 100% des Credits (1:1 Risk/Reward)
-    max_stop_loss_pct: float = 150.0      # Max 150% des Credits
+    max_stop_loss_pct: float = 150.0  # Max 150% des Credits
 
 
 class PositionSizer:
@@ -419,7 +426,9 @@ class PositionSizer:
             capital_at_risk=capital_at_risk,
             risk_per_contract=max_loss_per_contract,
             kelly_fraction=kelly_fraction,
-            kelly_optimal_contracts=trade_risk / max_loss_per_contract if max_loss_per_contract > 0 else 0,
+            kelly_optimal_contracts=(
+                trade_risk / max_loss_per_contract if max_loss_per_contract > 0 else 0
+            ),
             kelly_mode_used=self.config.kelly_mode,
             vix_adjustment=vix_adjustment,
             reliability_adjustment=reliability_adjustment,
@@ -483,11 +492,13 @@ class PositionSizer:
         effective_max_loss = min(max_loss, spread_width - net_credit)
 
         return {
-            'stop_loss_pct': round(stop_pct, 1),
-            'stop_loss_price': round(stop_loss_price, 4),
-            'max_loss': round(effective_max_loss, 2),
-            'vix_regime': vix_regime.value,
-            'risk_reward': round(net_credit / effective_max_loss, 2) if effective_max_loss > 0 else 0,
+            "stop_loss_pct": round(stop_pct, 1),
+            "stop_loss_price": round(stop_loss_price, 4),
+            "max_loss": round(effective_max_loss, 2),
+            "vix_regime": vix_regime.value,
+            "risk_reward": (
+                round(net_credit / effective_max_loss, 2) if effective_max_loss > 0 else 0
+            ),
         }
 
     def update_exposure(self, delta: float) -> None:
@@ -514,6 +525,7 @@ class PositionSizer:
 # =============================================================================
 # CONVENIENCE FUNCTIONS
 # =============================================================================
+
 
 def calculate_optimal_position(
     account_size: float,
@@ -571,4 +583,4 @@ def get_recommended_stop_loss(
     """
     sizer = PositionSizer(100000)  # Account Size irrelevant für Stop Loss
     result = sizer.calculate_stop_loss(net_credit, spread_width, vix_level)
-    return result['stop_loss_pct']
+    return result["stop_loss_pct"]

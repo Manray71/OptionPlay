@@ -40,18 +40,21 @@ Verwendung:
     )
 """
 
+import logging
 import math
 from dataclasses import dataclass
-from typing import Optional, Tuple, Union
 from datetime import date
-import logging
+from typing import Optional, Tuple, Union
 
 import numpy as np
+from numpy.typing import NDArray
 
 from ..constants.trading_rules import (
-    VIX_LOW_VOL_MAX, VIX_NORMAL_MAX, VIX_DANGER_ZONE_MAX, VIX_ELEVATED_MAX,
+    VIX_DANGER_ZONE_MAX,
+    VIX_ELEVATED_MAX,
+    VIX_LOW_VOL_MAX,
+    VIX_NORMAL_MAX,
 )
-from numpy.typing import NDArray
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +73,7 @@ _SQRT_2PI = math.sqrt(2 * math.pi)
 # =============================================================================
 # HELPER FUNCTIONS - NumPy Vectorized
 # =============================================================================
+
 
 def _norm_cdf_np(x: FloatOrArray) -> FloatOrArray:
     """
@@ -125,12 +129,9 @@ def _norm_pdf(x: float) -> float:
 # BLACK-SCHOLES FORMULAS - NumPy Vectorized
 # =============================================================================
 
+
 def _calculate_d1_d2_np(
-    S: FloatOrArray,
-    K: FloatOrArray,
-    T: FloatOrArray,
-    r: FloatOrArray,
-    sigma: FloatOrArray
+    S: FloatOrArray, K: FloatOrArray, T: FloatOrArray, r: FloatOrArray, sigma: FloatOrArray
 ) -> Tuple[FloatOrArray, FloatOrArray]:
     """
     Berechnet d1 und d2 Parameter für Black-Scholes.
@@ -161,7 +162,7 @@ def _calculate_d1_d2_np(
 
     if np.any(valid):
         sqrt_T = np.sqrt(np.where(valid, T, 1.0))  # Avoid sqrt(0)
-        sigma_safe = np.where(valid, sigma, 1.0)   # Avoid div by zero
+        sigma_safe = np.where(valid, sigma, 1.0)  # Avoid div by zero
 
         d1_calc = (np.log(S / K) + (r + 0.5 * sigma * sigma) * T) / (sigma_safe * sqrt_T)
         d2_calc = d1_calc - sigma_safe * sqrt_T
@@ -175,13 +176,7 @@ def _calculate_d1_d2_np(
     return (d1, d2)
 
 
-def _calculate_d1_d2(
-    S: float,
-    K: float,
-    T: float,
-    r: float,
-    sigma: float
-) -> Tuple[float, float]:
+def _calculate_d1_d2(S: float, K: float, T: float, r: float, sigma: float) -> Tuple[float, float]:
     """Legacy scalar version - verwendet NumPy intern."""
     if T <= 0 or sigma <= 0:
         return (0.0, 0.0)
@@ -189,11 +184,7 @@ def _calculate_d1_d2(
 
 
 def black_scholes_call_np(
-    S: FloatOrArray,
-    K: FloatOrArray,
-    T: FloatOrArray,
-    r: FloatOrArray,
-    sigma: FloatOrArray
+    S: FloatOrArray, K: FloatOrArray, T: FloatOrArray, r: FloatOrArray, sigma: FloatOrArray
 ) -> FloatOrArray:
     """
     Black-Scholes Preis für europäische Call Option.
@@ -235,11 +226,7 @@ def black_scholes_call_np(
 
 
 def black_scholes_put_np(
-    S: FloatOrArray,
-    K: FloatOrArray,
-    T: FloatOrArray,
-    r: FloatOrArray,
-    sigma: FloatOrArray
+    S: FloatOrArray, K: FloatOrArray, T: FloatOrArray, r: FloatOrArray, sigma: FloatOrArray
 ) -> FloatOrArray:
     """
     Black-Scholes Preis für europäische Put Option.
@@ -280,35 +267,18 @@ def black_scholes_put_np(
     return float(result) if result.ndim == 0 else result
 
 
-def black_scholes_call(
-    S: float,
-    K: float,
-    T: float,
-    r: float,
-    sigma: float
-) -> float:
+def black_scholes_call(S: float, K: float, T: float, r: float, sigma: float) -> float:
     """Black-Scholes Call - scalar wrapper."""
     return float(black_scholes_call_np(S, K, T, r, sigma))
 
 
-def black_scholes_put(
-    S: float,
-    K: float,
-    T: float,
-    r: float,
-    sigma: float
-) -> float:
+def black_scholes_put(S: float, K: float, T: float, r: float, sigma: float) -> float:
     """Black-Scholes Put - scalar wrapper."""
     return float(black_scholes_put_np(S, K, T, r, sigma))
 
 
 def black_scholes_price(
-    S: float,
-    K: float,
-    T: float,
-    r: float,
-    sigma: float,
-    option_type: str = "P"
+    S: float, K: float, T: float, r: float, sigma: float, option_type: str = "P"
 ) -> float:
     """
     Black-Scholes Preis für Call oder Put.
@@ -334,23 +304,20 @@ def black_scholes_price(
 # GREEKS
 # =============================================================================
 
+
 @dataclass
 class Greeks:
     """Options Greeks"""
+
     delta: float
     gamma: float
     theta: float  # Per Tag
-    vega: float   # Per 1% IV Änderung
+    vega: float  # Per 1% IV Änderung
     rho: float
 
 
 def black_scholes_greeks(
-    S: float,
-    K: float,
-    T: float,
-    r: float,
-    sigma: float,
-    option_type: str = "P"
+    S: float, K: float, T: float, r: float, sigma: float, option_type: str = "P"
 ) -> Greeks:
     """
     Berechnet alle Greeks für eine Option.
@@ -375,7 +342,7 @@ def black_scholes_greeks(
             gamma=0.0,
             theta=0.0,
             vega=0.0,
-            rho=0.0
+            rho=0.0,
         )
 
     d1, d2 = _calculate_d1_d2(S, K, T, r, sigma)
@@ -397,31 +364,24 @@ def black_scholes_greeks(
         # Call Greeks
         delta = _norm_cdf(d1)
         theta = (
-            -S * pdf_d1 * sigma / (2 * sqrt_T)
-            - r * K * discount * _norm_cdf(d2)
+            -S * pdf_d1 * sigma / (2 * sqrt_T) - r * K * discount * _norm_cdf(d2)
         ) / 365  # Per day
         rho = K * T * discount * _norm_cdf(d2) / 100  # Per 1% rate change
     else:
         # Put Greeks
         delta = _norm_cdf(d1) - 1
         theta = (
-            -S * pdf_d1 * sigma / (2 * sqrt_T)
-            + r * K * discount * _norm_cdf(-d2)
+            -S * pdf_d1 * sigma / (2 * sqrt_T) + r * K * discount * _norm_cdf(-d2)
         ) / 365  # Per day
         rho = -K * T * discount * _norm_cdf(-d2) / 100  # Per 1% rate change
 
-    return Greeks(
-        delta=delta,
-        gamma=gamma,
-        theta=theta,
-        vega=vega,
-        rho=rho
-    )
+    return Greeks(delta=delta, gamma=gamma, theta=theta, vega=vega, rho=rho)
 
 
 # =============================================================================
 # IMPLIED VOLATILITY
 # =============================================================================
+
 
 def implied_volatility(
     option_price: float,
@@ -431,7 +391,7 @@ def implied_volatility(
     r: float,
     option_type: str = "P",
     max_iterations: int = 100,
-    tolerance: float = 1e-6
+    tolerance: float = 1e-6,
 ) -> Optional[float]:
     """
     Berechnet Implied Volatility mittels Newton-Raphson.
@@ -491,6 +451,7 @@ def implied_volatility(
 # DELTA-BASED STRIKE FINDER
 # =============================================================================
 
+
 def find_strike_for_delta(
     target_delta: float,
     S: float,
@@ -499,7 +460,7 @@ def find_strike_for_delta(
     r: float = 0.05,
     option_type: str = "P",
     max_iterations: int = 50,
-    tolerance: float = 0.001
+    tolerance: float = 0.001,
 ) -> Optional[float]:
     """
     Findet den Strike für ein gegebenes Ziel-Delta mittels Bisection.
@@ -600,9 +561,11 @@ def find_strike_for_delta(
 # PRICING RESULT
 # =============================================================================
 
+
 @dataclass
 class PricingResult:
     """Ergebnis einer Spread-Bewertung"""
+
     # Prices
     short_put_price: float
     long_put_price: float
@@ -617,8 +580,8 @@ class PricingResult:
 
     # Risiko-Metriken
     max_profit: float  # Pro Aktie
-    max_loss: float    # Pro Aktie
-    breakeven: float   # Aktienkurs
+    max_loss: float  # Pro Aktie
+    breakeven: float  # Aktienkurs
 
     # Probability metrics (simplified)
     prob_profit: float  # Geschätzte Gewinnwahrscheinlichkeit
@@ -649,6 +612,7 @@ class PricingResult:
 # OPTION PRICER CLASS
 # =============================================================================
 
+
 class OptionPricer:
     """
     Options-Pricer für Bull-Put-Spreads.
@@ -657,11 +621,7 @@ class OptionPricer:
     Kann mit historischen IV-Daten kalibriert werden.
     """
 
-    def __init__(
-        self,
-        risk_free_rate: float = 0.05,
-        dividend_yield: float = 0.0
-    ):
+    def __init__(self, risk_free_rate: float = 0.05, dividend_yield: float = 0.0):
         """
         Args:
             risk_free_rate: Risikofreier Zinssatz (annualisiert)
@@ -671,11 +631,7 @@ class OptionPricer:
         self.dividend_yield = dividend_yield
 
     def price_put(
-        self,
-        underlying_price: float,
-        strike: float,
-        days_to_expiry: int,
-        volatility: float
+        self, underlying_price: float, strike: float, days_to_expiry: int, volatility: float
     ) -> Tuple[float, Greeks]:
         """
         Bewertet eine einzelne Put-Option.
@@ -700,11 +656,7 @@ class OptionPricer:
         return (price, greeks)
 
     def price_call(
-        self,
-        underlying_price: float,
-        strike: float,
-        days_to_expiry: int,
-        volatility: float
+        self, underlying_price: float, strike: float, days_to_expiry: int, volatility: float
     ) -> Tuple[float, Greeks]:
         """
         Bewertet eine einzelne Call-Option.
@@ -725,7 +677,7 @@ class OptionPricer:
         days_to_expiry: int,
         volatility: float,
         short_iv: Optional[float] = None,
-        long_iv: Optional[float] = None
+        long_iv: Optional[float] = None,
     ) -> PricingResult:
         """
         Bewertet einen Bull-Put-Spread.
@@ -795,7 +747,7 @@ class OptionPricer:
             short_strike=short_strike,
             long_strike=long_strike,
             days_to_expiry=days_to_expiry,
-            volatility=volatility
+            volatility=volatility,
         )
 
     def estimate_iv_from_hv(
@@ -853,7 +805,7 @@ class OptionPricer:
         long_strike: float,
         days_to_expiry: int,
         volatility: float,
-        initial_credit: float
+        initial_credit: float,
     ) -> Tuple[float, float]:
         """
         Berechnet den aktuellen Wert eines Spreads und den P&L.
@@ -870,8 +822,7 @@ class OptionPricer:
             Tuple von (current_spread_value, pnl_per_share)
         """
         result = self.price_bull_put_spread(
-            underlying_price, short_strike, long_strike,
-            days_to_expiry, volatility
+            underlying_price, short_strike, long_strike, days_to_expiry, volatility
         )
 
         # Current value to close = what we'd pay to buy back the spread
@@ -886,6 +837,7 @@ class OptionPricer:
 # =============================================================================
 # CONVENIENCE FUNCTIONS
 # =============================================================================
+
 
 def create_pricer(risk_free_rate: float = 0.05) -> OptionPricer:
     """Erstellt einen OptionPricer mit Standard-Einstellungen."""
@@ -902,55 +854,112 @@ def create_pricer(risk_free_rate: float = 0.05) -> OptionPricer:
 # Sektor-ETFs - hohe IV-Prämien, aber weniger als Index-ETFs
 # SMH war +56% zu hoch → Sektor-ETFs brauchen weniger Anpassung
 SECTOR_ETF_SYMBOLS = {
-    "XLK", "XLF", "XLE", "XLV", "XLI", "XLY", "XLP", "XLB",
-    "XLU", "XLRE", "XLC", "SMH",
+    "XLK",
+    "XLF",
+    "XLE",
+    "XLV",
+    "XLI",
+    "XLY",
+    "XLP",
+    "XLB",
+    "XLU",
+    "XLRE",
+    "XLC",
+    "SMH",
 }
 
 # Index-ETFs - SEHR hohe IV-Prämien vs HV
 # Nach Kalibrierung: SPY -21%, QQQ +12% → SPY braucht mehr, QQQ weniger
 INDEX_ETF_SYMBOLS = {
-    "SPY", "DIA",  # Large Cap Index - höchste Prämie
+    "SPY",
+    "DIA",  # Large Cap Index - höchste Prämie
 }
 
 # QQQ und IWM separat - mittlere Prämie
 TECH_INDEX_ETF_SYMBOLS = {
-    "QQQ", "IWM",  # QQQ war +12%, IWM +27% zu hoch
+    "QQQ",
+    "IWM",  # QQQ war +12%, IWM +27% zu hoch
 }
 
 # Andere ETFs
 OTHER_ETF_SYMBOLS = {
-    "TLT", "GLD", "SLV", "EEM", "EFA", "VXX", "UVXY",
+    "TLT",
+    "GLD",
+    "SLV",
+    "EEM",
+    "EFA",
+    "VXX",
+    "UVXY",
 }
 
 # Mega-Cap Tech - hohe IV-Prämien (ähnlich wie ETFs)
 # Beobachtung: GOOGL -40%, MSFT -34%, META -20% Fehler → brauchen +30-40%
 MEGA_CAP_TECH_SYMBOLS = {
-    "GOOGL", "GOOG", "MSFT", "AAPL", "META", "AMZN", "AVGO",
+    "GOOGL",
+    "GOOG",
+    "MSFT",
+    "AAPL",
+    "META",
+    "AMZN",
+    "AVGO",
 }
 
 # High-IV Aktien (Volatile Tech, Crypto-adjacent, Meme)
 # TSLA +9%, gut kalibriert
 # NFLX -33% → NFLX raus aus High-IV, in separate Kategorie
 HIGH_IV_SYMBOLS = {
-    "TSLA", "NVDA", "AMD", "COIN", "MSTR",
-    "MARA", "RIOT", "RIVN", "LCID", "NIO", "PLTR", "SNOW",
-    "CRWD", "ZS", "NET", "MDB", "SHOP", "SQ", "SOFI",
-    "ARM", "SMCI", "ROKU", "DKNG", "ABNB", "DASH", "UBER",
+    "TSLA",
+    "NVDA",
+    "AMD",
+    "COIN",
+    "MSTR",
+    "MARA",
+    "RIOT",
+    "RIVN",
+    "LCID",
+    "NIO",
+    "PLTR",
+    "SNOW",
+    "CRWD",
+    "ZS",
+    "NET",
+    "MDB",
+    "SHOP",
+    "SQ",
+    "SOFI",
+    "ARM",
+    "SMCI",
+    "ROKU",
+    "DKNG",
+    "ABNB",
+    "DASH",
+    "UBER",
 }
 
 # Streaming/Media
 STREAMING_SYMBOLS = {
-    "NFLX", "DIS", "PARA", "WBD",
+    "NFLX",
+    "DIS",
+    "PARA",
+    "WBD",
 }
 
 # Healthcare/Pharma
 PHARMA_SYMBOLS = {
-    "MRK", "ABBV", "BMY", "GILD", "VRTX", "REGN",
+    "MRK",
+    "ABBV",
+    "BMY",
+    "GILD",
+    "VRTX",
+    "REGN",
 }
 
 # Payment/Fintech
 PAYMENT_SYMBOLS = {
-    "MA", "V", "PYPL", "ADYEN",
+    "MA",
+    "V",
+    "PYPL",
+    "ADYEN",
 }
 
 # Individuelle Symbol-Anpassungen basierend auf 409k Datenpunkten
@@ -965,7 +974,6 @@ SYMBOL_OVERRIDES = {
     "QQQ": 1.48,
     # IWM: -11.9% → braucht +10%
     "IWM": 1.40,
-
     # === MEGA CAP TECH ===
     # AAPL: -34.2% → braucht +30%
     "AAPL": 1.58,
@@ -980,7 +988,6 @@ SYMBOL_OVERRIDES = {
     "NVDA": 1.25,
     # AVGO: +24.1% → reduzieren
     "AVGO": 1.02,
-
     # === FINANCIALS ===
     # GS: -12.8% mit 0.75 → braucht ~0.82
     "GS": 0.82,
@@ -990,7 +997,6 @@ SYMBOL_OVERRIDES = {
     "BAC": 1.02,
     # C: +25.7% → reduzieren
     "C": 0.80,
-
     # === HIGH IV ===
     # TSLA: -4.0% → leicht erhöhen
     "TSLA": 1.08,
@@ -1000,18 +1006,15 @@ SYMBOL_OVERRIDES = {
     "MSTR": 0.80,
     # ARM: -25.9% → erhöhen
     "ARM": 1.30,
-
     # === STREAMING/MEDIA ===
     # NFLX: -40.3% → stark erhöhen
     "NFLX": 1.65,
     # DIS: war nicht in Top, default lassen
-
     # === PAYMENT ===
     # MA: -8.6% mit 1.10 → braucht ~1.15
     "MA": 1.15,
     # PYPL: -57.6% → stark erhöhen
     "PYPL": 1.60,
-
     # === PHARMA ===
     # LLY: -1.4% → gut
     "LLY": 1.02,
@@ -1022,7 +1025,6 @@ SYMBOL_OVERRIDES = {
     # VRTX: +31.4% → reduzieren
     "VRTX": 0.82,
     # MRK: war nicht in Top, default lassen
-
     # === ANDERE GROSSE FEHLER ===
     # BKNG: -43.2% → stark erhöhen
     "BKNG": 1.55,
@@ -1057,15 +1059,43 @@ SYMBOL_OVERRIDES = {
 # Financials - niedrigere IV-Prämien als erwartet
 # Beobachtung: GS +31%, JPM +54% Fehler → brauchen -15-25%
 FINANCIAL_SYMBOLS = {
-    "GS", "JPM", "MS", "BAC", "C", "WFC", "USB", "PNC",
-    "BLK", "SCHW", "AXP", "COF",
+    "GS",
+    "JPM",
+    "MS",
+    "BAC",
+    "C",
+    "WFC",
+    "USB",
+    "PNC",
+    "BLK",
+    "SCHW",
+    "AXP",
+    "COF",
 }
 
 # Niedrige IV Aktien (Utilities, Staples, Defensive)
 LOW_IV_SYMBOLS = {
-    "JNJ", "PG", "KO", "PEP", "WMT", "MCD", "VZ", "T",
-    "NEE", "SO", "DUK", "D", "AEP", "XEL", "ED",
-    "CL", "KMB", "GIS", "K", "HSY", "CPB",
+    "JNJ",
+    "PG",
+    "KO",
+    "PEP",
+    "WMT",
+    "MCD",
+    "VZ",
+    "T",
+    "NEE",
+    "SO",
+    "DUK",
+    "D",
+    "AEP",
+    "XEL",
+    "ED",
+    "CL",
+    "KMB",
+    "GIS",
+    "K",
+    "HSY",
+    "CPB",
 }
 
 
@@ -1200,7 +1230,7 @@ def estimate_iv_calibrated(
         else:
             # >10% OTM: flacher (+0.8% pro 1% OTM für den Rest)
             skew_factor = 0.10 * 1.5 + (otm_distance - 0.10) * 0.8
-        iv *= (1.0 + skew_factor)
+        iv *= 1.0 + skew_factor
 
     # DTE Adjustment (Term Structure)
     if dte is not None:
@@ -1213,13 +1243,7 @@ def estimate_iv_calibrated(
     return max(0.10, min(1.50, iv))  # Erhöhter Max für extreme Fälle
 
 
-def quick_put_price(
-    spot: float,
-    strike: float,
-    dte: int,
-    iv: float,
-    rate: float = 0.05
-) -> float:
+def quick_put_price(spot: float, strike: float, dte: int, iv: float, rate: float = 0.05) -> float:
     """
     Schnelle Put-Preis Berechnung.
 
@@ -1238,12 +1262,7 @@ def quick_put_price(
 
 
 def quick_spread_credit(
-    spot: float,
-    short_strike: float,
-    long_strike: float,
-    dte: int,
-    iv: float,
-    rate: float = 0.05
+    spot: float, short_strike: float, long_strike: float, dte: int, iv: float, rate: float = 0.05
 ) -> float:
     """
     Schnelle Credit-Berechnung für Bull-Put-Spread.
@@ -1261,13 +1280,14 @@ def quick_spread_credit(
 # BATCH/VECTORIZED FUNCTIONS (für Backtesting Performance)
 # =============================================================================
 
+
 def batch_spread_credit(
     spots: NDArray[np.float64],
     short_strikes: NDArray[np.float64],
     long_strikes: NDArray[np.float64],
     dtes: NDArray[np.float64],
     ivs: NDArray[np.float64],
-    rate: float = 0.05
+    rate: float = 0.05,
 ) -> NDArray[np.float64]:
     """
     Batch-Berechnung von Bull-Put-Spread Credits.
@@ -1307,7 +1327,7 @@ def batch_spread_pnl(
     long_strikes: NDArray[np.float64],
     dtes_remaining: NDArray[np.float64],
     current_ivs: NDArray[np.float64],
-    rate: float = 0.05
+    rate: float = 0.05,
 ) -> NDArray[np.float64]:
     """
     Batch-Berechnung von Bull-Put-Spread P&Ls.
@@ -1325,8 +1345,7 @@ def batch_spread_pnl(
         Array von P&Ls pro Aktie (positiv = Gewinn)
     """
     current_credits = batch_spread_credit(
-        current_spots, short_strikes, long_strikes,
-        dtes_remaining, current_ivs, rate
+        current_spots, short_strikes, long_strikes, dtes_remaining, current_ivs, rate
     )
     # P&L = Entry Credit - Cost to Close
     # Cost to Close = Current Credit (was wir zahlen würden um zu schließen)
@@ -1334,9 +1353,7 @@ def batch_spread_pnl(
 
 
 def batch_historical_volatility(
-    price_matrix: NDArray[np.float64],
-    window: int = 20,
-    annualize: bool = True
+    price_matrix: NDArray[np.float64], window: int = 20, annualize: bool = True
 ) -> NDArray[np.float64]:
     """
     Batch-Berechnung von Historical Volatility für mehrere Symbole.
@@ -1409,10 +1426,13 @@ def batch_estimate_iv(
         # VIX > 20: Elevated, +8%
         # VIX < 15: Low vol, -2%
         adjustment = np.where(
-            vix > VIX_ELEVATED_MAX, 1.25,
-            np.where(vix > VIX_DANGER_ZONE_MAX, 1.15,
-                np.where(vix > VIX_NORMAL_MAX, 1.08,
-                    np.where(vix < VIX_LOW_VOL_MAX, 0.98, 1.0)))
+            vix > VIX_ELEVATED_MAX,
+            1.25,
+            np.where(
+                vix > VIX_DANGER_ZONE_MAX,
+                1.15,
+                np.where(vix > VIX_NORMAL_MAX, 1.08, np.where(vix < VIX_LOW_VOL_MAX, 0.98, 1.0)),
+            ),
         )
         iv = iv * adjustment
 

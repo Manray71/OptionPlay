@@ -16,10 +16,10 @@
 
 from __future__ import annotations
 
+import logging
 from collections import deque
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Tuple, Deque, Any
-import logging
+from typing import Any, Deque, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 # DATA STRUCTURES
 # =============================================================================
+
 
 @dataclass
 class PriceLevel:
@@ -45,6 +46,7 @@ class PriceLevel:
         hold_count: Wie oft wurde das Level erfolgreich verteidigt
         break_count: Wie oft wurde das Level durchbrochen
     """
+
     price: float
     strength: float = 0.0
     touches: int = 1
@@ -75,15 +77,15 @@ class PriceLevel:
     def to_dict(self) -> Dict:
         """Konvertiert zu Dictionary für JSON-Serialisierung"""
         return {
-            'price': round(self.price, 2),
-            'strength': round(self.strength, 3),
-            'touches': self.touches,
-            'avg_volume': round(self.avg_volume, 0),
-            'last_touch_index': self.last_touch_index,
-            'level_type': self.level_type,
-            'touch_quality': round(self.touch_quality, 3),
-            'volume_confirmation': round(self.volume_confirmation, 3),
-            'hold_rate': round(self.hold_rate, 3)
+            "price": round(self.price, 2),
+            "strength": round(self.strength, 3),
+            "touches": self.touches,
+            "avg_volume": round(self.avg_volume, 0),
+            "last_touch_index": self.last_touch_index,
+            "level_type": self.level_type,
+            "touch_quality": round(self.touch_quality, 3),
+            "volume_confirmation": round(self.volume_confirmation, 3),
+            "hold_rate": round(self.hold_rate, 3),
         }
 
 
@@ -100,6 +102,7 @@ class VolumeZone:
         is_high_volume_node: True wenn signifikant hohes Volumen
         is_low_volume_node: True wenn signifikant niedriges Volumen
     """
+
     price_low: float
     price_high: float
     total_volume: int = 0
@@ -134,6 +137,7 @@ class VolumeProfile:
         value_area_low: Untere Grenze der Value Area
         hvn_zones: High Volume Nodes
     """
+
     zones: List[VolumeZone] = field(default_factory=list)
     poc: Optional[VolumeZone] = None
     value_area_high: float = 0.0
@@ -160,6 +164,7 @@ class LevelTest:
         held: True wenn Level gehalten hat
         bounce_pct: Bounce in Prozent (positiv = erfolgreich abgeprallt)
     """
+
     index: int
     price_at_test: float
     close_after: float
@@ -182,6 +187,7 @@ class SupportResistanceResult:
         nearest_resistance: Nächstes Resistance-Level zum aktuellen Preis
         volume_profile: Volume Profile Analyse (optional)
     """
+
     support_levels: List[PriceLevel] = field(default_factory=list)
     resistance_levels: List[PriceLevel] = field(default_factory=list)
     nearest_support: Optional[PriceLevel] = None
@@ -209,10 +215,8 @@ class SupportResistanceResult:
 # O(n) SLIDING WINDOW ALGORITHMS
 # =============================================================================
 
-def find_local_minima_optimized(
-    values: List[float],
-    window: int
-) -> List[int]:
+
+def find_local_minima_optimized(values: List[float], window: int) -> List[int]:
     """
     Findet lokale Minima mit O(n) Komplexität durch Monotone Deque.
 
@@ -269,10 +273,7 @@ def find_local_minima_optimized(
     return result
 
 
-def find_local_maxima_optimized(
-    values: List[float],
-    window: int
-) -> List[int]:
+def find_local_maxima_optimized(values: List[float], window: int) -> List[int]:
     """
     Findet lokale Maxima mit O(n) Komplexität durch Monotone Deque.
 
@@ -319,11 +320,12 @@ def find_local_maxima_optimized(
 # LEVEL CLUSTERING
 # =============================================================================
 
+
 def cluster_levels(
     prices: List[float],
     indices: List[int],
     volumes: Optional[List[int]] = None,
-    tolerance_pct: float = 1.5
+    tolerance_pct: float = 1.5,
 ) -> List[PriceLevel]:
     """
     Clustert ähnliche Preisniveaus zu gemeinsamen Levels.
@@ -376,10 +378,7 @@ def cluster_levels(
         if not found:
             # Erstelle neuen Cluster
             new_cluster = PriceLevel(
-                price=price,
-                touches=1,
-                indices=[idx],
-                volumes=[vol] if vol > 0 else []
+                price=price, touches=1, indices=[idx], volumes=[vol] if vol > 0 else []
             )
             clusters.append(new_cluster)
 
@@ -387,10 +386,7 @@ def cluster_levels(
 
 
 def score_levels(
-    levels: List[PriceLevel],
-    total_length: int,
-    avg_volume: float,
-    level_type: str = "support"
+    levels: List[PriceLevel], total_length: int, avg_volume: float, level_type: str = "support"
 ) -> List[PriceLevel]:
     """
     Berechnet Stärke-Score für jedes Level.
@@ -442,13 +438,14 @@ def score_levels(
 # MAIN API FUNCTIONS
 # =============================================================================
 
+
 def find_support_levels(
     lows: List[float],
     lookback: int = 60,
     window: int = 5,
     max_levels: int = 3,
     volumes: Optional[List[int]] = None,
-    tolerance_pct: float = 1.5
+    tolerance_pct: float = 1.5,
 ) -> List[float]:
     """
     Findet Support-Levels als Swing Lows (optimierte O(n) Version).
@@ -473,7 +470,7 @@ def find_support_levels(
         window=window,
         max_levels=max_levels,
         volumes=volumes,
-        tolerance_pct=tolerance_pct
+        tolerance_pct=tolerance_pct,
     )
     return result.get_support_prices()
 
@@ -484,7 +481,7 @@ def find_resistance_levels(
     window: int = 5,
     max_levels: int = 3,
     volumes: Optional[List[int]] = None,
-    tolerance_pct: float = 1.5
+    tolerance_pct: float = 1.5,
 ) -> List[float]:
     """
     Findet Resistance-Levels als Swing Highs (optimierte O(n) Version).
@@ -509,7 +506,7 @@ def find_resistance_levels(
         window=window,
         max_levels=max_levels,
         volumes=volumes,
-        tolerance_pct=tolerance_pct
+        tolerance_pct=tolerance_pct,
     )
     return result.get_resistance_prices()
 
@@ -520,7 +517,7 @@ def find_support_levels_enhanced(
     window: int = 5,
     max_levels: int = 5,
     volumes: Optional[List[int]] = None,
-    tolerance_pct: float = 1.5
+    tolerance_pct: float = 1.5,
 ) -> SupportResistanceResult:
     """
     Erweiterte Support-Level Detection mit Scoring und Metadaten.
@@ -566,16 +563,13 @@ def find_support_levels_enhanced(
         prices=swing_prices,
         indices=global_indices,
         volumes=swing_volumes,
-        tolerance_pct=tolerance_pct
+        tolerance_pct=tolerance_pct,
     )
 
     # Berechne Scoring
     avg_vol = sum(volumes) / len(volumes) if volumes else 0
     scored = score_levels(
-        levels=clustered,
-        total_length=len(lows),
-        avg_volume=avg_vol,
-        level_type="support"
+        levels=clustered, total_length=len(lows), avg_volume=avg_vol, level_type="support"
     )
 
     # Limitiere Anzahl
@@ -584,7 +578,7 @@ def find_support_levels_enhanced(
     # Finde nächstes Support zum aktuellen Preis
     current_price = lows[-1]
     nearest = None
-    min_distance = float('inf')
+    min_distance = float("inf")
 
     for level in support_levels:
         if level.price < current_price:
@@ -593,10 +587,7 @@ def find_support_levels_enhanced(
                 min_distance = distance
                 nearest = level
 
-    return SupportResistanceResult(
-        support_levels=support_levels,
-        nearest_support=nearest
-    )
+    return SupportResistanceResult(support_levels=support_levels, nearest_support=nearest)
 
 
 def find_resistance_levels_enhanced(
@@ -605,7 +596,7 @@ def find_resistance_levels_enhanced(
     window: int = 5,
     max_levels: int = 5,
     volumes: Optional[List[int]] = None,
-    tolerance_pct: float = 1.5
+    tolerance_pct: float = 1.5,
 ) -> SupportResistanceResult:
     """
     Erweiterte Resistance-Level Detection mit Scoring und Metadaten.
@@ -651,16 +642,13 @@ def find_resistance_levels_enhanced(
         prices=swing_prices,
         indices=global_indices,
         volumes=swing_volumes,
-        tolerance_pct=tolerance_pct
+        tolerance_pct=tolerance_pct,
     )
 
     # Berechne Scoring
     avg_vol = sum(volumes) / len(volumes) if volumes else 0
     scored = score_levels(
-        levels=clustered,
-        total_length=len(highs),
-        avg_volume=avg_vol,
-        level_type="resistance"
+        levels=clustered, total_length=len(highs), avg_volume=avg_vol, level_type="resistance"
     )
 
     # Limitiere Anzahl
@@ -669,7 +657,7 @@ def find_resistance_levels_enhanced(
     # Finde nächste Resistance zum aktuellen Preis
     current_price = highs[-1]
     nearest = None
-    min_distance = float('inf')
+    min_distance = float("inf")
 
     for level in resistance_levels:
         if level.price > current_price:
@@ -678,10 +666,7 @@ def find_resistance_levels_enhanced(
                 min_distance = distance
                 nearest = level
 
-    return SupportResistanceResult(
-        resistance_levels=resistance_levels,
-        nearest_resistance=nearest
-    )
+    return SupportResistanceResult(resistance_levels=resistance_levels, nearest_resistance=nearest)
 
 
 def analyze_support_resistance(
@@ -692,7 +677,7 @@ def analyze_support_resistance(
     lookback: int = 60,
     window: int = 5,
     max_levels: int = 5,
-    tolerance_pct: float = 1.5
+    tolerance_pct: float = 1.5,
 ) -> SupportResistanceResult:
     """
     Vollständige Support/Resistance Analyse.
@@ -718,7 +703,7 @@ def analyze_support_resistance(
         window=window,
         max_levels=max_levels,
         volumes=volumes,
-        tolerance_pct=tolerance_pct
+        tolerance_pct=tolerance_pct,
     )
 
     resistance_result = find_resistance_levels_enhanced(
@@ -727,20 +712,21 @@ def analyze_support_resistance(
         window=window,
         max_levels=max_levels,
         volumes=volumes,
-        tolerance_pct=tolerance_pct
+        tolerance_pct=tolerance_pct,
     )
 
     return SupportResistanceResult(
         support_levels=support_result.support_levels,
         resistance_levels=resistance_result.resistance_levels,
         nearest_support=support_result.nearest_support,
-        nearest_resistance=resistance_result.nearest_resistance
+        nearest_resistance=resistance_result.nearest_resistance,
     )
 
 
 # =============================================================================
 # UTILITY FUNCTIONS
 # =============================================================================
+
 
 def calculate_fibonacci(high: float, low: float) -> Dict[str, float]:
     """
@@ -758,21 +744,17 @@ def calculate_fibonacci(high: float, low: float) -> Dict[str, float]:
     """
     diff = high - low
     return {
-        '0.0%': high,
-        '23.6%': high - diff * 0.236,
-        '38.2%': high - diff * 0.382,
-        '50.0%': high - diff * 0.5,
-        '61.8%': high - diff * 0.618,
-        '78.6%': high - diff * 0.786,
-        '100.0%': low
+        "0.0%": high,
+        "23.6%": high - diff * 0.236,
+        "38.2%": high - diff * 0.382,
+        "50.0%": high - diff * 0.5,
+        "61.8%": high - diff * 0.618,
+        "78.6%": high - diff * 0.786,
+        "100.0%": low,
     }
 
 
-def find_pivot_points(
-    high: float,
-    low: float,
-    close: float
-) -> Dict[str, float]:
+def find_pivot_points(high: float, low: float, close: float) -> Dict[str, float]:
     """
     Berechnet klassische Pivot Points.
 
@@ -787,21 +769,17 @@ def find_pivot_points(
     pivot = (high + low + close) / 3
 
     return {
-        'pivot': pivot,
-        'r1': 2 * pivot - low,
-        'r2': pivot + (high - low),
-        'r3': high + 2 * (pivot - low),
-        's1': 2 * pivot - high,
-        's2': pivot - (high - low),
-        's3': low - 2 * (high - pivot)
+        "pivot": pivot,
+        "r1": 2 * pivot - low,
+        "r2": pivot + (high - low),
+        "r3": high + 2 * (pivot - low),
+        "s1": 2 * pivot - high,
+        "s2": pivot - (high - low),
+        "s3": low - 2 * (high - pivot),
     }
 
 
-def price_near_level(
-    price: float,
-    level: float,
-    tolerance_pct: float = 2.0
-) -> bool:
+def price_near_level(price: float, level: float, tolerance_pct: float = 2.0) -> bool:
     """
     Prüft ob Preis nahe an einem Level ist.
 
@@ -825,27 +803,24 @@ def price_near_level(
 
 __all__ = [
     # Data structures
-    'PriceLevel',
-    'VolumeZone',
-    'VolumeProfile',
-    'LevelTest',
-    'SupportResistanceResult',
-
+    "PriceLevel",
+    "VolumeZone",
+    "VolumeProfile",
+    "LevelTest",
+    "SupportResistanceResult",
     # Core algorithms
-    'find_local_minima_optimized',
-    'find_local_maxima_optimized',
-    'cluster_levels',
-    'score_levels',
-
+    "find_local_minima_optimized",
+    "find_local_maxima_optimized",
+    "cluster_levels",
+    "score_levels",
     # Main API
-    'find_support_levels',
-    'find_resistance_levels',
-    'find_support_levels_enhanced',
-    'find_resistance_levels_enhanced',
-    'analyze_support_resistance',
-
+    "find_support_levels",
+    "find_resistance_levels",
+    "find_support_levels_enhanced",
+    "find_resistance_levels_enhanced",
+    "analyze_support_resistance",
     # Utilities
-    'calculate_fibonacci',
-    'find_pivot_points',
-    'price_near_level',
+    "calculate_fibonacci",
+    "find_pivot_points",
+    "price_near_level",
 ]

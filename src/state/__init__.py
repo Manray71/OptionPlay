@@ -16,11 +16,11 @@ Module:
 """
 
 from .server_state import (
-    ServerState,
-    ConnectionState,
-    VIXState,
     CacheMetrics,
+    ConnectionState,
     ConnectionStatus,
+    ServerState,
+    VIXState,
 )
 
 __all__ = [

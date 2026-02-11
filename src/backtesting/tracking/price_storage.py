@@ -5,10 +5,10 @@
 # Contains: store, get, list, delete price data (compressed JSON blobs)
 
 import json
-import zlib
 import logging
-from datetime import datetime, date
-from typing import List, Dict, Optional, Any, Tuple
+import zlib
+from datetime import date, datetime
+from typing import Any, Dict, List, Optional, Tuple
 
 from .models import (
     PriceBar,
@@ -75,7 +75,7 @@ class PriceStorage:
 
         # Komprimiere Daten
         data_json = json.dumps([b.to_dict() for b in bars])
-        data_compressed = zlib.compress(data_json.encode('utf-8'), level=6)
+        data_compressed = zlib.compress(data_json.encode("utf-8"), level=6)
 
         now = datetime.now().isoformat()
 
@@ -86,20 +86,23 @@ class PriceStorage:
             cursor.execute("DELETE FROM price_data WHERE symbol = ?", (symbol,))
 
             # Speichere neue Daten
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT INTO price_data (
                     symbol, start_date, end_date, bar_count,
                     data_compressed, created_at, updated_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (
-                symbol,
-                start_date.isoformat(),
-                end_date.isoformat(),
-                len(bars),
-                data_compressed,
-                now,
-                now,
-            ))
+            """,
+                (
+                    symbol,
+                    start_date.isoformat(),
+                    end_date.isoformat(),
+                    len(bars),
+                    data_compressed,
+                    now,
+                    now,
+                ),
+            )
 
             logger.info(
                 f"Stored {len(bars)} price bars for {symbol} "
@@ -130,17 +133,20 @@ class PriceStorage:
 
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT data_compressed FROM price_data
                 WHERE symbol = ?
-            """, (symbol,))
+            """,
+                (symbol,),
+            )
             row = cursor.fetchone()
 
             if row is None:
                 return None
 
             # Dekomprimiere
-            data_json = zlib.decompress(row['data_compressed']).decode('utf-8')
+            data_json = zlib.decompress(row["data_compressed"]).decode("utf-8")
             bars_data = json.loads(data_json)
             bars = [PriceBar.from_dict(b) for b in bars_data]
 
@@ -166,18 +172,21 @@ class PriceStorage:
 
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT start_date, end_date FROM price_data
                 WHERE symbol = ?
-            """, (symbol,))
+            """,
+                (symbol,),
+            )
             row = cursor.fetchone()
 
             if row is None:
                 return None
 
             return (
-                date.fromisoformat(row['start_date']),
-                date.fromisoformat(row['end_date']),
+                date.fromisoformat(row["start_date"]),
+                date.fromisoformat(row["end_date"]),
             )
 
     def list_symbols_with_price_data(self) -> List[Dict[str, Any]]:
@@ -197,11 +206,11 @@ class PriceStorage:
 
             return [
                 {
-                    'symbol': row['symbol'],
-                    'start_date': row['start_date'],
-                    'end_date': row['end_date'],
-                    'bar_count': row['bar_count'],
-                    'updated_at': row['updated_at'],
+                    "symbol": row["symbol"],
+                    "start_date": row["start_date"],
+                    "end_date": row["end_date"],
+                    "bar_count": row["bar_count"],
+                    "updated_at": row["updated_at"],
                 }
                 for row in cursor.fetchall()
             ]

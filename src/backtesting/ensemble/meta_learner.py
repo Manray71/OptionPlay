@@ -13,8 +13,8 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 
 from ..models.ensemble_models import (
-    STRATEGIES,
     DEFAULT_REGIME_PREFERENCES,
+    STRATEGIES,
     StrategyScore,
     SymbolPerformance,
 )
@@ -79,8 +79,7 @@ class MetaLearner:
 
         # Get regime weights
         regime_weights = self._regime_preferences.get(
-            regime or "normal",
-            DEFAULT_REGIME_PREFERENCES["normal"]
+            regime or "normal", DEFAULT_REGIME_PREFERENCES["normal"]
         )
 
         # Combine weights
@@ -136,7 +135,9 @@ class MetaLearner:
         perf = self._symbol_performance[symbol]
 
         # Update strategy stats
-        current_wins = perf.strategy_win_rates.get(strategy, 0.5) * perf.strategy_sample_sizes.get(strategy, 0)
+        current_wins = perf.strategy_win_rates.get(strategy, 0.5) * perf.strategy_sample_sizes.get(
+            strategy, 0
+        )
         current_samples = perf.strategy_sample_sizes.get(strategy, 0)
 
         new_samples = current_samples + 1
@@ -154,11 +155,14 @@ class MetaLearner:
         if perf.strategy_sample_sizes:
             best = max(
                 perf.strategy_win_rates,
-                key=lambda s: perf.strategy_win_rates.get(s, 0) * np.sqrt(perf.strategy_sample_sizes.get(s, 0))
+                key=lambda s: perf.strategy_win_rates.get(s, 0)
+                * np.sqrt(perf.strategy_sample_sizes.get(s, 0)),
             )
             perf.best_strategy = best
             best_samples = perf.strategy_sample_sizes.get(best, 0)
-            perf.best_strategy_confidence = min(1.0, best_samples / 30)  # Max confidence at 30 samples
+            perf.best_strategy_confidence = min(
+                1.0, best_samples / 30
+            )  # Max confidence at 30 samples
 
         perf.last_updated = datetime.now()
 
@@ -186,9 +190,7 @@ class MetaLearner:
         # Normalize to preferences
         total = sum(regime_win_rates.values())
         if total > 0:
-            self._regime_preferences[regime] = {
-                k: v / total for k, v in regime_win_rates.items()
-            }
+            self._regime_preferences[regime] = {k: v / total for k, v in regime_win_rates.items()}
 
     def get_symbol_insights(self, symbol: str) -> Optional[Dict[str, Any]]:
         """Get insights for a specific symbol"""
@@ -214,9 +216,7 @@ class MetaLearner:
         data = {
             "version": "1.0.0",
             "saved_date": datetime.now().isoformat(),
-            "symbol_performance": {
-                k: v.to_dict() for k, v in self._symbol_performance.items()
-            },
+            "symbol_performance": {k: v.to_dict() for k, v in self._symbol_performance.items()},
             "regime_preferences": self._regime_preferences,
             "global_performance": {
                 strat: [
@@ -251,17 +251,22 @@ class MetaLearner:
                 strategy_avg_returns=perf_data.get("avg_returns", {}),
                 best_strategy=perf_data.get("best_strategy"),
                 best_strategy_confidence=perf_data.get("best_strategy_confidence", 0),
-                last_updated=datetime.fromisoformat(perf_data["last_updated"]) if perf_data.get("last_updated") else None,
+                last_updated=(
+                    datetime.fromisoformat(perf_data["last_updated"])
+                    if perf_data.get("last_updated")
+                    else None
+                ),
             )
 
         # Restore regime preferences
-        learner._regime_preferences = data.get("regime_preferences", DEFAULT_REGIME_PREFERENCES.copy())
+        learner._regime_preferences = data.get(
+            "regime_preferences", DEFAULT_REGIME_PREFERENCES.copy()
+        )
 
         # Restore global performance
         for strat, trades in data.get("global_performance", {}).items():
             learner._global_performance[strat] = [
-                (date.fromisoformat(t["date"]), t["win"], t["pnl"])
-                for t in trades
+                (date.fromisoformat(t["date"]), t["win"], t["pnl"]) for t in trades
             ]
 
         logger.info(f"Loaded meta-learner from {filepath}")

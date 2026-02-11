@@ -3,10 +3,10 @@
 # Holt aktuelle News für Symbole via yfinance
 
 import logging
-from datetime import datetime, timedelta
-from typing import List, Dict, Any, Optional
-from functools import lru_cache
 import time
+from datetime import datetime, timedelta
+from functools import lru_cache
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -102,13 +102,15 @@ def get_stock_news(symbol: str, max_items: int = 5) -> List[Dict[str, Any]]:
                     except (ValueError, OSError):
                         pass
 
-            result.append({
-                "title": title,
-                "publisher": publisher,
-                "link": link,
-                "timestamp": 0,  # Not available in new format
-                "date": date_str,
-            })
+            result.append(
+                {
+                    "title": title,
+                    "publisher": publisher,
+                    "link": link,
+                    "timestamp": 0,  # Not available in new format
+                    "date": date_str,
+                }
+            )
 
         # Cache result
         _news_cache[symbol] = (result, time.time())
@@ -131,7 +133,9 @@ def clear_news_cache() -> None:
     logger.info("News cache cleared")
 
 
-def get_news_for_symbols(symbols: List[str], max_items_per_symbol: int = 3) -> Dict[str, List[Dict[str, Any]]]:
+def get_news_for_symbols(
+    symbols: List[str], max_items_per_symbol: int = 3
+) -> Dict[str, List[Dict[str, Any]]]:
     """
     Holt News für mehrere Symbole.
 

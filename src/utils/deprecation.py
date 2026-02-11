@@ -21,7 +21,7 @@ Oder manuell:
 import functools
 import logging
 import warnings
-from typing import Callable, TypeVar, Optional
+from typing import Callable, Optional, TypeVar
 
 logger = logging.getLogger(__name__)
 
@@ -29,11 +29,7 @@ logger = logging.getLogger(__name__)
 _warned_singletons: set = set()
 
 
-def warn_singleton_usage(
-    getter_name: str,
-    alternative: str,
-    stacklevel: int = 3
-) -> None:
+def warn_singleton_usage(getter_name: str, alternative: str, stacklevel: int = 3) -> None:
     """
     Gibt eine Deprecation-Warnung für Singleton-Getter aus.
 
@@ -60,13 +56,13 @@ def warn_singleton_usage(
     logger.debug(f"Deprecation warning issued for: {getter_name}")
 
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 def deprecated_singleton(
     getter_name: Optional[str] = None,
     alternative: str = "ServiceContainer",
-    warn_level: str = "warn"
+    warn_level: str = "warn",
 ) -> Callable[[Callable[..., T]], Callable[..., T]]:
     """
     Decorator für deprecated Singleton-Getter.
@@ -84,6 +80,7 @@ def deprecated_singleton(
         def get_config() -> ConfigLoader:
             ...
     """
+
     def decorator(func: Callable[..., T]) -> Callable[..., T]:
         name = getter_name or func.__name__
 
@@ -94,9 +91,7 @@ def deprecated_singleton(
             elif warn_level == "log":
                 if name not in _warned_singletons:
                     _warned_singletons.add(name)
-                    logger.warning(
-                        f"'{name}()' is deprecated. Use {alternative} instead."
-                    )
+                    logger.warning(f"'{name}()' is deprecated. Use {alternative} instead.")
             return func(*args, **kwargs)
 
         return wrapper
@@ -131,12 +126,10 @@ DEPRECATION_MESSAGES = {
     "get_iv_fetcher": "container.iv_fetcher",
     "get_historical_cache": "container.historical_cache",
     "get_historical_iv_fetcher": "container.historical_iv_fetcher",
-
     # Config singletons
     "get_config": "container.config",
     "get_scan_config": "container.config.get_scan_config()",
     "get_watchlist_loader": "container.config.get_watchlist_loader()",
-
     # Provider singletons
     "get_marketdata_limiter": "container.rate_limiter",
     "get_circuit_breaker": "container.circuit_breaker",
@@ -144,11 +137,9 @@ DEPRECATION_MESSAGES = {
     "get_request_deduplicator": "container.request_deduplicator",
     "get_orchestrator": "container.orchestrator",
     "get_earnings_aggregator": "container.earnings_aggregator",
-
     # Portfolio/IBKR
     "get_portfolio_manager": "container.portfolio_manager",
     "get_ibkr_bridge": "container.ibkr_bridge",
-
     # MCP
     "get_server": "ServerCore.create_default()",
     "get_container": "ServiceContainer.create_default()",

@@ -26,21 +26,8 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Dict, Optional, Any, Callable
+from typing import Any, Callable, Dict, Optional
 
-from ..scanner.multi_strategy_scanner import (
-    MultiStrategyScanner,
-    ScanConfig,
-    ScanResult,
-    ScanMode,
-)
-from ..vix_strategy import (
-    VIXStrategySelector,
-    MarketRegime,
-    StrategyRecommendation,
-)
-from ..strike_recommender import StrikeRecommender
-from ..models.base import TradeSignal
 from ..cache.symbol_fundamentals import get_fundamentals_manager
 from ..constants.trading_rules import (
     ENTRY_STABILITY_MIN,
@@ -48,16 +35,27 @@ from ..constants.trading_rules import (
     SIZING_MAX_PER_SECTOR,
     get_regime_rules,
 )
+from ..models.base import TradeSignal
+from ..scanner.multi_strategy_scanner import (
+    MultiStrategyScanner,
+    ScanConfig,
+    ScanMode,
+    ScanResult,
+)
+from ..strike_recommender import StrikeRecommender
+from ..vix_strategy import (
+    MarketRegime,
+    StrategyRecommendation,
+    VIXStrategySelector,
+)
+from .pick_formatter import format_picks_markdown as _format_picks_markdown
+from .pick_formatter import format_single_pick as _format_single_pick
+from .recommendation_ranking import RecommendationRankingMixin
 from .signal_filter import (
     apply_blacklist_filter,
-    apply_stability_filter,
     apply_sector_diversification,
+    apply_stability_filter,
 )
-from .pick_formatter import (
-    format_picks_markdown as _format_picks_markdown,
-    format_single_pick as _format_single_pick,
-)
-from .recommendation_ranking import RecommendationRankingMixin
 
 logger = logging.getLogger(__name__)
 
@@ -66,9 +64,11 @@ logger = logging.getLogger(__name__)
 # DATA CLASSES
 # =============================================================================
 
+
 @dataclass
 class SuggestedStrikes:
     """Empfohlene Strikes für einen Bull-Put-Spread."""
+
     short_strike: float
     long_strike: float
     spread_width: float
@@ -85,31 +85,31 @@ class SuggestedStrikes:
     short_spread_pct: Optional[float] = None
     long_spread_pct: Optional[float] = None
     # Expiry / DTE / Tradeable Status
-    expiry: Optional[str] = None              # e.g. "2026-03-20"
+    expiry: Optional[str] = None  # e.g. "2026-03-20"
     dte: Optional[int] = None
     dte_warning: Optional[str] = None
-    tradeable_status: str = "unknown"         # "READY" / "WARNING" / "NOT_TRADEABLE"
+    tradeable_status: str = "unknown"  # "READY" / "WARNING" / "NOT_TRADEABLE"
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            'short_strike': self.short_strike,
-            'long_strike': self.long_strike,
-            'spread_width': self.spread_width,
-            'estimated_credit': self.estimated_credit,
-            'estimated_delta': self.estimated_delta,
-            'prob_profit': self.prob_profit,
-            'risk_reward_ratio': self.risk_reward_ratio,
-            'quality': self.quality,
-            'confidence_score': self.confidence_score,
-            'liquidity_quality': self.liquidity_quality,
-            'short_oi': self.short_oi,
-            'long_oi': self.long_oi,
-            'short_spread_pct': self.short_spread_pct,
-            'long_spread_pct': self.long_spread_pct,
-            'expiry': self.expiry,
-            'dte': self.dte,
-            'dte_warning': self.dte_warning,
-            'tradeable_status': self.tradeable_status,
+            "short_strike": self.short_strike,
+            "long_strike": self.long_strike,
+            "spread_width": self.spread_width,
+            "estimated_credit": self.estimated_credit,
+            "estimated_delta": self.estimated_delta,
+            "prob_profit": self.prob_profit,
+            "risk_reward_ratio": self.risk_reward_ratio,
+            "quality": self.quality,
+            "confidence_score": self.confidence_score,
+            "liquidity_quality": self.liquidity_quality,
+            "short_oi": self.short_oi,
+            "long_oi": self.long_oi,
+            "short_spread_pct": self.short_spread_pct,
+            "long_spread_pct": self.long_spread_pct,
+            "expiry": self.expiry,
+            "dte": self.dte,
+            "dte_warning": self.dte_warning,
+            "tradeable_status": self.tradeable_status,
         }
 
 
@@ -121,6 +121,7 @@ class DailyPick:
     Kombiniert Signal-Analyse, Stability-Score und Strike-Empfehlung
     in einer übersichtlichen Struktur.
     """
+
     rank: int  # 1, 2, 3, ...
     symbol: str
     strategy: str  # pullback, ath_breakout, bounce, earnings_dip
@@ -158,27 +159,30 @@ class DailyPick:
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            'rank': self.rank,
-            'symbol': self.symbol,
-            'strategy': self.strategy,
-            'score': self.score,
-            'stability_score': self.stability_score,
-            'speed_score': self.speed_score,
-            'reliability_grade': self.reliability_grade,
-            'historical_win_rate': self.historical_win_rate,
-            'current_price': self.current_price,
-            'sector': self.sector,
-            'market_cap_category': self.market_cap_category,
-            'suggested_strikes': self.suggested_strikes.to_dict() if self.suggested_strikes else None,
-            'reason': self.reason,
-            'warnings': self.warnings,
-            'timestamp': self.timestamp.isoformat(),
+            "rank": self.rank,
+            "symbol": self.symbol,
+            "strategy": self.strategy,
+            "score": self.score,
+            "stability_score": self.stability_score,
+            "speed_score": self.speed_score,
+            "reliability_grade": self.reliability_grade,
+            "historical_win_rate": self.historical_win_rate,
+            "current_price": self.current_price,
+            "sector": self.sector,
+            "market_cap_category": self.market_cap_category,
+            "suggested_strikes": (
+                self.suggested_strikes.to_dict() if self.suggested_strikes else None
+            ),
+            "reason": self.reason,
+            "warnings": self.warnings,
+            "timestamp": self.timestamp.isoformat(),
         }
 
 
 @dataclass
 class DailyRecommendationResult:
     """Ergebnis des täglichen Recommendation-Prozesses."""
+
     picks: list[DailyPick]
     vix_level: Optional[float]
     market_regime: MarketRegime
@@ -199,26 +203,29 @@ class DailyRecommendationResult:
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            'picks': [p.to_dict() for p in self.picks],
-            'vix_level': self.vix_level,
-            'market_regime': self.market_regime.value,
-            'strategy_recommendation': self.strategy_recommendation.to_dict() if self.strategy_recommendation else None,
-            'statistics': {
-                'symbols_scanned': self.symbols_scanned,
-                'signals_found': self.signals_found,
-                'after_stability_filter': self.after_stability_filter,
-                'after_sector_diversification': self.after_sector_diversification,
-                'after_liquidity_filter': self.after_liquidity_filter,
+            "picks": [p.to_dict() for p in self.picks],
+            "vix_level": self.vix_level,
+            "market_regime": self.market_regime.value,
+            "strategy_recommendation": (
+                self.strategy_recommendation.to_dict() if self.strategy_recommendation else None
+            ),
+            "statistics": {
+                "symbols_scanned": self.symbols_scanned,
+                "signals_found": self.signals_found,
+                "after_stability_filter": self.after_stability_filter,
+                "after_sector_diversification": self.after_sector_diversification,
+                "after_liquidity_filter": self.after_liquidity_filter,
             },
-            'timestamp': self.timestamp.isoformat(),
-            'generation_time_seconds': self.generation_time_seconds,
-            'warnings': self.warnings,
+            "timestamp": self.timestamp.isoformat(),
+            "generation_time_seconds": self.generation_time_seconds,
+            "warnings": self.warnings,
         }
 
 
 # =============================================================================
 # DAILY RECOMMENDATION ENGINE
 # =============================================================================
+
 
 class DailyRecommendationEngine(RecommendationRankingMixin):
     """
@@ -243,16 +250,16 @@ class DailyRecommendationEngine(RecommendationRankingMixin):
 
     # Konfiguration (aligned with PLAYBOOK via trading_rules.py)
     DEFAULT_CONFIG = {
-        'min_stability_score': ENTRY_STABILITY_MIN,   # PLAYBOOK §1
-        'min_signal_score': 3.5,        # Lowered: score is for ranking, not filtering
-        'max_picks': 5,                 # UMBAUPLAN: 3-5 fertige Setups
-        'max_per_sector': SIZING_MAX_PER_SECTOR,  # PLAYBOOK §5: 2
-        'enable_strike_recommendations': True,
-        'enable_sector_diversification': True,
-        'enable_blacklist_filter': True,
-        'enable_vix_regime_filter': True,
-        'stability_weight': 0.3,        # 30% Stability, 70% Signal-Score
-        'speed_exponent': 0.3,          # Speed^0.3 Multiplikator (PLAYBOOK)
+        "min_stability_score": ENTRY_STABILITY_MIN,  # PLAYBOOK §1
+        "min_signal_score": 3.5,  # Lowered: score is for ranking, not filtering
+        "max_picks": 5,  # UMBAUPLAN: 3-5 fertige Setups
+        "max_per_sector": SIZING_MAX_PER_SECTOR,  # PLAYBOOK §5: 2
+        "enable_strike_recommendations": True,
+        "enable_sector_diversification": True,
+        "enable_blacklist_filter": True,
+        "enable_vix_regime_filter": True,
+        "stability_weight": 0.3,  # 30% Stability, 70% Signal-Score
+        "speed_exponent": 0.3,  # Speed^0.3 Multiplikator (PLAYBOOK)
     }
 
     def __init__(
@@ -278,9 +285,9 @@ class DailyRecommendationEngine(RecommendationRankingMixin):
             self._scanner = scanner
         else:
             scan_config = ScanConfig(
-                min_score=self.config['min_signal_score'],
+                min_score=self.config["min_signal_score"],
                 enable_stability_first=True,
-                stability_good_threshold=self.config['min_stability_score'],
+                stability_good_threshold=self.config["min_stability_score"],
                 enable_fundamentals_filter=True,
             )
             self._scanner = MultiStrategyScanner(scan_config)
@@ -403,14 +410,18 @@ class DailyRecommendationEngine(RecommendationRankingMixin):
         self._sector_factors = {}
         try:
             from ..config.scoring_config import get_scoring_resolver
+
             sm_config = get_scoring_resolver().get_sector_momentum_config()
-            if sm_config.get('enabled', False):
+            if sm_config.get("enabled", False):
                 from ..services.sector_cycle_service import SectorCycleService
+
                 service = SectorCycleService()
                 statuses = await service.get_all_sector_statuses()
                 self._sector_factors = {s.sector: s.momentum_factor for s in statuses}
                 if self._sector_factors:
-                    logger.info(f"Loaded sector momentum factors for {len(self._sector_factors)} sectors")
+                    logger.info(
+                        f"Loaded sector momentum factors for {len(self._sector_factors)} sectors"
+                    )
         except Exception as e:
             logger.debug(f"Sector momentum prefetch skipped: {e}")
 
@@ -426,7 +437,7 @@ class DailyRecommendationEngine(RecommendationRankingMixin):
         logger.info(f"Scan complete: {signals_found} signals found")
 
         # 4. Blacklist-Filter (PLAYBOOK §1, Check 1 — cheapest check first)
-        if self.config.get('enable_blacklist_filter', True):
+        if self.config.get("enable_blacklist_filter", True):
             filtered_signals = self._apply_blacklist_filter(scan_result.signals)
             logger.info(
                 f"After blacklist filter: {len(filtered_signals)} signals "
@@ -438,17 +449,17 @@ class DailyRecommendationEngine(RecommendationRankingMixin):
         # 5. Stability-Filter with VIX-regime adjustment (PLAYBOOK §1, Check 2 + §3)
         filtered_signals = self._apply_stability_filter(
             filtered_signals,
-            min_stability=self.config['min_stability_score'],
+            min_stability=self.config["min_stability_score"],
             vix=vix_level,
         )
         after_stability = len(filtered_signals)
         logger.info(f"After stability filter: {after_stability} signals")
 
         # 4. Sektor-Diversifikation
-        if self.config['enable_sector_diversification']:
+        if self.config["enable_sector_diversification"]:
             diversified_signals = self._apply_sector_diversification(
                 filtered_signals,
-                max_per_sector=self.config['max_per_sector'],
+                max_per_sector=self.config["max_per_sector"],
             )
         else:
             diversified_signals = filtered_signals
@@ -461,7 +472,7 @@ class DailyRecommendationEngine(RecommendationRankingMixin):
         # 6. Top N auswählen und DailyPicks erstellen
         # Overfetch: process more candidates to account for liquidity filtering
         overfetch_factor = 3 if options_fetcher else 1
-        candidate_signals = ranked_signals[:max_picks * overfetch_factor]
+        candidate_signals = ranked_signals[: max_picks * overfetch_factor]
         picks: list[DailyPick] = []
         liquidity_rejected = 0
 
@@ -497,16 +508,12 @@ class DailyRecommendationEngine(RecommendationRankingMixin):
                 # Reject poor/fair liquidity
                 if liq_quality and liq_quality == "poor":
                     liquidity_rejected += 1
-                    logger.info(
-                        f"Liquidity-filtered: {signal.symbol} "
-                        f"(quality={liq_quality})"
-                    )
+                    logger.info(f"Liquidity-filtered: {signal.symbol} " f"(quality={liq_quality})")
                     continue
                 if liq_quality and liq_quality == "fair":
                     liquidity_rejected += 1
                     logger.info(
-                        f"Liquidity-filtered: {signal.symbol} "
-                        f"(quality={liq_quality}, min=good)"
+                        f"Liquidity-filtered: {signal.symbol} " f"(quality={liq_quality}, min=good)"
                     )
                     continue
 
@@ -538,9 +545,7 @@ class DailyRecommendationEngine(RecommendationRankingMixin):
 
         self._last_result = result
 
-        logger.info(
-            f"Daily picks generated: {len(picks)} recommendations in {duration:.1f}s"
-        )
+        logger.info(f"Daily picks generated: {len(picks)} recommendations in {duration:.1f}s")
 
         return result
 
@@ -558,9 +563,7 @@ class DailyRecommendationEngine(RecommendationRankingMixin):
         vix: Optional[float] = None,
     ) -> list[TradeSignal]:
         """Delegates to signal_filter.apply_stability_filter (Phase 3.2)."""
-        return apply_stability_filter(
-            signals, min_stability, vix, self._fundamentals_manager
-        )
+        return apply_stability_filter(signals, min_stability, vix, self._fundamentals_manager)
 
     def _apply_sector_diversification(
         self,
@@ -568,9 +571,7 @@ class DailyRecommendationEngine(RecommendationRankingMixin):
         max_per_sector: int,
     ) -> list[TradeSignal]:
         """Delegates to signal_filter.apply_sector_diversification (Phase 3.2)."""
-        return apply_sector_diversification(
-            signals, max_per_sector, self._fundamentals_manager
-        )
+        return apply_sector_diversification(signals, max_per_sector, self._fundamentals_manager)
 
     def get_last_result(self) -> Optional[DailyRecommendationResult]:
         """Gibt das letzte Ergebnis zurück."""
@@ -593,6 +594,7 @@ class DailyRecommendationEngine(RecommendationRankingMixin):
 # CONVENIENCE FUNCTIONS
 # =============================================================================
 
+
 def create_recommendation_engine(
     min_stability: float = ENTRY_STABILITY_MIN,
     min_score: float = 5.0,
@@ -610,9 +612,9 @@ def create_recommendation_engine(
         Konfigurierte DailyRecommendationEngine
     """
     config = {
-        'min_stability_score': min_stability,
-        'min_signal_score': min_score,
-        'max_picks': max_picks,
+        "min_stability_score": min_stability,
+        "min_signal_score": min_score,
+        "max_picks": max_picks,
     }
     return DailyRecommendationEngine(config=config)
 

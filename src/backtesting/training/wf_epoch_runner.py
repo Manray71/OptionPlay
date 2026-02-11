@@ -11,7 +11,7 @@ import logging
 from datetime import date
 from typing import Dict, List, Optional
 
-from ..core import BacktestEngine, BacktestConfig, BacktestResult
+from ..core import BacktestConfig, BacktestEngine, BacktestResult
 from ..validation import SignalValidator
 
 logger = logging.getLogger(__name__)
@@ -74,7 +74,7 @@ class WFEpochRunnerMixin:
                 test_start=test_start,
                 test_end=test_end,
                 reason=f"Nur {train_result.total_trades} Training-Trades "
-                       f"(min: {self.config.min_trades_per_epoch})",
+                f"(min: {self.config.min_trades_per_epoch})",
             )
 
         # 2. Signal-Validierung
@@ -205,8 +205,11 @@ class WFEpochRunnerMixin:
             "win_rate": backtest_result.win_rate,
             "sharpe": backtest_result.sharpe_ratio,
             "profit_factor": backtest_result.profit_factor,
-            "avg_pnl": backtest_result.total_pnl / backtest_result.total_trades
-            if backtest_result.total_trades > 0 else 0,
+            "avg_pnl": (
+                backtest_result.total_pnl / backtest_result.total_trades
+                if backtest_result.total_trades > 0
+                else 0
+            ),
         }
 
     def _calculate_overfit_score(

@@ -69,9 +69,9 @@ class MonitorHandler(BaseHandler):
         """
         from ..services.position_monitor import (
             PositionSnapshot,
-            snapshot_from_internal,
-            snapshot_from_ibkr,
             estimate_pnl_from_theta,
+            snapshot_from_ibkr,
+            snapshot_from_internal,
         )
 
         snapshots: List[PositionSnapshot] = []
@@ -92,6 +92,7 @@ class MonitorHandler(BaseHandler):
         # Source 2: Internal Portfolio (with theta-estimated P&L)
         try:
             from ..portfolio import get_portfolio_manager
+
             portfolio = get_portfolio_manager()
             open_positions = portfolio.get_open_positions()
 
@@ -132,9 +133,7 @@ class MonitorHandler(BaseHandler):
             b.blank()
 
         # Action items (CLOSE, ROLL, ALERT)
-        action_signals = [
-            s for s in result.signals if s.action != ExitAction.HOLD
-        ]
+        action_signals = [s for s in result.signals if s.action != ExitAction.HOLD]
 
         if action_signals:
             b.h2("Aktionen erforderlich")
@@ -166,6 +165,7 @@ class MonitorHandler(BaseHandler):
     def _signal_icon(action: Any) -> str:
         """Icon for exit action."""
         from ..constants.trading_rules import ExitAction
+
         icons = {
             ExitAction.CLOSE: "[CLOSE]",
             ExitAction.ROLL: "[ROLL]",

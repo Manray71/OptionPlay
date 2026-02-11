@@ -6,15 +6,15 @@
 
 from __future__ import annotations
 
-from typing import List, Dict, Optional, Tuple, Any
 import logging
+from typing import Any, Dict, List, Optional, Tuple
 
 from .sr_core import (
-    PriceLevel,
-    VolumeZone,
-    VolumeProfile,
     LevelTest,
+    PriceLevel,
     SupportResistanceResult,
+    VolumeProfile,
+    VolumeZone,
     analyze_support_resistance,
     calculate_fibonacci,
 )
@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 # ADVANCED: NEAREST S/R WITH CONTEXT
 # =============================================================================
 
+
 def get_nearest_sr_levels(
     current_price: float,
     prices: List[float],
@@ -33,7 +34,7 @@ def get_nearest_sr_levels(
     lows: List[float],
     volumes: Optional[List[int]] = None,
     lookback: int = 252,  # 12 months
-    num_levels: int = 3
+    num_levels: int = 3,
 ) -> Dict[str, Any]:
     """
     Get the nearest support and resistance levels relative to current price.
@@ -54,12 +55,7 @@ def get_nearest_sr_levels(
     Returns:
         Dict with 'supports', 'resistances', and context data
     """
-    result = {
-        'supports': [],
-        'resistances': [],
-        'current_price': current_price,
-        'context': {}
-    }
+    result = {"supports": [], "resistances": [], "current_price": current_price, "context": {}}
 
     # Use effective lookback (max available data)
     effective_lookback = min(lookback, len(lows))
@@ -80,13 +76,13 @@ def get_nearest_sr_levels(
     fib_levels = calculate_fibonacci(week_52_high, week_52_low)
 
     # Store context
-    result['context'] = {
-        'week_52_high': round(week_52_high, 2),
-        'week_52_low': round(week_52_low, 2),
-        'sma_50': round(sma_50, 2) if sma_50 else None,
-        'sma_100': round(sma_100, 2) if sma_100 else None,
-        'sma_200': round(sma_200, 2) if sma_200 else None,
-        'fib_levels': {k: round(v, 2) for k, v in fib_levels.items()}
+    result["context"] = {
+        "week_52_high": round(week_52_high, 2),
+        "week_52_low": round(week_52_low, 2),
+        "sma_50": round(sma_50, 2) if sma_50 else None,
+        "sma_100": round(sma_100, 2) if sma_100 else None,
+        "sma_200": round(sma_200, 2) if sma_200 else None,
+        "fib_levels": {k: round(v, 2) for k, v in fib_levels.items()},
     }
 
     # Get full S/R analysis with 12-month lookback
@@ -98,7 +94,7 @@ def get_nearest_sr_levels(
         lookback=effective_lookback,
         window=5,
         max_levels=15,  # Get more to filter
-        tolerance_pct=1.5
+        tolerance_pct=1.5,
     )
 
     # Helper function to describe a level
@@ -129,40 +125,38 @@ def get_nearest_sr_levels(
         return ", ".join(descriptions) if descriptions else ""
 
     # Filter supports: only those BELOW current price, sorted by distance (closest first)
-    supports_below = [
-        lvl for lvl in sr_result.support_levels
-        if lvl.price < current_price
-    ]
+    supports_below = [lvl for lvl in sr_result.support_levels if lvl.price < current_price]
     supports_below.sort(key=lambda x: current_price - x.price)  # Closest first
 
     for lvl in supports_below[:num_levels]:
         distance_pct = ((current_price - lvl.price) / current_price) * 100
-        result['supports'].append({
-            'price': round(lvl.price, 2),
-            'touches': lvl.touches,
-            'strength': round(lvl.strength, 3),
-            'distance_pct': round(distance_pct, 2),
-            'hold_rate': round(lvl.hold_rate, 2) if lvl.hold_rate else 0.0,
-            'description': describe_level(lvl.price, 'support')
-        })
+        result["supports"].append(
+            {
+                "price": round(lvl.price, 2),
+                "touches": lvl.touches,
+                "strength": round(lvl.strength, 3),
+                "distance_pct": round(distance_pct, 2),
+                "hold_rate": round(lvl.hold_rate, 2) if lvl.hold_rate else 0.0,
+                "description": describe_level(lvl.price, "support"),
+            }
+        )
 
     # Filter resistances: only those ABOVE current price, sorted by distance (closest first)
-    resistances_above = [
-        lvl for lvl in sr_result.resistance_levels
-        if lvl.price > current_price
-    ]
+    resistances_above = [lvl for lvl in sr_result.resistance_levels if lvl.price > current_price]
     resistances_above.sort(key=lambda x: x.price - current_price)  # Closest first
 
     for lvl in resistances_above[:num_levels]:
         distance_pct = ((lvl.price - current_price) / current_price) * 100
-        result['resistances'].append({
-            'price': round(lvl.price, 2),
-            'touches': lvl.touches,
-            'strength': round(lvl.strength, 3),
-            'distance_pct': round(distance_pct, 2),
-            'hold_rate': round(lvl.hold_rate, 2) if lvl.hold_rate else 0.0,
-            'description': describe_level(lvl.price, 'resistance')
-        })
+        result["resistances"].append(
+            {
+                "price": round(lvl.price, 2),
+                "touches": lvl.touches,
+                "strength": round(lvl.strength, 3),
+                "distance_pct": round(distance_pct, 2),
+                "hold_rate": round(lvl.hold_rate, 2) if lvl.hold_rate else 0.0,
+                "description": describe_level(lvl.price, "resistance"),
+            }
+        )
 
     return result
 
@@ -171,13 +165,14 @@ def get_nearest_sr_levels(
 # VOLUME PROFILE ANALYSIS
 # =============================================================================
 
+
 def calculate_volume_profile(
     prices: List[float],
     highs: List[float],
     lows: List[float],
     volumes: List[int],
     num_zones: int = 20,
-    value_area_pct: float = 70.0
+    value_area_pct: float = 70.0,
 ) -> VolumeProfile:
     """
     Berechnet das Volume Profile für einen Preisbereich.
@@ -258,7 +253,9 @@ def calculate_volume_profile(
         if cumulative_vol >= value_area_target:
             break
 
-    value_area_high = max(z.price_high for z in value_area_zones) if value_area_zones else price_high
+    value_area_high = (
+        max(z.price_high for z in value_area_zones) if value_area_zones else price_high
+    )
     value_area_low = min(z.price_low for z in value_area_zones) if value_area_zones else price_low
 
     hvn_zones = [z for z in zones if z.is_high_volume_node]
@@ -268,13 +265,14 @@ def calculate_volume_profile(
         poc=poc,
         value_area_high=value_area_high,
         value_area_low=value_area_low,
-        hvn_zones=hvn_zones
+        hvn_zones=hvn_zones,
     )
 
 
 # =============================================================================
 # TOUCH QUALITY & VOLUME CONFIRMATION
 # =============================================================================
+
 
 def analyze_level_tests(
     level_price: float,
@@ -284,7 +282,7 @@ def analyze_level_tests(
     volumes: List[int],
     level_type: str = "support",
     tolerance_pct: float = 1.5,
-    lookback: int = 60
+    lookback: int = 60,
 ) -> Tuple[List[LevelTest], float, float]:
     """
     Analysiert alle Tests eines S/R Levels.
@@ -351,7 +349,7 @@ def analyze_level_tests(
                 volume_ratio=vol_ratio,
                 distance_pct=distance_pct * 100,
                 held=held,
-                bounce_pct=bounce_pct
+                bounce_pct=bounce_pct,
             )
             tests.append(test)
 
@@ -387,7 +385,7 @@ def validate_level_with_volume(
     highs: List[float],
     lows: List[float],
     volumes: List[int],
-    lookback: int = 60
+    lookback: int = 60,
 ) -> PriceLevel:
     """
     Erweitert ein PriceLevel mit Volumen-Validierung.
@@ -413,7 +411,7 @@ def validate_level_with_volume(
         lows=lows,
         volumes=volumes,
         level_type=level.level_type,
-        lookback=lookback
+        lookback=lookback,
     )
 
     level.touch_quality = touch_quality
@@ -423,11 +421,7 @@ def validate_level_with_volume(
 
     # Aktualisiere Stärke mit neuen Faktoren
     # Originale Stärke bleibt zu 50%, 25% Touch-Quality, 25% Volume
-    level.strength = (
-        level.strength * 0.5 +
-        touch_quality * 0.25 +
-        volume_confirmation * 0.25
-    )
+    level.strength = level.strength * 0.5 + touch_quality * 0.25 + volume_confirmation * 0.25
 
     return level
 
@@ -438,7 +432,7 @@ def get_volume_at_level(
     highs: List[float],
     lows: List[float],
     volumes: List[int],
-    tolerance_pct: float = 1.5
+    tolerance_pct: float = 1.5,
 ) -> Tuple[int, float]:
     """
     Berechnet das Gesamtvolumen, das an einem Level gehandelt wurde.
@@ -489,6 +483,7 @@ def get_volume_at_level(
 # ENHANCED ANALYSIS WITH VALIDATION
 # =============================================================================
 
+
 def analyze_support_resistance_with_validation(
     prices: List[float],
     highs: List[float],
@@ -498,7 +493,7 @@ def analyze_support_resistance_with_validation(
     window: int = 5,
     max_levels: int = 5,
     tolerance_pct: float = 1.5,
-    include_volume_profile: bool = True
+    include_volume_profile: bool = True,
 ) -> SupportResistanceResult:
     """
     Vollständige S/R Analyse mit Volumen-Validierung.
@@ -533,29 +528,19 @@ def analyze_support_resistance_with_validation(
         lookback=lookback,
         window=window,
         max_levels=max_levels,
-        tolerance_pct=tolerance_pct
+        tolerance_pct=tolerance_pct,
     )
 
     # Validiere Support-Levels mit Volumen
     for level in result.support_levels:
         validate_level_with_volume(
-            level=level,
-            prices=prices,
-            highs=highs,
-            lows=lows,
-            volumes=volumes,
-            lookback=lookback
+            level=level, prices=prices, highs=highs, lows=lows, volumes=volumes, lookback=lookback
         )
 
     # Validiere Resistance-Levels mit Volumen
     for level in result.resistance_levels:
         validate_level_with_volume(
-            level=level,
-            prices=prices,
-            highs=highs,
-            lows=lows,
-            volumes=volumes,
-            lookback=lookback
+            level=level, prices=prices, highs=highs, lows=lows, volumes=volumes, lookback=lookback
         )
 
     # Re-sortiere nach aktualisierter Stärke
@@ -565,10 +550,7 @@ def analyze_support_resistance_with_validation(
     # Volume Profile (optional)
     if include_volume_profile and volumes:
         result.volume_profile = calculate_volume_profile(
-            prices=prices,
-            highs=highs,
-            lows=lows,
-            volumes=volumes
+            prices=prices, highs=highs, lows=lows, volumes=volumes
         )
 
     return result
@@ -577,6 +559,7 @@ def analyze_support_resistance_with_validation(
 # =============================================================================
 # EVENT-AWARE ANALYSIS
 # =============================================================================
+
 
 def analyze_sr_with_events(
     symbol: str,
@@ -590,8 +573,8 @@ def analyze_sr_with_events(
     max_levels: int = 5,
     tolerance_pct: float = 1.5,
     include_volume_profile: bool = True,
-    lookahead_days: int = 14
-) -> Tuple['SupportResistanceResult', Optional[Dict]]:
+    lookahead_days: int = 14,
+) -> Tuple["SupportResistanceResult", Optional[Dict]]:
     """
     Vollständige S/R Analyse mit Event-Validierung.
 
@@ -629,7 +612,7 @@ def analyze_sr_with_events(
         window=window,
         max_levels=max_levels,
         tolerance_pct=tolerance_pct,
-        include_volume_profile=include_volume_profile
+        include_volume_profile=include_volume_profile,
     )
 
     # Event-Validierung (optional)
@@ -637,8 +620,7 @@ def analyze_sr_with_events(
     if event_calendar is not None:
         try:
             validation = event_calendar.validate_for_sr(
-                symbol=symbol,
-                lookahead_days=lookahead_days
+                symbol=symbol, lookahead_days=lookahead_days
             )
             event_validation = validation.to_dict()
 
@@ -673,19 +655,15 @@ def analyze_sr_with_events(
 
 __all__ = [
     # Advanced S/R with context
-    'get_nearest_sr_levels',
-
+    "get_nearest_sr_levels",
     # Volume Profile
-    'calculate_volume_profile',
-
+    "calculate_volume_profile",
     # Touch Quality & Volume Confirmation
-    'analyze_level_tests',
-    'validate_level_with_volume',
-    'get_volume_at_level',
-
+    "analyze_level_tests",
+    "validate_level_with_volume",
+    "get_volume_at_level",
     # Enhanced Analysis with Validation
-    'analyze_support_resistance_with_validation',
-
+    "analyze_support_resistance_with_validation",
     # Event-Aware Analysis
-    'analyze_sr_with_events',
+    "analyze_sr_with_events",
 ]

@@ -2,9 +2,9 @@
 # This file maintains backward compatibility for existing imports.
 from .options.strike_recommender import *  # noqa: F401,F403
 from .options.strike_recommender import (  # noqa: F401
-    StrikeRecommender,
-    StrikeRecommendation,
     StrikeQuality,
+    StrikeRecommendation,
+    StrikeRecommender,
     SupportLevel,
     calculate_strike_recommendation,
 )

@@ -37,12 +37,13 @@ from .base import BaseAnalyzer
 
 logger = logging.getLogger(__name__)
 
-T = TypeVar('T', bound=BaseAnalyzer)
+T = TypeVar("T", bound=BaseAnalyzer)
 
 
 @dataclass
 class PoolConfig:
     """Konfiguration für den Analyzer Pool"""
+
     # Pool-Größen pro Analyzer-Typ
     default_pool_size: int = 5
     max_pool_size: int = 20
@@ -50,7 +51,7 @@ class PoolConfig:
     # Verhalten bei leerem Pool
     create_on_empty: bool = True  # Erstelle neue Instanz wenn Pool leer
     block_on_empty: bool = False  # Warte auf Rückgabe (nur wenn create_on_empty=False)
-    block_timeout: float = 5.0    # Timeout für block_on_empty
+    block_timeout: float = 5.0  # Timeout für block_on_empty
 
     # Pool-Größen pro Strategie (überschreibt default)
     strategy_pool_sizes: Dict[str, int] = field(default_factory=dict)
@@ -63,6 +64,7 @@ class PoolConfig:
 @dataclass
 class PoolStats:
     """Statistiken für einen Analyzer-Pool"""
+
     strategy: str
     pool_size: int = 0
     in_use: int = 0
@@ -85,14 +87,14 @@ class PoolStats:
     def to_dict(self) -> Dict[str, Any]:
         """Konvertiert zu Dictionary"""
         return {
-            'strategy': self.strategy,
-            'pool_size': self.pool_size,
-            'in_use': self.in_use,
-            'available': self.available,
-            'total_checkouts': self.total_checkouts,
-            'total_creates': self.total_creates,
-            'total_reuses': self.total_reuses,
-            'reuse_rate': round(self.reuse_rate, 3)
+            "strategy": self.strategy,
+            "pool_size": self.pool_size,
+            "in_use": self.in_use,
+            "available": self.available,
+            "total_checkouts": self.total_checkouts,
+            "total_creates": self.total_creates,
+            "total_reuses": self.total_reuses,
+            "reuse_rate": round(self.reuse_rate, 3),
         }
 
 
@@ -155,11 +157,7 @@ class AnalyzerPool:
 
         logger.debug("AnalyzerPool initialized")
 
-    def register_factory(
-        self,
-        strategy: str,
-        factory: Callable[[], BaseAnalyzer]
-    ) -> None:
+    def register_factory(self, strategy: str, factory: Callable[[], BaseAnalyzer]) -> None:
         """
         Registriert eine Factory-Funktion für einen Strategie-Typ.
 
@@ -176,11 +174,7 @@ class AnalyzerPool:
             logger.debug(f"Registered factory for '{strategy}'")
 
     def register_analyzer_class(
-        self,
-        strategy: str,
-        analyzer_class: Type[BaseAnalyzer],
-        *args,
-        **kwargs
+        self, strategy: str, analyzer_class: Type[BaseAnalyzer], *args, **kwargs
     ) -> None:
         """
         Registriert eine Analyzer-Klasse mit Konstruktor-Argumenten.
@@ -192,6 +186,7 @@ class AnalyzerPool:
             analyzer_class: Analyzer-Klasse
             *args, **kwargs: Konstruktor-Argumente
         """
+
         def factory() -> BaseAnalyzer:
             return analyzer_class(*args, **kwargs)
 
@@ -224,7 +219,9 @@ class AnalyzerPool:
         analyzer = self._factories[strategy]()
         self._stats[strategy].total_creates += 1
 
-        logger.debug(f"Created new '{strategy}' analyzer (total: {self._stats[strategy].total_creates})")
+        logger.debug(
+            f"Created new '{strategy}' analyzer (total: {self._stats[strategy].total_creates})"
+        )
 
         return analyzer
 
@@ -281,9 +278,7 @@ class AnalyzerPool:
                 return analyzer
 
             # TODO: Implementiere block_on_empty mit Condition Variable
-            raise RuntimeError(
-                f"Pool for '{strategy}' is empty and create_on_empty=False"
-            )
+            raise RuntimeError(f"Pool for '{strategy}' is empty and create_on_empty=False")
 
     def checkin(self, strategy: str, analyzer: BaseAnalyzer) -> None:
         """
@@ -310,14 +305,11 @@ class AnalyzerPool:
             if len(pool) < max_size:
                 pool.append(analyzer)
                 logger.debug(
-                    f"Checked in '{strategy}' analyzer to pool "
-                    f"(available: {len(pool)})"
+                    f"Checked in '{strategy}' analyzer to pool " f"(available: {len(pool)})"
                 )
             else:
                 # Pool ist voll, Analyzer wird verworfen
-                logger.debug(
-                    f"Pool for '{strategy}' is full, discarding analyzer"
-                )
+                logger.debug(f"Pool for '{strategy}' is full, discarding analyzer")
 
             # Update pool_size AFTER potentially discarding
             if stats:
@@ -435,17 +427,10 @@ class AnalyzerPool:
                 return {}
 
             return {
-                'pools': {
-                    name: stats.to_dict()
-                    for name, stats in self._stats.items()
-                },
-                'total_analyzers': sum(
-                    stats.pool_size for stats in self._stats.values()
-                ),
-                'total_in_use': sum(
-                    stats.in_use for stats in self._stats.values()
-                ),
-                'registered_strategies': list(self._factories.keys())
+                "pools": {name: stats.to_dict() for name, stats in self._stats.items()},
+                "total_analyzers": sum(stats.pool_size for stats in self._stats.values()),
+                "total_in_use": sum(stats.in_use for stats in self._stats.values()),
+                "registered_strategies": list(self._factories.keys()),
             }
 
     @property
@@ -479,6 +464,7 @@ def get_analyzer_pool(config: Optional[PoolConfig] = None) -> AnalyzerPool:
     """
     try:
         from ..utils.deprecation import warn_singleton_usage
+
         warn_singleton_usage("get_analyzer_pool", "ServiceContainer.analyzer_pool")
     except ImportError:
         pass
@@ -514,10 +500,10 @@ def configure_default_pool() -> AnalyzerPool:
     Returns:
         Konfigurierter AnalyzerPool
     """
-    from .pullback import PullbackAnalyzer
-    from .bounce import BounceAnalyzer, BounceConfig
     from .ath_breakout import ATHBreakoutAnalyzer, ATHBreakoutConfig
+    from .bounce import BounceAnalyzer, BounceConfig
     from .earnings_dip import EarningsDipAnalyzer, EarningsDipConfig
+    from .pullback import PullbackAnalyzer
     from .trend_continuation import TrendContinuationAnalyzer, TrendContinuationConfig
 
     try:
@@ -528,29 +514,16 @@ def configure_default_pool() -> AnalyzerPool:
     pool = get_analyzer_pool()
 
     # Registriere Standard-Analyzer
-    pool.register_factory(
-        "pullback",
-        lambda: PullbackAnalyzer(PullbackScoringConfig())
-    )
+    pool.register_factory("pullback", lambda: PullbackAnalyzer(PullbackScoringConfig()))
+
+    pool.register_factory("bounce", lambda: BounceAnalyzer(BounceConfig()))
+
+    pool.register_factory("ath_breakout", lambda: ATHBreakoutAnalyzer(ATHBreakoutConfig()))
+
+    pool.register_factory("earnings_dip", lambda: EarningsDipAnalyzer(EarningsDipConfig()))
 
     pool.register_factory(
-        "bounce",
-        lambda: BounceAnalyzer(BounceConfig())
-    )
-
-    pool.register_factory(
-        "ath_breakout",
-        lambda: ATHBreakoutAnalyzer(ATHBreakoutConfig())
-    )
-
-    pool.register_factory(
-        "earnings_dip",
-        lambda: EarningsDipAnalyzer(EarningsDipConfig())
-    )
-
-    pool.register_factory(
-        "trend_continuation",
-        lambda: TrendContinuationAnalyzer(TrendContinuationConfig())
+        "trend_continuation", lambda: TrendContinuationAnalyzer(TrendContinuationConfig())
     )
 
     logger.info(f"Configured default pool with strategies: {pool.registered_strategies}")
@@ -559,10 +532,10 @@ def configure_default_pool() -> AnalyzerPool:
 
 
 __all__ = [
-    'AnalyzerPool',
-    'PoolConfig',
-    'PoolStats',
-    'get_analyzer_pool',
-    'reset_analyzer_pool',
-    'configure_default_pool',
+    "AnalyzerPool",
+    "PoolConfig",
+    "PoolStats",
+    "get_analyzer_pool",
+    "reset_analyzer_pool",
+    "configure_default_pool",
 ]

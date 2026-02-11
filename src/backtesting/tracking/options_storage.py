@@ -4,10 +4,10 @@
 #
 # Contains: store, get, list, delete, count options data
 
-import sqlite3
 import logging
+import sqlite3
 from datetime import date
-from typing import List, Dict, Optional, Any
+from typing import Any, Dict, List, Optional
 
 from .models import OptionBar
 
@@ -42,6 +42,7 @@ class OptionsStorage:
             return 0
 
         from datetime import datetime
+
         now = datetime.now().isoformat()
         count = 0
 
@@ -50,25 +51,28 @@ class OptionsStorage:
 
             for bar in bars:
                 try:
-                    cursor.execute("""
+                    cursor.execute(
+                        """
                         INSERT OR REPLACE INTO options_data (
                             occ_symbol, underlying, strike, expiry, option_type,
                             trade_date, open, high, low, close, volume, created_at
                         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (
-                        bar.occ_symbol,
-                        bar.underlying.upper(),
-                        bar.strike,
-                        bar.expiry.isoformat(),
-                        bar.option_type,
-                        bar.trade_date.isoformat(),
-                        bar.open,
-                        bar.high,
-                        bar.low,
-                        bar.close,
-                        bar.volume,
-                        now,
-                    ))
+                    """,
+                        (
+                            bar.occ_symbol,
+                            bar.underlying.upper(),
+                            bar.strike,
+                            bar.expiry.isoformat(),
+                            bar.option_type,
+                            bar.trade_date.isoformat(),
+                            bar.open,
+                            bar.high,
+                            bar.low,
+                            bar.close,
+                            bar.volume,
+                            now,
+                        ),
+                    )
                     count += 1
                 except sqlite3.Error as e:
                     logger.warning(f"Failed to store option bar {bar.occ_symbol}: {e}")
@@ -107,11 +111,14 @@ class OptionsStorage:
 
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute(f"""
+            cursor.execute(
+                f"""
                 SELECT * FROM options_data
                 WHERE {where_clause}
                 ORDER BY trade_date
-            """, params)
+            """,
+                params,
+            )
 
             return [self._row_to_option_bar(row) for row in cursor]
 
@@ -151,11 +158,14 @@ class OptionsStorage:
 
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute(f"""
+            cursor.execute(
+                f"""
                 SELECT * FROM options_data
                 WHERE {where_clause}
                 ORDER BY trade_date, strike
-            """, params)
+            """,
+                params,
+            )
 
             return [self._row_to_option_bar(row) for row in cursor]
 
@@ -176,10 +186,13 @@ class OptionsStorage:
         """
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT * FROM options_data
                 WHERE occ_symbol = ? AND trade_date = ?
-            """, (occ_symbol, trade_date.isoformat()))
+            """,
+                (occ_symbol, trade_date.isoformat()),
+            )
 
             row = cursor.fetchone()
             return self._row_to_option_bar(row) if row else None
@@ -203,8 +216,12 @@ class OptionsStorage:
         Returns:
             Liste von Dicts mit trade_date, short_close, long_close, spread_value
         """
-        short_bars = {b.trade_date: b for b in self.get_option_history(short_occ, start_date, end_date)}
-        long_bars = {b.trade_date: b for b in self.get_option_history(long_occ, start_date, end_date)}
+        short_bars = {
+            b.trade_date: b for b in self.get_option_history(short_occ, start_date, end_date)
+        }
+        long_bars = {
+            b.trade_date: b for b in self.get_option_history(long_occ, start_date, end_date)
+        }
 
         # Nur Tage mit beiden Legs
         common_dates = sorted(set(short_bars.keys()) & set(long_bars.keys()))
@@ -215,31 +232,33 @@ class OptionsStorage:
             long = long_bars[td]
             spread_value = short.close - long.close
 
-            result.append({
-                'trade_date': td,
-                'short_close': short.close,
-                'long_close': long.close,
-                'spread_value': spread_value,
-                'short_volume': short.volume,
-                'long_volume': long.volume,
-            })
+            result.append(
+                {
+                    "trade_date": td,
+                    "short_close": short.close,
+                    "long_close": long.close,
+                    "spread_value": spread_value,
+                    "short_volume": short.volume,
+                    "long_volume": long.volume,
+                }
+            )
 
         return result
 
     def _row_to_option_bar(self, row: sqlite3.Row) -> OptionBar:
         """Konvertiert DB-Row zu OptionBar"""
         return OptionBar(
-            occ_symbol=row['occ_symbol'],
-            underlying=row['underlying'],
-            strike=row['strike'],
-            expiry=date.fromisoformat(row['expiry']),
-            option_type=row['option_type'],
-            trade_date=date.fromisoformat(row['trade_date']),
-            open=row['open'] or 0.0,
-            high=row['high'] or 0.0,
-            low=row['low'] or 0.0,
-            close=row['close'],
-            volume=row['volume'] or 0,
+            occ_symbol=row["occ_symbol"],
+            underlying=row["underlying"],
+            strike=row["strike"],
+            expiry=date.fromisoformat(row["expiry"]),
+            option_type=row["option_type"],
+            trade_date=date.fromisoformat(row["trade_date"]),
+            open=row["open"] or 0.0,
+            high=row["high"] or 0.0,
+            low=row["low"] or 0.0,
+            close=row["close"],
+            volume=row["volume"] or 0,
         )
 
     def list_options_underlyings(self) -> List[Dict[str, Any]]:
@@ -265,11 +284,11 @@ class OptionsStorage:
 
             return [
                 {
-                    'underlying': row['underlying'],
-                    'bar_count': row['bar_count'],
-                    'option_count': row['option_count'],
-                    'first_date': row['first_date'],
-                    'last_date': row['last_date'],
+                    "underlying": row["underlying"],
+                    "bar_count": row["bar_count"],
+                    "option_count": row["option_count"],
+                    "first_date": row["first_date"],
+                    "last_date": row["last_date"],
                 }
                 for row in cursor.fetchall()
             ]
@@ -280,14 +299,15 @@ class OptionsStorage:
             cursor = conn.cursor()
             if underlying:
                 cursor.execute(
-                    "SELECT COUNT(*) FROM options_data WHERE underlying = ?",
-                    (underlying.upper(),)
+                    "SELECT COUNT(*) FROM options_data WHERE underlying = ?", (underlying.upper(),)
                 )
             else:
                 cursor.execute("SELECT COUNT(*) FROM options_data")
             return cursor.fetchone()[0]
 
-    def delete_option_data(self, underlying: Optional[str] = None, occ_symbol: Optional[str] = None) -> int:
+    def delete_option_data(
+        self, underlying: Optional[str] = None, occ_symbol: Optional[str] = None
+    ) -> int:
         """
         Löscht Options-Daten.
 
@@ -304,7 +324,9 @@ class OptionsStorage:
             if occ_symbol:
                 cursor.execute("DELETE FROM options_data WHERE occ_symbol = ?", (occ_symbol,))
             elif underlying:
-                cursor.execute("DELETE FROM options_data WHERE underlying = ?", (underlying.upper(),))
+                cursor.execute(
+                    "DELETE FROM options_data WHERE underlying = ?", (underlying.upper(),)
+                )
             else:
                 cursor.execute("DELETE FROM options_data")
 

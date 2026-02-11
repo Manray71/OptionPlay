@@ -7,29 +7,29 @@
 # Refactored in Phase 6b: Facade-Pattern, delegiert an Sub-Module
 
 import json
-import sqlite3
 import logging
+import sqlite3
 import zlib
-from datetime import datetime, date
-from pathlib import Path
-from typing import List, Dict, Optional, Any, Tuple
 from contextlib import contextmanager
+from datetime import date, datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
 from .models import (
-    TradeStatus,
-    TradeOutcome,
-    TrackedTrade,
-    TradeStats,
+    OptionBar,
     PriceBar,
     SymbolPriceData,
+    TrackedTrade,
+    TradeOutcome,
+    TradeStats,
+    TradeStatus,
     VixDataPoint,
-    OptionBar,
 )
-from .trade_crud import TradeCRUD
-from .trade_analysis import TradeAnalysis
-from .price_storage import PriceStorage
-from .vix_storage import VixStorage
 from .options_storage import OptionsStorage
+from .price_storage import PriceStorage
+from .trade_analysis import TradeAnalysis
+from .trade_crud import TradeCRUD
+from .vix_storage import VixStorage
 
 logger = logging.getLogger(__name__)
 
@@ -290,10 +290,13 @@ class TradeTracker:
             """)
 
             # Schema-Version setzen
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT OR REPLACE INTO meta (key, value)
                 VALUES ('schema_version', ?)
-            """, (str(self.SCHEMA_VERSION),))
+            """,
+                (str(self.SCHEMA_VERSION),),
+            )
 
     # =========================================================================
     # Trade CRUD Operations (delegated to TradeCRUD)
@@ -334,9 +337,15 @@ class TradeTracker:
         limit: int = 1000,
     ) -> List[TrackedTrade]:
         return self._trade_crud.query_trades(
-            symbol=symbol, strategy=strategy, status=status, outcome=outcome,
-            min_score=min_score, max_score=max_score, min_date=min_date,
-            max_date=max_date, limit=limit,
+            symbol=symbol,
+            strategy=strategy,
+            status=status,
+            outcome=outcome,
+            min_score=min_score,
+            max_score=max_score,
+            min_date=min_date,
+            max_date=max_date,
+            limit=limit,
         )
 
     def delete_trade(self, trade_id: int) -> bool:
@@ -359,7 +368,9 @@ class TradeTracker:
         min_date: Optional[date] = None,
         max_date: Optional[date] = None,
     ) -> TradeStats:
-        return self._trade_analysis.get_stats(strategy=strategy, min_date=min_date, max_date=max_date)
+        return self._trade_analysis.get_stats(
+            strategy=strategy, min_date=min_date, max_date=max_date
+        )
 
     # =========================================================================
     # Export for Training (delegated to TradeAnalysis)
@@ -373,7 +384,10 @@ class TradeTracker:
         min_trades: int = 50,
     ) -> Dict[str, Any]:
         return self._trade_analysis.export_for_training(
-            min_date=min_date, max_date=max_date, strategies=strategies, min_trades=min_trades,
+            min_date=min_date,
+            max_date=max_date,
+            strategies=strategies,
+            min_trades=min_trades,
         )
 
     # =========================================================================
@@ -451,7 +465,10 @@ class TradeTracker:
         trade_date: Optional[date] = None,
     ) -> List[OptionBar]:
         return self._options_storage.get_options_for_underlying(
-            underlying, expiry, option_type, trade_date,
+            underlying,
+            expiry,
+            option_type,
+            trade_date,
         )
 
     def get_option_at_date(
@@ -476,7 +493,9 @@ class TradeTracker:
     def count_option_bars(self, underlying: Optional[str] = None) -> int:
         return self._options_storage.count_option_bars(underlying)
 
-    def delete_option_data(self, underlying: Optional[str] = None, occ_symbol: Optional[str] = None) -> int:
+    def delete_option_data(
+        self, underlying: Optional[str] = None, occ_symbol: Optional[str] = None
+    ) -> int:
         return self._options_storage.delete_option_data(underlying, occ_symbol)
 
     # =========================================================================
@@ -490,8 +509,11 @@ class TradeTracker:
         end_date: Optional[date] = None,
     ) -> Dict[str, Any]:
         return self._trade_analysis.export_for_backtesting(
-            symbols=symbols, start_date=start_date, end_date=end_date,
-            price_storage=self._price_storage, vix_storage=self._vix_storage,
+            symbols=symbols,
+            start_date=start_date,
+            end_date=end_date,
+            price_storage=self._price_storage,
+            vix_storage=self._vix_storage,
         )
 
     def get_storage_stats(self) -> Dict[str, Any]:

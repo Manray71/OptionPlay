@@ -6,8 +6,9 @@
 
 import logging
 from datetime import date
-from typing import List, Dict, Optional
+from typing import Dict, List, Optional
 
+from ...constants.trading_rules import SPREAD_DTE_MAX, SPREAD_DTE_MIN
 from ..models.outcomes import (
     OptionQuote,
     SpreadEntry,
@@ -15,7 +16,6 @@ from ..models.outcomes import (
     SpreadOutcomeResult,
 )
 from .database import OptionsDatabase
-from ...constants.trading_rules import SPREAD_DTE_MIN, SPREAD_DTE_MAX
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +31,7 @@ class SpreadFinder:
         symbol: str,
         quote_date: date,
         target_short_otm_pct: float = 10.0,  # 10% OTM
-        spread_width_pct: float = 5.0,       # 5% des Aktienkurses
+        spread_width_pct: float = 5.0,  # 5% des Aktienkurses
         dte_min: int = SPREAD_DTE_MIN,
         dte_max: int = SPREAD_DTE_MAX,
     ) -> Optional[SpreadEntry]:
@@ -186,7 +186,9 @@ class OutcomeCalculator:
             )
 
         if not prices:
-            logger.warning(f"No price data for {entry.symbol} from {entry.entry_date} to {entry.expiration}")
+            logger.warning(
+                f"No price data for {entry.symbol} from {entry.entry_date} to {entry.expiration}"
+            )
             return None
 
         # Finde Exit-Preis (bei Expiration oder letzter verfügbarer)

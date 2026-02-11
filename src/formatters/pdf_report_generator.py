@@ -4,12 +4,18 @@
 
 import logging
 import os
-from datetime import datetime, date
-from pathlib import Path
-from typing import Dict, List, Any, Optional
 from dataclasses import dataclass, field
+from datetime import date, datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
-from ..constants.trading_rules import SPREAD_SHORT_DELTA_MIN, SPREAD_SHORT_DELTA_MAX, ENTRY_EARNINGS_MIN_DAYS, SPREAD_DTE_MIN, SPREAD_DTE_MAX
+from ..constants.trading_rules import (
+    ENTRY_EARNINGS_MIN_DAYS,
+    SPREAD_DTE_MAX,
+    SPREAD_DTE_MIN,
+    SPREAD_SHORT_DELTA_MAX,
+    SPREAD_SHORT_DELTA_MIN,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +26,7 @@ TEMPLATE_DIR = Path(__file__).parent / "templates"
 @dataclass
 class CoverPageData:
     """Data for the cover page."""
+
     date: str
     time: str
     title: str = "Bull-Put Spread"
@@ -44,6 +51,7 @@ class CoverPageData:
 @dataclass
 class ScanResultRow:
     """Single row in scan results table."""
+
     rank: int
     symbol: str
     price: float
@@ -58,6 +66,7 @@ class ScanResultRow:
 @dataclass
 class ScoreItem:
     """Single score component."""
+
     label: str
     value: str
     color: str = "gray"  # green, orange, red, gray
@@ -66,6 +75,7 @@ class ScoreItem:
 @dataclass
 class TradeLeg:
     """Option leg in trade setup."""
+
     leg_type: str  # "Short Put" or "Long Put"
     strike: float
     delta: float
@@ -75,6 +85,7 @@ class TradeLeg:
 @dataclass
 class TradeSetup:
     """Complete trade setup."""
+
     short_leg: TradeLeg
     long_leg: TradeLeg
     net_credit: float
@@ -90,6 +101,7 @@ class TradeSetup:
 @dataclass
 class SupportResistanceLevel:
     """S/R level with metadata."""
+
     rank: str  # S1, S2, R1, R2 etc.
     price: float
     distance_pct: float
@@ -100,6 +112,7 @@ class SupportResistanceLevel:
 @dataclass
 class VolumeProfileBar:
     """Single bar in volume profile."""
+
     price: float
     volume_pct: float
     buy_pct: float
@@ -111,6 +124,7 @@ class VolumeProfileBar:
 @dataclass
 class VolumeProfileData:
     """Complete volume profile data."""
+
     bars: List[VolumeProfileBar]
     poc_price: float
     value_area: str
@@ -122,6 +136,7 @@ class VolumeProfileData:
 @dataclass
 class FundamentalsData:
     """Fundamental data for a stock."""
+
     pe_ratio: Optional[float] = None
     market_cap: str = ""
     div_yield: str = "0.00%"
@@ -133,6 +148,7 @@ class FundamentalsData:
 @dataclass
 class NewsItem:
     """Single news item."""
+
     text: str
     time: str
     sentiment: str = "neutral"  # positive, negative, neutral
@@ -141,6 +157,7 @@ class NewsItem:
 @dataclass
 class PriceLevel:
     """Price level for visualization."""
+
     label: str
     price: float
     pct_from_current: float
@@ -150,6 +167,7 @@ class PriceLevel:
 @dataclass
 class ScorecardData:
     """Complete data for one stock scorecard."""
+
     symbol: str
     company_name: str
     strategy: str  # pullback, bounce, breakout
@@ -189,6 +207,7 @@ class ScorecardData:
 @dataclass
 class ReportData:
     """Complete report data."""
+
     cover: CoverPageData
     scan_results: List[ScanResultRow]
     scorecards: List[ScorecardData]
@@ -210,7 +229,7 @@ class PDFReportGenerator:
 
     def _load_template(self) -> str:
         """Load the HTML template."""
-        with open(self.template_path, 'r', encoding='utf-8') as f:
+        with open(self.template_path, "r", encoding="utf-8") as f:
             return f.read()
 
     def _format_price(self, price: float) -> str:
@@ -239,8 +258,10 @@ class PDFReportGenerator:
     def _render_cover_page(self, data: CoverPageData, scan_results: List[ScanResultRow]) -> str:
         """Render cover page HTML."""
         # Stats row
-        sentiment_class = "green" if data.market_sentiment.lower() == "bullish" else (
-            "red" if data.market_sentiment.lower() == "bearish" else "orange"
+        sentiment_class = (
+            "green"
+            if data.market_sentiment.lower() == "bullish"
+            else ("red" if data.market_sentiment.lower() == "bearish" else "orange")
         )
 
         # Scan results table
@@ -250,7 +271,7 @@ class PDFReportGenerator:
             change_class = self._get_change_class(row.change_pct)
             roi_class = self._get_change_class(row.roi)
 
-            results_html += f'''
+            results_html += f"""
               <tr class="{row_class}">
                 <td>{row.rank}</td>
                 <td class="symbol">{row.symbol}</td>
@@ -260,9 +281,9 @@ class PDFReportGenerator:
                 <td><span class="strategy-badge {row.strategy.lower()}">{row.strategy}</span></td>
                 <td class="change {roi_class}">{self._format_pct(row.roi, False)}</td>
               </tr>
-            '''
+            """
 
-        return f'''
+        return f"""
       <div class="cover-header">
         <div class="cover-logo">OptionPlay</div>
         <div class="cover-date">{data.date} · {data.time} EST</div>
@@ -339,18 +360,18 @@ class PDFReportGenerator:
         <div class="footer-left">OptionPlay Scanner · VIX Regime: {data.vix_regime}</div>
         <div class="footer-right">Seite 1</div>
       </div>
-        '''
+        """
 
     def _render_score_grid(self, items: List[ScoreItem]) -> str:
         """Render score grid items."""
         html = ""
         for item in items:
-            html += f'''
+            html += f"""
           <div class="score-item">
             <div class="score-item-value {item.color}">{item.value}</div>
             <div class="score-item-label">{item.label}</div>
           </div>
-            '''
+            """
         return html
 
     def _render_volume_profile(self, vp: VolumeProfileData) -> str:
@@ -360,7 +381,7 @@ class PDFReportGenerator:
             row_class = "poc" if bar.is_poc else ("current-price" if bar.is_current else "")
             bar_class = "poc-bar" if bar.is_poc else ""
 
-            bars_html += f'''
+            bars_html += f"""
           <div class="volume-bar-row {row_class}">
             <span class="volume-bar-price">{self._format_price(bar.price)}</span>
             <div class="volume-bar-container">
@@ -371,9 +392,9 @@ class PDFReportGenerator:
             </div>
             <span class="volume-bar-pct">{bar.volume_pct:.1f}%</span>
           </div>
-            '''
+            """
 
-        return f'''
+        return f"""
       <div class="volume-profile">
         <div class="volume-profile-title">Volume Profile <span class="volume-profile-subtitle">12 Monate · Preis je {vp.price_step}</span></div>
         <div class="volume-profile-bars">
@@ -412,7 +433,7 @@ class PDFReportGenerator:
           </div>
         </div>
       </div>
-        '''
+        """
 
     def _render_scorecard_page1(self, card: ScorecardData, page_num: int) -> str:
         """Render first page of scorecard."""
@@ -427,7 +448,7 @@ class PDFReportGenerator:
         support_html = ""
         for lvl in card.support_levels[:3]:
             strength_pct = min(lvl.strength, 100)
-            support_html += f'''
+            support_html += f"""
           <div class="level-item">
             <div class="level-left">
               <span class="level-rank">{lvl.rank}</span>
@@ -441,13 +462,13 @@ class PDFReportGenerator:
               </div>
             </div>
           </div>
-            '''
+            """
 
         # Resistance levels
         resistance_html = ""
         for lvl in card.resistance_levels[:3]:
             strength_pct = min(lvl.strength, 100)
-            resistance_html += f'''
+            resistance_html += f"""
           <div class="level-item">
             <div class="level-left">
               <span class="level-rank">{lvl.rank}</span>
@@ -461,11 +482,11 @@ class PDFReportGenerator:
               </div>
             </div>
           </div>
-            '''
+            """
 
         earnings_display = f"{ts.earnings_days}d" if ts.earnings_days else "N/A"
 
-        return f'''
+        return f"""
     <div class="scorecard">
       <div class="stock-hero">
         <div class="stock-header-row">
@@ -574,32 +595,40 @@ class PDFReportGenerator:
         <span>Seite {page_num}</span>
       </div>
     </div>
-        '''
+        """
 
     def _render_scorecard_page2(self, card: ScorecardData, page_num: int) -> str:
         """Render second page of scorecard."""
         # Price levels visualization
         levels_html = ""
         for lvl in card.price_levels:
-            levels_html += f'''
+            levels_html += f"""
           <div class="price-level {lvl.level_type}">
             <span class="price-level-label">{lvl.label}</span>
             <span class="price-level-value">{self._format_price(lvl.price)}</span>
             <div class="price-level-bar" style="width: {max(10, 100 - abs(lvl.pct_from_current) * 5):.0f}%;"></div>
           </div>
-            '''
+            """
 
         # Fundamentals
         fd = card.fundamentals
         pe_display = f"{fd.pe_ratio:.1f}" if fd.pe_ratio else "N/A"
-        earnings_class = "green" if fd.earnings_in_days and fd.earnings_in_days >= ENTRY_EARNINGS_MIN_DAYS else "orange"
+        earnings_class = (
+            "green"
+            if fd.earnings_in_days and fd.earnings_in_days >= ENTRY_EARNINGS_MIN_DAYS
+            else "orange"
+        )
         earnings_display = f"{fd.earnings_in_days} Tage" if fd.earnings_in_days else "N/A"
 
         # News
         news_html = ""
         for item in card.news[:3]:
-            sentiment_icon = "+" if item.sentiment == "positive" else ("-" if item.sentiment == "negative" else "○")
-            news_html += f'''
+            sentiment_icon = (
+                "+"
+                if item.sentiment == "positive"
+                else ("-" if item.sentiment == "negative" else "○")
+            )
+            news_html += f"""
         <div class="news-item">
           <span class="news-sentiment {item.sentiment}">{sentiment_icon}</span>
           <div class="news-content">
@@ -607,9 +636,9 @@ class PDFReportGenerator:
             <div class="news-time">{item.time}</div>
           </div>
         </div>
-            '''
+            """
 
-        return f'''
+        return f"""
     <div class="scorecard">
       <div class="stock-hero" style="margin-bottom: var(--space-3);">
         <div class="stock-header-row">
@@ -670,7 +699,7 @@ class PDFReportGenerator:
         <span>Seite {page_num}</span>
       </div>
     </div>
-        '''
+        """
 
     def render_html(self, data: ReportData) -> str:
         """
@@ -686,44 +715,44 @@ class PDFReportGenerator:
         template = self._load_template()
 
         # Extract style section
-        style_start = template.find('<style>')
-        style_end = template.find('</style>') + len('</style>')
+        style_start = template.find("<style>")
+        style_end = template.find("</style>") + len("</style>")
         css = template[style_start:style_end]
 
         # Build pages
         pages = []
 
         # Cover page
-        cover_html = f'''
+        cover_html = f"""
   <div class="page">
     <div class="cover">
       {self._render_cover_page(data.cover, data.scan_results)}
     </div>
   </div>
-        '''
+        """
         pages.append(cover_html)
 
         # Scorecard pages
         page_num = 2
         for card in data.scorecards:
             # Page 1 of scorecard
-            pages.append(f'''
+            pages.append(f"""
   <div class="page">
     {self._render_scorecard_page1(card, page_num)}
   </div>
-            ''')
+            """)
             page_num += 1
 
             # Page 2 of scorecard
-            pages.append(f'''
+            pages.append(f"""
   <div class="page">
     {self._render_scorecard_page2(card, page_num)}
   </div>
-            ''')
+            """)
             page_num += 1
 
         # Assemble final HTML
-        html = f'''<!DOCTYPE html>
+        html = f"""<!DOCTYPE html>
 <html lang="de">
 <head>
   <meta charset="UTF-8">
@@ -735,7 +764,7 @@ class PDFReportGenerator:
 {"".join(pages)}
 </body>
 </html>
-'''
+"""
         return html
 
     def generate_pdf(self, data: ReportData, filename: Optional[str] = None) -> Path:
@@ -750,7 +779,7 @@ class PDFReportGenerator:
             Path to generated PDF
         """
         try:
-            from weasyprint import HTML, CSS
+            from weasyprint import CSS, HTML
         except ImportError:
             raise ImportError("WeasyPrint is required. Install with: pip install weasyprint")
 
@@ -764,7 +793,7 @@ class PDFReportGenerator:
 
         # Save HTML for debugging
         html_path = self.output_dir / f"{filename}.html"
-        with open(html_path, 'w', encoding='utf-8') as f:
+        with open(html_path, "w", encoding="utf-8") as f:
             f.write(html_content)
 
         # Generate PDF
@@ -812,23 +841,25 @@ def generate_scan_report_pdf(
         vix_level=vix_level,
         market_sentiment=market_sentiment,
         symbols_after_filter=len(scan_results),
-        symbols_with_signals=len([r for r in scan_results if r.get('analyzed', True)]),
+        symbols_with_signals=len([r for r in scan_results if r.get("analyzed", True)]),
     )
 
     # Convert scan results
     results = []
     for i, r in enumerate(scan_results, 1):
-        results.append(ScanResultRow(
-            rank=i,
-            symbol=r['symbol'],
-            price=r['price'],
-            change_pct=r.get('change_pct', 0),
-            score=r['score'],
-            max_score=r.get('max_score', 16),
-            strategy=r['strategy'],
-            roi=r.get('roi', 0),
-            analyzed=r.get('analyzed', True),
-        ))
+        results.append(
+            ScanResultRow(
+                rank=i,
+                symbol=r["symbol"],
+                price=r["price"],
+                change_pct=r.get("change_pct", 0),
+                score=r["score"],
+                max_score=r.get("max_score", 16),
+                strategy=r["strategy"],
+                roi=r.get("roi", 0),
+                analyzed=r.get("analyzed", True),
+            )
+        )
 
     # Convert scorecards (simplified - full conversion would need more data)
     scorecards = []

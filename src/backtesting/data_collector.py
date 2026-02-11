@@ -5,13 +5,13 @@
 import asyncio
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, date, timedelta
-from typing import List, Dict, Optional, Any, Callable
+from datetime import date, datetime, timedelta
 from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional
 
 from .tracking import (
-    TradeTracker,
     PriceBar,
+    TradeTracker,
     VixDataPoint,
 )
 
@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class CollectionConfig:
     """Konfiguration für Datensammlung"""
+
     # Symbole
     symbols: List[str] = field(default_factory=list)
     watchlist_path: Optional[str] = None  # Pfad zur watchlist.txt
@@ -40,6 +41,7 @@ class CollectionConfig:
 @dataclass
 class CollectionResult:
     """Ergebnis einer Datensammlung"""
+
     timestamp: datetime
     symbols_requested: int
     symbols_collected: int
@@ -119,11 +121,11 @@ class DataCollector:
             return []
 
         symbols = []
-        with open(path, 'r') as f:
+        with open(path, "r") as f:
             for line in f:
                 line = line.strip()
                 # Skip Kommentare und leere Zeilen
-                if line and not line.startswith('#'):
+                if line and not line.startswith("#"):
                     symbols.append(line.upper())
 
         logger.info(f"Loaded {len(symbols)} symbols from watchlist")
@@ -186,7 +188,7 @@ class DataCollector:
 
         # Symbole in Batches
         for batch_start in range(0, len(symbols), self.config.batch_size):
-            batch = symbols[batch_start:batch_start + self.config.batch_size]
+            batch = symbols[batch_start : batch_start + self.config.batch_size]
 
             for i, symbol in enumerate(batch):
                 global_index = batch_start + i
@@ -263,18 +265,22 @@ class DataCollector:
         price_bars = []
         for bar in bars:
             # Filter: nur ab from_date wenn inkrementell
-            bar_date = bar.date if isinstance(bar.date, date) else date.fromisoformat(str(bar.date)[:10])
+            bar_date = (
+                bar.date if isinstance(bar.date, date) else date.fromisoformat(str(bar.date)[:10])
+            )
             if from_date and bar_date <= from_date:
                 continue
 
-            price_bars.append(PriceBar(
-                date=bar_date,
-                open=bar.open,
-                high=bar.high,
-                low=bar.low,
-                close=bar.close,
-                volume=bar.volume,
-            ))
+            price_bars.append(
+                PriceBar(
+                    date=bar_date,
+                    open=bar.open,
+                    high=bar.high,
+                    low=bar.low,
+                    close=bar.close,
+                    volume=bar.volume,
+                )
+            )
 
         if not price_bars:
             return 0
@@ -318,11 +324,17 @@ class DataCollector:
             # Konvertiere zu VixDataPoint
             vix_points = []
             for bar in bars:
-                bar_date = bar.date if isinstance(bar.date, date) else date.fromisoformat(str(bar.date)[:10])
-                vix_points.append(VixDataPoint(
-                    date=bar_date,
-                    value=bar.close,
-                ))
+                bar_date = (
+                    bar.date
+                    if isinstance(bar.date, date)
+                    else date.fromisoformat(str(bar.date)[:10])
+                )
+                vix_points.append(
+                    VixDataPoint(
+                        date=bar_date,
+                        value=bar.close,
+                    )
+                )
 
             count = self.tracker.store_vix_data(vix_points)
             logger.info(f"Collected {count} VIX data points")
@@ -374,23 +386,25 @@ class DataCollector:
         cutoff = date.today() - timedelta(days=7)
 
         for s in symbols:
-            end_date = date.fromisoformat(s['end_date'])
+            end_date = date.fromisoformat(s["end_date"])
             if end_date < cutoff:
-                stale_symbols.append({
-                    'symbol': s['symbol'],
-                    'last_date': s['end_date'],
-                    'days_old': (date.today() - end_date).days,
-                })
+                stale_symbols.append(
+                    {
+                        "symbol": s["symbol"],
+                        "last_date": s["end_date"],
+                        "days_old": (date.today() - end_date).days,
+                    }
+                )
 
         return {
-            'total_symbols': len(symbols),
-            'symbols': symbols,
-            'stale_symbols': stale_symbols,
-            'vix_range': {
-                'start': vix_range[0].isoformat() if vix_range else None,
-                'end': vix_range[1].isoformat() if vix_range else None,
+            "total_symbols": len(symbols),
+            "symbols": symbols,
+            "stale_symbols": stale_symbols,
+            "vix_range": {
+                "start": vix_range[0].isoformat() if vix_range else None,
+                "end": vix_range[1].isoformat() if vix_range else None,
             },
-            'storage': stats,
+            "storage": stats,
         }
 
 
@@ -407,17 +421,17 @@ def format_collection_status(status: Dict[str, Any]) -> str:
         "",
     ]
 
-    if status['vix_range']['start']:
+    if status["vix_range"]["start"]:
         lines.append(f"VIX Data: {status['vix_range']['start']} to {status['vix_range']['end']}")
         lines.append(f"VIX Points: {status['storage']['vix_data_points']}")
     else:
         lines.append("VIX Data: None")
 
-    if status['stale_symbols']:
+    if status["stale_symbols"]:
         lines.extend(["", "STALE SYMBOLS (>7 days old):", "-" * 30])
-        for s in status['stale_symbols'][:10]:
+        for s in status["stale_symbols"][:10]:
             lines.append(f"  {s['symbol']}: last update {s['last_date']} ({s['days_old']} days)")
-        if len(status['stale_symbols']) > 10:
+        if len(status["stale_symbols"]) > 10:
             lines.append(f"  ... and {len(status['stale_symbols']) - 10} more")
 
     return "\n".join(lines)
@@ -441,9 +455,9 @@ async def run_daily_collection(
     """
     # Import hier um zirkuläre Imports zu vermeiden
     try:
-        from ..data_providers.marketdata import MarketDataProvider, MarketDataConfig
+        from ..data_providers.marketdata import MarketDataConfig, MarketDataProvider
     except ImportError:
-        from src.data_providers.marketdata import MarketDataProvider, MarketDataConfig
+        from src.data_providers.marketdata import MarketDataConfig, MarketDataProvider
 
     # Provider erstellen
     config = MarketDataConfig(api_key=api_key)

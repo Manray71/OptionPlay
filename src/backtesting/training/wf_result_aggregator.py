@@ -161,16 +161,10 @@ class WFResultAggregatorMixin:
             if epoch.validation_result:
                 for corr in epoch.validation_result.component_correlations:
                     if corr.predictive_power in ("strong", "moderate"):
-                        weights[corr.component_name].append(
-                            abs(corr.win_rate_correlation)
-                        )
+                        weights[corr.component_name].append(abs(corr.win_rate_correlation))
 
         # Durchschnitt pro Komponente
-        return {
-            comp: sum(vals) / len(vals)
-            for comp, vals in weights.items()
-            if vals
-        }
+        return {comp: sum(vals) / len(vals) for comp, vals in weights.items() if vals}
 
     def _aggregate_regime_adjustments(
         self,

@@ -10,10 +10,10 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, List, Optional
 
+from ..config import get_watchlist_loader
 from ..utils.error_handler import mcp_endpoint
 from ..utils.markdown_builder import MarkdownBuilder
 from ..utils.validation import validate_symbols
-from ..config import get_watchlist_loader
 from .base import BaseHandlerMixin
 
 if TYPE_CHECKING:
@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 # IBKR availability flag (set during import)
 try:
     from ..ibkr_bridge import IBKRBridge, get_ibkr_bridge
+
     IBKR_AVAILABLE = True
 except ImportError:
     IBKR_AVAILABLE = False
@@ -155,10 +156,7 @@ class IbkrHandlerMixin(BaseHandlerMixin):
 
     @mcp_endpoint(operation="IBKR watchlist quotes")
     async def get_ibkr_quotes(
-        self,
-        symbols: Optional[List[str]] = None,
-        batch_size: int = 50,
-        pause_seconds: int = 60
+        self, symbols: Optional[List[str]] = None, batch_size: int = 50, pause_seconds: int = 60
     ) -> str:
         """
         Get quotes for watchlist symbols from IBKR in batches.
@@ -183,4 +181,6 @@ class IbkrHandlerMixin(BaseHandlerMixin):
         else:
             symbols = validate_symbols(symbols, skip_invalid=True)
 
-        return await self._ibkr_bridge.get_quotes_batch_formatted(symbols, batch_size, pause_seconds)
+        return await self._ibkr_bridge.get_quotes_batch_formatted(
+            symbols, batch_size, pause_seconds
+        )

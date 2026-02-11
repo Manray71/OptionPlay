@@ -12,18 +12,18 @@ import logging
 from datetime import date, datetime
 from typing import TYPE_CHECKING, Any, Optional
 
-from ..constants.trading_rules import SPREAD_DTE_MIN, SPREAD_DTE_MAX
+from ..constants.trading_rules import SPREAD_DTE_MAX, SPREAD_DTE_MIN
 
 if TYPE_CHECKING:
+    from ..cache import EarningsFetcher, HistoricalCache
+    from ..config import ConfigLoader
     from ..data_providers.marketdata import MarketDataProvider
     from ..data_providers.tradier import TradierProvider
     from ..scanner.multi_strategy_scanner import MultiStrategyScanner, ScanConfig
-    from ..cache import EarningsFetcher, HistoricalCache
-    from ..utils.rate_limiter import AdaptiveRateLimiter
     from ..utils.circuit_breaker import CircuitBreaker
+    from ..utils.rate_limiter import AdaptiveRateLimiter
     from ..utils.request_dedup import RequestDeduplicator
     from ..vix_strategy import VIXStrategySelector
-    from ..config import ConfigLoader
 
 logger = logging.getLogger(__name__)
 
@@ -86,9 +86,7 @@ class BaseHandlerMixin:
         raise NotImplementedError
 
     async def _fetch_historical_cached(
-        self,
-        symbol: str,
-        days: Optional[int] = None
+        self, symbol: str, days: Optional[int] = None
     ) -> Optional[tuple[Any, ...]]:
         """Fetch historical data with caching."""
         raise NotImplementedError
@@ -98,9 +96,7 @@ class BaseHandlerMixin:
         raise NotImplementedError
 
     def _get_scanner(
-        self,
-        min_score: Optional[float] = None,
-        earnings_days: Optional[int] = None
+        self, min_score: Optional[float] = None, earnings_days: Optional[int] = None
     ) -> "MultiStrategyScanner":
         """Get scanner instance."""
         raise NotImplementedError
@@ -170,13 +166,9 @@ class BaseHandlerMixin:
                     right=right_upper,
                 )
                 if options:
-                    logger.debug(
-                        f"Options chain from Tradier: {len(options)} options for {symbol}"
-                    )
+                    logger.debug(f"Options chain from Tradier: {len(options)} options for {symbol}")
             except Exception as e:
-                logger.debug(
-                    f"Tradier options chain failed for {symbol}, trying IBKR: {e}"
-                )
+                logger.debug(f"Tradier options chain failed for {symbol}, trying IBKR: {e}")
 
         # 2. Fallback to IBKR/TWS
         if not options and hasattr(self, "_ibkr_bridge") and self._ibkr_bridge:

@@ -16,34 +16,35 @@
 #
 # Minimum for signal: 3.5
 
-from dataclasses import dataclass
-from typing import List, Optional, Dict, Any, Tuple
 import logging
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional, Tuple
+
 import numpy as np
 
-from .base import BaseAnalyzer
-from .context import AnalysisContext
-
-from ..models.base import TradeSignal, SignalType, SignalStrength
-from ..models.strategy_breakdowns import BounceScoreBreakdown
+# Import central constants
+from ..constants import (
+    BOUNCE_MIN_TOUCHES,
+    MACD_FAST,
+    MACD_SIGNAL,
+    MACD_SLOW,
+    RSI_PERIOD,
+    SMA_LONG,
+    SR_LOOKBACK_DAYS_EXTENDED,
+    VOLUME_AVG_PERIOD,
+)
 
 # Import shared indicators
 from ..indicators.momentum import calculate_macd
 from ..indicators.support_resistance import find_support_levels as find_support_optimized
 from ..indicators.support_resistance import get_nearest_sr_levels
+from ..models.base import SignalStrength, SignalType, TradeSignal
+from ..models.strategy_breakdowns import BounceScoreBreakdown
+from .base import BaseAnalyzer
+from .context import AnalysisContext
 
 # Import Feature Scoring Mixin
 from .feature_scoring_mixin import FeatureScoringMixin
-
-# Import central constants
-from ..constants import (
-    RSI_PERIOD,
-    MACD_FAST, MACD_SLOW, MACD_SIGNAL,
-    SMA_LONG,
-    VOLUME_AVG_PERIOD,
-    SR_LOOKBACK_DAYS_EXTENDED,
-    BOUNCE_MIN_TOUCHES,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -51,13 +52,13 @@ logger = logging.getLogger(__name__)
 # CONSTANTS for Bounce Strategy v2
 # =============================================================================
 
-BOUNCE_SUPPORT_LOOKBACK = 120       # 120 trading days for support detection
-BOUNCE_SUPPORT_TOLERANCE = 1.0      # ±1.0% tolerance for touch detection
-BOUNCE_PROXIMITY_MAX_ABOVE = 5.0    # Max +5% above support
-BOUNCE_PROXIMITY_MAX_BELOW = -0.5   # Max -0.5% below support (wick tolerance)
-BOUNCE_DCB_THRESHOLD = 0.7          # Volume < 0.7x avg = Dead Cat Bounce risk
-BOUNCE_MIN_SCORE = 3.5              # Minimum total score for signal
-BOUNCE_MAX_SCORE = 10.0             # Theoretical maximum
+BOUNCE_SUPPORT_LOOKBACK = 120  # 120 trading days for support detection
+BOUNCE_SUPPORT_TOLERANCE = 1.0  # ±1.0% tolerance for touch detection
+BOUNCE_PROXIMITY_MAX_ABOVE = 5.0  # Max +5% above support
+BOUNCE_PROXIMITY_MAX_BELOW = -0.5  # Max -0.5% below support (wick tolerance)
+BOUNCE_DCB_THRESHOLD = 0.7  # Volume < 0.7x avg = Dead Cat Bounce risk
+BOUNCE_MIN_SCORE = 3.5  # Minimum total score for signal
+BOUNCE_MAX_SCORE = 10.0  # Theoretical maximum
 
 # Support Quality Scoring
 BOUNCE_SUPPORT_TOUCHES_STRONG = 4
@@ -139,6 +140,7 @@ BOUNCE_RSI_MOMENTUM_FADE = 50
 @dataclass
 class BounceConfig:
     """Configuration for Bounce Analyzer v2"""
+
     # Support Detection
     support_lookback_days: int = BOUNCE_SUPPORT_LOOKBACK
     support_touches_min: int = BOUNCE_MIN_TOUCHES  # Minimum 2x tested
@@ -214,7 +216,7 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         highs: List[float],
         lows: List[float],
         context: Optional[AnalysisContext] = None,
-        **kwargs
+        **kwargs,
     ) -> TradeSignal:
         """
         Analyzes a symbol for support bounce.
@@ -253,20 +255,21 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         # =====================================================================
         support_info = self._find_valid_support(prices, lows, volumes, context)
 
-        if not support_info['valid']:
+        if not support_info["valid"]:
             return self._make_disqualified_signal(
-                symbol, current_price,
-                support_info.get('disqualify_reason', 'No valid support level'),
-                support_info
+                symbol,
+                current_price,
+                support_info.get("disqualify_reason", "No valid support level"),
+                support_info,
             )
 
-        support_level = support_info['support_level']
-        touches = support_info['touches']
-        sma_200_confluence = support_info.get('sma_200_confluence', False)
+        support_level = support_info["support_level"]
+        touches = support_info["touches"]
+        sma_200_confluence = support_info.get("sma_200_confluence", False)
 
         breakdown.support_level = support_level
         breakdown.support_touches = touches
-        breakdown.support_strength = support_info['strength']
+        breakdown.support_strength = support_info["strength"]
 
         # =====================================================================
         # STEP 2: Proximity check — price must be AT or ABOVE support
@@ -277,31 +280,32 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         if distance_pct < self.config.max_below_support_pct:
             # Support broken — price too far below
             return self._make_disqualified_signal(
-                symbol, current_price,
+                symbol,
+                current_price,
                 f"Support broken: price ${current_price:.2f} is {distance_pct:.1f}% below support ${support_level:.2f}",
-                support_info
+                support_info,
             )
 
         if distance_pct > self.config.max_above_support_pct:
             # Too far above support
             return self._make_disqualified_signal(
-                symbol, current_price,
+                symbol,
+                current_price,
                 f"Too far from support: price ${current_price:.2f} is {distance_pct:.1f}% above support ${support_level:.2f}",
-                support_info
+                support_info,
             )
 
         # =====================================================================
         # STEP 3: Bounce confirmation (PFLICHT — at least one signal)
         # =====================================================================
-        confirmations = self._check_bounce_confirmation(
-            prices, highs, lows, volumes, support_level
-        )
+        confirmations = self._check_bounce_confirmation(prices, highs, lows, volumes, support_level)
 
-        if not confirmations['confirmed']:
+        if not confirmations["confirmed"]:
             return self._make_disqualified_signal(
-                symbol, current_price,
+                symbol,
+                current_price,
                 f"Bounce not confirmed at support ${support_level:.2f} — no reversal signals",
-                support_info
+                support_info,
             )
 
         # =====================================================================
@@ -309,20 +313,22 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         # =====================================================================
         volume_info = self._check_volume(volumes)
 
-        if volume_info['dcb_risk'] == 'high':
+        if volume_info["dcb_risk"] == "high":
             return self._make_disqualified_signal(
-                symbol, current_price,
+                symbol,
+                current_price,
                 f"Dead Cat Bounce risk: volume {volume_info['ratio']:.2f}x avg (< {self.config.dcb_threshold}x)",
-                support_info
+                support_info,
             )
 
         # E.4: RSI overbought after bounce — unsustainable short squeeze
-        rsi_values = confirmations.get('rsi_values', [])
+        rsi_values = confirmations.get("rsi_values", [])
         if rsi_values and rsi_values[-1] > BOUNCE_DCB_RSI_OVERBOUGHT:
             return self._make_disqualified_signal(
-                symbol, current_price,
+                symbol,
+                current_price,
                 f"Dead Cat Bounce: RSI overbought ({rsi_values[-1]:.0f})",
-                support_info
+                support_info,
             )
 
         # E.4: No green candle in last 2 bars — no actual bounce
@@ -331,9 +337,10 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             prev_red = prices[-2] < prices[-3]
             if last_red and prev_red:
                 return self._make_disqualified_signal(
-                    symbol, current_price,
+                    symbol,
+                    current_price,
                     "Dead Cat Bounce: no green candles (2 consecutive red)",
-                    support_info
+                    support_info,
                 )
 
         # =====================================================================
@@ -343,29 +350,33 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         # 1. Support Quality (0 – 2.5)
         support_score = self._score_support_quality(touches, sma_200_confluence)
         breakdown.support_score = support_score
-        breakdown.support_reason = f"{touches}x tested" + (" + SMA 200 confluence" if sma_200_confluence else "")
+        breakdown.support_reason = f"{touches}x tested" + (
+            " + SMA 200 confluence" if sma_200_confluence else ""
+        )
 
         # 2. Proximity (0 – 2.0)
         proximity_score = self._score_proximity(distance_pct)
 
         # 3. Bounce Confirmation (0 – 2.5)
-        confirmation_score = confirmations['score']
+        confirmation_score = confirmations["score"]
 
         # 4. Volume (-1.0 – 1.5)
-        volume_score = self._score_volume(volume_info['ratio'])
+        volume_score = self._score_volume(volume_info["ratio"])
         breakdown.volume_score = volume_score
-        breakdown.volume_ratio = volume_info['ratio']
-        breakdown.volume_reason = volume_info.get('reason', '')
+        breakdown.volume_ratio = volume_info["ratio"]
+        breakdown.volume_reason = volume_info.get("reason", "")
 
         # 5. Trend Context (-1.0 – 1.5)
         trend_info = self._score_trend_context(prices)
-        trend_score = trend_info['score']
+        trend_score = trend_info["score"]
         breakdown.trend_score = trend_score
-        breakdown.trend_status = trend_info['status']
-        breakdown.trend_reason = trend_info['reason']
+        breakdown.trend_status = trend_info["status"]
+        breakdown.trend_reason = trend_info["reason"]
 
         # Total score
-        total_score = support_score + proximity_score + confirmation_score + volume_score + trend_score
+        total_score = (
+            support_score + proximity_score + confirmation_score + volume_score + trend_score
+        )
         total_score = max(0.0, min(BOUNCE_MAX_SCORE, total_score))
         breakdown.total_score = round(total_score, 1)
         breakdown.max_possible = BOUNCE_MAX_SCORE
@@ -374,8 +385,13 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         # BUILD SIGNAL
         # =====================================================================
         signal_text = self._build_signal_text(
-            support_level, touches, sma_200_confluence,
-            confirmations, volume_info, trend_info, distance_pct
+            support_level,
+            touches,
+            sma_200_confluence,
+            confirmations,
+            volume_info,
+            trend_info,
+            distance_pct,
         )
 
         # Signal strength
@@ -396,25 +412,27 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         # Extended S/R for context
         sr_levels = get_nearest_sr_levels(
             current_price=current_price,
-            prices=prices, highs=highs, lows=lows,
+            prices=prices,
+            highs=highs,
+            lows=lows,
             volumes=volumes,
             lookback=SR_LOOKBACK_DAYS_EXTENDED,
-            num_levels=3
+            num_levels=3,
         )
 
         # Warnings
         if trend_score < 0:
             warnings.append("Downtrend context — higher risk")
-        if volume_info['ratio'] < 1.0:
+        if volume_info["ratio"] < 1.0:
             warnings.append(f"Below-average volume ({volume_info['ratio']:.1f}x)")
 
         # Store component scores in breakdown for compatibility
         breakdown.rsi_score = 0
-        breakdown.rsi_value = confirmations.get('rsi_value', 50.0)
+        breakdown.rsi_value = confirmations.get("rsi_value", 50.0)
         breakdown.rsi_reason = f"RSI={breakdown.rsi_value:.1f}"
         breakdown.candlestick_score = 0
-        breakdown.candlestick_pattern = confirmations.get('candle_pattern')
-        breakdown.candlestick_bullish = confirmations.get('candle_pattern') is not None
+        breakdown.candlestick_pattern = confirmations.get("candle_pattern")
+        breakdown.candlestick_bullish = confirmations.get("candle_pattern") is not None
         breakdown.candlestick_reason = f"Pattern: {breakdown.candlestick_pattern or 'None'}"
 
         return TradeSignal(
@@ -429,30 +447,30 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             target_price=target_price,
             reason=signal_text,
             details={
-                'score_breakdown': breakdown.to_dict(),
-                'raw_score': total_score,
-                'max_possible': BOUNCE_MAX_SCORE,
-                'support_levels': [support_level],
-                'support_info': support_info,
-                'trend_info': trend_info,
-                'rsi': confirmations.get('rsi_value', 50.0),
-                'candle_info': {
-                    'pattern': confirmations.get('candle_pattern'),
-                    'bullish': confirmations.get('candle_pattern') is not None
+                "score_breakdown": breakdown.to_dict(),
+                "raw_score": total_score,
+                "max_possible": BOUNCE_MAX_SCORE,
+                "support_levels": [support_level],
+                "support_info": support_info,
+                "trend_info": trend_info,
+                "rsi": confirmations.get("rsi_value", 50.0),
+                "candle_info": {
+                    "pattern": confirmations.get("candle_pattern"),
+                    "bullish": confirmations.get("candle_pattern") is not None,
                 },
-                'sr_levels': sr_levels,
-                'confirmations': confirmations['signals'],
-                'volume_ratio': volume_info['ratio'],
-                'distance_pct': distance_pct,
-                'components': {
-                    'support_quality': support_score,
-                    'proximity': proximity_score,
-                    'bounce_confirmation': confirmation_score,
-                    'volume': volume_score,
-                    'trend_context': trend_score,
+                "sr_levels": sr_levels,
+                "confirmations": confirmations["signals"],
+                "volume_ratio": volume_info["ratio"],
+                "distance_pct": distance_pct,
+                "components": {
+                    "support_quality": support_score,
+                    "proximity": proximity_score,
+                    "bounce_confirmation": confirmation_score,
+                    "volume": volume_score,
+                    "trend_context": trend_score,
                 },
             },
-            warnings=warnings
+            warnings=warnings,
         )
 
     # =========================================================================
@@ -494,17 +512,17 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
                 window=5,
                 max_levels=10,
                 volumes=volumes if volumes else None,
-                tolerance_pct=self.config.support_tolerance_pct
+                tolerance_pct=self.config.support_tolerance_pct,
             )
 
         if not raw_levels:
             return {
-                'valid': False,
-                'support_level': None,
-                'touches': 0,
-                'strength': 'none',
-                'sma_200_confluence': False,
-                'disqualify_reason': 'No support levels found',
+                "valid": False,
+                "support_level": None,
+                "touches": 0,
+                "strength": "none",
+                "sma_200_confluence": False,
+                "disqualify_reason": "No support levels found",
             }
 
         # Find nearest support BELOW or AT current price (with tolerance)
@@ -520,27 +538,29 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         if not candidates:
             nearest = min(raw_levels, key=lambda s: abs(current_price - s))
             return {
-                'valid': False,
-                'support_level': nearest,
-                'touches': 0,
-                'strength': 'none',
-                'sma_200_confluence': False,
-                'disqualify_reason': f'No support below current price ${current_price:.2f}',
+                "valid": False,
+                "support_level": nearest,
+                "touches": 0,
+                "strength": "none",
+                "sma_200_confluence": False,
+                "disqualify_reason": f"No support below current price ${current_price:.2f}",
             }
 
         # Pick the nearest valid support (closest to current price)
         # Filter for min touches first
-        valid_candidates = [(l, t, d) for l, t, d in candidates if t >= self.config.support_touches_min]
+        valid_candidates = [
+            (l, t, d) for l, t, d in candidates if t >= self.config.support_touches_min
+        ]
 
         if not valid_candidates:
             best = min(candidates, key=lambda x: x[2])
             return {
-                'valid': False,
-                'support_level': best[0],
-                'touches': best[1],
-                'strength': 'weak',
-                'sma_200_confluence': False,
-                'disqualify_reason': f'Support at ${best[0]:.2f} has only {best[1]} touch(es), need >= {self.config.support_touches_min}',
+                "valid": False,
+                "support_level": best[0],
+                "touches": best[1],
+                "strength": "weak",
+                "sma_200_confluence": False,
+                "disqualify_reason": f"Support at ${best[0]:.2f} has only {best[1]} touch(es), need >= {self.config.support_touches_min}",
             }
 
         # Pick closest valid support
@@ -549,24 +569,28 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
 
         # Strength classification
         if touches >= BOUNCE_SUPPORT_TOUCHES_STRONG:
-            strength = 'strong'
+            strength = "strong"
         elif touches >= BOUNCE_SUPPORT_TOUCHES_MODERATE:
-            strength = 'moderate'
+            strength = "moderate"
         else:
-            strength = 'established'
+            strength = "established"
 
         # SMA 200 confluence check
-        sma_200 = sum(prices[-SMA_LONG:]) / SMA_LONG if len(prices) >= SMA_LONG else sum(prices) / len(prices)
+        sma_200 = (
+            sum(prices[-SMA_LONG:]) / SMA_LONG
+            if len(prices) >= SMA_LONG
+            else sum(prices) / len(prices)
+        )
         sma_200_confluence = abs(level - sma_200) / sma_200 <= BOUNCE_SMA200_CONFLUENCE_PCT
 
         return {
-            'valid': True,
-            'support_level': level,
-            'touches': touches,
-            'strength': strength,
-            'sma_200_confluence': sma_200_confluence,
-            'sma_200': sma_200,
-            'distance_pct': dist_pct,
+            "valid": True,
+            "support_level": level,
+            "touches": touches,
+            "strength": strength,
+            "sma_200_confluence": sma_200_confluence,
+            "sma_200": sma_200,
+            "distance_pct": dist_pct,
         }
 
     def _count_support_touches(
@@ -629,7 +653,13 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         rsi_value = 50.0
 
         if len(prices) < 3:
-            return {'confirmed': False, 'signals': [], 'score': 0, 'candle_pattern': None, 'rsi_value': 50.0}
+            return {
+                "confirmed": False,
+                "signals": [],
+                "score": 0,
+                "candle_pattern": None,
+                "rsi_value": 50.0,
+            }
 
         # --- 1. Reversal Candlestick ---
         candle = self._detect_reversal_candle(prices, highs, lows, support_level)
@@ -662,11 +692,10 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
 
         # --- 5. MACD histogram turning positive ---
         macd_result = calculate_macd(
-            prices,
-            fast_period=MACD_FAST, slow_period=MACD_SLOW, signal_period=MACD_SIGNAL
+            prices, fast_period=MACD_FAST, slow_period=MACD_SLOW, signal_period=MACD_SIGNAL
         )
         if macd_result:
-            if macd_result.crossover == 'bullish':
+            if macd_result.crossover == "bullish":
                 signals.append("MACD bullish cross")
                 score += BOUNCE_CONFIRM_SCORE_MACD_CROSS
             elif macd_result.histogram > 0:
@@ -684,8 +713,7 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         if macd_result and macd_result.histogram < 0:
             # Calculate previous histogram from prices[:-1]
             prev_macd = calculate_macd(
-                prices[:-1],
-                fast_period=MACD_FAST, slow_period=MACD_SLOW, signal_period=MACD_SIGNAL
+                prices[:-1], fast_period=MACD_FAST, slow_period=MACD_SLOW, signal_period=MACD_SIGNAL
             )
             if prev_macd is not None and macd_result.histogram < prev_macd.histogram:
                 signals.append("MACD momentum declining")
@@ -696,12 +724,12 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         score = min(BOUNCE_CONFIRM_MAX, score)
 
         return {
-            'confirmed': len(signals) > 0,
-            'signals': signals,
-            'score': score,
-            'candle_pattern': candle_pattern,
-            'rsi_value': rsi_value,
-            'rsi_values': rsi_values,
+            "confirmed": len(signals) > 0,
+            "signals": signals,
+            "score": score,
+            "candle_pattern": candle_pattern,
+            "rsi_value": rsi_value,
+            "rsi_values": rsi_values,
         }
 
     def _detect_reversal_candle(
@@ -728,7 +756,11 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         total_range = high - low
 
         # Hammer: small body at top, long lower wick (>= 2x body)
-        if body_size > 0 and lower_wick >= body_size * BOUNCE_HAMMER_WICK_BODY_RATIO and upper_wick < body_size * BOUNCE_HAMMER_UPPER_WICK_PCT:
+        if (
+            body_size > 0
+            and lower_wick >= body_size * BOUNCE_HAMMER_WICK_BODY_RATIO
+            and upper_wick < body_size * BOUNCE_HAMMER_UPPER_WICK_PCT
+        ):
             return "Hammer"
 
         # Bullish Engulfing: red day followed by larger green day
@@ -740,7 +772,10 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         # Doji at support: very small body relative to range
         if total_range > 0 and body_size / total_range < BOUNCE_DOJI_BODY_RANGE_PCT:
             # Only count if low is near support
-            if support_level > 0 and abs(low - support_level) / support_level <= BOUNCE_DOJI_SUPPORT_PCT:
+            if (
+                support_level > 0
+                and abs(low - support_level) / support_level <= BOUNCE_DOJI_SUPPORT_PCT
+            ):
                 return "Doji"
 
         return None
@@ -761,9 +796,9 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         avg_period = self.config.volume_avg_period
 
         if len(volumes) < avg_period + 1:
-            return {'ratio': 1.0, 'dcb_risk': 'low', 'reason': 'Insufficient volume data'}
+            return {"ratio": 1.0, "dcb_risk": "low", "reason": "Insufficient volume data"}
 
-        avg_volume = sum(volumes[-avg_period - 1:-1]) / avg_period
+        avg_volume = sum(volumes[-avg_period - 1 : -1]) / avg_period
         bounce_volume = volumes[-1]
 
         # Weekend/holiday fallback: use last non-zero volume
@@ -776,11 +811,23 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         ratio = bounce_volume / avg_volume if avg_volume > 0 else 0
 
         if ratio < self.config.dcb_threshold:
-            return {'ratio': ratio, 'dcb_risk': 'high', 'reason': f'Dead Cat Bounce risk: vol {ratio:.2f}x avg'}
+            return {
+                "ratio": ratio,
+                "dcb_risk": "high",
+                "reason": f"Dead Cat Bounce risk: vol {ratio:.2f}x avg",
+            }
         elif ratio < 1.0:
-            return {'ratio': ratio, 'dcb_risk': 'medium', 'reason': f'Below-average volume: {ratio:.2f}x'}
+            return {
+                "ratio": ratio,
+                "dcb_risk": "medium",
+                "reason": f"Below-average volume: {ratio:.2f}x",
+            }
         else:
-            return {'ratio': ratio, 'dcb_risk': 'low', 'reason': f'Volume confirms: {ratio:.2f}x avg'}
+            return {
+                "ratio": ratio,
+                "dcb_risk": "low",
+                "reason": f"Volume confirms: {ratio:.2f}x avg",
+            }
 
     # =========================================================================
     # SCORING COMPONENTS
@@ -864,29 +911,59 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
           - Moderate decline (-1% to -0.5%):  -1.5
           - Mild decline (> -0.5%):           -1.0
         """
-        sma_200 = sum(prices[-SMA_LONG:]) / SMA_LONG if len(prices) >= SMA_LONG else sum(prices) / len(prices)
+        sma_200 = (
+            sum(prices[-SMA_LONG:]) / SMA_LONG
+            if len(prices) >= SMA_LONG
+            else sum(prices) / len(prices)
+        )
         current = prices[-1]
 
         # SMA 200 direction (compare current SMA vs BOUNCE_SMA200_DIRECTION_LOOKBACK days ago)
         if len(prices) >= SMA_LONG + BOUNCE_SMA200_DIRECTION_LOOKBACK:
-            sma_200_prev = sum(prices[-(SMA_LONG + BOUNCE_SMA200_DIRECTION_LOOKBACK):-BOUNCE_SMA200_DIRECTION_LOOKBACK]) / SMA_LONG
-            sma_direction = 'rising' if sma_200 > sma_200_prev * BOUNCE_SMA200_RISING_MULT else (
-                'falling' if sma_200 < sma_200_prev * BOUNCE_SMA200_FALLING_MULT else 'flat'
+            sma_200_prev = (
+                sum(
+                    prices[
+                        -(
+                            SMA_LONG + BOUNCE_SMA200_DIRECTION_LOOKBACK
+                        ) : -BOUNCE_SMA200_DIRECTION_LOOKBACK
+                    ]
+                )
+                / SMA_LONG
+            )
+            sma_direction = (
+                "rising"
+                if sma_200 > sma_200_prev * BOUNCE_SMA200_RISING_MULT
+                else ("falling" if sma_200 < sma_200_prev * BOUNCE_SMA200_FALLING_MULT else "flat")
             )
         else:
-            sma_direction = 'flat'
+            sma_direction = "flat"
 
         distance_to_sma = (current - sma_200) / sma_200 * 100
 
         if current > sma_200:
-            if sma_direction == 'rising':
-                return {'score': BOUNCE_TREND_SCORE_UPTREND, 'status': 'uptrend', 'reason': 'Uptrend: above rising SMA 200', 'sma_200': sma_200}
+            if sma_direction == "rising":
+                return {
+                    "score": BOUNCE_TREND_SCORE_UPTREND,
+                    "status": "uptrend",
+                    "reason": "Uptrend: above rising SMA 200",
+                    "sma_200": sma_200,
+                }
             else:
-                return {'score': BOUNCE_TREND_SCORE_ABOVE_SMA200, 'status': 'above_sma200', 'reason': f'Above SMA 200 (SMA {sma_direction})', 'sma_200': sma_200}
+                return {
+                    "score": BOUNCE_TREND_SCORE_ABOVE_SMA200,
+                    "status": "above_sma200",
+                    "reason": f"Above SMA 200 (SMA {sma_direction})",
+                    "sma_200": sma_200,
+                }
         elif abs(distance_to_sma) <= BOUNCE_SMA200_NEAR_PCT:
-            return {'score': BOUNCE_TREND_SCORE_NEAR_SMA200, 'status': 'near_sma200', 'reason': f'Near SMA 200 ({distance_to_sma:+.1f}%)', 'sma_200': sma_200}
+            return {
+                "score": BOUNCE_TREND_SCORE_NEAR_SMA200,
+                "status": "near_sma200",
+                "reason": f"Near SMA 200 ({distance_to_sma:+.1f}%)",
+                "sma_200": sma_200,
+            }
         else:
-            if sma_direction == 'falling':
+            if sma_direction == "falling":
                 # E.2: Gradient penalty based on SMA200 slope steepness
                 if len(prices) >= SMA_LONG + BOUNCE_SMA200_DIRECTION_LOOKBACK:
                     sma_slope_pct = (sma_200 - sma_200_prev) / sma_200_prev * 100
@@ -894,13 +971,33 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
                     sma_slope_pct = 0.0
 
                 if sma_slope_pct < BOUNCE_TREND_SLOPE_STEEP:
-                    return {'score': BOUNCE_TREND_SCORE_STEEP_DOWN, 'status': 'downtrend', 'reason': f'Strong downtrend: SMA200 slope {sma_slope_pct:.1f}%', 'sma_200': sma_200}
+                    return {
+                        "score": BOUNCE_TREND_SCORE_STEEP_DOWN,
+                        "status": "downtrend",
+                        "reason": f"Strong downtrend: SMA200 slope {sma_slope_pct:.1f}%",
+                        "sma_200": sma_200,
+                    }
                 elif sma_slope_pct < BOUNCE_TREND_SLOPE_MODERATE:
-                    return {'score': BOUNCE_TREND_SCORE_MOD_DOWN, 'status': 'downtrend', 'reason': f'Downtrend: SMA200 slope {sma_slope_pct:.1f}%', 'sma_200': sma_200}
+                    return {
+                        "score": BOUNCE_TREND_SCORE_MOD_DOWN,
+                        "status": "downtrend",
+                        "reason": f"Downtrend: SMA200 slope {sma_slope_pct:.1f}%",
+                        "sma_200": sma_200,
+                    }
                 else:
-                    return {'score': BOUNCE_TREND_SCORE_MILD_DOWN, 'status': 'downtrend', 'reason': f'Mild downtrend: SMA200 slope {sma_slope_pct:.1f}%', 'sma_200': sma_200}
+                    return {
+                        "score": BOUNCE_TREND_SCORE_MILD_DOWN,
+                        "status": "downtrend",
+                        "reason": f"Mild downtrend: SMA200 slope {sma_slope_pct:.1f}%",
+                        "sma_200": sma_200,
+                    }
             else:
-                return {'score': BOUNCE_TREND_SCORE_BELOW_SMA200, 'status': 'below_sma200', 'reason': f'Below SMA 200 ({distance_to_sma:+.1f}%)', 'sma_200': sma_200}
+                return {
+                    "score": BOUNCE_TREND_SCORE_BELOW_SMA200,
+                    "status": "below_sma200",
+                    "reason": f"Below SMA 200 ({distance_to_sma:+.1f}%)",
+                    "sma_200": sma_200,
+                }
 
     # =========================================================================
     # RSI CALCULATION (internal)
@@ -964,18 +1061,18 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         parts.append(f"Bounce {proximity} support {support_desc}")
 
         # Confirmation signals
-        if confirmations['signals']:
-            parts.append(" + ".join(confirmations['signals']))
+        if confirmations["signals"]:
+            parts.append(" + ".join(confirmations["signals"]))
 
         # Volume
-        ratio = volume_info['ratio']
+        ratio = volume_info["ratio"]
         if ratio >= 1.5:
             parts.append(f"Vol {ratio:.1f}x avg")
 
         # Trend
-        if trend_info['status'] == 'uptrend':
+        if trend_info["status"] == "uptrend":
             parts.append("Uptrend intact")
-        elif trend_info['status'] == 'downtrend':
+        elif trend_info["status"] == "downtrend":
             parts.append("Downtrend caution")
 
         return " | ".join(parts)

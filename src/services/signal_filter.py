@@ -15,13 +15,14 @@ from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
-# Relative imports
-from ..models.base import TradeSignal
 from ..cache.symbol_fundamentals import SymbolFundamentals
 from ..constants.trading_rules import (
-    is_blacklisted,
     get_adjusted_stability_min,
+    is_blacklisted,
 )
+
+# Relative imports
+from ..models.base import TradeSignal
 
 
 def check_symbol_stability(
@@ -107,8 +108,8 @@ def apply_stability_filter(
 
     for signal in signals:
         stability = 0.0
-        if signal.details and 'stability' in signal.details:
-            stability = signal.details['stability'].get('score', 0.0)
+        if signal.details and "stability" in signal.details:
+            stability = signal.details["stability"].get("score", 0.0)
 
         if stability > 0.0:
             stability_from_signal[signal.symbol] = stability
@@ -179,8 +180,6 @@ def apply_sector_diversification(
             diversified.append(signal)
             sector_counts[sector] = current_count + 1
         else:
-            logger.debug(
-                f"Sector limit reached for {sector}: skipping {signal.symbol}"
-            )
+            logger.debug(f"Sector limit reached for {sector}: skipping {signal.symbol}")
 
     return diversified

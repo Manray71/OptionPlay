@@ -27,8 +27,8 @@ import logging
 import math
 from dataclasses import dataclass, field
 from datetime import date, timedelta
-from typing import List, Dict, Optional, Tuple
 from enum import Enum
+from typing import Dict, List, Optional, Tuple
 
 from ...constants.trading_rules import EXIT_PROFIT_PCT_NORMAL
 
@@ -36,17 +36,23 @@ from ...constants.trading_rules import EXIT_PROFIT_PCT_NORMAL
 try:
     from ..options.black_scholes import (
         BlackScholes,
-        BullPutSpread as BSBullPutSpread,
+    )
+    from ..options.black_scholes import BullPutSpread as BSBullPutSpread
+    from ..options.black_scholes import (
         OptionType,
     )
+
     _BLACK_SCHOLES_AVAILABLE = True
 except ImportError:
     try:
         from src.options.black_scholes import (
             BlackScholes,
-            BullPutSpread as BSBullPutSpread,
+        )
+        from src.options.black_scholes import BullPutSpread as BSBullPutSpread
+        from src.options.black_scholes import (
             OptionType,
         )
+
         _BLACK_SCHOLES_AVAILABLE = True
     except ImportError:
         _BLACK_SCHOLES_AVAILABLE = False
@@ -57,6 +63,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class SimulatedTrade:
     """Ergebnis einer Trade-Simulation"""
+
     # Entry
     symbol: str
     entry_date: date
@@ -138,6 +145,7 @@ class PriceSimulator:
 
         # Tägliche Standardabweichung
         import statistics
+
         try:
             std = statistics.stdev(returns)
         except statistics.StatisticsError:
@@ -152,7 +160,7 @@ class PriceSimulator:
         days: int,
         volatility: float = 0.25,
         drift: float = 0.0,
-        seed: Optional[int] = None
+        seed: Optional[int] = None,
     ) -> List[float]:
         """
         Generiert einen Preispfad mit Geometric Brownian Motion.
@@ -168,6 +176,7 @@ class PriceSimulator:
             Liste von Preisen
         """
         import random
+
         if seed is not None:
             random.seed(seed)
 
@@ -176,7 +185,7 @@ class PriceSimulator:
 
         for _ in range(days):
             z = random.gauss(0, 1)
-            daily_return = (drift - 0.5 * volatility ** 2) * dt + volatility * math.sqrt(dt) * z
+            daily_return = (drift - 0.5 * volatility**2) * dt + volatility * math.sqrt(dt) * z
             new_price = prices[-1] * math.exp(daily_return)
             prices.append(new_price)
 
@@ -197,11 +206,9 @@ class TradeSimulator:
         # Exit-Kriterien
         "profit_target_pct": EXIT_PROFIT_PCT_NORMAL,  # Exit bei 50% des Max Profits (PLAYBOOK)
         "stop_loss_pct": 100.0,  # Backtesting-Override: 1x Credit (PLAYBOOK: 200%)
-
         # Pricing
         "theta_decay_factor": 0.7,  # Theta beschleunigt sich
         "delta_sensitivity": 0.15,  # Delta des Short Puts
-
         # Kosten
         "slippage_pct": 1.0,
         "commission_per_contract": 1.30,
@@ -281,9 +288,13 @@ class TradeSimulator:
 
             # Berechne Spread-Wert (mit Black-Scholes wenn verfügbar)
             spread_value = self._calculate_spread_value(
-                price, short_strike, long_strike,
-                effective_credit, remaining_dte, dte,
-                volatility=volatility
+                price,
+                short_strike,
+                long_strike,
+                effective_credit,
+                remaining_dte,
+                dte,
+                volatility=volatility,
             )
 
             # Unrealized P&L
@@ -293,18 +304,25 @@ class TradeSimulator:
             max_unrealized_loss = min(max_unrealized_loss, unrealized_pnl)
 
             # Log daily values
-            trade.daily_values.append({
-                "day": day,
-                "price": price,
-                "spread_value": spread_value,
-                "unrealized_pnl": unrealized_pnl,
-                "dte": remaining_dte,
-            })
+            trade.daily_values.append(
+                {
+                    "day": day,
+                    "price": price,
+                    "spread_value": spread_value,
+                    "unrealized_pnl": unrealized_pnl,
+                    "dte": remaining_dte,
+                }
+            )
 
             # Check Exit Conditions
             exit_signal = self._check_exit(
-                price, short_strike, long_strike,
-                effective_credit, spread_value, unrealized_pnl, max_profit
+                price,
+                short_strike,
+                long_strike,
+                effective_credit,
+                spread_value,
+                unrealized_pnl,
+                max_profit,
             )
 
             if exit_signal:
@@ -348,7 +366,7 @@ class TradeSimulator:
         initial_credit: float,
         remaining_dte: int,
         initial_dte: int,
-        volatility: float = 0.25
+        volatility: float = 0.25,
     ) -> float:
         """
         Berechnet den aktuellen Wert des Spreads.
@@ -427,7 +445,7 @@ class TradeSimulator:
         credit: float,
         spread_value: float,
         unrealized_pnl: float,
-        max_profit: float
+        max_profit: float,
     ) -> Optional[str]:
         """
         Prüft Exit-Bedingungen.
@@ -497,7 +515,7 @@ class TradeSimulator:
                 days=dte,
                 volatility=volatility,
                 drift=drift,
-                seed=i  # Reproduzierbar
+                seed=i,  # Reproduzierbar
             )
 
             trade = self.simulate_trade(

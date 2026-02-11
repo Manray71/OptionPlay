@@ -5,29 +5,25 @@ Output formatters for MCP server responses.
 
 Usage:
     from src.formatters import formatters
-    
+
     output = formatters.scan_result.format(result, recommendation, vix)
 """
 
-from .output_formatters import (
-    # Main registry
-    formatters,
-    FormatterRegistry,
-    
-    # Individual formatters
+from .output_formatters import (  # Main registry; Individual formatters
     BaseFormatter,
-    ScanResultFormatter,
-    LegacyScanResultFormatter,
-    QuoteFormatter,
-    OptionsChainFormatter,
     EarningsFormatter,
-    StrategyRecommendationFormatter,
-    HealthCheckFormatter,
+    FormatterRegistry,
     HealthCheckData,
+    HealthCheckFormatter,
     HistoricalDataFormatter,
+    LegacyScanResultFormatter,
+    OptionsChainFormatter,
+    QuoteFormatter,
+    ScanResultFormatter,
+    StrategyRecommendationFormatter,
     SymbolAnalysisFormatter,
+    formatters,
 )
-
 from .portfolio_formatter import (
     PortfolioFormatter,
     portfolio_formatter,

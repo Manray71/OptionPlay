@@ -143,14 +143,13 @@ def cross_validate(
 
         correct = 0
         for f in test_features:
-            weighted_score = sum(
-                f.components.get(comp, 0) * w
-                for comp, w in weights.items()
+            weighted_score = sum(f.components.get(comp, 0) * w for comp, w in weights.items())
+            predicted_win = weighted_score > np.median(
+                [
+                    sum(tf.components.get(c, 0) * w for c, w in weights.items())
+                    for tf in sorted_features[:test_start]
+                ]
             )
-            predicted_win = weighted_score > np.median([
-                sum(tf.components.get(c, 0) * w for c, w in weights.items())
-                for tf in sorted_features[:test_start]
-            ])
             if predicted_win == f.is_winner:
                 correct += 1
 
@@ -176,8 +175,7 @@ def calculate_baseline_score(features: List[TradeFeatures]) -> float:
     median_score = float(np.median(all_scores))
 
     correct = sum(
-        1 for f, score in zip(features, all_scores)
-        if (score > median_score) == f.is_winner
+        1 for f, score in zip(features, all_scores) if (score > median_score) == f.is_winner
     )
 
     return correct / len(features)

@@ -8,35 +8,36 @@ Enthält Metadaten wie Icons, Display-Namen und Eigenschaften.
 
 Verwendung:
     from src.models.strategy import Strategy
-    
+
     if signal.strategy == Strategy.PULLBACK:
         print(f"{Strategy.PULLBACK.icon} {Strategy.PULLBACK.display_name}")
-    
+
     # Für Credit-Spread-geeignete Strategien
     for strat in Strategy.credit_spread_strategies():
         print(strat.name)
 """
 
 from enum import Enum
-from typing import List, Dict, Any
+from typing import Any, Dict, List
 
 
 class Strategy(Enum):
     """
     Trading-Strategien mit Metadaten.
-    
+
     Attributes:
         PULLBACK: Pullback im Aufwärtstrend - ideal für Bull-Put-Spreads
         BOUNCE: Support Bounce - Long-Entry bei Unterstützung
         ATH_BREAKOUT: All-Time-High Breakout - Momentum-Trade
         EARNINGS_DIP: Earnings Dip Buy - Contrarian nach Earnings-Drop
     """
+
     PULLBACK = "pullback"
     BOUNCE = "bounce"
     ATH_BREAKOUT = "ath_breakout"
     EARNINGS_DIP = "earnings_dip"
     TREND_CONTINUATION = "trend_continuation"
-    
+
     @property
     def icon(self) -> str:
         """Emoji-Icon für die Strategie."""
@@ -48,7 +49,7 @@ class Strategy(Enum):
             Strategy.TREND_CONTINUATION: "📈",
         }
         return icons.get(self, "•")
-    
+
     @property
     def display_name(self) -> str:
         """Benutzerfreundlicher Anzeigename."""
@@ -60,7 +61,7 @@ class Strategy(Enum):
             Strategy.TREND_CONTINUATION: "Trend Continuation",
         }
         return names.get(self, self.value)
-    
+
     @property
     def description(self) -> str:
         """Kurze Beschreibung der Strategie."""
@@ -72,29 +73,29 @@ class Strategy(Enum):
             Strategy.TREND_CONTINUATION: "Stabiler Aufwärtstrend mit SMA-Alignment - sicherer BPS-Kandidat",
         }
         return descriptions.get(self, "")
-    
+
     @property
     def suitable_for_credit_spreads(self) -> bool:
         """
         Ist die Strategie für Credit Spreads (Bull-Put-Spreads) geeignet?
-        
+
         Credit Spreads benötigen:
         - Ausreichend IV für Prämie
         - Keine nahen Earnings (außer Earnings-Dip)
         - Bullische oder neutrale Bias
         """
         return self in (Strategy.PULLBACK, Strategy.BOUNCE, Strategy.TREND_CONTINUATION)
-    
+
     @property
     def requires_earnings_filter(self) -> bool:
         """
         Soll die Strategie Earnings-Filter anwenden?
-        
+
         Earnings-Dip braucht gerade kürzliche Earnings,
         andere Strategien meiden Earnings.
         """
         return self != Strategy.EARNINGS_DIP
-    
+
     @property
     def min_historical_days(self) -> int:
         """Minimum historische Tage für die Analyse."""
@@ -106,7 +107,7 @@ class Strategy(Enum):
             Strategy.TREND_CONTINUATION: 250,  # SMA 200 + Steigung
         }
         return days.get(self, 90)
-    
+
     @property
     def default_min_score(self) -> float:
         """Default Mindest-Score für die Strategie."""
@@ -118,23 +119,23 @@ class Strategy(Enum):
             Strategy.TREND_CONTINUATION: 5.0,
         }
         return scores.get(self, 5.0)
-    
+
     @classmethod
     def credit_spread_strategies(cls) -> List["Strategy"]:
         """Gibt Strategien zurück, die für Credit Spreads geeignet sind."""
         return [s for s in cls if s.suitable_for_credit_spreads]
-    
+
     @classmethod
     def from_string(cls, value: str) -> "Strategy":
         """
         Konvertiert String zu Strategy Enum.
-        
+
         Args:
             value: Strategy-Name (case-insensitive)
-            
+
         Returns:
             Strategy Enum
-            
+
         Raises:
             ValueError: Wenn Strategy nicht existiert
         """
@@ -142,15 +143,15 @@ class Strategy(Enum):
         for strategy in cls:
             if strategy.value == value_lower:
                 return strategy
-        
+
         valid = ", ".join(s.value for s in cls)
         raise ValueError(f"Unknown strategy: '{value}'. Valid: {valid}")
-    
+
     @classmethod
     def all_values(cls) -> List[str]:
         """Gibt alle Strategy-Values als Liste zurück."""
         return [s.value for s in cls]
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Serialisiert Strategy zu Dictionary."""
         return {
@@ -174,7 +175,7 @@ STRATEGY_NAMES = {s.value: s.display_name for s in Strategy}
 def get_strategy_icon(strategy: str) -> str:
     """
     Gibt Icon für Strategy-String zurück.
-    
+
     Für Backwards-Compatibility mit bestehendem Code.
     """
     try:
@@ -186,7 +187,7 @@ def get_strategy_icon(strategy: str) -> str:
 def get_strategy_display_name(strategy: str) -> str:
     """
     Gibt Display-Name für Strategy-String zurück.
-    
+
     Für Backwards-Compatibility mit bestehendem Code.
     """
     try:

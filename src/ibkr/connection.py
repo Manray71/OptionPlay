@@ -16,10 +16,11 @@ import socket
 # ib_insync needs nest_asyncio for compatibility with already running event loops
 # (e.g., when the MCP server already uses asyncio.run())
 import nest_asyncio
+
 nest_asyncio.apply()
 
 from datetime import datetime
-from typing import Any, Optional, Dict
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -34,21 +35,18 @@ IBKR_SYMBOL_MAP = {
     # Berkshire Hathaway - space instead of period
     "BRK.B": "BRK B",
     "BRK.A": "BRK A",
-
     # Brown-Forman - space instead of period
     "BF.B": "BF B",
     "BF.A": "BF A",
-
     # Symbols not available at IBKR (delisted, merged, ticker change)
     # Set to None to skip them
-    "MMC": None,      # Marsh McLennan - possibly ticker change
-    "IPG": None,      # Interpublic Group - possibly delisted
-    "PARA": None,     # Paramount - delisted/merged
-    "K": None,        # Kellanova - possibly ticker change after spin-off
-    "PXD": None,      # Pioneer Natural Resources - acquired by Exxon
-    "HES": None,      # Hess - acquired by Chevron
-    "MRO": None,      # Marathon Oil - possibly ticker change
-
+    "MMC": None,  # Marsh McLennan - possibly ticker change
+    "IPG": None,  # Interpublic Group - possibly delisted
+    "PARA": None,  # Paramount - delisted/merged
+    "K": None,  # Kellanova - possibly ticker change after spin-off
+    "PXD": None,  # Pioneer Natural Resources - acquired by Exxon
+    "HES": None,  # Hess - acquired by Chevron
+    "MRO": None,  # Marathon Oil - possibly ticker change
     # Additional known issues can be added here
 }
 
@@ -185,7 +183,7 @@ class IBKRConnection:
                 self.host,
                 self.port,
                 clientId=98,  # Different client than main MCP server
-                timeout=10
+                timeout=10,
             )
 
             if self._ib.isConnected():
@@ -221,5 +219,5 @@ class IBKRConnection:
             "host": self.host,
             "port": self.port,
             "connected": self._connected,
-            "features": ["news", "vix", "max_pain", "portfolio", "positions"] if available else []
+            "features": ["news", "vix", "max_pain", "portfolio", "positions"] if available else [],
         }

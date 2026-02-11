@@ -18,24 +18,24 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from ..models import (
+    FIXED_REGIMES,
+    RegimeBoundaryMethod,
     RegimeConfig,
     RegimeType,
-    RegimeBoundaryMethod,
-    FIXED_REGIMES,
     create_percentile_regimes,
     get_regime_for_vix,
 )
 from ..models.training_models import (
-    RegimeTrainingConfig,
-    StrategyPerformance,
-    RegimeEpochResult,
-    RegimeTrainingResult,
     FullRegimeTrainingResult,
+    RegimeEpochResult,
+    RegimeTrainingConfig,
+    RegimeTrainingResult,
+    StrategyPerformance,
 )
 from .data_prep import DataPrep
 from .epoch_runner import EpochRunner
-from .performance import PerformanceAnalyzer
 from .optimizer import ParameterOptimizer, ResultProcessor
+from .performance import PerformanceAnalyzer
 
 logger = logging.getLogger(__name__)
 
@@ -162,7 +162,9 @@ class RegimeTrainer:
 
         # Compare and select best method
         fixed_score = self._optimizer.calculate_method_score(fixed_results)
-        percentile_score = self._optimizer.calculate_method_score(percentile_results) if percentile_results else 0
+        percentile_score = (
+            self._optimizer.calculate_method_score(percentile_results) if percentile_results else 0
+        )
 
         if percentile_score > fixed_score and percentile_results:
             best_method = RegimeBoundaryMethod.PERCENTILE
@@ -184,14 +186,13 @@ class RegimeTrainer:
 
         # Calculate summary statistics
         total_trades = sum(r.total_trades for r in best_results.values())
-        avg_win_rates = [r.avg_out_sample_win_rate for r in best_results.values() if r.valid_epochs > 0]
+        avg_win_rates = [
+            r.avg_out_sample_win_rate for r in best_results.values() if r.valid_epochs > 0
+        ]
         avg_oos_win_rate = statistics.mean(avg_win_rates) if avg_win_rates else 0
 
         # Determine overall confidence
-        low_confidence_count = sum(
-            1 for r in best_results.values()
-            if r.confidence_level == "low"
-        )
+        low_confidence_count = sum(1 for r in best_results.values() if r.confidence_level == "low")
         if low_confidence_count >= 2:
             overall_confidence = "low"
         elif low_confidence_count >= 1:
@@ -242,8 +243,7 @@ class RegimeTrainer:
 
         if len(epoch_configs) < self.config.min_valid_epochs:
             return self._create_empty_result(
-                regime_name, regime_config,
-                f"Only {len(epoch_configs)} epochs possible"
+                regime_name, regime_config, f"Only {len(epoch_configs)} epochs possible"
             )
 
         # Run Walk-Forward for each epoch
@@ -261,10 +261,12 @@ class RegimeTrainer:
 
             # Collect strategy trades for performance analysis
             for strategy, perf in epoch_result.strategy_performance.items():
-                strategy_trades[strategy].append({
-                    "win_rate": perf.win_rate,
-                    "trades": perf.total_trades,
-                })
+                strategy_trades[strategy].append(
+                    {
+                        "win_rate": perf.win_rate,
+                        "trades": perf.total_trades,
+                    }
+                )
 
         # Aggregate results
         valid_epochs = [e for e in epochs if e.is_valid]
@@ -299,13 +301,15 @@ class RegimeTrainer:
             enabled_strategies = self.ALL_STRATEGIES.copy()
 
         # Optimize parameters
-        optimized_params = self._optimizer.optimize_parameters(
-            valid_epochs, regime_config
-        ) if self.config.optimize_parameters else {
-            "min_score": regime_config.min_score,
-            "profit_target_pct": regime_config.profit_target_pct,
-            "stop_loss_pct": regime_config.stop_loss_pct,
-        }
+        optimized_params = (
+            self._optimizer.optimize_parameters(valid_epochs, regime_config)
+            if self.config.optimize_parameters
+            else {
+                "min_score": regime_config.min_score,
+                "profit_target_pct": regime_config.profit_target_pct,
+                "stop_loss_pct": regime_config.stop_loss_pct,
+            }
+        )
 
         # Determine overfit severity
         overfit_severity = self._performance.classify_overfit(avg_degradation)
@@ -320,7 +324,9 @@ class RegimeTrainer:
 
         warnings = []
         if overfit_severity in ("moderate", "severe"):
-            warnings.append(f"Significant overfitting detected ({avg_degradation:.1f}% degradation)")
+            warnings.append(
+                f"Significant overfitting detected ({avg_degradation:.1f}% degradation)"
+            )
         if not enabled_strategies:
             warnings.append("No strategies passed performance threshold")
             enabled_strategies = ["pullback"]  # Always keep at least one
@@ -426,11 +432,17 @@ class RegimeTrainer:
         # Reconstruct result (simplified)
         trainer._last_result = FullRegimeTrainingResult(
             training_id=data.get("training_id", "loaded"),
-            training_date=datetime.fromisoformat(data.get("training_date", datetime.now().isoformat())),
+            training_date=datetime.fromisoformat(
+                data.get("training_date", datetime.now().isoformat())
+            ),
             config=config,
-            boundary_method_used=RegimeBoundaryMethod(data.get("boundary_comparison", {}).get("method_used", "fixed")),
+            boundary_method_used=RegimeBoundaryMethod(
+                data.get("boundary_comparison", {}).get("method_used", "fixed")
+            ),
             fixed_boundaries_score=data.get("boundary_comparison", {}).get("fixed_score", 0),
-            percentile_boundaries_score=data.get("boundary_comparison", {}).get("percentile_score", 0),
+            percentile_boundaries_score=data.get("boundary_comparison", {}).get(
+                "percentile_score", 0
+            ),
             regime_results={},  # Not fully reconstructed
             trained_regimes=trained_regimes,
             total_trades_analyzed=data.get("summary", {}).get("total_trades", 0),

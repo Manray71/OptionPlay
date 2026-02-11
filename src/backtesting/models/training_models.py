@@ -17,52 +17,56 @@ from datetime import date, datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 from ...constants.trading_rules import (
-    SPREAD_SHORT_DELTA_TARGET, SPREAD_LONG_DELTA_TARGET,
-    SPREAD_DTE_MIN, SPREAD_DTE_MAX,
+    SPREAD_DTE_MAX,
+    SPREAD_DTE_MIN,
+    SPREAD_LONG_DELTA_TARGET,
+    SPREAD_SHORT_DELTA_TARGET,
 )
 from .regime_config import (
-    RegimeConfig,
     RegimeBoundaryMethod,
+    RegimeConfig,
 )
-
 
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
+
 
 @dataclass
 class RegimeTrainingConfig:
     """Configuration for regime-based training"""
 
     # Walk-Forward Parameters
-    train_months: int = 12                  # Training period per epoch
-    test_months: int = 3                    # Test period per epoch
-    step_months: int = 3                    # Step between epochs
+    train_months: int = 12  # Training period per epoch
+    test_months: int = 3  # Test period per epoch
+    step_months: int = 3  # Step between epochs
 
     # Quality Requirements
-    min_trades_per_regime: int = 50         # Minimum trades for valid training
-    min_trades_per_epoch: int = 20          # Minimum trades per epoch
-    min_valid_epochs: int = 2               # Minimum valid epochs per regime
+    min_trades_per_regime: int = 50  # Minimum trades for valid training
+    min_trades_per_epoch: int = 20  # Minimum trades per epoch
+    min_valid_epochs: int = 2  # Minimum valid epochs per regime
 
     # Regime Boundary Settings
-    compare_boundary_methods: bool = True   # Compare fixed vs percentile
+    compare_boundary_methods: bool = True  # Compare fixed vs percentile
     percentile_thresholds: Tuple[float, float, float] = (25, 50, 75)
 
     # Strategy Optimization
-    auto_disable_strategies: bool = True    # Disable underperforming strategies
+    auto_disable_strategies: bool = True  # Disable underperforming strategies
     strategy_disable_threshold: float = 45.0  # Disable if win rate below this
 
     # Parameter Optimization
-    optimize_parameters: bool = True        # Optimize min_score, profit_target, etc.
-    parameter_grid: Dict[str, List[float]] = field(default_factory=lambda: {
-        "min_score": [4.0, 5.0, 6.0, 7.0, 8.0],
-        "profit_target_pct": [40.0, 50.0, 60.0, 75.0],
-        "stop_loss_pct": [75.0, 100.0, 150.0, 200.0],
-    })
+    optimize_parameters: bool = True  # Optimize min_score, profit_target, etc.
+    parameter_grid: Dict[str, List[float]] = field(
+        default_factory=lambda: {
+            "min_score": [4.0, 5.0, 6.0, 7.0, 8.0],
+            "profit_target_pct": [40.0, 50.0, 60.0, 75.0],
+            "stop_loss_pct": [75.0, 100.0, 150.0, 200.0],
+        }
+    )
 
     # Backtest Defaults (gemäß strategies.yaml Basisstrategie)
     initial_capital: float = 100000.0
-    dte_min: int = SPREAD_DTE_MIN            # Basisstrategie: 60-90 DTE
+    dte_min: int = SPREAD_DTE_MIN  # Basisstrategie: 60-90 DTE
     dte_max: int = SPREAD_DTE_MAX
 
     # Delta-basierte Strike-Auswahl (gemäß strategies.yaml Basisstrategie)
@@ -91,9 +95,11 @@ class RegimeTrainingConfig:
 # RESULT DATA CLASSES
 # =============================================================================
 
+
 @dataclass
 class StrategyPerformance:
     """Performance metrics for a single strategy within a regime"""
+
     strategy: str
     regime: str
     total_trades: int
@@ -123,6 +129,7 @@ class StrategyPerformance:
 @dataclass
 class RegimeEpochResult:
     """Result from a single training epoch within a regime"""
+
     epoch_id: int
     regime: str
     train_start: date
@@ -183,6 +190,7 @@ class RegimeEpochResult:
 @dataclass
 class RegimeTrainingResult:
     """Complete training result for a single regime"""
+
     regime: str
     config: RegimeConfig
 
@@ -231,9 +239,7 @@ class RegimeTrainingResult:
             "strategy_recommendations": {
                 "enabled": self.enabled_strategies,
                 "disabled": self.disabled_strategies,
-                "performance": {
-                    k: v.to_dict() for k, v in self.strategy_performance.items()
-                },
+                "performance": {k: v.to_dict() for k, v in self.strategy_performance.items()},
             },
             "optimized_parameters": {
                 "min_score": self.optimized_min_score,
@@ -252,6 +258,7 @@ class RegimeTrainingResult:
 @dataclass
 class FullRegimeTrainingResult:
     """Complete training result across all regimes"""
+
     training_id: str
     training_date: datetime
     config: RegimeTrainingConfig
@@ -287,12 +294,10 @@ class FullRegimeTrainingResult:
                 "percentile_score": round(self.percentile_boundaries_score, 3),
             },
             "regime_results": {
-                name: result.to_dict()
-                for name, result in self.regime_results.items()
+                name: result.to_dict() for name, result in self.regime_results.items()
             },
             "trained_regimes": {
-                name: config.to_dict()
-                for name, config in self.trained_regimes.items()
+                name: config.to_dict() for name, config in self.trained_regimes.items()
             },
             "summary": {
                 "total_trades": self.total_trades_analyzed,
@@ -351,15 +356,17 @@ class FullRegimeTrainingResult:
                 f"{strategies:<20} {severity_icon}"
             )
 
-        lines.extend([
-            "",
-            "-" * 80,
-            "  OPTIMIZED PARAMETERS",
-            "-" * 80,
-            "",
-            f"{'Regime':<12} {'Min Score':>10} {'Profit %':>10} {'Stop %':>10}",
-            "-" * 50,
-        ])
+        lines.extend(
+            [
+                "",
+                "-" * 80,
+                "  OPTIMIZED PARAMETERS",
+                "-" * 80,
+                "",
+                f"{'Regime':<12} {'Min Score':>10} {'Profit %':>10} {'Stop %':>10}",
+                "-" * 50,
+            ]
+        )
 
         for name in ["low_vol", "normal", "elevated", "high_vol"]:
             if name not in self.regime_results:
@@ -372,12 +379,14 @@ class FullRegimeTrainingResult:
             )
 
         if self.warnings:
-            lines.extend([
-                "",
-                "-" * 80,
-                "  WARNINGS",
-                "-" * 80,
-            ])
+            lines.extend(
+                [
+                    "",
+                    "-" * 80,
+                    "  WARNINGS",
+                    "-" * 80,
+                ]
+            )
             for warning in self.warnings:
                 lines.append(f"  ! {warning}")
 

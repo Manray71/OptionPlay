@@ -37,10 +37,10 @@ Verwendung:
 """
 
 import logging
+import math
 from dataclasses import dataclass, field
 from datetime import date, timedelta
-from typing import Optional, Dict, List, Tuple
-import math
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
@@ -49,8 +49,8 @@ from ...constants.trading_rules import EXIT_PROFIT_PCT_NORMAL
 from ...pricing import (
     OptionPricer,
     PricingResult,
-    black_scholes_put_np,
     batch_spread_credit,
+    black_scholes_put_np,
 )
 
 logger = logging.getLogger(__name__)
@@ -60,9 +60,11 @@ logger = logging.getLogger(__name__)
 # DATA CLASSES
 # =============================================================================
 
+
 @dataclass
 class SpreadEntry:
     """Daten eines eröffneten Spreads"""
+
     symbol: str
     entry_date: date
     underlying_price: float
@@ -75,7 +77,7 @@ class SpreadEntry:
     # Entry Pricing
     short_put_price: float
     long_put_price: float
-    net_credit: float           # Pro Aktie, nach Slippage
+    net_credit: float  # Pro Aktie, nach Slippage
 
     # Greeks at Entry
     entry_delta: float
@@ -91,8 +93,8 @@ class SpreadEntry:
     commission: float
 
     # Calculated
-    max_profit: float           # Total, nach Kommission
-    max_loss: float             # Total, nach Kommission
+    max_profit: float  # Total, nach Kommission
+    max_loss: float  # Total, nach Kommission
 
     @property
     def gross_credit(self) -> float:
@@ -108,6 +110,7 @@ class SpreadEntry:
 @dataclass
 class SpreadSnapshot:
     """Momentaufnahme eines Spreads"""
+
     date: date
     underlying_price: float
     days_held: int
@@ -116,12 +119,12 @@ class SpreadSnapshot:
     # Current Pricing
     short_put_value: float
     long_put_value: float
-    spread_value: float         # Cost to close
+    spread_value: float  # Cost to close
 
     # P&L
-    unrealized_pnl: float       # Pro Aktie
-    unrealized_pnl_total: float # Total
-    pnl_pct: float              # % des Max Profits
+    unrealized_pnl: float  # Pro Aktie
+    unrealized_pnl_total: float  # Total
+    pnl_pct: float  # % des Max Profits
 
     # Greeks
     current_delta: float
@@ -134,22 +137,23 @@ class SpreadSnapshot:
 @dataclass
 class SimulatorConfig:
     """Konfiguration für den Options-Simulator"""
+
     # Risk-free rate
     risk_free_rate: float = 0.05
 
     # Slippage (% des Mid-Price)
-    entry_slippage_pct: float = 1.0   # 1% beim Einstieg
-    exit_slippage_pct: float = 1.5    # 1.5% beim Ausstieg (weniger Liquidität)
+    entry_slippage_pct: float = 1.0  # 1% beim Einstieg
+    exit_slippage_pct: float = 1.5  # 1.5% beim Ausstieg (weniger Liquidität)
 
     # Bid-Ask Spread Schätzung (% des Options-Preises)
-    bid_ask_pct: float = 5.0          # 5% typischer Bid-Ask
+    bid_ask_pct: float = 5.0  # 5% typischer Bid-Ask
 
     # Commission
     commission_per_contract: float = 1.30
 
     # IV Dynamics
     iv_mean_reversion_speed: float = 0.05  # Tägliche Mean Reversion
-    iv_vix_correlation: float = 0.7        # Korrelation zwischen Aktien-IV und VIX
+    iv_vix_correlation: float = 0.7  # Korrelation zwischen Aktien-IV und VIX
 
     # Volatility Skew (OTM Puts haben höhere IV)
     put_skew_per_delta: float = 0.02  # +2% IV pro 0.1 Delta OTM
@@ -158,6 +162,7 @@ class SimulatorConfig:
 # =============================================================================
 # OPTIONS SIMULATOR
 # =============================================================================
+
 
 class OptionsSimulator:
     """
@@ -183,7 +188,7 @@ class OptionsSimulator:
         iv: float,
         entry_date: Optional[date] = None,
         contracts: int = 1,
-        vix: Optional[float] = None
+        vix: Optional[float] = None,
     ) -> SpreadEntry:
         """
         Simuliert die Eröffnung eines Bull-Put-Spreads.
@@ -217,7 +222,7 @@ class OptionsSimulator:
             days_to_expiry=dte,
             volatility=iv,
             short_iv=short_iv,
-            long_iv=long_iv
+            long_iv=long_iv,
         )
 
         # Slippage anwenden (wir verkaufen Short Put, kaufen Long Put)
@@ -251,7 +256,7 @@ class OptionsSimulator:
             contracts=contracts,
             commission=commission,
             max_profit=max_profit,
-            max_loss=max_loss
+            max_loss=max_loss,
         )
 
     def calculate_snapshot(
@@ -260,7 +265,7 @@ class OptionsSimulator:
         current_date: date,
         current_price: float,
         current_iv: Optional[float] = None,
-        vix: Optional[float] = None
+        vix: Optional[float] = None,
     ) -> SpreadSnapshot:
         """
         Berechnet den aktuellen Stand eines Spreads.
@@ -280,11 +285,7 @@ class OptionsSimulator:
 
         # IV-Schätzung wenn nicht gegeben
         if current_iv is None:
-            current_iv = self._estimate_iv_change(
-                entry.entry_iv,
-                days_held,
-                vix
-            )
+            current_iv = self._estimate_iv_change(entry.entry_iv, days_held, vix)
 
         # IV für Skew anpassen
         short_iv = self._adjust_iv_for_skew(current_iv, current_price, entry.short_strike)
@@ -309,7 +310,7 @@ class OptionsSimulator:
                 days_to_expiry=dte_remaining,
                 volatility=current_iv,
                 short_iv=short_iv,
-                long_iv=long_iv
+                long_iv=long_iv,
             )
 
             short_put_value = result.short_put_price
@@ -347,7 +348,7 @@ class OptionsSimulator:
             pnl_pct=pnl_pct,
             current_delta=current_delta,
             current_theta=current_theta,
-            current_iv=current_iv
+            current_iv=current_iv,
         )
 
     def simulate_trade_path(
@@ -355,7 +356,7 @@ class OptionsSimulator:
         entry: SpreadEntry,
         price_path: List[Tuple[date, float]],
         iv_path: Optional[List[Tuple[date, float]]] = None,
-        vix_path: Optional[List[Tuple[date, float]]] = None
+        vix_path: Optional[List[Tuple[date, float]]] = None,
     ) -> List[SpreadSnapshot]:
         """
         Simuliert den kompletten Verlauf eines Trades.
@@ -392,7 +393,7 @@ class OptionsSimulator:
                 current_date=current_date,
                 current_price=current_price,
                 current_iv=current_iv,
-                vix=vix
+                vix=vix,
             )
             snapshots.append(snapshot)
 
@@ -404,7 +405,7 @@ class OptionsSimulator:
         entry: SpreadEntry,
         profit_target_pct: float = EXIT_PROFIT_PCT_NORMAL,
         stop_loss_pct: float = 100.0,
-        dte_exit_threshold: int = 7
+        dte_exit_threshold: int = 7,
     ) -> Optional[str]:
         """
         Prüft ob Exit-Bedingungen erfüllt sind.
@@ -451,12 +452,7 @@ class OptionsSimulator:
     # Private Helpers
     # =========================================================================
 
-    def _adjust_iv_for_skew(
-        self,
-        base_iv: float,
-        underlying_price: float,
-        strike: float
-    ) -> float:
+    def _adjust_iv_for_skew(self, base_iv: float, underlying_price: float, strike: float) -> float:
         """
         Passt IV für Volatility Skew an.
 
@@ -474,10 +470,7 @@ class OptionsSimulator:
             return base_iv
 
     def _estimate_iv_change(
-        self,
-        entry_iv: float,
-        days_held: int,
-        vix: Optional[float] = None
+        self, entry_iv: float, days_held: int, vix: Optional[float] = None
     ) -> float:
         """
         Schätzt IV-Veränderung über Zeit.
@@ -506,6 +499,7 @@ class OptionsSimulator:
 # CONVENIENCE FUNCTIONS
 # =============================================================================
 
+
 def quick_spread_pnl(
     underlying_price: float,
     short_strike: float,
@@ -515,7 +509,7 @@ def quick_spread_pnl(
     entry_price: float,
     current_price: float,
     entry_iv: float = 0.25,
-    current_iv: Optional[float] = None
+    current_iv: Optional[float] = None,
 ) -> float:
     """
     Schnelle P&L Berechnung für einen Bull-Put-Spread.
@@ -543,7 +537,7 @@ def quick_spread_pnl(
         short_strike=short_strike,
         long_strike=long_strike,
         dte=dte_entry,
-        iv=entry_iv
+        iv=entry_iv,
     )
 
     # Current snapshot
@@ -551,10 +545,7 @@ def quick_spread_pnl(
     current_date = entry.entry_date + timedelta(days=days_held)
 
     snapshot = simulator.calculate_snapshot(
-        entry=entry,
-        current_date=current_date,
-        current_price=current_price,
-        current_iv=current_iv
+        entry=entry, current_date=current_date, current_price=current_price, current_iv=current_iv
     )
 
     return snapshot.unrealized_pnl
@@ -564,13 +555,14 @@ def quick_spread_pnl(
 # BATCH/VECTORIZED FUNCTIONS (für Backtesting Performance)
 # =============================================================================
 
+
 def batch_calculate_spread_values(
     current_prices: NDArray[np.float64],
     short_strikes: NDArray[np.float64],
     long_strikes: NDArray[np.float64],
     dtes_remaining: NDArray[np.float64],
     current_ivs: NDArray[np.float64],
-    rate: float = 0.05
+    rate: float = 0.05,
 ) -> Tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]]:
     """
     Batch-Berechnung von Spread-Werten mit NumPy.
@@ -599,14 +591,10 @@ def batch_calculate_spread_values(
 
     # Intrinsic für expired
     short_put_values = np.where(
-        expired_mask,
-        np.maximum(0, short_strikes - current_prices),
-        short_put_values
+        expired_mask, np.maximum(0, short_strikes - current_prices), short_put_values
     )
     long_put_values = np.where(
-        expired_mask,
-        np.maximum(0, long_strikes - current_prices),
-        long_put_values
+        expired_mask, np.maximum(0, long_strikes - current_prices), long_put_values
     )
 
     spread_values = short_put_values - long_put_values
@@ -623,7 +611,7 @@ def batch_calculate_pnl(
     current_ivs: NDArray[np.float64],
     contracts: NDArray[np.float64],
     slippage_pct: float = 1.5,
-    rate: float = 0.05
+    rate: float = 0.05,
 ) -> NDArray[np.float64]:
     """
     Batch-Berechnung von P&Ls für viele Positionen.
@@ -643,19 +631,14 @@ def batch_calculate_pnl(
         Array von realisierten P&Ls in Dollar
     """
     _, _, spread_values = batch_calculate_spread_values(
-        current_prices, short_strikes, long_strikes,
-        dtes_remaining, current_ivs, rate
+        current_prices, short_strikes, long_strikes, dtes_remaining, current_ivs, rate
     )
 
     # P&L pro Aktie = Entry Credit - Cost to Close
     pnl_per_share = entry_credits - spread_values
 
     # Exit-Slippage einberechnen (nur wenn nicht expired)
-    slippage_cost = np.where(
-        dtes_remaining > 0,
-        spread_values * (slippage_pct / 100),
-        0
-    )
+    slippage_cost = np.where(dtes_remaining > 0, spread_values * (slippage_pct / 100), 0)
     pnl_per_share = pnl_per_share - slippage_cost
 
     # Total P&L (100 shares per contract)
@@ -673,7 +656,7 @@ def batch_check_exit_signals(
     dtes_remaining: NDArray[np.float64],
     profit_target_pct: float = EXIT_PROFIT_PCT_NORMAL,
     stop_loss_pct: float = 100.0,
-    dte_exit_threshold: int = 7
+    dte_exit_threshold: int = 7,
 ) -> NDArray[np.int32]:
     """
     Batch-Prüfung von Exit-Signalen für viele Positionen.
@@ -710,18 +693,14 @@ def batch_check_exit_signals(
     exit_codes = np.where(expiration_mask, 1, exit_codes)
 
     # 2. Profit Target
-    with np.errstate(divide='ignore', invalid='ignore'):
+    with np.errstate(divide="ignore", invalid="ignore"):
         pnl_pct = np.where(max_profits > 0, (pnl_totals / max_profits) * 100, 0)
     profit_target_mask = (pnl_pct >= profit_target_pct) & (exit_codes == 0)
     exit_codes = np.where(profit_target_mask, 2, exit_codes)
 
     # 3. Stop Loss
     loss_mask = pnl_totals < 0
-    loss_pct = np.where(
-        loss_mask & (max_losses > 0),
-        np.abs(pnl_totals) / max_losses * 100,
-        0
-    )
+    loss_pct = np.where(loss_mask & (max_losses > 0), np.abs(pnl_totals) / max_losses * 100, 0)
     stop_loss_mask = (loss_pct >= stop_loss_pct) & (exit_codes == 0)
     exit_codes = np.where(stop_loss_mask, 3, exit_codes)
 

@@ -17,8 +17,11 @@ from datetime import date, datetime
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
 from ..constants.trading_rules import (
-    ENTRY_STABILITY_MIN, SPREAD_DTE_MIN, SPREAD_DTE_MAX,
-    EXIT_PROFIT_PCT_NORMAL, EXIT_STOP_LOSS_MULTIPLIER,
+    ENTRY_STABILITY_MIN,
+    EXIT_PROFIT_PCT_NORMAL,
+    EXIT_STOP_LOSS_MULTIPLIER,
+    SPREAD_DTE_MAX,
+    SPREAD_DTE_MIN,
 )
 from .handler_container import BaseHandler, ServerContext
 
@@ -76,11 +79,11 @@ class ScanHandler(BaseHandler):
         Returns:
             Formatted Markdown string with scan results
         """
+        from ..cache import get_earnings_fetcher
+        from ..config import get_watchlist_loader
         from ..scanner.multi_strategy_scanner import ScanMode
         from ..utils.markdown_builder import MarkdownBuilder, truncate
         from ..utils.validation import validate_symbols
-        from ..config import get_watchlist_loader
-        from ..cache import get_earnings_fetcher
 
         await self._ensure_connected()
 
@@ -103,12 +106,15 @@ class ScanHandler(BaseHandler):
 
         if scanner_config.auto_earnings_prefilter:
             min_days = scanner_config.earnings_prefilter_min_days
-            for_earnings_dip = (mode == ScanMode.EARNINGS_DIP)
+            for_earnings_dip = mode == ScanMode.EARNINGS_DIP
             include_dip_candidates = mode in (ScanMode.ALL, ScanMode.BEST_SIGNAL)
-            symbols, excluded_by_earnings, earnings_cache_hits = await self._apply_earnings_prefilter(
-                symbols, min_days,
-                for_earnings_dip=for_earnings_dip,
-                include_dip_candidates=include_dip_candidates,
+            symbols, excluded_by_earnings, earnings_cache_hits = (
+                await self._apply_earnings_prefilter(
+                    symbols,
+                    min_days,
+                    for_earnings_dip=for_earnings_dip,
+                    include_dip_candidates=include_dip_candidates,
+                )
             )
             if excluded_by_earnings > 0:
                 self._logger.info(
@@ -136,7 +142,11 @@ class ScanHandler(BaseHandler):
             enable_pullback = mode in [ScanMode.PULLBACK_ONLY, ScanMode.ALL, ScanMode.BEST_SIGNAL]
             enable_bounce = mode in [ScanMode.BOUNCE_ONLY, ScanMode.ALL, ScanMode.BEST_SIGNAL]
             enable_breakout = mode in [ScanMode.BREAKOUT_ONLY, ScanMode.ALL, ScanMode.BEST_SIGNAL]
-            enable_earnings_dip = mode in [ScanMode.EARNINGS_DIP, ScanMode.ALL, ScanMode.BEST_SIGNAL]
+            enable_earnings_dip = mode in [
+                ScanMode.EARNINGS_DIP,
+                ScanMode.ALL,
+                ScanMode.BEST_SIGNAL,
+            ]
             enable_trend = mode in [ScanMode.TREND_ONLY, ScanMode.ALL, ScanMode.BEST_SIGNAL]
 
             scanner = self._get_multi_scanner(
@@ -164,11 +174,13 @@ class ScanHandler(BaseHandler):
 
             # Determine historical data requirement
             config_days = self._ctx.config.settings.performance.historical_days
-            historical_days = max(config_days, min_historical_days) if min_historical_days else config_days
+            historical_days = (
+                max(config_days, min_historical_days) if min_historical_days else config_days
+            )
 
             # Pre-fetch historical data in parallel batches
             prefetch_batch_size = getattr(
-                self._ctx.config.settings.performance, 'prefetch_batch_size', 20
+                self._ctx.config.settings.performance, "prefetch_batch_size", 20
             )
 
             prefetch_cache: Dict[str, tuple] = {}
@@ -184,7 +196,7 @@ class ScanHandler(BaseHandler):
                         prefetch_cache[sym] = res
 
             for i in range(0, len(symbols), prefetch_batch_size):
-                batch = symbols[i:i + prefetch_batch_size]
+                batch = symbols[i : i + prefetch_batch_size]
                 await prefetch_batch(batch)
 
             self._logger.debug(f"Pre-fetched {len(prefetch_cache)}/{len(symbols)} symbols")
@@ -196,11 +208,7 @@ class ScanHandler(BaseHandler):
 
             # Execute scan
             start_time = datetime.now()
-            result = await scanner.scan_async(
-                symbols=symbols,
-                data_fetcher=data_fetcher,
-                mode=mode
-            )
+            result = await scanner.scan_async(symbols=symbols, data_fetcher=data_fetcher, mode=mode)
             duration = (datetime.now() - start_time).total_seconds()
 
             # Cache the result
@@ -238,13 +246,15 @@ class ScanHandler(BaseHandler):
             else:
                 rows = []
                 for signal in result.signals[:max_results]:
-                    rows.append([
-                        signal.symbol,
-                        f"{signal.score:.1f}",
-                        f"${signal.current_price:.2f}" if signal.current_price else "N/A",
-                        signal.strategy,
-                        truncate(signal.reason, 35) if signal.reason else "-"
-                    ])
+                    rows.append(
+                        [
+                            signal.symbol,
+                            f"{signal.score:.1f}",
+                            f"${signal.current_price:.2f}" if signal.current_price else "N/A",
+                            signal.strategy,
+                            truncate(signal.reason, 35) if signal.reason else "-",
+                        ]
+                    )
                 b.table(["Symbol", "Score", "Price", "Strategy", "Signal"], rows)
         else:
             b.hint(no_results_msg)
@@ -252,11 +262,7 @@ class ScanHandler(BaseHandler):
         return b.build()
 
     def _make_scan_cache_key(
-        self,
-        mode: Any,
-        symbols: List[str],
-        min_score: float,
-        max_results: int
+        self, mode: Any, symbols: List[str], min_score: float, max_results: int
     ) -> str:
         """Generate a cache key for scan results."""
         symbols_hash = hash(tuple(sorted(symbols)))
@@ -287,7 +293,7 @@ class ScanHandler(BaseHandler):
                 signal.symbol,
                 f"{signal.score:.1f}",
                 f"${signal.current_price:.2f}" if signal.current_price else "N/A",
-                truncate(signal.reason, 40) if signal.reason else "-"
+                truncate(signal.reason, 40) if signal.reason else "-",
             ]
 
         return await self._execute_scan(
@@ -336,7 +342,7 @@ class ScanHandler(BaseHandler):
                 signal.symbol,
                 f"{signal.score:.1f}",
                 f"${signal.current_price:.2f}" if signal.current_price else "N/A",
-                truncate(signal.reason, 40) if signal.reason else "-"
+                truncate(signal.reason, 40) if signal.reason else "-",
             ]
 
         return await self._execute_scan(
@@ -376,7 +382,7 @@ class ScanHandler(BaseHandler):
                 signal.symbol,
                 f"{signal.score:.1f}",
                 f"${signal.current_price:.2f}" if signal.current_price else "N/A",
-                truncate(signal.reason, 40) if signal.reason else "-"
+                truncate(signal.reason, 40) if signal.reason else "-",
             ]
 
         return await self._execute_scan(
@@ -417,7 +423,7 @@ class ScanHandler(BaseHandler):
                 signal.symbol,
                 f"{signal.score:.1f}",
                 f"${signal.current_price:.2f}" if signal.current_price else "N/A",
-                truncate(signal.reason, 40) if signal.reason else "-"
+                truncate(signal.reason, 40) if signal.reason else "-",
             ]
 
         return await self._execute_scan(
@@ -457,7 +463,7 @@ class ScanHandler(BaseHandler):
                 signal.symbol,
                 f"{signal.score:.1f}",
                 f"${signal.current_price:.2f}" if signal.current_price else "N/A",
-                truncate(signal.reason, 40) if signal.reason else "-"
+                truncate(signal.reason, 40) if signal.reason else "-",
             ]
 
         return await self._execute_scan(
@@ -510,7 +516,7 @@ class ScanHandler(BaseHandler):
                 f"{signal.score:.1f}",
                 f"${signal.current_price:.2f}" if signal.current_price else "N/A",
                 f"{icon} {signal.strategy}",
-                truncate(signal.reason, 30) if signal.reason else "-"
+                truncate(signal.reason, 30) if signal.reason else "-",
             ]
 
         title_suffix = ""
@@ -564,11 +570,11 @@ class ScanHandler(BaseHandler):
         Returns:
             Formatted Markdown with daily picks and strike recommendations
         """
-        from ..utils.validation import validate_symbols
-        from ..config import get_watchlist_loader
         from ..cache import get_earnings_fetcher
-        from ..services.recommendation_engine import DailyRecommendationEngine
+        from ..config import get_watchlist_loader
         from ..constants.trading_rules import SIZING_MAX_PER_SECTOR
+        from ..services.recommendation_engine import DailyRecommendationEngine
+        from ..utils.validation import validate_symbols
 
         await self._ensure_connected()
 
@@ -586,7 +592,9 @@ class ScanHandler(BaseHandler):
         if scanner_config.auto_earnings_prefilter:
             min_days = scanner_config.earnings_prefilter_min_days
             symbols, excluded_by_earnings, _ = await self._apply_earnings_prefilter(
-                symbols, min_days, for_earnings_dip=False,
+                symbols,
+                min_days,
+                for_earnings_dip=False,
                 include_dip_candidates=True,
             )
 
@@ -599,14 +607,14 @@ class ScanHandler(BaseHandler):
 
         # Configure recommendation engine
         engine_config = {
-            'min_stability_score': min_stability,
-            'min_signal_score': min_score,
-            'max_picks': max_picks,
-            'enable_strike_recommendations': include_strikes,
-            'enable_sector_diversification': True,
-            'enable_blacklist_filter': True,
-            'enable_vix_regime_filter': True,
-            'max_per_sector': SIZING_MAX_PER_SECTOR,
+            "min_stability_score": min_stability,
+            "min_signal_score": min_score,
+            "max_picks": max_picks,
+            "enable_strike_recommendations": include_strikes,
+            "enable_sector_diversification": True,
+            "enable_blacklist_filter": True,
+            "enable_vix_regime_filter": True,
+            "max_per_sector": SIZING_MAX_PER_SECTOR,
         }
 
         scanner = self._get_multi_scanner(
@@ -627,19 +635,15 @@ class ScanHandler(BaseHandler):
             engine.set_vix(vix_level)
 
         # Pre-fetch historical data
-        historical_days = max(
-            self._ctx.config.settings.performance.historical_days,
-            260
-        )
+        historical_days = max(self._ctx.config.settings.performance.historical_days, 260)
         prefetch_batch_size = getattr(
-            self._ctx.config.settings.performance, 'prefetch_batch_size', 20
+            self._ctx.config.settings.performance, "prefetch_batch_size", 20
         )
         prefetch_cache: Dict[str, tuple] = {}
 
         async def prefetch_batch(batch_symbols: List[str]) -> None:
             tasks = [
-                self._fetch_historical_cached(sym, days=historical_days)
-                for sym in batch_symbols
+                self._fetch_historical_cached(sym, days=historical_days) for sym in batch_symbols
             ]
             results = await asyncio.gather(*tasks, return_exceptions=True)
             for sym, res in zip(batch_symbols, results):
@@ -647,7 +651,7 @@ class ScanHandler(BaseHandler):
                     prefetch_cache[sym] = res
 
         for i in range(0, len(symbols), prefetch_batch_size):
-            batch = symbols[i:i + prefetch_batch_size]
+            batch = symbols[i : i + prefetch_batch_size]
             await prefetch_batch(batch)
 
         async def data_fetcher(symbol: str) -> Optional[tuple]:
@@ -678,8 +682,8 @@ class ScanHandler(BaseHandler):
         duration = (datetime.now() - start_time).total_seconds()
 
         # Format output using the mixin's formatter (imported inline)
-        from ..utils.markdown_builder import MarkdownBuilder, truncate
         from ..services.recommendation_engine import DailyPick
+        from ..utils.markdown_builder import MarkdownBuilder, truncate
 
         b = MarkdownBuilder()
         today_str = date.today().isoformat()
@@ -687,13 +691,14 @@ class ScanHandler(BaseHandler):
 
         if result.vix_level:
             regime_display = {
-                'low_vol': 'Normal', 'normal': 'Normal',
-                'danger_zone': 'Danger Zone', 'elevated': 'Elevated',
-                'high_vol': 'High Volatility', 'unknown': 'Unknown',
+                "low_vol": "Normal",
+                "normal": "Normal",
+                "danger_zone": "Danger Zone",
+                "elevated": "Elevated",
+                "high_vol": "High Volatility",
+                "unknown": "Unknown",
             }
-            regime_str = regime_display.get(
-                result.market_regime.value, result.market_regime.value
-            )
+            regime_str = regime_display.get(result.market_regime.value, result.market_regime.value)
             b.kv("Regime", f"{regime_str} (VIX {result.vix_level:.2f})")
 
         b.kv("Scanned", f"{result.symbols_scanned} symbols | Duration: {duration:.1f}s")
@@ -714,17 +719,19 @@ class ScanHandler(BaseHandler):
 
     def _format_single_pick_v2(self, b: Any, pick: Any) -> None:
         """Format a single pick in v2 format with real chain data."""
-        from ..utils.markdown_builder import truncate
         from ..constants.trading_rules import SPREAD_MIN_CREDIT_PCT
+        from ..utils.markdown_builder import truncate
 
         strategy_display = {
-            "pullback": "Pullback", "bounce": "Bounce",
-            "ath_breakout": "ATH Breakout", "earnings_dip": "Earnings Dip",
+            "pullback": "Pullback",
+            "bounce": "Bounce",
+            "ath_breakout": "ATH Breakout",
+            "earnings_dip": "Earnings Dip",
         }
-        strategy_str = strategy_display.get(pick.strategy, pick.strategy.replace('_', ' ').title())
+        strategy_str = strategy_display.get(pick.strategy, pick.strategy.replace("_", " ").title())
 
         eqs_str = ""
-        if pick.entry_quality and hasattr(pick.entry_quality, 'eqs_total'):
+        if pick.entry_quality and hasattr(pick.entry_quality, "eqs_total"):
             eqs_str = f" | EQS {pick.entry_quality.eqs_total:.0f}"
 
         b.h2(f"#{pick.rank} -- {pick.symbol} | {strategy_str} | Score {pick.score:.1f}{eqs_str}")
@@ -735,28 +742,48 @@ class ScanHandler(BaseHandler):
             short = sv.short_leg
             long = sv.long_leg
             leg_rows = [
-                [f"${short.strike:.0f}", f"{short.delta:.2f}",
-                 f"{short.iv * 100:.1f}%" if short.iv else "-",
-                 f"{short.open_interest:,}", f"${short.bid:.2f}/${short.ask:.2f}"],
-                [f"${long.strike:.0f}", f"{long.delta:.2f}",
-                 f"{long.iv * 100:.1f}%" if long.iv else "-",
-                 f"{long.open_interest:,}", f"${long.bid:.2f}/${long.ask:.2f}"],
+                [
+                    f"${short.strike:.0f}",
+                    f"{short.delta:.2f}",
+                    f"{short.iv * 100:.1f}%" if short.iv else "-",
+                    f"{short.open_interest:,}",
+                    f"${short.bid:.2f}/${short.ask:.2f}",
+                ],
+                [
+                    f"${long.strike:.0f}",
+                    f"{long.delta:.2f}",
+                    f"{long.iv * 100:.1f}%" if long.iv else "-",
+                    f"{long.open_interest:,}",
+                    f"${long.bid:.2f}/${long.ask:.2f}",
+                ],
             ]
             b.table(["Strike", "Delta", "IV", "OI", "Bid/Ask"], leg_rows)
             b.blank()
 
-            b.text(f"**Spread:** ${sv.spread_width:.0f} breit | **Expiry:** {sv.expiration} ({sv.dte} DTE)")
-            credit_check = "OK" if sv.credit_pct and sv.credit_pct >= SPREAD_MIN_CREDIT_PCT else "LOW"
-            b.text(f"**Credit:** ${sv.credit_bid:.2f} (Bid) -- ${sv.credit_mid:.2f} (Mid) | **Credit/Breite:** {sv.credit_pct:.1f}% {credit_check}")
+            b.text(
+                f"**Spread:** ${sv.spread_width:.0f} breit | **Expiry:** {sv.expiration} ({sv.dte} DTE)"
+            )
+            credit_check = (
+                "OK" if sv.credit_pct and sv.credit_pct >= SPREAD_MIN_CREDIT_PCT else "LOW"
+            )
+            b.text(
+                f"**Credit:** ${sv.credit_bid:.2f} (Bid) -- ${sv.credit_mid:.2f} (Mid) | **Credit/Breite:** {sv.credit_pct:.1f}% {credit_check}"
+            )
 
             max_loss = sv.max_loss_per_contract if sv.max_loss_per_contract else 0
-            profit_target_50 = sv.credit_bid * (EXIT_PROFIT_PCT_NORMAL / 100) if sv.credit_bid else 0
+            profit_target_50 = (
+                sv.credit_bid * (EXIT_PROFIT_PCT_NORMAL / 100) if sv.credit_bid else 0
+            )
             stop_loss_200 = sv.credit_bid * EXIT_STOP_LOSS_MULTIPLIER if sv.credit_bid else 0
-            b.text(f"**Max Loss:** ${max_loss:.0f}/Kontrakt | **50% Target:** ${profit_target_50:.2f} | **200% Stop:** ${stop_loss_200:.2f}")
+            b.text(
+                f"**Max Loss:** ${max_loss:.0f}/Kontrakt | **50% Target:** ${profit_target_50:.2f} | **200% Stop:** ${stop_loss_200:.2f}"
+            )
             b.blank()
         elif pick.suggested_strikes:
             s = pick.suggested_strikes
-            b.text(f"**Strikes:** Short ${s.short_strike:.0f} / Long ${s.long_strike:.0f} | Width ${s.spread_width:.0f}")
+            b.text(
+                f"**Strikes:** Short ${s.short_strike:.0f} / Long ${s.long_strike:.0f} | Width ${s.spread_width:.0f}"
+            )
             if s.estimated_credit:
                 b.text(f"**Est. Credit:** ${s.estimated_credit:.2f}")
             if s.expiry:
@@ -766,7 +793,7 @@ class ScanHandler(BaseHandler):
 
         # Entry Quality line
         eq = pick.entry_quality
-        if eq and hasattr(eq, 'iv_rank'):
+        if eq and hasattr(eq, "iv_rank"):
             parts = []
             if eq.iv_rank is not None:
                 parts.append(f"IV Rank {eq.iv_rank:.0f}%")
@@ -833,7 +860,9 @@ class ScanHandler(BaseHandler):
         await self._ensure_connected()
         if self._ctx.tradier_connected and self._ctx.tradier_provider:
             try:
-                data = await self._ctx.tradier_provider.get_historical_for_scanner(symbol, days=days)
+                data = await self._ctx.tradier_provider.get_historical_for_scanner(
+                    symbol, days=days
+                )
                 if data:
                     if self._ctx.historical_cache:
                         self._ctx.historical_cache.set(symbol, data, days=days)
@@ -844,7 +873,10 @@ class ScanHandler(BaseHandler):
         return None
 
     async def _apply_earnings_prefilter(
-        self, symbols, min_days, for_earnings_dip=False,
+        self,
+        symbols,
+        min_days,
+        for_earnings_dip=False,
         include_dip_candidates=False,
     ):
         """Apply earnings pre-filter to symbols list."""
@@ -889,10 +921,16 @@ class ScanHandler(BaseHandler):
 
         return safe, excluded, cache_hits
 
-    def _get_multi_scanner(self, min_score=3.5, enable_pullback=True,
-                           enable_bounce=True, enable_breakout=True,
-                           enable_earnings_dip=True, enable_trend_continuation=True,
-                           exclude_earnings_within_days=None):
+    def _get_multi_scanner(
+        self,
+        min_score=3.5,
+        enable_pullback=True,
+        enable_bounce=True,
+        enable_breakout=True,
+        enable_earnings_dip=True,
+        enable_trend_continuation=True,
+        exclude_earnings_within_days=None,
+    ):
         """Get a configured MultiStrategyScanner instance."""
         from ..scanner.multi_strategy_scanner import MultiStrategyScanner, ScanConfig
 
@@ -910,7 +948,9 @@ class ScanHandler(BaseHandler):
 
     # _get_vix() inherited from BaseHandler
 
-    async def _get_options_chain_with_fallback(self, symbol, dte_min=SPREAD_DTE_MIN, dte_max=SPREAD_DTE_MAX, right="P"):
+    async def _get_options_chain_with_fallback(
+        self, symbol, dte_min=SPREAD_DTE_MIN, dte_max=SPREAD_DTE_MAX, right="P"
+    ):
         """Fetch options chain with Tradier-first, IBKR-fallback."""
         options = None
         right_upper = right.upper()

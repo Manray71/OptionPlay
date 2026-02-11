@@ -26,14 +26,15 @@ import numpy as np
 
 try:
     from scipy.optimize import minimize
+
     HAS_SCIPY = True
 except ImportError:
     HAS_SCIPY = False
 
 from ...config.scoring_config import get_scoring_resolver
 from .ml_weight_optimizer import (
-    STRATEGY_COMPONENTS,
     DEFAULT_WEIGHTS,
+    STRATEGY_COMPONENTS,
 )
 
 logger = logging.getLogger(__name__)
@@ -47,6 +48,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class StrategyTrainingConfig:
     """Training configuration for a single strategy (from YAML)."""
+
     strategy: str
     # Walk-forward
     train_months: int = 6
@@ -88,6 +90,7 @@ class StrategyTrainingConfig:
 @dataclass
 class StrategyTrainingResult:
     """Result of strategy-specific weight training."""
+
     strategy: str
     weights: Dict[str, float]
     metrics: Dict[str, float]
@@ -123,7 +126,7 @@ def _score_weighted_objective(
     n_comp = len(component_names)
     scores = trades[:, :n_comp] @ weights
     outcomes = trades[:, -1]  # was_profitable
-    pnl = trades[:, -2]       # pnl_pct
+    pnl = trades[:, -2]  # pnl_pct
 
     if len(scores) == 0:
         return -999.0
@@ -188,7 +191,12 @@ def objective_pullback(
     objective_weights: Dict[str, float],
 ) -> float:
     """Pullback: trend-following → balanced win-rate and score-outcome correlation."""
-    defaults = {"win_rate": 0.30, "avg_profit": 0.20, "score_outcome_corr": 0.30, "score_pnl_corr": 0.20}
+    defaults = {
+        "win_rate": 0.30,
+        "avg_profit": 0.20,
+        "score_outcome_corr": 0.30,
+        "score_pnl_corr": 0.20,
+    }
     merged = {**defaults, **objective_weights}
     return _score_weighted_objective(trades, weights, component_names, merged)
 
@@ -200,7 +208,12 @@ def objective_bounce(
     objective_weights: Dict[str, float],
 ) -> float:
     """Bounce: mean-reversion → strong support-level reward."""
-    defaults = {"win_rate": 0.25, "avg_profit": 0.20, "score_outcome_corr": 0.30, "score_pnl_corr": 0.25}
+    defaults = {
+        "win_rate": 0.25,
+        "avg_profit": 0.20,
+        "score_outcome_corr": 0.30,
+        "score_pnl_corr": 0.25,
+    }
     merged = {**defaults, **objective_weights}
     return _score_weighted_objective(trades, weights, component_names, merged)
 
@@ -212,7 +225,13 @@ def objective_breakout(
     objective_weights: Dict[str, float],
 ) -> float:
     """ATH Breakout: momentum → harshest tail-loss penalty."""
-    defaults = {"win_rate": 0.25, "avg_profit": 0.15, "score_outcome_corr": 0.25, "score_pnl_corr": 0.20, "tail_loss": -0.15}
+    defaults = {
+        "win_rate": 0.25,
+        "avg_profit": 0.15,
+        "score_outcome_corr": 0.25,
+        "score_pnl_corr": 0.20,
+        "tail_loss": -0.15,
+    }
     merged = {**defaults, **objective_weights}
     return _score_weighted_objective(
         trades, weights, component_names, merged, loss_penalty_key="tail_loss"
@@ -226,7 +245,12 @@ def objective_dip(
     objective_weights: Dict[str, float],
 ) -> float:
     """Earnings Dip: contrarian → higher profit focus."""
-    defaults = {"win_rate": 0.20, "avg_profit": 0.30, "score_outcome_corr": 0.25, "score_pnl_corr": 0.25}
+    defaults = {
+        "win_rate": 0.20,
+        "avg_profit": 0.30,
+        "score_outcome_corr": 0.25,
+        "score_pnl_corr": 0.25,
+    }
     merged = {**defaults, **objective_weights}
     return _score_weighted_objective(trades, weights, component_names, merged)
 
@@ -359,7 +383,8 @@ class StrategyWeightTrainer:
         """Filter trades where this strategy has the highest score."""
         strategy_score_col = f"{self.strategy}_score"
         other_cols = [
-            f"{s}_score" for s in ["pullback", "bounce", "ath_breakout", "earnings_dip", "trend_continuation"]
+            f"{s}_score"
+            for s in ["pullback", "bounce", "ath_breakout", "earnings_dip", "trend_continuation"]
             if s != self.strategy
         ]
 
@@ -377,7 +402,9 @@ class StrategyWeightTrainer:
 
     def _build_matrices(
         self, df: Any
-    ) -> Tuple[Optional[np.ndarray], Optional[np.ndarray], Optional[np.ndarray], Optional[List[str]]]:
+    ) -> Tuple[
+        Optional[np.ndarray], Optional[np.ndarray], Optional[np.ndarray], Optional[List[str]]
+    ]:
         """Build feature matrix X, outcome y, pnl arrays, and active component list.
 
         Filters out:
@@ -400,15 +427,25 @@ class StrategyWeightTrainer:
                 active.append(comp)
                 active_indices.append(i)
             else:
-                logger.debug(f"{self.strategy}: Skipping constant feature '{comp}' (std={col_std:.6f})")
+                logger.debug(
+                    f"{self.strategy}: Skipping constant feature '{comp}' (std={col_std:.6f})"
+                )
 
         if len(active) < 2:
             logger.warning(f"{self.strategy}: Only {len(active)} non-constant components")
             return None, None, None, None
 
         X = X_full[:, active_indices]
-        y = df["was_profitable"].values.astype(np.float64) if "was_profitable" in df.columns else np.ones(len(df))
-        pnl = df["pnl_pct"].values.astype(np.float64) if "pnl_pct" in df.columns else np.zeros(len(df))
+        y = (
+            df["was_profitable"].values.astype(np.float64)
+            if "was_profitable" in df.columns
+            else np.ones(len(df))
+        )
+        pnl = (
+            df["pnl_pct"].values.astype(np.float64)
+            if "pnl_pct" in df.columns
+            else np.zeros(len(df))
+        )
 
         return X, y, pnl, active
 
@@ -443,9 +480,7 @@ class StrategyWeightTrainer:
                 weights[comp] = resolved.weights.get(config_key, 1.0)
         return weights
 
-    def _clamp_weight_change(
-        self, initial: np.ndarray, optimized: np.ndarray
-    ) -> np.ndarray:
+    def _clamp_weight_change(self, initial: np.ndarray, optimized: np.ndarray) -> np.ndarray:
         """Enforce max_weight_change constraint."""
         max_change = self.config.max_weight_change
         clamped = np.copy(optimized)

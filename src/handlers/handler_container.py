@@ -28,16 +28,16 @@ import logging
 from typing import TYPE_CHECKING, Any, Optional
 
 if TYPE_CHECKING:
-    from ..data_providers.tradier import TradierProvider
-    from ..scanner.multi_strategy_scanner import MultiStrategyScanner
     from ..cache import EarningsFetcher, HistoricalCache
-    from ..utils.rate_limiter import AdaptiveRateLimiter
-    from ..utils.circuit_breaker import CircuitBreaker
-    from ..utils.request_dedup import RequestDeduplicator
-    from ..vix_strategy import VIXStrategySelector
     from ..config import Config
     from ..container import ServiceContainer
+    from ..data_providers.tradier import TradierProvider
+    from ..scanner.multi_strategy_scanner import MultiStrategyScanner
     from ..state.server_state import ServerState
+    from ..utils.circuit_breaker import CircuitBreaker
+    from ..utils.rate_limiter import AdaptiveRateLimiter
+    from ..utils.request_dedup import RequestDeduplicator
+    from ..vix_strategy import VIXStrategySelector
 
 logger = logging.getLogger(__name__)
 
@@ -126,9 +126,14 @@ class BaseHandler:
 
         # Lazy-create provider if API key is available but provider not yet created
         if self._ctx.tradier_provider is None and self._ctx.tradier_api_key:
-            from ..data_providers.tradier import TradierProvider, TradierEnvironment
+            from ..data_providers.tradier import TradierEnvironment, TradierProvider
+
             tradier_cfg = self._ctx.config.settings.tradier
-            env = TradierEnvironment.PRODUCTION if tradier_cfg.is_production else TradierEnvironment.SANDBOX
+            env = (
+                TradierEnvironment.PRODUCTION
+                if tradier_cfg.is_production
+                else TradierEnvironment.SANDBOX
+            )
             self._ctx.tradier_provider = TradierProvider(
                 api_key=self._ctx.tradier_api_key,
                 environment=env,
@@ -202,7 +207,7 @@ class BaseHandler:
         if self._ctx.tradier_connected and self._ctx.tradier_provider:
             try:
                 quote = await self._ctx.tradier_provider.get_quote("VIX")
-                if quote and hasattr(quote, 'last') and quote.last:
+                if quote and hasattr(quote, "last") and quote.last:
                     self._ctx.current_vix = quote.last
                     self._ctx.vix_updated = datetime.now()
                     return quote.last
@@ -212,6 +217,7 @@ class BaseHandler:
         # 4. Fall back to Yahoo Finance
         try:
             import asyncio
+
             vix = await asyncio.to_thread(self._fetch_vix_yahoo)
             if vix:
                 self._ctx.current_vix = vix
@@ -232,19 +238,19 @@ class BaseHandler:
             timeout = self._ctx.config.settings.api_connection.yahoo_timeout
 
             req = urllib.request.Request(url)
-            req.add_header('User-Agent', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)')
+            req.add_header("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)")
 
             with urllib.request.urlopen(req, timeout=timeout) as response:
                 data = json.loads(response.read().decode())
 
-            result = data.get('chart', {}).get('result', [{}])[0]
-            meta = result.get('meta', {})
+            result = data.get("chart", {}).get("result", [{}])[0]
+            meta = result.get("meta", {})
 
-            regular_price = meta.get('regularMarketPrice')
+            regular_price = meta.get("regularMarketPrice")
             if regular_price:
                 return float(regular_price)
 
-            closes = result.get('indicators', {}).get('quote', [{}])[0].get('close', [])
+            closes = result.get("indicators", {}).get("quote", [{}])[0].get("close", [])
             if closes:
                 for c in reversed(closes):
                     if c is not None:
@@ -284,6 +290,7 @@ class HandlerContainer:
         """VIX and strategy handler."""
         if self._vix is None:
             from .vix_composed import VixHandler
+
             self._vix = VixHandler(self._context)
         return self._vix
 
@@ -292,6 +299,7 @@ class HandlerContainer:
         """Scan operations handler."""
         if self._scan is None:
             from .scan_composed import ScanHandler
+
             self._scan = ScanHandler(self._context)
         return self._scan
 
@@ -300,6 +308,7 @@ class HandlerContainer:
         """Quote and market data handler."""
         if self._quote is None:
             from .quote_composed import QuoteHandler
+
             self._quote = QuoteHandler(self._context)
         return self._quote
 
@@ -308,6 +317,7 @@ class HandlerContainer:
         """Symbol analysis handler."""
         if self._analysis is None:
             from .analysis_composed import AnalysisHandler
+
             self._analysis = AnalysisHandler(self._context)
         return self._analysis
 
@@ -316,6 +326,7 @@ class HandlerContainer:
         """Portfolio management handler."""
         if self._portfolio is None:
             from .portfolio_composed import PortfolioHandler
+
             self._portfolio = PortfolioHandler(self._context)
         return self._portfolio
 
@@ -324,6 +335,7 @@ class HandlerContainer:
         """IBKR Bridge handler."""
         if self._ibkr is None:
             from .ibkr_composed import IbkrHandler
+
             self._ibkr = IbkrHandler(self._context)
         return self._ibkr
 
@@ -332,6 +344,7 @@ class HandlerContainer:
         """Report generation handler."""
         if self._report is None:
             from .report_composed import ReportHandler
+
             self._report = ReportHandler(self._context)
         return self._report
 
@@ -340,6 +353,7 @@ class HandlerContainer:
         """Risk management handler."""
         if self._risk is None:
             from .risk_composed import RiskHandler
+
             self._risk = RiskHandler(self._context)
         return self._risk
 
@@ -348,6 +362,7 @@ class HandlerContainer:
         """Trade validation handler."""
         if self._validate is None:
             from .validate_composed import ValidateHandler
+
             self._validate = ValidateHandler(self._context)
         return self._validate
 
@@ -356,6 +371,7 @@ class HandlerContainer:
         """Position monitoring handler."""
         if self._monitor is None:
             from .monitor_composed import MonitorHandler
+
             self._monitor = MonitorHandler(self._context)
         return self._monitor
 
@@ -376,26 +392,26 @@ def create_handler_container_from_server(server) -> HandlerContainer:
     context = ServerContext(
         config=server._config,
         provider=server._provider,
-        tradier_provider=getattr(server, '_tradier_provider', None),
+        tradier_provider=getattr(server, "_tradier_provider", None),
         rate_limiter=server._rate_limiter,
         circuit_breaker=server._circuit_breaker,
         historical_cache=server._historical_cache,
         vix_selector=server._vix_selector,
         deduplicator=server._deduplicator,
-        container=getattr(server, '_container', None),
-        server_state=getattr(server, 'state', None),
+        container=getattr(server, "_container", None),
+        server_state=getattr(server, "state", None),
     )
 
     # Copy mutable state
     context.connected = server._connected
-    context.tradier_connected = getattr(server, '_tradier_connected', False)
-    context.tradier_api_key = getattr(server, '_tradier_api_key', None)
+    context.tradier_connected = getattr(server, "_tradier_connected", False)
+    context.tradier_api_key = getattr(server, "_tradier_api_key", None)
     context.current_vix = server._current_vix
     context.vix_updated = server._vix_updated
     context.quote_cache = server._quote_cache
     context.scan_cache = server._scan_cache
     context.earnings_fetcher = server._earnings_fetcher
-    context.scanner = getattr(server, '_scanner', None)
-    context.ibkr_bridge = getattr(server, '_ibkr_bridge', None)
+    context.scanner = getattr(server, "_scanner", None)
+    context.ibkr_bridge = getattr(server, "_ibkr_bridge", None)
 
     return HandlerContainer(context)

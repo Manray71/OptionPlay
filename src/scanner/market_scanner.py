@@ -4,15 +4,15 @@
 
 import asyncio
 import logging
-from typing import Any, List, Dict, Optional, Tuple, Type
 from datetime import datetime
+from typing import Any, Dict, List, Optional, Tuple, Type
 
 try:
     from ..analyzers.base import BaseAnalyzer
-    from ..models.base import TradeSignal, SignalType
+    from ..models.base import SignalType, TradeSignal
 except ImportError:
     from analyzers.base import BaseAnalyzer
-    from models.base import TradeSignal, SignalType
+    from models.base import SignalType, TradeSignal
 
 logger = logging.getLogger(__name__)
 
@@ -20,33 +20,33 @@ logger = logging.getLogger(__name__)
 class MarketScanner:
     """
     Scannt eine Watchlist mit mehreren Strategien parallel.
-    
+
     Verwendung:
         scanner = MarketScanner()
         scanner.register_analyzer(PullbackAnalyzer(config))
         scanner.register_analyzer(BreakoutAnalyzer(config))
-        
+
         results = await scanner.scan(symbols, data_provider)
     """
-    
+
     def __init__(self) -> None:
         self._analyzers: List[BaseAnalyzer] = []
         self._last_scan: Optional[datetime] = None
-    
+
     def register_analyzer(self, analyzer: BaseAnalyzer) -> None:
         """
         Registriert einen Analyzer für den Scan.
-        
+
         Args:
             analyzer: Instanz eines BaseAnalyzer
         """
         self._analyzers.append(analyzer)
         logger.info(f"Registered analyzer: {analyzer.strategy_name}")
-    
+
     def get_analyzers(self) -> List[str]:
         """Gibt Namen aller registrierten Analyzer zurück"""
         return [a.strategy_name for a in self._analyzers]
-    
+
     async def scan_symbol(
         self,
         symbol: str,
@@ -54,43 +54,40 @@ class MarketScanner:
         volumes: List[int],
         highs: List[float],
         lows: List[float],
-        **kwargs
+        **kwargs,
     ) -> List[TradeSignal]:
         """
         Scannt ein Symbol mit allen registrierten Analyzern.
-        
+
         Returns:
             Liste von TradeSignals (eins pro Analyzer)
         """
         signals = []
-        
+
         for analyzer in self._analyzers:
             try:
                 signal = analyzer.analyze(
-                    symbol=symbol,
-                    prices=prices,
-                    volumes=volumes,
-                    highs=highs,
-                    lows=lows,
-                    **kwargs
+                    symbol=symbol, prices=prices, volumes=volumes, highs=highs, lows=lows, **kwargs
                 )
                 signals.append(signal)
             except Exception as e:
                 logger.warning(f"Error in {analyzer.strategy_name} for {symbol}: {e}")
                 # Neutrales Signal bei Fehler
-                signals.append(analyzer.create_neutral_signal(
-                    symbol, prices[-1] if prices else 0, f"Error: {e}"
-                ))
-        
+                signals.append(
+                    analyzer.create_neutral_signal(
+                        symbol, prices[-1] if prices else 0, f"Error: {e}"
+                    )
+                )
+
         return signals
-    
+
     async def scan(
         self,
         symbols: List[str],
         data_fetcher,  # Callable[[str], Tuple[prices, volumes, highs, lows]]
         min_score: float = 5.0,
         strategies: Optional[List[str]] = None,
-        max_concurrent: int = 10
+        max_concurrent: int = 10,
     ) -> Dict[str, List[TradeSignal]]:
         """
         Scannt alle Symbole mit allen Analyzern (parallelisiert).
@@ -159,33 +156,33 @@ class MarketScanner:
 
         logger.info(f"Scan complete: {len(results)} symbols with signals")
         return results
-    
+
     def get_top_signals(
         self,
         scan_results: Dict[str, List[TradeSignal]],
         top_n: int = 10,
-        signal_type: Optional[SignalType] = None
+        signal_type: Optional[SignalType] = None,
     ) -> List[TradeSignal]:
         """
         Extrahiert die Top-N Signale aus Scan-Ergebnissen.
-        
+
         Args:
             scan_results: Ergebnis von scan()
             top_n: Anzahl der Top-Signale
             signal_type: Optional: Nur dieser Signal-Typ
-            
+
         Returns:
             Liste der besten Signale, sortiert nach Score
         """
         all_signals = []
-        
+
         for symbol, signals in scan_results.items():
             for signal in signals:
                 if signal_type and signal.signal_type != signal_type:
                     continue
                 all_signals.append(signal)
-        
+
         # Nach Score sortieren
         all_signals.sort(key=lambda x: x.score, reverse=True)
-        
+
         return all_signals[:top_n]

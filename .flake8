@@ -1,0 +1,7 @@
+[flake8]
+max-line-length = 100
+extend-ignore =
+    E203,W503,E501,F401,F541,F811,F821,F841,E741,E402,
+    B007,B014,B023,B024,B042,
+    C401,C414,C420
+exclude = .git,__pycache__,.venv,venv,build,dist,tests,.mypy_cache,.pytest_cache

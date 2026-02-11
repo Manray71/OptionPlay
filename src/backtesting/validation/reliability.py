@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
 """
 Reliability Scoring Module - Phase 3 des Hochverlässlichkeits-Frameworks
 
@@ -36,18 +38,18 @@ import os
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Any
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
-from ...constants.trading_rules import VIX_LOW_VOL_MAX, VIX_NORMAL_MAX, VIX_ELEVATED_MAX
+from ...constants.trading_rules import VIX_ELEVATED_MAX, VIX_LOW_VOL_MAX, VIX_NORMAL_MAX
+
+if TYPE_CHECKING:
+    from ..training import TrainingConfig, TrainingResult
+
 from .signal_validation import (
-    SignalValidator,
-    SignalValidationResult,
     SignalReliability,
+    SignalValidationResult,
+    SignalValidator,
     StatisticalCalculator,
-)
-from ..training import (
-    TrainingConfig,
-    TrainingResult,
 )
 
 logger = logging.getLogger(__name__)
@@ -56,6 +58,7 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 # Result Data Classes
 # =============================================================================
+
 
 @dataclass
 class ReliabilityResult:
@@ -161,12 +164,14 @@ class ScorerConfig:
     """Konfiguration für ReliabilityScorer"""
 
     # Grade-Schwellenwerte (CI-Untergrenze)
-    grade_thresholds: Dict[str, float] = field(default_factory=lambda: {
-        "A": 70.0,
-        "B": 60.0,
-        "C": 50.0,
-        "D": 40.0,
-    })
+    grade_thresholds: Dict[str, float] = field(
+        default_factory=lambda: {
+            "A": 70.0,
+            "B": 60.0,
+            "C": 50.0,
+            "D": 40.0,
+        }
+    )
 
     # Mindest-Grade für Trade-Empfehlung
     min_grade_for_trade: str = "C"
@@ -204,6 +209,7 @@ class ScorerConfig:
 # =============================================================================
 # Reliability Scorer
 # =============================================================================
+
 
 class ReliabilityScorer:
     """
@@ -367,9 +373,7 @@ class ReliabilityScorer:
         adjusted_win_rate = base_win_rate + regime_adjustment
 
         # 4. Confidence Interval
-        ci_lower, ci_upper = self._calculate_confidence_interval(
-            adjusted_win_rate, sample_size
-        )
+        ci_lower, ci_upper = self._calculate_confidence_interval(adjusted_win_rate, sample_size)
 
         # 5. Grade bestimmen
         grade = self._determine_grade(ci_lower, sample_size)
@@ -380,14 +384,12 @@ class ReliabilityScorer:
         strong_components = []
 
         if score_breakdown and self.config.analyze_components:
-            component_strengths, weak_components, strong_components = (
-                self._analyze_components(score_breakdown)
+            component_strengths, weak_components, strong_components = self._analyze_components(
+                score_breakdown
             )
 
             if len(weak_components) >= 3:
-                warnings.append(
-                    f"Mehrere schwache Komponenten: {', '.join(weak_components[:3])}"
-                )
+                warnings.append(f"Mehrere schwache Komponenten: {', '.join(weak_components[:3])}")
 
         # 7. Overfit-Check
         overfit_warning = False
@@ -417,9 +419,7 @@ class ReliabilityScorer:
 
         if actual_grade_value < min_grade_value:
             should_trade = False
-            rejection_reason = (
-                f"Grade {grade} unter Minimum ({self.config.min_grade_for_trade})"
-            )
+            rejection_reason = f"Grade {grade} unter Minimum ({self.config.min_grade_for_trade})"
 
         # Sample-Size Check
         if sample_size < self.config.min_sample_size:
@@ -587,9 +587,7 @@ class ReliabilityScorer:
         # Konvertiere Win Rate zu Wins
         wins = int(win_rate * sample_size / 100)
 
-        return StatisticalCalculator.wilson_confidence_interval(
-            wins, sample_size, confidence=0.95
-        )
+        return StatisticalCalculator.wilson_confidence_interval(wins, sample_size, confidence=0.95)
 
     def _determine_grade(self, ci_lower: float, sample_size: int) -> str:
         """Bestimmt Grade basierend auf CI-Untergrenze"""
@@ -683,6 +681,7 @@ class ReliabilityScorer:
 # =============================================================================
 # Utility Functions
 # =============================================================================
+
 
 def create_scorer_from_latest_model(
     models_dir: str = "~/.optionplay/models",

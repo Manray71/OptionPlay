@@ -12,8 +12,8 @@ Functions:
 - estimate_iv_from_hv: IV estimation from HV with VIX adjustment
 """
 
-import math
 import logging
+import math
 from typing import List, Optional
 
 try:

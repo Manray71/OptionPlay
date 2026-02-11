@@ -25,27 +25,27 @@ except ImportError:
 
 # Symbole mit historisch schlechter Performance
 BLACKLIST_LOW_STABILITY: List[str] = [
-    "ROKU",    # Stability 24, WR 61%
-    "SNAP",    # Stability 13, WR 64%
-    "UPST",    # Stability 15, WR 60%
-    "AFRM",    # Stability 18, WR 66%
-    "MRNA",    # Stability 30, WR 64%
-    "RUN",     # Stability 0, WR 40%
-    "MSTR",    # Stability 37, WR 58%
-    "TSLA",    # Stability 41, WR 78% (Meme-Stock-Dynamik)
-    "COIN",    # Stability 33, WR 73% (Crypto-Korrelation)
-    "SQ",      # Stability 36, WR 68%
+    "ROKU",  # Stability 24, WR 61%
+    "SNAP",  # Stability 13, WR 64%
+    "UPST",  # Stability 15, WR 60%
+    "AFRM",  # Stability 18, WR 66%
+    "MRNA",  # Stability 30, WR 64%
+    "RUN",  # Stability 0, WR 40%
+    "MSTR",  # Stability 37, WR 58%
+    "TSLA",  # Stability 41, WR 78% (Meme-Stock-Dynamik)
+    "COIN",  # Stability 33, WR 73% (Crypto-Korrelation)
+    "SQ",  # Stability 36, WR 68%
 ]
 
 # Extreme-Volatilität Symbole (>100% annualisierte Volatilität)
 BLACKLIST_EXTREME_VOL: List[str] = [
-    "DAVE",    # Fintech, >100% Vol
-    "IONQ",    # Quantum Computing, >100% Vol
-    "QBTS",    # Quantum Computing, >100% Vol
-    "QMCO",    # Quantum Computing, >100% Vol
-    "QUBT",    # Quantum Computing, >100% Vol
-    "RDW",     # Space/SPAC, >100% Vol
-    "RGTI",    # Quantum Computing, >100% Vol
+    "DAVE",  # Fintech, >100% Vol
+    "IONQ",  # Quantum Computing, >100% Vol
+    "QBTS",  # Quantum Computing, >100% Vol
+    "QMCO",  # Quantum Computing, >100% Vol
+    "QUBT",  # Quantum Computing, >100% Vol
+    "RDW",  # Space/SPAC, >100% Vol
+    "RGTI",  # Quantum Computing, >100% Vol
 ]
 
 # Kombinierte Blacklist (für einfachen Import)

@@ -18,38 +18,38 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Optional, List, Any
 from datetime import date, timedelta
+from typing import Any, List, Optional
 
 try:
     from ..constants.trading_rules import (
-        SPREAD_DTE_MIN,
-        SPREAD_DTE_MAX,
-        SPREAD_DTE_TARGET,
-        SPREAD_SHORT_DELTA_TARGET,
-        SPREAD_SHORT_DELTA_MIN,
-        SPREAD_SHORT_DELTA_MAX,
-        SPREAD_LONG_DELTA_TARGET,
-        SPREAD_LONG_DELTA_MIN,
-        SPREAD_LONG_DELTA_MAX,
-        SPREAD_MIN_CREDIT_PCT,
-        ENTRY_OPEN_INTEREST_MIN,
         ENTRY_BID_ASK_SPREAD_MAX,
+        ENTRY_OPEN_INTEREST_MIN,
+        SPREAD_DTE_MAX,
+        SPREAD_DTE_MIN,
+        SPREAD_DTE_TARGET,
+        SPREAD_LONG_DELTA_MAX,
+        SPREAD_LONG_DELTA_MIN,
+        SPREAD_LONG_DELTA_TARGET,
+        SPREAD_MIN_CREDIT_PCT,
+        SPREAD_SHORT_DELTA_MAX,
+        SPREAD_SHORT_DELTA_MIN,
+        SPREAD_SHORT_DELTA_TARGET,
     )
 except ImportError:
     from constants.trading_rules import (  # type: ignore[no-redef]  # fallback for non-package execution
-        SPREAD_DTE_MIN,
-        SPREAD_DTE_MAX,
-        SPREAD_DTE_TARGET,
-        SPREAD_SHORT_DELTA_TARGET,
-        SPREAD_SHORT_DELTA_MIN,
-        SPREAD_SHORT_DELTA_MAX,
-        SPREAD_LONG_DELTA_TARGET,
-        SPREAD_LONG_DELTA_MIN,
-        SPREAD_LONG_DELTA_MAX,
-        SPREAD_MIN_CREDIT_PCT,
-        ENTRY_OPEN_INTEREST_MIN,
         ENTRY_BID_ASK_SPREAD_MAX,
+        ENTRY_OPEN_INTEREST_MIN,
+        SPREAD_DTE_MAX,
+        SPREAD_DTE_MIN,
+        SPREAD_DTE_TARGET,
+        SPREAD_LONG_DELTA_MAX,
+        SPREAD_LONG_DELTA_MIN,
+        SPREAD_LONG_DELTA_TARGET,
+        SPREAD_MIN_CREDIT_PCT,
+        SPREAD_SHORT_DELTA_MAX,
+        SPREAD_SHORT_DELTA_MIN,
+        SPREAD_SHORT_DELTA_TARGET,
     )
 
 logger = logging.getLogger(__name__)
@@ -59,17 +59,19 @@ logger = logging.getLogger(__name__)
 # DATA CLASSES
 # =============================================================================
 
+
 @dataclass
 class OptionLeg:
     """Ein Leg eines Spreads mit echten Marktdaten."""
+
     strike: float
-    expiration: str           # YYYY-MM-DD
+    expiration: str  # YYYY-MM-DD
     dte: int
     delta: float
     gamma: float
     theta: float
     vega: float
-    iv: float                 # Implied Volatility (Dezimal)
+    iv: float  # Implied Volatility (Dezimal)
     bid: float
     ask: float
     mid: float
@@ -81,6 +83,7 @@ class OptionLeg:
 @dataclass
 class SpreadValidation:
     """Ergebnis der Options-Chain-Validierung."""
+
     tradeable: bool
     reason: str = ""
     warning: bool = False
@@ -92,15 +95,15 @@ class SpreadValidation:
     dte: Optional[int] = None
 
     # Credit-Daten
-    credit_bid: Optional[float] = None    # Konservativ: Short Bid - Long Ask
-    credit_mid: Optional[float] = None    # Mittel: Short Mid - Long Mid
+    credit_bid: Optional[float] = None  # Konservativ: Short Bid - Long Ask
+    credit_mid: Optional[float] = None  # Mittel: Short Mid - Long Mid
     spread_width: Optional[float] = None
-    credit_pct: Optional[float] = None    # Credit / Spread-Breite in %
+    credit_pct: Optional[float] = None  # Credit / Spread-Breite in %
 
     # Spread-Greeks
     spread_theta: Optional[float] = None  # Theta des Spreads pro Tag
     spread_delta: Optional[float] = None  # Netto-Delta
-    spread_vega: Optional[float] = None   # Netto-Vega
+    spread_vega: Optional[float] = None  # Netto-Vega
 
     # Risiko
     max_loss_per_contract: Optional[float] = None  # (Breite - Credit) × 100
@@ -116,6 +119,7 @@ class SpreadValidation:
 # =============================================================================
 # OPTIONS CHAIN VALIDATOR
 # =============================================================================
+
 
 class OptionsChainValidator:
     """
@@ -174,9 +178,9 @@ class OptionsChainValidator:
             # 4. Short Strike (Delta ≈ -0.20, Toleranz ±0.03)
             short = self._find_strike_by_delta(
                 chain,
-                target=SPREAD_SHORT_DELTA_TARGET,    # -0.20
-                min_delta=SPREAD_SHORT_DELTA_MAX,     # -0.23 (more negative)
-                max_delta=SPREAD_SHORT_DELTA_MIN,     # -0.17 (less negative)
+                target=SPREAD_SHORT_DELTA_TARGET,  # -0.20
+                min_delta=SPREAD_SHORT_DELTA_MAX,  # -0.23 (more negative)
+                max_delta=SPREAD_SHORT_DELTA_MIN,  # -0.17 (less negative)
             )
             if not short:
                 return SpreadValidation(
@@ -190,9 +194,9 @@ class OptionsChainValidator:
             # 5. Long Strike (Delta ≈ -0.05, Toleranz ±0.02)
             long = self._find_strike_by_delta(
                 chain,
-                target=SPREAD_LONG_DELTA_TARGET,      # -0.05
-                min_delta=SPREAD_LONG_DELTA_MAX,       # -0.07
-                max_delta=SPREAD_LONG_DELTA_MIN,       # -0.03
+                target=SPREAD_LONG_DELTA_TARGET,  # -0.05
+                min_delta=SPREAD_LONG_DELTA_MAX,  # -0.07
+                max_delta=SPREAD_LONG_DELTA_MIN,  # -0.03
             )
             if not long:
                 return SpreadValidation(
@@ -211,8 +215,8 @@ class OptionsChainValidator:
                 )
 
             # 6. Credit berechnen
-            credit_bid = short.bid - long.ask    # Konservativ
-            credit_mid = short.mid - long.mid    # Mittel
+            credit_bid = short.bid - long.ask  # Konservativ
+            credit_mid = short.mid - long.mid  # Mittel
             spread_width = short.strike - long.strike
 
             if credit_bid <= 0:
@@ -240,13 +244,9 @@ class OptionsChainValidator:
             warnings = []
 
             if short.open_interest < ENTRY_OPEN_INTEREST_MIN:
-                warnings.append(
-                    f"Short OI {short.open_interest} < {ENTRY_OPEN_INTEREST_MIN}"
-                )
+                warnings.append(f"Short OI {short.open_interest} < {ENTRY_OPEN_INTEREST_MIN}")
             if long.open_interest < ENTRY_OPEN_INTEREST_MIN:
-                warnings.append(
-                    f"Long OI {long.open_interest} < {ENTRY_OPEN_INTEREST_MIN}"
-                )
+                warnings.append(f"Long OI {long.open_interest} < {ENTRY_OPEN_INTEREST_MIN}")
 
             bid_ask_spread_short = short.ask - short.bid
             if bid_ask_spread_short > ENTRY_BID_ASK_SPREAD_MAX:
@@ -303,7 +303,7 @@ class OptionsChainValidator:
         expirations = []
 
         # IBKR zuerst (wenn verbunden)
-        if self._ibkr and hasattr(self._ibkr, 'is_connected') and self._ibkr.is_connected():
+        if self._ibkr and hasattr(self._ibkr, "is_connected") and self._ibkr.is_connected():
             try:
                 chain = await self._ibkr.get_option_chain(
                     symbol, dte_min=SPREAD_DTE_MIN, dte_max=SPREAD_DTE_MAX, right="P"
@@ -313,7 +313,7 @@ class OptionsChainValidator:
                     # Unique expirations aus Chain extrahieren
                     seen = set()
                     for opt in chain:
-                        exp = opt.expiry if hasattr(opt, 'expiry') else None
+                        exp = opt.expiry if hasattr(opt, "expiry") else None
                         if exp and exp not in seen:
                             dte = (exp - today).days
                             if SPREAD_DTE_MIN <= dte <= SPREAD_DTE_MAX:
@@ -350,7 +350,7 @@ class OptionsChainValidator:
         option_quotes = []
 
         # IBKR zuerst
-        if self._ibkr and hasattr(self._ibkr, 'is_connected') and self._ibkr.is_connected():
+        if self._ibkr and hasattr(self._ibkr, "is_connected") and self._ibkr.is_connected():
             try:
                 chain = await self._ibkr.get_option_chain(
                     symbol,
@@ -387,11 +387,11 @@ class OptionsChainValidator:
             if oq.delta is None or oq.bid is None or oq.ask is None:
                 continue
 
-            dte = (oq.expiry - today).days if hasattr(oq, 'expiry') and oq.expiry else 0
+            dte = (oq.expiry - today).days if hasattr(oq, "expiry") and oq.expiry else 0
 
             leg = OptionLeg(
                 strike=oq.strike,
-                expiration=oq.expiry.isoformat() if hasattr(oq, 'expiry') and oq.expiry else "",
+                expiration=oq.expiry.isoformat() if hasattr(oq, "expiry") and oq.expiry else "",
                 dte=dte,
                 delta=oq.delta,
                 gamma=oq.gamma or 0.0,
@@ -428,17 +428,17 @@ class OptionsChainValidator:
         """
         # Puts haben negative Deltas
         candidates = [
-            leg for leg in chain
-            if min_delta <= leg.delta <= max_delta
-            and leg.bid > 0  # Mindestens Bid > 0
+            leg
+            for leg in chain
+            if min_delta <= leg.delta <= max_delta and leg.bid > 0  # Mindestens Bid > 0
         ]
 
         if not candidates:
             # Fallback: erweitere Suche um ±0.02 wenn nichts gefunden
             expanded_candidates = [
-                leg for leg in chain
-                if (min_delta - 0.02) <= leg.delta <= (max_delta + 0.02)
-                and leg.bid > 0
+                leg
+                for leg in chain
+                if (min_delta - 0.02) <= leg.delta <= (max_delta + 0.02) and leg.bid > 0
             ]
             if expanded_candidates:
                 logger.info(

@@ -16,51 +16,54 @@
 #
 # Minimum for signal: 4.0
 
-from dataclasses import dataclass
-from typing import List, Optional, Dict, Any, Tuple
 import logging
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional, Tuple
+
 import numpy as np
 
+from ..models.base import SignalStrength, SignalType, TradeSignal
+from ..models.strategy_breakdowns import ATHBreakoutScoreBreakdown
 from .base import BaseAnalyzer
 from .context import AnalysisContext
 
-from ..models.base import TradeSignal, SignalType, SignalStrength
-from ..models.strategy_breakdowns import ATHBreakoutScoreBreakdown
-
 logger = logging.getLogger(__name__)
 
-# Import S/R analysis
-from ..indicators.support_resistance import get_nearest_sr_levels
+# Import central constants
+from ..constants import (
+    ATH_LOOKBACK_DAYS,
+    MACD_FAST,
+    MACD_SIGNAL,
+    MACD_SLOW,
+    RSI_PERIOD,
+    SMA_LONG,
+    SMA_MEDIUM,
+    SMA_SHORT,
+    SR_LOOKBACK_DAYS_EXTENDED,
+    VOLUME_AVG_PERIOD,
+)
 
 # Import shared indicators
 from ..indicators.momentum import calculate_macd
 
+# Import S/R analysis
+from ..indicators.support_resistance import get_nearest_sr_levels
+
 # Import Feature Scoring Mixin
 from .feature_scoring_mixin import FeatureScoringMixin
-
-# Import central constants
-from ..constants import (
-    RSI_PERIOD,
-    MACD_FAST, MACD_SLOW, MACD_SIGNAL,
-    SMA_SHORT, SMA_MEDIUM, SMA_LONG,
-    VOLUME_AVG_PERIOD,
-    SR_LOOKBACK_DAYS_EXTENDED,
-    ATH_LOOKBACK_DAYS,
-)
-
 
 # =============================================================================
 # CONSTANTS for ATH Breakout Strategy v2
 # =============================================================================
 
-ATH_CONSOL_LOOKBACK = 60           # Max lookback for consolidation detection
-ATH_CONSOL_MIN_DAYS = 20           # Minimum consolidation duration
-ATH_CONSOL_MAX_RANGE_PCT = 15.0    # Max range for consolidation (%)
-ATH_CONSOL_ATH_TEST_PCT = 1.0     # ATH test = high within 1% of ATH
-ATH_VOLUME_DISQUALIFY = 1.0       # Vol < 1.0x avg = disqualify
-ATH_RSI_DISQUALIFY = 80.0         # RSI > 80 = disqualify
-ATH_MIN_SCORE = 4.0                # Minimum total score for signal
-ATH_MAX_SCORE = 9.5                # Theoretical maximum (2.5 + 2.0 + 2.5 + 1.5 + bonus)
+ATH_CONSOL_LOOKBACK = 60  # Max lookback for consolidation detection
+ATH_CONSOL_MIN_DAYS = 20  # Minimum consolidation duration
+ATH_CONSOL_MAX_RANGE_PCT = 15.0  # Max range for consolidation (%)
+ATH_CONSOL_ATH_TEST_PCT = 1.0  # ATH test = high within 1% of ATH
+ATH_VOLUME_DISQUALIFY = 1.0  # Vol < 1.0x avg = disqualify
+ATH_RSI_DISQUALIFY = 80.0  # RSI > 80 = disqualify
+ATH_MIN_SCORE = 4.0  # Minimum total score for signal
+ATH_MAX_SCORE = 9.5  # Theoretical maximum (2.5 + 2.0 + 2.5 + 1.5 + bonus)
 
 # Consolidation Range Tiers
 ATH_RANGE_TIGHT_PCT = 8.0
@@ -129,6 +132,7 @@ ATH_CONSOL_WINDOW_STEP = 5
 @dataclass
 class ATHBreakoutConfig:
     """Configuration for ATH Breakout Analyzer v2"""
+
     # ATH Detection
     ath_lookback_days: int = ATH_LOOKBACK_DAYS  # 252 days (1 year)
 
@@ -195,7 +199,7 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         self,
         config: Optional[ATHBreakoutConfig] = None,
         scoring_config=None,  # Accepted for backward compat, ignored
-        **kwargs
+        **kwargs,
     ) -> None:
         self.config = config or ATHBreakoutConfig()
         # Accept scoring_config for backward compat but ignore it
@@ -222,7 +226,7 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         lows: List[float],
         spy_prices: Optional[List[float]] = None,
         context: Optional[AnalysisContext] = None,
-        **kwargs
+        **kwargs,
     ) -> TradeSignal:
         """
         Analyzes a symbol for ATH breakout.
@@ -262,21 +266,23 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         # =====================================================================
         ath_info = self._identify_ath(highs, prices)
 
-        if not ath_info['has_ath']:
+        if not ath_info["has_ath"]:
             return self._make_disqualified_signal(
-                symbol, current_price,
-                f"No ATH breakout: price is {ath_info.get('pct_below_ath', 0):.1f}% below {ath_info['lookback']}-day high"
+                symbol,
+                current_price,
+                f"No ATH breakout: price is {ath_info.get('pct_below_ath', 0):.1f}% below {ath_info['lookback']}-day high",
             )
 
-        previous_ath = ath_info['previous_ath']
+        previous_ath = ath_info["previous_ath"]
 
         # Check consolidation
         consol_info = self._detect_consolidation(highs, lows, prices, previous_ath)
 
-        if not consol_info['has_consolidation']:
+        if not consol_info["has_consolidation"]:
             return self._make_disqualified_signal(
-                symbol, current_price,
-                consol_info.get('disqualify_reason', 'No consolidation before breakout')
+                symbol,
+                current_price,
+                consol_info.get("disqualify_reason", "No consolidation before breakout"),
             )
 
         breakdown.ath_old = previous_ath
@@ -288,23 +294,25 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         # =====================================================================
         close_info = self._check_close_confirmation(prices, previous_ath)
 
-        if not close_info['confirmed']:
+        if not close_info["confirmed"]:
             return self._make_disqualified_signal(
-                symbol, current_price,
-                f"Breakout not confirmed: close ${current_price:.2f} is below ATH ${previous_ath:.2f} (intraday fakeout)"
+                symbol,
+                current_price,
+                f"Breakout not confirmed: close ${current_price:.2f} is below ATH ${previous_ath:.2f} (intraday fakeout)",
             )
 
-        breakdown.ath_pct_above = close_info['pct_above']
+        breakdown.ath_pct_above = close_info["pct_above"]
 
         # =====================================================================
         # STEP 3: Volume Confirmation (PFLICHT — < 1.0x = disqualify)
         # =====================================================================
         volume_info = self._check_volume(volumes)
 
-        if volume_info['ratio'] < self.config.volume_disqualify_threshold:
+        if volume_info["ratio"] < self.config.volume_disqualify_threshold:
             return self._make_disqualified_signal(
-                symbol, current_price,
-                f"Weak volume: {volume_info['ratio']:.2f}x avg (< {self.config.volume_disqualify_threshold}x) — likely false breakout"
+                symbol,
+                current_price,
+                f"Weak volume: {volume_info['ratio']:.2f}x avg (< {self.config.volume_disqualify_threshold}x) — likely false breakout",
             )
 
         # =====================================================================
@@ -314,8 +322,9 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
 
         if rsi_value > self.config.rsi_disqualify:
             return self._make_disqualified_signal(
-                symbol, current_price,
-                f"RSI overbought at {rsi_value:.0f} (> {self.config.rsi_disqualify:.0f}) — reversal likely"
+                symbol,
+                current_price,
+                f"RSI overbought at {rsi_value:.0f} (> {self.config.rsi_disqualify:.0f}) — reversal likely",
             )
 
         # =====================================================================
@@ -328,24 +337,24 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         breakdown.ath_reason = (
             f"Base {consol_info['duration']} days, "
             f"{consol_info['range_pct']:.1f}% range"
-            + (f", {consol_info['ath_tests']}x tested" if consol_info['ath_tests'] >= 2 else "")
+            + (f", {consol_info['ath_tests']}x tested" if consol_info["ath_tests"] >= 2 else "")
         )
 
         # 2. Breakout Strength (0 – 2.0)
         breakout_score = self._score_breakout_strength(close_info)
 
         # 3. Volume Confirmation (-1.0 – 2.5)
-        volume_score = self._score_volume(volume_info['ratio'])
+        volume_score = self._score_volume(volume_info["ratio"])
         breakdown.volume_score = volume_score
-        breakdown.volume_ratio = volume_info['ratio']
-        breakdown.volume_reason = volume_info.get('reason', '')
+        breakdown.volume_ratio = volume_info["ratio"]
+        breakdown.volume_reason = volume_info.get("reason", "")
 
         # 4. Momentum / Trend Context (-1.0 – 1.5)
         momentum_info = self._score_momentum_trend(prices, rsi_value)
-        momentum_score = momentum_info['score']
+        momentum_score = momentum_info["score"]
         breakdown.trend_score = momentum_score
-        breakdown.trend_status = momentum_info.get('status', '')
-        breakdown.trend_reason = momentum_info.get('reason', '')
+        breakdown.trend_status = momentum_info.get("status", "")
+        breakdown.trend_reason = momentum_info.get("reason", "")
         breakdown.rsi_value = rsi_value
         breakdown.rsi_reason = f"RSI={rsi_value:.1f}"
 
@@ -359,8 +368,13 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         # BUILD SIGNAL
         # =====================================================================
         signal_text = self._build_signal_text(
-            current_price, previous_ath, close_info,
-            consol_info, volume_info, momentum_info, rsi_value
+            current_price,
+            previous_ath,
+            close_info,
+            consol_info,
+            volume_info,
+            momentum_info,
+            rsi_value,
         )
 
         # Signal strength
@@ -381,17 +395,21 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         # Extended S/R for context
         sr_levels = get_nearest_sr_levels(
             current_price=current_price,
-            prices=prices, highs=highs, lows=lows,
+            prices=prices,
+            highs=highs,
+            lows=lows,
             volumes=volumes,
             lookback=SR_LOOKBACK_DAYS_EXTENDED,
-            num_levels=3
+            num_levels=3,
         )
 
         # Warnings
         if rsi_value > ATH_RSI_OVERBOUGHT:
             warnings.append(f"RSI elevated at {rsi_value:.0f} — near overbought")
-        if volume_info['ratio'] < ATH_VOLUME_GOOD:
-            warnings.append(f"Volume only {volume_info['ratio']:.1f}x avg — elevated false breakout risk")
+        if volume_info["ratio"] < ATH_VOLUME_GOOD:
+            warnings.append(
+                f"Volume only {volume_info['ratio']:.1f}x avg — elevated false breakout risk"
+            )
         if momentum_score < 0:
             warnings.append("Weak momentum context")
 
@@ -407,28 +425,28 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             target_price=target_price,
             reason=signal_text,
             details={
-                'score_breakdown': breakdown.to_dict(),
-                'raw_score': total_score,
-                'max_possible': 10.0,
-                'ath_info': {
-                    'previous_ath': previous_ath,
-                    'pct_above': close_info['pct_above'],
-                    'days_above': close_info['days_above'],
-                    'lookback': ath_info['lookback'],
+                "score_breakdown": breakdown.to_dict(),
+                "raw_score": total_score,
+                "max_possible": 10.0,
+                "ath_info": {
+                    "previous_ath": previous_ath,
+                    "pct_above": close_info["pct_above"],
+                    "days_above": close_info["days_above"],
+                    "lookback": ath_info["lookback"],
                 },
-                'consolidation_info': consol_info,
-                'volume_info': volume_info,
-                'momentum_info': momentum_info,
-                'rsi': rsi_value,
-                'sr_levels': sr_levels,
-                'components': {
-                    'consolidation_quality': consol_score,
-                    'breakout_strength': breakout_score,
-                    'volume': volume_score,
-                    'momentum_trend': momentum_score,
+                "consolidation_info": consol_info,
+                "volume_info": volume_info,
+                "momentum_info": momentum_info,
+                "rsi": rsi_value,
+                "sr_levels": sr_levels,
+                "components": {
+                    "consolidation_quality": consol_score,
+                    "breakout_strength": breakout_score,
+                    "volume": volume_score,
+                    "momentum_trend": momentum_score,
                 },
             },
-            warnings=warnings
+            warnings=warnings,
         )
 
     # =========================================================================
@@ -454,25 +472,25 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
 
         # Previous ATH = max high in lookback EXCLUDING last bar
         if lookback < 2:
-            return {'has_ath': False, 'previous_ath': 0, 'pct_below_ath': 0, 'lookback': lookback}
+            return {"has_ath": False, "previous_ath": 0, "pct_below_ath": 0, "lookback": lookback}
 
-        previous_ath = max(highs[-lookback - 1:-1])
+        previous_ath = max(highs[-lookback - 1 : -1])
         current_high = highs[-1]
         current_close = prices[-1]
 
         info = {
-            'previous_ath': previous_ath,
-            'current_high': current_high,
-            'lookback': lookback,
+            "previous_ath": previous_ath,
+            "current_high": current_high,
+            "lookback": lookback,
         }
 
         # Check if current bar reaches or exceeds ATH
         if current_high >= previous_ath:
-            info['has_ath'] = True
+            info["has_ath"] = True
         else:
             pct_below = ((previous_ath - current_high) / previous_ath) * 100
-            info['has_ath'] = False
-            info['pct_below_ath'] = pct_below
+            info["has_ath"] = False
+            info["pct_below_ath"] = pct_below
 
         return info
 
@@ -511,11 +529,11 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         n = len(highs)
         if n < min_days + 1:
             return {
-                'has_consolidation': False,
-                'range_pct': 0,
-                'duration': 0,
-                'ath_tests': 0,
-                'disqualify_reason': 'Insufficient data for consolidation check',
+                "has_consolidation": False,
+                "range_pct": 0,
+                "duration": 0,
+                "ath_tests": 0,
+                "disqualify_reason": "Insufficient data for consolidation check",
             }
 
         # Consolidation window: last lookback bars excluding current bar
@@ -527,11 +545,11 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
 
         if len(consol_highs) < min_days:
             return {
-                'has_consolidation': False,
-                'range_pct': 0,
-                'duration': len(consol_highs),
-                'ath_tests': 0,
-                'disqualify_reason': f'Consolidation too short: {len(consol_highs)} days (need >= {min_days})',
+                "has_consolidation": False,
+                "range_pct": 0,
+                "duration": len(consol_highs),
+                "ath_tests": 0,
+                "disqualify_reason": f"Consolidation too short: {len(consol_highs)} days (need >= {min_days})",
             }
 
         # Calculate range
@@ -571,11 +589,11 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
 
             if w_range > max_range:
                 return {
-                    'has_consolidation': False,
-                    'range_pct': round(w_range, 1),
-                    'duration': min_days,
-                    'ath_tests': 0,
-                    'disqualify_reason': f'Range too wide: {w_range:.1f}% (max {max_range}%) — no consolidation',
+                    "has_consolidation": False,
+                    "range_pct": round(w_range, 1),
+                    "duration": min_days,
+                    "ath_tests": 0,
+                    "disqualify_reason": f"Range too wide: {w_range:.1f}% (max {max_range}%) — no consolidation",
                 }
             best_range = w_range
             best_duration = min_days
@@ -594,10 +612,10 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
                 in_test = False
 
         return {
-            'has_consolidation': True,
-            'range_pct': round(best_range, 1),
-            'duration': best_duration,
-            'ath_tests': ath_tests,
+            "has_consolidation": True,
+            "range_pct": round(best_range, 1),
+            "duration": best_duration,
+            "ath_tests": ath_tests,
         }
 
     # =========================================================================
@@ -631,9 +649,9 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         pct_above = ((current_close - previous_ath) / previous_ath) * 100
 
         return {
-            'confirmed': confirmed,
-            'pct_above': round(pct_above, 2),
-            'days_above': days_above,
+            "confirmed": confirmed,
+            "pct_above": round(pct_above, 2),
+            "days_above": days_above,
         }
 
     # =========================================================================
@@ -651,9 +669,9 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         avg_period = self.config.volume_avg_period
 
         if len(volumes) < avg_period + 1:
-            return {'ratio': 1.0, 'reason': 'Insufficient volume data'}
+            return {"ratio": 1.0, "reason": "Insufficient volume data"}
 
-        avg_volume = sum(volumes[-avg_period - 1:-1]) / avg_period
+        avg_volume = sum(volumes[-avg_period - 1 : -1]) / avg_period
         breakout_volume = volumes[-1]
 
         # Weekend/holiday fallback: use last non-zero volume
@@ -674,7 +692,7 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         else:
             reason = f"Weak volume: {ratio:.2f}x avg — breakout may fail"
 
-        return {'ratio': round(ratio, 2), 'reason': reason}
+        return {"ratio": round(ratio, 2), "reason": reason}
 
     # =========================================================================
     # STEP 4: RSI CHECK
@@ -725,9 +743,9 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
           Range 12-15%, Duration 20+     → 1.0
           ATH tested 2+ times            → +0.5 bonus (max 2.5)
         """
-        range_pct = consol_info['range_pct']
-        duration = consol_info['duration']
-        ath_tests = consol_info['ath_tests']
+        range_pct = consol_info["range_pct"]
+        duration = consol_info["duration"]
+        ath_tests = consol_info["ath_tests"]
 
         # Base score from range + duration
         if range_pct <= ATH_RANGE_TIGHT_PCT:
@@ -764,8 +782,8 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
           Close > 5% above ATH           → 1.5 (potentially overextended)
           2+ days close above ATH         → +0.5 bonus (max 2.0)
         """
-        pct_above = close_info['pct_above']
-        days_above = close_info['days_above']
+        pct_above = close_info["pct_above"]
+        days_above = close_info["days_above"]
 
         # Base score from % above ATH
         if pct_above <= ATH_BREAKOUT_WEAK_PCT:
@@ -828,38 +846,50 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         # SMA alignment check
         sma_20 = sum(prices[-SMA_SHORT:]) / SMA_SHORT if len(prices) >= SMA_SHORT else prices[-1]
         sma_50 = sum(prices[-SMA_MEDIUM:]) / SMA_MEDIUM if len(prices) >= SMA_MEDIUM else prices[-1]
-        sma_200 = sum(prices[-SMA_LONG:]) / SMA_LONG if len(prices) >= SMA_LONG else sum(prices) / len(prices)
+        sma_200 = (
+            sum(prices[-SMA_LONG:]) / SMA_LONG
+            if len(prices) >= SMA_LONG
+            else sum(prices) / len(prices)
+        )
 
         current = prices[-1]
 
         if current > sma_20 > sma_50 > sma_200:
             score += ATH_MOMENTUM_SMA_PERFECT_BONUS
             signals.append("Perfect SMA alignment")
-            trend_status = 'strong_uptrend'
+            trend_status = "strong_uptrend"
         elif current > sma_50 > sma_200:
             score += ATH_MOMENTUM_SMA_GOOD_BONUS
             signals.append("Good SMA alignment")
-            trend_status = 'uptrend'
+            trend_status = "uptrend"
         elif current > sma_200:
-            trend_status = 'above_sma200'
+            trend_status = "above_sma200"
         else:
-            trend_status = 'below_sma200'
+            trend_status = "below_sma200"
 
         # SMA 200 direction check
         if len(prices) >= SMA_LONG + ATH_MOMENTUM_SMA200_LOOKBACK:
-            sma_200_prev = sum(prices[-(SMA_LONG + ATH_MOMENTUM_SMA200_LOOKBACK):-ATH_MOMENTUM_SMA200_LOOKBACK]) / SMA_LONG
+            sma_200_prev = (
+                sum(
+                    prices[
+                        -(SMA_LONG + ATH_MOMENTUM_SMA200_LOOKBACK) : -ATH_MOMENTUM_SMA200_LOOKBACK
+                    ]
+                )
+                / SMA_LONG
+            )
             if sma_200 < sma_200_prev * ATH_MOMENTUM_SMA200_DECLINE:
                 score -= ATH_MOMENTUM_SMA200_DECLINE_PENALTY
                 signals.append("SMA 200 falling")
-                trend_status = 'downtrend'
+                trend_status = "downtrend"
 
         # MACD check
         macd_result = calculate_macd(
-            prices,
-            fast_period=MACD_FAST, slow_period=MACD_SLOW, signal_period=MACD_SIGNAL
+            prices, fast_period=MACD_FAST, slow_period=MACD_SLOW, signal_period=MACD_SIGNAL
         )
         if macd_result:
-            if macd_result.crossover == 'bullish' or (macd_result.macd_line > macd_result.signal_line):
+            if macd_result.crossover == "bullish" or (
+                macd_result.macd_line > macd_result.signal_line
+            ):
                 score += ATH_MOMENTUM_MACD_BONUS
                 signals.append("MACD bullish")
 
@@ -877,14 +907,14 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         reason = ", ".join(signals) if signals else "Neutral momentum"
 
         return {
-            'score': round(score, 2),
-            'status': trend_status,
-            'reason': reason,
-            'sma_20': sma_20,
-            'sma_50': sma_50,
-            'sma_200': sma_200,
-            'rsi': rsi_value,
-            'signals': signals,
+            "score": round(score, 2),
+            "status": trend_status,
+            "reason": reason,
+            "sma_20": sma_20,
+            "sma_50": sma_50,
+            "sma_200": sma_200,
+            "rsi": rsi_value,
+            "signals": signals,
         }
 
     # =========================================================================
@@ -908,13 +938,15 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         parts = []
 
         # Close info
-        pct_above = close_info['pct_above']
-        days_str = f", day {close_info['days_above']}" if close_info['days_above'] >= 2 else ""
-        parts.append(f"ATH Breakout: Close ${current_price:.2f} (+{pct_above:.1f}% over ATH{days_str})")
+        pct_above = close_info["pct_above"]
+        days_str = f", day {close_info['days_above']}" if close_info["days_above"] >= 2 else ""
+        parts.append(
+            f"ATH Breakout: Close ${current_price:.2f} (+{pct_above:.1f}% over ATH{days_str})"
+        )
 
         # Base info
         base_desc = f"{consol_info['duration']}-day base ({consol_info['range_pct']:.1f}% range"
-        if consol_info['ath_tests'] >= 2:
+        if consol_info["ath_tests"] >= 2:
             base_desc += f", {consol_info['ath_tests']}x tested"
         base_desc += ")"
         parts.append(base_desc)
@@ -923,8 +955,8 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         parts.append(f"Vol {volume_info['ratio']:.1f}x avg")
 
         # Momentum signals
-        if momentum_info.get('signals'):
-            parts.append(", ".join(momentum_info['signals']))
+        if momentum_info.get("signals"):
+            parts.append(", ".join(momentum_info["signals"]))
 
         return " | ".join(parts)
 

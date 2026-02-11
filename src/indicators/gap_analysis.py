@@ -49,6 +49,7 @@ PERFORMANCE_FORWARD_DAYS = 5  # Tage nach Gap für Return-Berechnung
 # CORE GAP DETECTION
 # =============================================================================
 
+
 def detect_gap(
     prev_open: float,
     prev_high: float,
@@ -78,37 +79,37 @@ def detect_gap(
         Tuple: (gap_type, gap_size_pct, gap_size_abs, is_filled, fill_percentage)
     """
     if prev_close <= 0:
-        return ('none', 0.0, 0.0, False, 0.0)
+        return ("none", 0.0, 0.0, False, 0.0)
 
     # Gap-Größe berechnen (relativ zum Previous Close)
     gap_size_abs = curr_open - prev_close
     gap_size_pct = (gap_size_abs / prev_close) * 100
 
     # Gap-Typ bestimmen
-    gap_type = 'none'
+    gap_type = "none"
 
     if curr_open > prev_high:
         # Full Up-Gap: Eröffnung über dem Vortagshoch
-        gap_type = 'up'
+        gap_type = "up"
     elif curr_open < prev_low:
         # Full Down-Gap: Eröffnung unter dem Vortagstief
-        gap_type = 'down'
+        gap_type = "down"
     elif gap_size_pct >= min_gap_pct:
         # Partial Up-Gap: Deutlich über Close, aber nicht über High
-        gap_type = 'partial_up'
+        gap_type = "partial_up"
     elif gap_size_pct <= -min_gap_pct:
         # Partial Down-Gap: Deutlich unter Close, aber nicht unter Low
-        gap_type = 'partial_down'
+        gap_type = "partial_down"
 
     # Prüfe ob Gap zu klein ist
-    if gap_type != 'none' and abs(gap_size_pct) < min_gap_pct:
-        gap_type = 'none'
+    if gap_type != "none" and abs(gap_size_pct) < min_gap_pct:
+        gap_type = "none"
 
     # Gap-Fill prüfen (wurde die Lücke intraday geschlossen?)
     is_filled = False
     fill_percentage = 0.0
 
-    if gap_type in ('up', 'partial_up') and gap_size_abs > 0:
+    if gap_type in ("up", "partial_up") and gap_size_abs > 0:
         # Up-Gap: Gefüllt wenn Preis zurück zum Previous Close fällt
         gap_fill_price = prev_close
         distance_to_fill = curr_open - gap_fill_price
@@ -117,7 +118,7 @@ def detect_gap(
             fill_percentage = min(100.0, (filled_amount / distance_to_fill) * 100)
             is_filled = fill_percentage >= GAP_FILL_THRESHOLD_PCT
 
-    elif gap_type in ('down', 'partial_down') and gap_size_abs < 0:
+    elif gap_type in ("down", "partial_down") and gap_size_abs < 0:
         # Down-Gap: Gefüllt wenn Preis zurück zum Previous Close steigt
         gap_fill_price = prev_close
         distance_to_fill = gap_fill_price - curr_open
@@ -189,7 +190,7 @@ def analyze_gap(
             curr_close=closes[i],
             min_gap_pct=min_gap_pct,
         )
-        if hist_type != 'none':
+        if hist_type != "none":
             gaps_count += 1
             gap_sizes.append(abs(hist_size))
             if hist_filled:
@@ -260,13 +261,13 @@ def _calculate_gap_quality_score(
     Returns:
         Score von -1.0 (sehr bearish) bis +1.0 (sehr bullish für Entry)
     """
-    if gap_type == 'none':
+    if gap_type == "none":
         return 0.0
 
     abs_size = abs(gap_size_pct)
 
     # Basis-Score basierend auf Gap-Typ (validiert mit 174k+ Events)
-    if gap_type in ('down', 'partial_down'):
+    if gap_type in ("down", "partial_down"):
         # Down-Gaps sind gut für mittelfristige Entries (30-60d)
         # Validierung zeigt: +0.43% bessere 30d-Returns, +1.9pp höhere Win-Rate
 
@@ -287,12 +288,12 @@ def _calculate_gap_quality_score(
             base_score *= 0.85  # Teilweise gefüllt
 
         # Full Down-Gap ist stärker als Partial
-        if gap_type == 'partial_down':
+        if gap_type == "partial_down":
             base_score *= 0.7
 
         return min(1.0, base_score)
 
-    elif gap_type in ('up', 'partial_up'):
+    elif gap_type in ("up", "partial_up"):
         # Up-Gaps: Kurzfristig gut (Momentum), aber mittelfristig schwächer
         # Für Bull-Put-Spreads (30-45 DTE): Neutrale bis leicht negative Bewertung
 
@@ -319,7 +320,7 @@ def _calculate_gap_quality_score(
             base_score *= 0.7
 
         # Full Up-Gap ist stärker negativ als Partial
-        if gap_type == 'partial_up':
+        if gap_type == "partial_up":
             base_score *= 0.7
 
         return max(-1.0, base_score)
@@ -330,6 +331,7 @@ def _calculate_gap_quality_score(
 # =============================================================================
 # GAP STATISTICS & VALIDATION
 # =============================================================================
+
 
 def calculate_gap_statistics(
     symbol: str,
@@ -393,21 +395,21 @@ def calculate_gap_statistics(
             min_gap_pct=min_gap_pct,
         )
 
-        if gap_type == 'up':
+        if gap_type == "up":
             up_gaps.append((i, gap_size))
             if is_filled:
                 up_gap_fills += 1
-        elif gap_type == 'down':
+        elif gap_type == "down":
             down_gaps.append((i, gap_size))
             if is_filled:
                 down_gap_fills += 1
-        elif gap_type == 'partial_up':
+        elif gap_type == "partial_up":
             partial_up_gaps.append((i, gap_size))
-        elif gap_type == 'partial_down':
+        elif gap_type == "partial_down":
             partial_down_gaps.append((i, gap_size))
 
         # Multi-Day Fill-Tracking
-        if gap_type in ('up', 'down') and not is_filled:
+        if gap_type in ("up", "down") and not is_filled:
             fill_time = _find_gap_fill_time(
                 gap_type=gap_type,
                 gap_open=opens[i],
@@ -418,7 +420,7 @@ def calculate_gap_statistics(
             )
             if fill_time is not None:
                 fill_times.append(fill_time)
-                if gap_type == 'up':
+                if gap_type == "up":
                     up_gap_fills += 1
                 else:
                     down_gap_fills += 1
@@ -443,8 +445,14 @@ def calculate_gap_statistics(
         avg_fill_time_days=np.mean(fill_times) if fill_times else 0.0,
         avg_return_after_up_gap_5d=np.mean(up_gap_returns) if up_gap_returns else 0.0,
         avg_return_after_down_gap_5d=np.mean(down_gap_returns) if down_gap_returns else 0.0,
-        win_rate_after_up_gap=sum(1 for r in up_gap_returns if r > 0) / len(up_gap_returns) if up_gap_returns else 0.0,
-        win_rate_after_down_gap=sum(1 for r in down_gap_returns if r > 0) / len(down_gap_returns) if down_gap_returns else 0.0,
+        win_rate_after_up_gap=(
+            sum(1 for r in up_gap_returns if r > 0) / len(up_gap_returns) if up_gap_returns else 0.0
+        ),
+        win_rate_after_down_gap=(
+            sum(1 for r in down_gap_returns if r > 0) / len(down_gap_returns)
+            if down_gap_returns
+            else 0.0
+        ),
     )
 
 
@@ -470,7 +478,7 @@ def _find_gap_fill_time(
         Anzahl Tage bis Fill oder None wenn nicht gefüllt
     """
     for day in range(1, min(max_days, len(highs))):
-        if gap_type == 'up':
+        if gap_type == "up":
             # Up-Gap gefüllt wenn Low <= target_price
             if lows[day] <= target_price:
                 return day
@@ -512,6 +520,7 @@ def _calculate_forward_returns(
 # GAP SERIES FOR BACKTESTING
 # =============================================================================
 
+
 def calculate_gap_series(
     opens: List[float],
     highs: List[float],
@@ -540,10 +549,10 @@ def calculate_gap_series(
     for i in range(1, n):
         # Verwende Daten bis zum aktuellen Tag
         result = analyze_gap(
-            opens=opens[:i + 1],
-            highs=highs[:i + 1],
-            lows=lows[:i + 1],
-            closes=closes[:i + 1],
+            opens=opens[: i + 1],
+            highs=highs[: i + 1],
+            lows=lows[: i + 1],
+            closes=closes[: i + 1],
             lookback_days=min(DEFAULT_LOOKBACK_DAYS, i),
             min_gap_pct=min_gap_pct,
         )
@@ -556,6 +565,7 @@ def calculate_gap_series(
 # HELPER FUNCTIONS
 # =============================================================================
 
+
 def gap_type_to_score_factor(gap_type: str) -> float:
     """
     Konvertiert Gap-Typ zu einem einfachen Score-Faktor.
@@ -567,9 +577,9 @@ def gap_type_to_score_factor(gap_type: str) -> float:
         -1.0 für Up-Gap (bearish für Entry)
         0.0 für kein Gap
     """
-    if gap_type in ('down', 'partial_down'):
+    if gap_type in ("down", "partial_down"):
         return 1.0
-    elif gap_type in ('up', 'partial_up'):
+    elif gap_type in ("up", "partial_up"):
         return -1.0
     return 0.0
 
@@ -589,11 +599,11 @@ def get_gap_description(gap_result: GapResult) -> str:
     Returns:
         Beschreibender String
     """
-    if gap_result.gap_type == 'none':
+    if gap_result.gap_type == "none":
         return "Kein signifikanter Gap"
 
-    direction = "aufwärts" if 'up' in gap_result.gap_type else "abwärts"
-    full_partial = "Full" if gap_result.gap_type in ('up', 'down') else "Partial"
+    direction = "aufwärts" if "up" in gap_result.gap_type else "abwärts"
+    full_partial = "Full" if gap_result.gap_type in ("up", "down") else "Partial"
     filled_str = "gefüllt" if gap_result.is_filled else f"{gap_result.fill_percentage:.0f}% gefüllt"
 
     quality_desc = "neutral"

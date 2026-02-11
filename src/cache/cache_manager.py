@@ -26,11 +26,11 @@ Verwendung:
 
 import asyncio
 import logging
+import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Any, Callable, Coroutine, Dict, List, Optional, Set
 from enum import Enum
-import threading
+from typing import Any, Callable, Coroutine, Dict, List, Optional, Set
 
 try:
     from src.state.server_state import CacheMetrics
@@ -42,9 +42,10 @@ logger = logging.getLogger(__name__)
 
 class CachePriority(Enum):
     """Cache-Priorität für Eviction-Entscheidungen."""
-    LOW = 1       # Kann jederzeit evicted werden
-    NORMAL = 2    # Standard
-    HIGH = 3      # Behalte länger
+
+    LOW = 1  # Kann jederzeit evicted werden
+    NORMAL = 2  # Standard
+    HIGH = 3  # Behalte länger
     CRITICAL = 4  # Evict nur wenn nötig
 
 
@@ -60,6 +61,7 @@ class CachePolicy:
         fallback_enabled: Fallback zu stale data wenn Refresh fehlschlägt
         priority: Eviction-Priorität
     """
+
     ttl_seconds: int
     max_entries: int
     refresh_at_pct: float = 0.8  # Bei 80% TTL proaktiv refreshen
@@ -86,6 +88,7 @@ class CacheEntry:
         last_accessed_at: Letzter Zugriff
         priority: Eviction-Priorität
     """
+
     key: str
     value: Any
     created_at: datetime
@@ -146,9 +149,7 @@ class BaseCache:
         self._entries: Dict[str, CacheEntry] = {}
         self._lock = threading.RLock()
         self._metrics = CacheMetrics(
-            name=name,
-            ttl_seconds=policy.ttl_seconds,
-            max_entries=policy.max_entries
+            name=name, ttl_seconds=policy.ttl_seconds, max_entries=policy.max_entries
         )
 
     @property
@@ -200,7 +201,7 @@ class BaseCache:
         key: str,
         value: Any,
         ttl_seconds: Optional[int] = None,
-        priority: Optional[CachePriority] = None
+        priority: Optional[CachePriority] = None,
     ) -> None:
         """
         Setzt Wert im Cache.
@@ -225,7 +226,7 @@ class BaseCache:
                 value=value,
                 created_at=now,
                 expires_at=now + timedelta(seconds=ttl),
-                priority=prio
+                priority=prio,
             )
             self._update_entry_count()
 
@@ -285,10 +286,7 @@ class BaseCache:
             Anzahl entfernter Einträge
         """
         with self._lock:
-            expired_keys = [
-                key for key, entry in self._entries.items()
-                if entry.is_expired
-            ]
+            expired_keys = [key for key, entry in self._entries.items() if entry.is_expired]
             for key in expired_keys:
                 del self._entries[key]
             # G.3: Track TTL evictions separately
@@ -311,10 +309,7 @@ class BaseCache:
         # Sortiere nach: Priority (niedrig zuerst), dann last_accessed (älteste zuerst)
         candidates = sorted(
             self._entries.items(),
-            key=lambda x: (
-                x[1].priority.value,
-                x[1].last_accessed_at or x[1].created_at
-            )
+            key=lambda x: (x[1].priority.value, x[1].last_accessed_at or x[1].created_at),
         )
 
         if candidates:
@@ -354,7 +349,9 @@ class CacheManager:
         "historical": CachePolicy(ttl_seconds=900, max_entries=2000, priority=CachePriority.HIGH),
         "quotes": CachePolicy(ttl_seconds=60, max_entries=2000, priority=CachePriority.NORMAL),
         "scans": CachePolicy(ttl_seconds=1800, max_entries=200, priority=CachePriority.NORMAL),
-        "earnings": CachePolicy(ttl_seconds=2_592_000, max_entries=5000, priority=CachePriority.HIGH),  # 30 Tage
+        "earnings": CachePolicy(
+            ttl_seconds=2_592_000, max_entries=5000, priority=CachePriority.HIGH
+        ),  # 30 Tage
         "iv": CachePolicy(ttl_seconds=300, max_entries=2000, priority=CachePriority.NORMAL),
         "options": CachePolicy(ttl_seconds=120, max_entries=500, priority=CachePriority.LOW),
     }
@@ -369,7 +366,7 @@ class CacheManager:
     def __init__(
         self,
         policies: Optional[Dict[str, CachePolicy]] = None,
-        dependencies: Optional[Dict[str, List[str]]] = None
+        dependencies: Optional[Dict[str, List[str]]] = None,
     ) -> None:
         """
         Initialisiert CacheManager.
@@ -410,10 +407,7 @@ class CacheManager:
         return cls()
 
     @classmethod
-    def create_for_testing(
-        cls,
-        short_ttl: bool = True
-    ) -> "CacheManager":
+    def create_for_testing(cls, short_ttl: bool = True) -> "CacheManager":
         """
         Factory für Test-Konfiguration.
 
@@ -426,7 +420,7 @@ class CacheManager:
                     ttl_seconds=1,  # 1 Sekunde für Tests
                     max_entries=policy.max_entries,
                     refresh_at_pct=0.5,
-                    priority=policy.priority
+                    priority=policy.priority,
                 )
                 for name, policy in cls.DEFAULT_POLICIES.items()
             }
@@ -464,13 +458,7 @@ class CacheManager:
         cache = self.get_cache(cache_name)
         return cache.get(key)
 
-    def set(
-        self,
-        cache_name: str,
-        key: str,
-        value: Any,
-        ttl_seconds: Optional[int] = None
-    ) -> None:
+    def set(self, cache_name: str, key: str, value: Any, ttl_seconds: Optional[int] = None) -> None:
         """
         Setzt Wert in benanntem Cache.
 
@@ -494,10 +482,7 @@ class CacheManager:
         return cache.should_refresh(key)
 
     async def get_with_refresh(
-        self,
-        cache_name: str,
-        key: str,
-        refresh_func: Callable[[], Coroutine[Any, Any, Any]]
+        self, cache_name: str, key: str, refresh_func: Callable[[], Coroutine[Any, Any, Any]]
     ) -> Optional[Any]:
         """
         Holt Wert und startet Background-Refresh wenn nötig.
@@ -542,7 +527,7 @@ class CacheManager:
         cache_name: str,
         key: str,
         refresh_func: Callable[[], Coroutine[Any, Any, Any]],
-        refresh_key: str
+        refresh_key: str,
     ) -> None:
         """Background-Refresh Task with circuit breaker."""
         try:
@@ -601,12 +586,7 @@ class CacheManager:
         logger.info(f"Cancelled {count} background refresh tasks")
         return count
 
-    def invalidate(
-        self,
-        cache_name: str,
-        key: Optional[str] = None,
-        cascade: bool = True
-    ) -> int:
+    def invalidate(self, cache_name: str, key: Optional[str] = None, cascade: bool = True) -> int:
         """
         Invalidiert Cache-Einträge mit optionaler Kaskadierung.
 
@@ -682,7 +662,7 @@ class CacheManager:
                 "total_misses": 0,
                 "total_evictions": 0,
                 "overall_hit_rate_pct": 0.0,
-            }
+            },
         }
 
         total_hits = 0
@@ -703,9 +683,7 @@ class CacheManager:
 
         total_requests = total_hits + total_misses
         if total_requests > 0:
-            stats["summary"]["overall_hit_rate_pct"] = round(
-                (total_hits / total_requests) * 100, 2
-            )
+            stats["summary"]["overall_hit_rate_pct"] = round((total_hits / total_requests) * 100, 2)
 
         return stats
 
@@ -740,7 +718,9 @@ class CacheManager:
             "status": "healthy" if not warnings else "warning",
             "warnings": warnings,
             "summary": stats["summary"],
-            "caches": {name: cache_stats["hit_rate_pct"] for name, cache_stats in stats["caches"].items()}
+            "caches": {
+                name: cache_stats["hit_rate_pct"] for name, cache_stats in stats["caches"].items()
+            },
         }
 
 
@@ -764,6 +744,7 @@ def get_cache_manager() -> CacheManager:
     """
     try:
         from ..utils.deprecation import warn_singleton_usage
+
         warn_singleton_usage("get_cache_manager", "ServiceContainer.cache_manager")
     except ImportError:
         pass  # Called from tests with different import setup

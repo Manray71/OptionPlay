@@ -43,15 +43,13 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 
 # Re-export from sub-modules for backward compatibility
-from .feature_extraction import TradeFeatures, FeatureExtractor
+from .feature_extraction import FeatureExtractor, TradeFeatures
+from .optimization_methods import analyze_components as _analyze_components_impl
+from .optimization_methods import calculate_baseline_score as _calculate_baseline_score_impl
+from .optimization_methods import cross_validate as _cross_validate_impl
+from .optimization_methods import safe_correlation as _safe_correlation_impl
+from .optimization_methods import validate_weights as _validate_weights_impl
 from .weight_scorer import WeightedScorer
-from .optimization_methods import (
-    analyze_components as _analyze_components_impl,
-    cross_validate as _cross_validate_impl,
-    calculate_baseline_score as _calculate_baseline_score_impl,
-    validate_weights as _validate_weights_impl,
-    safe_correlation as _safe_correlation_impl,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -83,40 +81,75 @@ ALL_COMPONENTS = [
     "candlestick_score",
     "ath_breakout_score",
     # NEW from Feature Engineering (2026-01-28)
-    "vwap_score",           # VWAP distance score (0-3)
-    "market_context_score", # SPY trend filter (-1 to +2)
-    "sector_score",         # Sector-based adjustment (-1 to +1)
+    "vwap_score",  # VWAP distance score (0-3)
+    "market_context_score",  # SPY trend filter (-1 to +2)
+    "sector_score",  # Sector-based adjustment (-1 to +1)
 ]
 
 # Components per strategy
 STRATEGY_COMPONENTS = {
     "pullback": [
-        "rsi_score", "rsi_divergence_score", "support_score", "fibonacci_score",
-        "ma_score", "trend_strength_score", "volume_score",
-        "macd_score", "stoch_score", "keltner_score",
-        "vwap_score", "market_context_score", "sector_score",  # NEW
+        "rsi_score",
+        "rsi_divergence_score",
+        "support_score",
+        "fibonacci_score",
+        "ma_score",
+        "trend_strength_score",
+        "volume_score",
+        "macd_score",
+        "stoch_score",
+        "keltner_score",
+        "vwap_score",
+        "market_context_score",
+        "sector_score",  # NEW
     ],
     "bounce": [
-        "rsi_score", "rsi_divergence_score", "support_score",
-        "volume_score", "ma_score", "candlestick_score",
-        "macd_score", "stoch_score", "keltner_score",
-        "vwap_score", "market_context_score", "sector_score",  # NEW
+        "rsi_score",
+        "rsi_divergence_score",
+        "support_score",
+        "volume_score",
+        "ma_score",
+        "candlestick_score",
+        "macd_score",
+        "stoch_score",
+        "keltner_score",
+        "vwap_score",
+        "market_context_score",
+        "sector_score",  # NEW
     ],
     "ath_breakout": [
-        "ath_breakout_score", "volume_score", "ma_score",
-        "rsi_score", "relative_strength_score",
-        "macd_score", "momentum_score", "keltner_score",
-        "vwap_score", "market_context_score", "sector_score",  # NEW
+        "ath_breakout_score",
+        "volume_score",
+        "ma_score",
+        "rsi_score",
+        "relative_strength_score",
+        "macd_score",
+        "momentum_score",
+        "keltner_score",
+        "vwap_score",
+        "market_context_score",
+        "sector_score",  # NEW
     ],
     "earnings_dip": [
-        "dip_score", "gap_score", "rsi_score", "stabilization_score",
-        "volume_score", "ma_score",
-        "macd_score", "stoch_score", "keltner_score",
-        "vwap_score", "market_context_score", "sector_score",  # NEW
+        "dip_score",
+        "gap_score",
+        "rsi_score",
+        "stabilization_score",
+        "volume_score",
+        "ma_score",
+        "macd_score",
+        "stoch_score",
+        "keltner_score",
+        "vwap_score",
+        "market_context_score",
+        "sector_score",  # NEW
     ],
     "trend_continuation": [
-        "tc_sma_alignment_score", "tc_stability_score", "tc_buffer_score",
-        "tc_momentum_score", "tc_volatility_score",
+        "tc_sma_alignment_score",
+        "tc_stability_score",
+        "tc_buffer_score",
+        "tc_momentum_score",
+        "tc_volatility_score",
     ],
 }
 
@@ -128,8 +161,10 @@ DEFAULT_WEIGHTS = {comp: 1.0 for comp in ALL_COMPONENTS}
 # DATA CLASSES
 # =============================================================================
 
+
 class OptimizationMethod(str, Enum):
     """ML method for weight optimization"""
+
     RANDOM_FOREST = "random_forest"
     GRADIENT_BOOSTING = "gradient_boosting"
     CORRELATION = "correlation"
@@ -139,6 +174,7 @@ class OptimizationMethod(str, Enum):
 @dataclass
 class ComponentStats:
     """Statistics for a single score component"""
+
     name: str
     sample_size: int
 
@@ -188,6 +224,7 @@ class ComponentStats:
 @dataclass
 class WeightConfig:
     """Optimized weight configuration"""
+
     strategy: str
     regime: Optional[str]  # None = all regimes
 
@@ -249,7 +286,9 @@ class WeightConfig:
             weights=data.get("weights", {}),
             normalized_weights=data.get("normalized_weights", {}),
             method=OptimizationMethod(meta.get("method", "correlation")),
-            training_date=datetime.fromisoformat(meta.get("training_date", datetime.now().isoformat())),
+            training_date=datetime.fromisoformat(
+                meta.get("training_date", datetime.now().isoformat())
+            ),
             sample_size=meta.get("sample_size", 0),
             validation_score=meta.get("validation_score", 0.0),
             confidence=meta.get("confidence", "unknown"),
@@ -259,6 +298,7 @@ class WeightConfig:
 @dataclass
 class OptimizationResult:
     """Complete optimization result"""
+
     optimization_id: str
     optimization_date: datetime
 
@@ -297,7 +337,7 @@ class OptimizationResult:
                 sample_size=0,
                 validation_score=0.0,
                 confidence="low",
-            )
+            ),
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -305,16 +345,12 @@ class OptimizationResult:
             "version": "1.0.0",
             "optimization_id": self.optimization_id,
             "optimization_date": self.optimization_date.isoformat(),
-            "strategy_weights": {
-                k: v.to_dict() for k, v in self.strategy_weights.items()
-            },
+            "strategy_weights": {k: v.to_dict() for k, v in self.strategy_weights.items()},
             "regime_weights": {
                 regime: {strat: wc.to_dict() for strat, wc in strats.items()}
                 for regime, strats in self.regime_weights.items()
             },
-            "component_stats": {
-                k: v.to_dict() for k, v in self.component_stats.items()
-            },
+            "component_stats": {k: v.to_dict() for k, v in self.component_stats.items()},
             "summary": {
                 "total_trades": self.total_trades_analyzed,
                 "validation_score": round(self.overall_validation_score, 4),
@@ -343,9 +379,7 @@ class OptimizationResult:
 
         # Sort by ensemble importance
         sorted_stats = sorted(
-            self.component_stats.values(),
-            key=lambda x: x.ensemble_importance,
-            reverse=True
+            self.component_stats.values(), key=lambda x: x.ensemble_importance, reverse=True
         )
 
         for i, stat in enumerate(sorted_stats[:10], 1):
@@ -363,30 +397,30 @@ class OptimizationResult:
                 f"[{power_icon}]"
             )
 
-        lines.extend([
-            "",
-            "-" * 70,
-            "  OPTIMIZED WEIGHTS BY STRATEGY",
-            "-" * 70,
-        ])
+        lines.extend(
+            [
+                "",
+                "-" * 70,
+                "  OPTIMIZED WEIGHTS BY STRATEGY",
+                "-" * 70,
+            ]
+        )
 
         for strategy, config in self.strategy_weights.items():
-            top_weights = sorted(
-                config.weights.items(),
-                key=lambda x: x[1],
-                reverse=True
-            )[:5]
+            top_weights = sorted(config.weights.items(), key=lambda x: x[1], reverse=True)[:5]
 
             weight_str = ", ".join(f"{k.replace('_score', '')}={v:.2f}" for k, v in top_weights)
             lines.append(f"  {strategy:<15} {weight_str}")
 
         if self.warnings:
-            lines.extend([
-                "",
-                "-" * 70,
-                "  WARNINGS",
-                "-" * 70,
-            ])
+            lines.extend(
+                [
+                    "",
+                    "-" * 70,
+                    "  WARNINGS",
+                    "-" * 70,
+                ]
+            )
             for w in self.warnings:
                 lines.append(f"  ! {w}")
 
@@ -397,6 +431,7 @@ class OptimizationResult:
 # =============================================================================
 # ML WEIGHT OPTIMIZER
 # =============================================================================
+
 
 class MLWeightOptimizer:
     """
@@ -456,12 +491,12 @@ class MLWeightOptimizer:
             strategy_features = [f for f in features if f.strategy == strategy]
 
             if len(strategy_features) >= self.min_samples // 2:
-                config = self._train_strategy_weights(
-                    strategy, strategy_features, component_stats
-                )
+                config = self._train_strategy_weights(strategy, strategy_features, component_stats)
                 strategy_weights[strategy] = config
             else:
-                warnings.append(f"Insufficient data for {strategy} ({len(strategy_features)} trades)")
+                warnings.append(
+                    f"Insufficient data for {strategy} ({len(strategy_features)} trades)"
+                )
                 strategy_weights[strategy] = self._create_default_weight_config(strategy)
 
         # Train per-regime weights (optional)
@@ -485,8 +520,9 @@ class MLWeightOptimizer:
         # Calculate validation metrics
         baseline_score = self._calculate_baseline_score(features)
         optimized_score = self._validate_weights(features, strategy_weights)
-        improvement = ((optimized_score - baseline_score) / baseline_score * 100
-                       if baseline_score > 0 else 0)
+        improvement = (
+            (optimized_score - baseline_score) / baseline_score * 100 if baseline_score > 0 else 0
+        )
 
         result = OptimizationResult(
             optimization_id=optimization_id,
@@ -509,14 +545,14 @@ class MLWeightOptimizer:
         Delegates to optimization_methods.analyze_components().
         """
         raw = _analyze_components_impl(features)
-        return {
-            comp: ComponentStats(name=comp, **data)
-            for comp, data in raw.items()
-        }
+        return {comp: ComponentStats(name=comp, **data) for comp, data in raw.items()}
 
     def _train_strategy_weights(
-        self, strategy: str, features: List[TradeFeatures],
-        component_stats: Dict[str, ComponentStats], regime: Optional[str] = None,
+        self,
+        strategy: str,
+        features: List[TradeFeatures],
+        component_stats: Dict[str, ComponentStats],
+        regime: Optional[str] = None,
     ) -> WeightConfig:
         """Train weights for a specific strategy"""
         relevant_components = STRATEGY_COMPONENTS.get(strategy, ALL_COMPONENTS)
@@ -541,10 +577,15 @@ class MLWeightOptimizer:
             confidence = "low"
 
         return WeightConfig(
-            strategy=strategy, regime=regime, weights=weights,
-            normalized_weights=normalized, method=self.method,
-            training_date=datetime.now(), sample_size=len(features),
-            validation_score=val_score, confidence=confidence,
+            strategy=strategy,
+            regime=regime,
+            weights=weights,
+            normalized_weights=normalized,
+            method=self.method,
+            training_date=datetime.now(),
+            sample_size=len(features),
+            validation_score=val_score,
+            confidence=confidence,
         )
 
     def _cross_validate(self, features: List[TradeFeatures], weights: Dict[str, float]) -> float:
@@ -562,7 +603,9 @@ class MLWeightOptimizer:
         return _calculate_baseline_score_impl(features)
 
     def _validate_weights(
-        self, features: List[TradeFeatures], strategy_weights: Dict[str, WeightConfig],
+        self,
+        features: List[TradeFeatures],
+        strategy_weights: Dict[str, WeightConfig],
     ) -> float:
         """Validate optimized weights across all strategies.
 
@@ -584,24 +627,34 @@ class MLWeightOptimizer:
         normalized = {c: 1.0 / len(components) for c in components}
 
         return WeightConfig(
-            strategy=strategy, regime=None, weights=weights,
-            normalized_weights=normalized, method=OptimizationMethod.CORRELATION,
-            training_date=datetime.now(), sample_size=0,
-            validation_score=0.0, confidence="low",
+            strategy=strategy,
+            regime=None,
+            weights=weights,
+            normalized_weights=normalized,
+            method=OptimizationMethod.CORRELATION,
+            training_date=datetime.now(),
+            sample_size=0,
+            validation_score=0.0,
+            confidence="low",
         )
 
-    def _create_default_result(self, optimization_id: str, warnings: List[str]) -> OptimizationResult:
+    def _create_default_result(
+        self, optimization_id: str, warnings: List[str]
+    ) -> OptimizationResult:
         """Create default result when training fails"""
         strategy_weights = {
-            s: self._create_default_weight_config(s)
-            for s in STRATEGY_COMPONENTS.keys()
+            s: self._create_default_weight_config(s) for s in STRATEGY_COMPONENTS.keys()
         }
 
         return OptimizationResult(
-            optimization_id=optimization_id, optimization_date=datetime.now(),
-            strategy_weights=strategy_weights, regime_weights={},
-            component_stats={}, total_trades_analyzed=0,
-            overall_validation_score=0.0, improvement_vs_baseline=0.0,
+            optimization_id=optimization_id,
+            optimization_date=datetime.now(),
+            strategy_weights=strategy_weights,
+            regime_weights={},
+            component_stats={},
+            total_trades_analyzed=0,
+            overall_validation_score=0.0,
+            improvement_vs_baseline=0.0,
             warnings=warnings,
         )
 
@@ -634,15 +687,12 @@ class MLWeightOptimizer:
             data = json.load(f)
 
         strategy_weights = {
-            k: WeightConfig.from_dict(v)
-            for k, v in data.get("strategy_weights", {}).items()
+            k: WeightConfig.from_dict(v) for k, v in data.get("strategy_weights", {}).items()
         }
 
         regime_weights = {}
         for regime, strats in data.get("regime_weights", {}).items():
-            regime_weights[regime] = {
-                k: WeightConfig.from_dict(v) for k, v in strats.items()
-            }
+            regime_weights[regime] = {k: WeightConfig.from_dict(v) for k, v in strats.items()}
 
         component_stats = {}
         for k, v in data.get("component_stats", {}).items():

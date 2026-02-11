@@ -17,11 +17,11 @@ import logging
 import math
 from collections import defaultdict
 from datetime import datetime, timedelta
-from typing import Optional, Dict, List, Any
+from typing import Any, Dict, List, Optional
 
+from ..constants.trading_rules import SPREAD_DTE_MAX, SPREAD_DTE_MIN
 from ..utils.markdown_builder import MarkdownBuilder, format_price, format_volume
-from ..constants.trading_rules import SPREAD_DTE_MIN, SPREAD_DTE_MAX
-from .connection import IBKRConnection, to_ibkr_symbol, from_ibkr_symbol
+from .connection import IBKRConnection, from_ibkr_symbol, to_ibkr_symbol
 
 logger = logging.getLogger(__name__)
 
@@ -46,10 +46,7 @@ class IBKRMarketData:
     # =========================================================================
 
     async def get_news(
-        self,
-        symbols: List[str],
-        days: int = 5,
-        max_per_symbol: int = 5
+        self, symbols: List[str], days: int = 5, max_per_symbol: int = 5
     ) -> List["IBKRNews"]:
         """
         Fetches news headlines for symbols.
@@ -92,20 +89,22 @@ class IBKRMarketData:
                         providerCodes="DJ-N+DJ-RTA+DJ-RTE+BRFG+BRFUPDN",
                         startDateTime=start_date,
                         endDateTime=end_date,
-                        totalResults=max_per_symbol
+                        totalResults=max_per_symbol,
                     ),
-                    timeout=15
+                    timeout=15,
                 )
 
                 if headlines:
                     logger.debug(f"News: {len(headlines)} Headlines für {symbol}")
                     for h in headlines:
-                        results.append(IBKRNews(
-                            symbol=symbol.upper(),
-                            headline=h.headline,
-                            time=h.time.isoformat() if h.time else None,
-                            provider=h.providerCode
-                        ))
+                        results.append(
+                            IBKRNews(
+                                symbol=symbol.upper(),
+                                headline=h.headline,
+                                time=h.time.isoformat() if h.time else None,
+                                provider=h.providerCode,
+                            )
+                        )
                 else:
                     logger.debug(f"News: Keine Headlines für {symbol} (API returned empty)")
 
@@ -116,11 +115,7 @@ class IBKRMarketData:
 
         return results
 
-    async def get_news_formatted(
-        self,
-        symbols: List[str],
-        days: int = 5
-    ) -> str:
+    async def get_news_formatted(self, symbols: List[str], days: int = 5) -> str:
         """
         Fetches news and formats as Markdown.
         """
@@ -193,7 +188,7 @@ class IBKRMarketData:
             if ticker:
                 # Price fallback chain: last -> markPrice -> marketPrice -> close
                 last = get_valid(ticker.last)
-                mark_price = get_valid(ticker.markPrice) if hasattr(ticker, 'markPrice') else None
+                mark_price = get_valid(ticker.markPrice) if hasattr(ticker, "markPrice") else None
                 close = get_valid(ticker.close)
 
                 if last:
@@ -214,10 +209,7 @@ class IBKRMarketData:
             self._conn.ib.cancelMktData(vix)
 
             if price:
-                return {
-                    "value": round(price, 2),
-                    "source": source
-                }
+                return {"value": round(price, 2), "source": source}
 
             return None
 
@@ -240,9 +232,7 @@ class IBKRMarketData:
     # =========================================================================
 
     async def get_max_pain(
-        self,
-        symbols: List[str],
-        expiry: Optional[str] = None
+        self, symbols: List[str], expiry: Optional[str] = None
     ) -> List["MaxPainData"]:
         """
         Calculates Max Pain for symbols.
@@ -258,7 +248,7 @@ class IBKRMarketData:
             logger.warning("IBKR not available for Max Pain")
             return []
 
-        from ib_insync import Stock, Option
+        from ib_insync import Option, Stock
 
         # Import dataclass from package
         from . import MaxPainData
@@ -285,7 +275,7 @@ class IBKRMarketData:
                     self._conn.ib.reqSecDefOptParamsAsync(
                         stock.symbol, "", stock.secType, stock.conId
                     ),
-                    timeout=15
+                    timeout=15,
                 )
 
                 if not chains:
@@ -327,7 +317,11 @@ class IBKRMarketData:
 
                             opt_ticker = self._conn.ib.ticker(option)
                             if opt_ticker:
-                                oi = opt_ticker.callOpenInterest if right == "C" else opt_ticker.putOpenInterest
+                                oi = (
+                                    opt_ticker.callOpenInterest
+                                    if right == "C"
+                                    else opt_ticker.putOpenInterest
+                                )
                                 if oi and not math.isnan(oi):
                                     if right == "C":
                                         oi_data[strike]["call_oi"] = int(oi)
@@ -343,7 +337,7 @@ class IBKRMarketData:
                     continue
 
                 # Calculate Max Pain
-                min_pain = float('inf')
+                min_pain = float("inf")
                 max_pain_strike = None
 
                 for test_strike in oi_data.keys():
@@ -365,16 +359,20 @@ class IBKRMarketData:
                 total_puts = sum(d["put_oi"] for d in oi_data.values())
                 total_calls = sum(d["call_oi"] for d in oi_data.values())
 
-                results.append(MaxPainData(
-                    symbol=symbol.upper(),
-                    current_price=round(current_price, 2),
-                    max_pain_strike=max_pain_strike,
-                    distance_pct=round((current_price - max_pain_strike) / current_price * 100, 1),
-                    put_wall={"strike": max_put[0], "oi": max_put[1]["put_oi"]},
-                    call_wall={"strike": max_call[0], "oi": max_call[1]["call_oi"]},
-                    put_call_ratio=round(total_puts / max(total_calls, 1), 2),
-                    expiry=target_expiry
-                ))
+                results.append(
+                    MaxPainData(
+                        symbol=symbol.upper(),
+                        current_price=round(current_price, 2),
+                        max_pain_strike=max_pain_strike,
+                        distance_pct=round(
+                            (current_price - max_pain_strike) / current_price * 100, 1
+                        ),
+                        put_wall={"strike": max_put[0], "oi": max_put[1]["put_oi"]},
+                        call_wall={"strike": max_call[0], "oi": max_call[1]["call_oi"]},
+                        put_call_ratio=round(total_puts / max(total_calls, 1), 2),
+                        expiry=target_expiry,
+                    )
+                )
 
             except Exception as e:
                 logger.warning(f"Max Pain error for {symbol}: {e}")
@@ -395,19 +393,20 @@ class IBKRMarketData:
         # Build table
         rows = []
         for d in data:
-            rows.append([
-                d.symbol,
-                f"${d.current_price:.2f}",
-                f"${d.max_pain_strike:.0f}",
-                f"{d.distance_pct:+.1f}%",
-                f"{d.put_call_ratio:.2f}",
-                f"${d.put_wall['strike']:.0f} ({d.put_wall['oi']:,})",
-                f"${d.call_wall['strike']:.0f} ({d.call_wall['oi']:,})"
-            ])
+            rows.append(
+                [
+                    d.symbol,
+                    f"${d.current_price:.2f}",
+                    f"${d.max_pain_strike:.0f}",
+                    f"{d.distance_pct:+.1f}%",
+                    f"{d.put_call_ratio:.2f}",
+                    f"${d.put_wall['strike']:.0f} ({d.put_wall['oi']:,})",
+                    f"${d.call_wall['strike']:.0f} ({d.call_wall['oi']:,})",
+                ]
+            )
 
         b.table(
-            ["Symbol", "Price", "Max Pain", "Distance", "P/C Ratio", "Put Wall", "Call Wall"],
-            rows
+            ["Symbol", "Price", "Max Pain", "Distance", "P/C Ratio", "Put Wall", "Call Wall"], rows
         )
         b.blank()
 
@@ -428,7 +427,7 @@ class IBKRMarketData:
         batch_size: int = 50,
         pause_seconds: int = 60,
         callback: Optional[callable] = None,
-        include_outside_rth: bool = True
+        include_outside_rth: bool = True,
     ) -> List[Dict[str, Any]]:
         """
         Fetches quotes for many symbols in batches.
@@ -466,18 +465,19 @@ class IBKRMarketData:
                 symbol_display_map[ibkr_sym] = sym.upper()
 
         if skipped_symbols:
-            logger.info(f"Skipping {len(skipped_symbols)} symbols without IBKR equivalent: {', '.join(skipped_symbols[:5])}...")
+            logger.info(
+                f"Skipping {len(skipped_symbols)} symbols without IBKR equivalent: {', '.join(skipped_symbols[:5])}..."
+            )
 
         all_results = []
 
         # Add skipped symbols as errors
         for sym in skipped_symbols:
-            all_results.append({
-                "symbol": sym,
-                "error": "No IBKR equivalent (skipped)"
-            })
+            all_results.append({"symbol": sym, "error": "No IBKR equivalent (skipped)"})
 
-        total_batches = (len(mapped_symbols) + batch_size - 1) // batch_size if mapped_symbols else 0
+        total_batches = (
+            (len(mapped_symbols) + batch_size - 1) // batch_size if mapped_symbols else 0
+        )
 
         # Generic Tick Types for extended data:
         # 221 = Mark Price (Pre/Post Market)
@@ -489,7 +489,9 @@ class IBKRMarketData:
             end_idx = min(start_idx + batch_size, len(mapped_symbols))
             batch_symbols = mapped_symbols[start_idx:end_idx]
 
-            logger.info(f"Batch {batch_num + 1}/{total_batches}: {len(batch_symbols)} Symbole ({start_idx+1}-{end_idx})")
+            logger.info(
+                f"Batch {batch_num + 1}/{total_batches}: {len(batch_symbols)} Symbole ({start_idx+1}-{end_idx})"
+            )
 
             batch_results = []
             contracts = []
@@ -501,10 +503,7 @@ class IBKRMarketData:
                     stock = Stock(ibkr_symbol, "SMART", "USD")
                     contracts.append((original_symbol, ibkr_symbol, stock))
                 except Exception as e:
-                    batch_results.append({
-                        "symbol": original_symbol,
-                        "error": str(e)
-                    })
+                    batch_results.append({"symbol": original_symbol, "error": str(e)})
 
             # Qualify
             valid_contracts = []
@@ -513,10 +512,9 @@ class IBKRMarketData:
                     self._conn.ib.qualifyContracts(contract)
                     valid_contracts.append((original_symbol, ibkr_symbol, contract))
                 except Exception as e:
-                    batch_results.append({
-                        "symbol": original_symbol,
-                        "error": f"Qualify failed: {e}"
-                    })
+                    batch_results.append(
+                        {"symbol": original_symbol, "error": f"Qualify failed: {e}"}
+                    )
 
             # Request market data (with generic ticks for pre/post market)
             for original_symbol, ibkr_symbol, contract in valid_contracts:
@@ -552,7 +550,7 @@ class IBKRMarketData:
 
                         # Mark Price (Pre/Post Market Preis) - Tick 221
                         mark_price = None
-                        if hasattr(ticker, 'markPrice'):
+                        if hasattr(ticker, "markPrice"):
                             mark_price = get_valid(ticker.markPrice)
 
                         # Price fallback chain: last -> markPrice -> marketPrice -> close
@@ -580,30 +578,26 @@ class IBKRMarketData:
                             change = price - close
                             change_pct = (change / close) * 100
 
-                        batch_results.append({
-                            "symbol": original_symbol,
-                            "last": round(price, 2) if price else None,
-                            "bid": round(bid, 2) if bid else None,
-                            "ask": round(ask, 2) if ask else None,
-                            "high": round(high, 2) if high else None,
-                            "low": round(low, 2) if low else None,
-                            "close": round(close, 2) if close else None,
-                            "volume": volume,
-                            "change": round(change, 2) if change else None,
-                            "change_pct": round(change_pct, 2) if change_pct else None,
-                            "price_source": price_source,  # Info where the price comes from
-                        })
+                        batch_results.append(
+                            {
+                                "symbol": original_symbol,
+                                "last": round(price, 2) if price else None,
+                                "bid": round(bid, 2) if bid else None,
+                                "ask": round(ask, 2) if ask else None,
+                                "high": round(high, 2) if high else None,
+                                "low": round(low, 2) if low else None,
+                                "close": round(close, 2) if close else None,
+                                "volume": volume,
+                                "change": round(change, 2) if change else None,
+                                "change_pct": round(change_pct, 2) if change_pct else None,
+                                "price_source": price_source,  # Info where the price comes from
+                            }
+                        )
                     else:
-                        batch_results.append({
-                            "symbol": original_symbol,
-                            "error": "No ticker data"
-                        })
+                        batch_results.append({"symbol": original_symbol, "error": "No ticker data"})
 
                 except Exception as e:
-                    batch_results.append({
-                        "symbol": original_symbol,
-                        "error": str(e)
-                    })
+                    batch_results.append({"symbol": original_symbol, "error": str(e)})
 
             # Cancel market data
             for original_symbol, ibkr_symbol, contract in valid_contracts:
@@ -627,10 +621,7 @@ class IBKRMarketData:
         return all_results
 
     async def get_quotes_batch_formatted(
-        self,
-        symbols: List[str],
-        batch_size: int = 50,
-        pause_seconds: int = 60
+        self, symbols: List[str], batch_size: int = 50, pause_seconds: int = 60
     ) -> str:
         """
         Fetches quotes in batches and formats as Markdown.
@@ -664,7 +655,9 @@ class IBKRMarketData:
         mark_count = source_counts["mark"]
 
         if close_pct > 50:
-            b.hint(f"Market closed - {source_counts['close']} of {len(valid_quotes)} prices are closing prices")
+            b.hint(
+                f"Market closed - {source_counts['close']} of {len(valid_quotes)} prices are closing prices"
+            )
             b.blank()
         elif mark_count > 0:
             b.hint(f"Pre/Post-Market active - {mark_count} symbols with after-hours prices")
@@ -674,13 +667,13 @@ class IBKRMarketData:
         gainers = sorted(
             [q for q in valid_quotes if q.get("change_pct") and q["change_pct"] > 0],
             key=lambda x: x["change_pct"],
-            reverse=True
+            reverse=True,
         )[:10]
 
         # Top Losers
         losers = sorted(
             [q for q in valid_quotes if q.get("change_pct") and q["change_pct"] < 0],
-            key=lambda x: x["change_pct"]
+            key=lambda x: x["change_pct"],
         )[:10]
 
         # Helper function for price source indicator
@@ -691,7 +684,7 @@ class IBKRMarketData:
             elif src == "mark":
                 return "\u25cf"  # Pre/Post Market
             else:
-                return ""   # Live - no indicator needed
+                return ""  # Live - no indicator needed
 
         if gainers:
             b.h2("\U0001f7e2 Top Gainers").blank()
@@ -699,13 +692,15 @@ class IBKRMarketData:
             for q in gainers:
                 indicator = price_indicator(q)
                 symbol_display = f"{q['symbol']} {indicator}" if indicator else q["symbol"]
-                rows.append([
-                    symbol_display,
-                    f"${q['last']:.2f}",
-                    f"+{q['change_pct']:.2f}%",
-                    f"+${q['change']:.2f}",
-                    f"{q['volume']:,}" if q.get('volume') else "-"
-                ])
+                rows.append(
+                    [
+                        symbol_display,
+                        f"${q['last']:.2f}",
+                        f"+{q['change_pct']:.2f}%",
+                        f"+${q['change']:.2f}",
+                        f"{q['volume']:,}" if q.get("volume") else "-",
+                    ]
+                )
             b.table(["Symbol", "Last", "Change %", "Change $", "Volume"], rows)
             b.blank()
 
@@ -715,13 +710,15 @@ class IBKRMarketData:
             for q in losers:
                 indicator = price_indicator(q)
                 symbol_display = f"{q['symbol']} {indicator}" if indicator else q["symbol"]
-                rows.append([
-                    symbol_display,
-                    f"${q['last']:.2f}",
-                    f"{q['change_pct']:.2f}%",
-                    f"${q['change']:.2f}",
-                    f"{q['volume']:,}" if q.get('volume') else "-"
-                ])
+                rows.append(
+                    [
+                        symbol_display,
+                        f"${q['last']:.2f}",
+                        f"{q['change_pct']:.2f}%",
+                        f"${q['change']:.2f}",
+                        f"{q['volume']:,}" if q.get("volume") else "-",
+                    ]
+                )
             b.table(["Symbol", "Last", "Change %", "Change $", "Volume"], rows)
             b.blank()
 
@@ -731,15 +728,17 @@ class IBKRMarketData:
         for q in sorted(valid_quotes, key=lambda x: x["symbol"]):
             indicator = price_indicator(q)
             symbol_display = f"{q['symbol']} {indicator}" if indicator else q["symbol"]
-            change_str = f"{q['change_pct']:+.2f}%" if q.get('change_pct') else "-"
-            rows.append([
-                symbol_display,
-                f"${q['last']:.2f}",
-                f"${q.get('bid', 0):.2f}" if q.get('bid') else "-",
-                f"${q.get('ask', 0):.2f}" if q.get('ask') else "-",
-                change_str,
-                f"{q['volume']:,}" if q.get('volume') else "-"
-            ])
+            change_str = f"{q['change_pct']:+.2f}%" if q.get("change_pct") else "-"
+            rows.append(
+                [
+                    symbol_display,
+                    f"${q['last']:.2f}",
+                    f"${q.get('bid', 0):.2f}" if q.get("bid") else "-",
+                    f"${q.get('ask', 0):.2f}" if q.get("ask") else "-",
+                    change_str,
+                    f"{q['volume']:,}" if q.get("volume") else "-",
+                ]
+            )
         b.table(["Symbol", "Last", "Bid", "Ask", "Change", "Volume"], rows)
 
         # Errors
@@ -801,8 +800,9 @@ class IBKRMarketData:
             logger.warning(f"IBKR not available for options chain ({symbol})")
             return []
 
-        from ib_insync import Stock, Option
-        from ..data_providers.interface import OptionQuote, DataQuality
+        from ib_insync import Option, Stock
+
+        from ..data_providers.interface import DataQuality, OptionQuote
 
         try:
             ibkr_sym = to_ibkr_symbol(symbol)
@@ -826,9 +826,7 @@ class IBKRMarketData:
 
             # Get options chain definition
             chains = await asyncio.wait_for(
-                self._conn.ib.reqSecDefOptParamsAsync(
-                    stock.symbol, "", stock.secType, stock.conId
-                ),
+                self._conn.ib.reqSecDefOptParamsAsync(stock.symbol, "", stock.secType, stock.conId),
                 timeout=15,
             )
 
@@ -857,8 +855,7 @@ class IBKRMarketData:
             # Filter strikes to +/-20% of current price
             max_distance = 0.20
             valid_strikes = [
-                s for s in chain.strikes
-                if abs(s - current_price) / current_price <= max_distance
+                s for s in chain.strikes if abs(s - current_price) / current_price <= max_distance
             ]
 
             right_upper = right.upper()
@@ -871,7 +868,9 @@ class IBKRMarketData:
                         opt = Option(ibkr_sym, expiry_str, strike, right_upper, "SMART")
                         contracts.append((strike, opt))
                     except (TypeError, ValueError) as e:
-                        logger.warning("Contract creation failed for %s strike=%s: %s", symbol, strike, e)
+                        logger.warning(
+                            "Contract creation failed for %s strike=%s: %s", symbol, strike, e
+                        )
                         continue
 
                 if not contracts:
@@ -903,9 +902,21 @@ class IBKRMarketData:
                         if not opt_ticker:
                             continue
 
-                        bid = opt_ticker.bid if opt_ticker.bid and not math.isnan(opt_ticker.bid) else None
-                        ask = opt_ticker.ask if opt_ticker.ask and not math.isnan(opt_ticker.ask) else None
-                        last = opt_ticker.last if opt_ticker.last and not math.isnan(opt_ticker.last) else None
+                        bid = (
+                            opt_ticker.bid
+                            if opt_ticker.bid and not math.isnan(opt_ticker.bid)
+                            else None
+                        )
+                        ask = (
+                            opt_ticker.ask
+                            if opt_ticker.ask and not math.isnan(opt_ticker.ask)
+                            else None
+                        )
+                        last = (
+                            opt_ticker.last
+                            if opt_ticker.last and not math.isnan(opt_ticker.last)
+                            else None
+                        )
 
                         # Skip if no pricing at all
                         if bid is None and ask is None and last is None:
@@ -924,7 +935,11 @@ class IBKRMarketData:
                             gamma = mg.gamma if mg.gamma and not math.isnan(mg.gamma) else None
                             theta = mg.theta if mg.theta and not math.isnan(mg.theta) else None
                             vega = mg.vega if mg.vega and not math.isnan(mg.vega) else None
-                            iv = mg.impliedVol if mg.impliedVol and not math.isnan(mg.impliedVol) else None
+                            iv = (
+                                mg.impliedVol
+                                if mg.impliedVol and not math.isnan(mg.impliedVol)
+                                else None
+                            )
 
                         # Open interest
                         oi = None
@@ -939,27 +954,29 @@ class IBKRMarketData:
                         if opt_ticker.volume and not math.isnan(opt_ticker.volume):
                             volume_val = int(opt_ticker.volume)
 
-                        results.append(OptionQuote(
-                            symbol=f"{symbol}{expiry_str}{right_upper}{strike:.0f}",
-                            underlying=symbol,
-                            underlying_price=current_price,
-                            expiry=expiry_date,
-                            strike=strike,
-                            right=right_upper,
-                            bid=bid,
-                            ask=ask,
-                            last=last,
-                            volume=volume_val,
-                            open_interest=oi,
-                            implied_volatility=iv,
-                            delta=delta,
-                            gamma=gamma,
-                            theta=theta,
-                            vega=vega,
-                            timestamp=datetime.now(),
-                            data_quality=DataQuality.DELAYED_15MIN,
-                            source="ibkr",
-                        ))
+                        results.append(
+                            OptionQuote(
+                                symbol=f"{symbol}{expiry_str}{right_upper}{strike:.0f}",
+                                underlying=symbol,
+                                underlying_price=current_price,
+                                expiry=expiry_date,
+                                strike=strike,
+                                right=right_upper,
+                                bid=bid,
+                                ask=ask,
+                                last=last,
+                                volume=volume_val,
+                                open_interest=oi,
+                                implied_volatility=iv,
+                                delta=delta,
+                                gamma=gamma,
+                                theta=theta,
+                                vega=vega,
+                                timestamp=datetime.now(),
+                                data_quality=DataQuality.DELAYED_15MIN,
+                                source="ibkr",
+                            )
+                        )
                     except Exception as e:
                         logger.debug(f"IBKR option data error {symbol} {strike}: {e}")
 

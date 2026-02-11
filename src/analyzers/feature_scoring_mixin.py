@@ -3,23 +3,29 @@
 # Shared scoring methods for new features from Feature Engineering
 # Updated 2026-01-30: Now applies trained weights from ML training
 
-from typing import List, Optional, Tuple, Dict
-import numpy as np
 import logging
+from typing import Dict, List, Optional, Tuple
 
+import numpy as np
+
+# Import central constants
+from ..constants import (
+    GAP_SIZE_LARGE,
+    GAP_SIZE_MEDIUM,
+    SMA_MEDIUM,
+    SMA_SHORT,
+    VWAP_ABOVE,
+    VWAP_BELOW,
+    VWAP_PERIOD,
+    VWAP_STRONG_ABOVE,
+    VWAP_STRONG_BELOW,
+)
+from ..indicators.gap_analysis import analyze_gap
 from ..indicators.volume_profile import (
     calculate_vwap,
     get_sector,
     get_sector_adjustment,
     get_sector_adjustment_with_reason,
-)
-from ..indicators.gap_analysis import analyze_gap
-
-# Import central constants
-from ..constants import (
-    VWAP_PERIOD, VWAP_STRONG_ABOVE, VWAP_ABOVE, VWAP_BELOW, VWAP_STRONG_BELOW,
-    SMA_SHORT, SMA_MEDIUM,
-    GAP_SIZE_LARGE, GAP_SIZE_MEDIUM,
 )
 
 logger = logging.getLogger(__name__)
@@ -36,6 +42,7 @@ def _get_fe_thresholds() -> Dict:
 
     try:
         from ..config.scoring_config import get_scoring_resolver
+
         _fe_thresholds_cache = get_scoring_resolver().get_feature_engineering_config()
     except (ImportError, AttributeError):
         _fe_thresholds_cache = {}
@@ -54,9 +61,7 @@ class FeatureScoringMixin:
     """
 
     def _score_vwap(
-        self,
-        prices: List[float],
-        volumes: List[int]
+        self, prices: List[float], volumes: List[int]
     ) -> Tuple[float, float, float, str, str]:
         """
         VWAP Score (0-3 Punkte).
@@ -72,12 +77,12 @@ class FeatureScoringMixin:
         """
         # Read thresholds from YAML config with fallback to constants
         fe = _get_fe_thresholds()
-        vwap_cfg = fe.get('vwap', {})
-        vwap_period = vwap_cfg.get('period', VWAP_PERIOD)
-        strong_above = vwap_cfg.get('strong_above', VWAP_STRONG_ABOVE)
-        above = vwap_cfg.get('above', VWAP_ABOVE)
-        below = vwap_cfg.get('below', VWAP_BELOW)
-        strong_below = vwap_cfg.get('strong_below', VWAP_STRONG_BELOW)
+        vwap_cfg = fe.get("vwap", {})
+        vwap_period = vwap_cfg.get("period", VWAP_PERIOD)
+        strong_above = vwap_cfg.get("strong_above", VWAP_STRONG_ABOVE)
+        above = vwap_cfg.get("above", VWAP_ABOVE)
+        below = vwap_cfg.get("below", VWAP_BELOW)
+        strong_below = vwap_cfg.get("strong_below", VWAP_STRONG_BELOW)
 
         vwap_result = calculate_vwap(prices, volumes, period=vwap_period)
 
@@ -107,10 +112,7 @@ class FeatureScoringMixin:
 
         return score, vwap, distance, position, reason
 
-    def _score_market_context(
-        self,
-        spy_prices: Optional[List[float]]
-    ) -> Tuple[float, str, str]:
+    def _score_market_context(self, spy_prices: Optional[List[float]]) -> Tuple[float, str, str]:
         """
         Market Context Score (0-2 Punkte).
 
@@ -126,9 +128,9 @@ class FeatureScoringMixin:
         """
         # Read thresholds from YAML config with fallback to constants
         fe = _get_fe_thresholds()
-        mc_cfg = fe.get('market_context', {})
-        sma_short = mc_cfg.get('sma_short', SMA_SHORT)
-        sma_medium = mc_cfg.get('sma_medium', SMA_MEDIUM)
+        mc_cfg = fe.get("market_context", {})
+        sma_short = mc_cfg.get("sma_short", SMA_SHORT)
+        sma_medium = mc_cfg.get("sma_medium", SMA_MEDIUM)
 
         if not spy_prices or len(spy_prices) < sma_medium:
             return 0, "unknown", "No SPY data for market context"
@@ -161,9 +163,7 @@ class FeatureScoringMixin:
 
         return score, trend, reason
 
-    def _score_sector(
-        self, symbol: str, vix: float = None
-    ) -> Tuple[float, str, str]:
+    def _score_sector(self, symbol: str, vix: float = None) -> Tuple[float, str, str]:
         """
         VIX-dynamic Sector Score.
 
@@ -207,11 +207,7 @@ class FeatureScoringMixin:
         return adjustment, sector, reason
 
     def _score_gap(
-        self,
-        prices: List[float],
-        highs: List[float],
-        lows: List[float],
-        context=None
+        self, prices: List[float], highs: List[float], lows: List[float], context=None
     ) -> Tuple[float, str, float, bool, str]:
         """
         Gap Score (0-1 Punkt für Down-Gaps, -0.5 bis 0 für Up-Gaps).
@@ -226,12 +222,12 @@ class FeatureScoringMixin:
         """
         # Read thresholds from YAML config with fallback to constants
         fe = _get_fe_thresholds()
-        gap_cfg = fe.get('gap', {})
-        gap_large = gap_cfg.get('size_large', GAP_SIZE_LARGE)
-        gap_medium = gap_cfg.get('size_medium', GAP_SIZE_MEDIUM)
+        gap_cfg = fe.get("gap", {})
+        gap_large = gap_cfg.get("size_large", GAP_SIZE_LARGE)
+        gap_medium = gap_cfg.get("size_medium", GAP_SIZE_MEDIUM)
 
         # Use context if available (already calculated)
-        if context and hasattr(context, 'gap_result') and context.gap_result:
+        if context and hasattr(context, "gap_result") and context.gap_result:
             gap = context.gap_result
             gap_type = gap.gap_type
             gap_size = gap.gap_size_pct
@@ -240,7 +236,7 @@ class FeatureScoringMixin:
 
             # Convert quality_score (-1 to +1) to display score
             # Down-gaps get positive points, up-gaps get negative/zero
-            if gap_type in ('down', 'partial_down'):
+            if gap_type in ("down", "partial_down"):
                 score = max(0, quality_score)  # 0 to 1
                 if abs(gap_size) >= gap_large:
                     reason = f"Large down-gap: {gap_size:.1f}% - strong entry signal (+1.21% outperformance)"
@@ -248,7 +244,7 @@ class FeatureScoringMixin:
                     reason = f"Down-gap: {gap_size:.1f}% - favorable entry (+0.43% 30d return)"
                 else:
                     reason = f"Small down-gap: {gap_size:.1f}% - mild positive signal"
-            elif gap_type in ('up', 'partial_up'):
+            elif gap_type in ("up", "partial_up"):
                 score = min(0, quality_score)  # -0.5 to 0
                 if abs(gap_size) >= gap_large:
                     reason = f"Large up-gap: {gap_size:+.1f}% - caution, potential overbought"
@@ -279,8 +275,10 @@ class FeatureScoringMixin:
                 min_gap_pct=gap_medium / 2,  # looser threshold for feature scoring
             )
 
-            if gap_result and gap_result.gap_type != 'none':
-                return self._score_gap(prices, highs, lows, context=type('Context', (), {'gap_result': gap_result})())
+            if gap_result and gap_result.gap_type != "none":
+                return self._score_gap(
+                    prices, highs, lows, context=type("Context", (), {"gap_result": gap_result})()
+                )
             else:
                 return 0.0, "none", 0.0, False, "No significant gap detected"
 
@@ -296,7 +294,7 @@ class FeatureScoringMixin:
         highs: List[float] = None,
         lows: List[float] = None,
         context=None,
-        vix: float = None
+        vix: float = None,
     ) -> None:
         """
         Apply all new feature scores to a breakdown object.
@@ -314,7 +312,7 @@ class FeatureScoringMixin:
             vix: Current VIX level for VIX-dynamic sector adjustment
         """
         # Get VIX from context if not provided directly
-        if vix is None and context and hasattr(context, 'vix'):
+        if vix is None and context and hasattr(context, "vix"):
             vix = context.vix
 
         # VWAP Score
@@ -330,7 +328,7 @@ class FeatureScoringMixin:
             breakdown.market_context_score = context.market_context_score
             breakdown.spy_trend = context.market_context_trend or "unknown"
             breakdown.market_context_reason = f"Market: {context.market_context_trend}"
-        elif context and hasattr(context, 'spy_prices') and context.spy_prices:
+        elif context and hasattr(context, "spy_prices") and context.spy_prices:
             market_result = self._score_market_context(context.spy_prices)
             breakdown.market_context_score = market_result[0]
             breakdown.spy_trend = market_result[1]
@@ -360,4 +358,3 @@ class FeatureScoringMixin:
             breakdown.gap_size_pct = 0.0
             breakdown.gap_filled = False
             breakdown.gap_reason = "No high/low data for gap analysis"
-

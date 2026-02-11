@@ -35,25 +35,14 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
-# Local imports
-from .data_providers.tradier import TradierProvider, TradierEnvironment
-from .data_providers.local_db import LocalDBProvider, get_local_db_provider
-from .utils.provider_orchestrator import get_orchestrator, ProviderType
-from .scanner.multi_strategy_scanner import MultiStrategyScanner, ScanConfig, ScanMode
-from .cache import EarningsFetcher, get_earnings_fetcher, get_historical_cache, CacheStatus
-from .vix_strategy import VIXStrategySelector
-from .utils.rate_limiter import get_marketdata_limiter
-from .utils.validation import is_etf
-from .utils.secure_config import get_api_key, mask_api_key
-from .utils.circuit_breaker import CircuitBreaker, CircuitBreakerOpen, get_circuit_breaker
-from .utils.request_dedup import get_request_deduplicator
-from .utils.metrics import metrics
-from .formatters import formatters, HealthCheckData
+from .cache import CacheStatus, EarningsFetcher, get_earnings_fetcher, get_historical_cache
 from .config import get_config, get_scan_config, get_watchlist_loader
 from .container import ServiceContainer
-from .state.server_state import ServerState
+from .data_providers.local_db import LocalDBProvider, get_local_db_provider
 
-# Handler Mixins removed — now using Composition pattern via HandlerContainer
+# Local imports
+from .data_providers.tradier import TradierEnvironment, TradierProvider
+from .formatters import HealthCheckData, formatters
 
 # Composition-based handler architecture (Phase 3.3)
 from .handlers.handler_container import (
@@ -61,10 +50,24 @@ from .handlers.handler_container import (
     ServerContext,
     create_handler_container_from_server,
 )
+from .scanner.multi_strategy_scanner import MultiStrategyScanner, ScanConfig, ScanMode
+from .state.server_state import ServerState
+from .utils.circuit_breaker import CircuitBreaker, CircuitBreakerOpen, get_circuit_breaker
+from .utils.metrics import metrics
+from .utils.provider_orchestrator import ProviderType, get_orchestrator
+from .utils.rate_limiter import get_marketdata_limiter
+from .utils.request_dedup import get_request_deduplicator
+from .utils.secure_config import get_api_key, mask_api_key
+from .utils.validation import is_etf
+from .vix_strategy import VIXStrategySelector
+
+# Handler Mixins removed — now using Composition pattern via HandlerContainer
+
 
 # IBKR Bridge (optional)
 try:
     from .ibkr_bridge import IBKRBridge, get_ibkr_bridge
+
     IBKR_AVAILABLE = True
 except ImportError:
     IBKR_AVAILABLE = False
@@ -104,9 +107,7 @@ class OptionPlayServer:
     VERSION = "4.0.0"
 
     def __init__(
-        self,
-        api_key: Optional[str] = None,
-        container: Optional[ServiceContainer] = None
+        self, api_key: Optional[str] = None, container: Optional[ServiceContainer] = None
     ) -> None:
         """
         Initialize OptionPlay server.
@@ -134,8 +135,7 @@ class OptionPlayServer:
             self._provider = None  # Marketdata.app removed — Tradier is sole live provider
             self._rate_limiter = get_marketdata_limiter()
             self._historical_cache = get_historical_cache(
-                ttl_seconds=perf.cache_ttl_seconds,
-                max_entries=perf.cache_max_entries
+                ttl_seconds=perf.cache_ttl_seconds, max_entries=perf.cache_max_entries
             )
 
             self._circuit_breaker = get_circuit_breaker(
@@ -304,12 +304,13 @@ class OptionPlayServer:
 
         if self._tradier_provider is None:
             tradier_cfg = self._config.settings.tradier
-            env = TradierEnvironment.PRODUCTION if tradier_cfg.is_production else TradierEnvironment.SANDBOX
-
-            self._tradier_provider = TradierProvider(
-                api_key=self._tradier_api_key,
-                environment=env
+            env = (
+                TradierEnvironment.PRODUCTION
+                if tradier_cfg.is_production
+                else TradierEnvironment.SANDBOX
             )
+
+            self._tradier_provider = TradierProvider(api_key=self._tradier_api_key, environment=env)
 
         if not self._tradier_connected:
             try:
@@ -318,7 +319,9 @@ class OptionPlayServer:
                     self._tradier_connected = True
                     self._orchestrator.enable_tradier(True)
                     self.state.connection.mark_connected()
-                    logger.info(f"Connected to Tradier ({self._config.settings.tradier.environment})")
+                    logger.info(
+                        f"Connected to Tradier ({self._config.settings.tradier.environment})"
+                    )
                 else:
                     logger.warning("Tradier connection failed")
             except (ConnectionError, TimeoutError, OSError) as e:
@@ -337,15 +340,10 @@ class OptionPlayServer:
         return "None"
 
     def _get_scanner(
-        self,
-        min_score: Optional[float] = None,
-        earnings_days: Optional[int] = None
+        self, min_score: Optional[float] = None, earnings_days: Optional[int] = None
     ) -> MultiStrategyScanner:
         """Get scanner instance with config from YAML (pullback only)."""
-        config = get_scan_config(
-            override_min_score=min_score,
-            override_earnings_days=earnings_days
-        )
+        config = get_scan_config(override_min_score=min_score, override_earnings_days=earnings_days)
 
         config.enable_ath_breakout = False
         config.enable_earnings_dip = False
@@ -364,7 +362,7 @@ class OptionPlayServer:
     ) -> MultiStrategyScanner:
         """Get scanner instance with all strategies enabled."""
         scanner_cfg = self._config.settings.scanner
-        enable_iv = getattr(scanner_cfg, 'enable_iv_filter', False)
+        enable_iv = getattr(scanner_cfg, "enable_iv_filter", False)
 
         if enable_iv and not self._tradier_connected:
             logger.debug("IV filter disabled: no IV data provider connected")
@@ -395,17 +393,12 @@ class OptionPlayServer:
 
         # Check: Highs == Close for recent bars (synthetic OHLCV)
         sample = min(20, len(prices))
-        identical_highs = all(
-            abs(highs[-i] - prices[-i]) < 0.001
-            for i in range(1, sample + 1)
-        )
+        identical_highs = all(abs(highs[-i] - prices[-i]) < 0.001 for i in range(1, sample + 1))
 
         return all_zero_volume or identical_highs
 
     async def _fetch_historical_cached(
-        self,
-        symbol: str,
-        days: Optional[int] = None
+        self, symbol: str, days: Optional[int] = None
     ) -> Optional[Tuple]:
         """Fetch historical data with caching and request deduplication.
 
@@ -464,8 +457,7 @@ class OptionPlayServer:
 
         try:
             data = await self._deduplicator.deduplicated_call(
-                key=f"historical:{symbol}:{days}",
-                coro_factory=fetch_historical
+                key=f"historical:{symbol}:{days}", coro_factory=fetch_historical
             )
 
             if data:
@@ -516,6 +508,7 @@ class OptionPlayServer:
         OPTIMIZATION (DEBT-003): Uses batch query instead of N+1 individual queries.
         """
         from datetime import date as date_type
+
         from .cache import get_earnings_history_manager
 
         if self._earnings_fetcher is None:
@@ -525,7 +518,7 @@ class OptionPlayServer:
 
         # Config for BMO handling
         scanner_config = self._config.settings.scanner
-        allow_bmo_same_day = getattr(scanner_config, 'earnings_allow_bmo_same_day', False)
+        allow_bmo_same_day = getattr(scanner_config, "earnings_allow_bmo_same_day", False)
 
         safe_symbols: List[str] = []
         excluded_count = 0
@@ -584,10 +577,7 @@ class OptionPlayServer:
                     cache_hits += 1
                     days_to = cached.days_to_earnings
                 else:
-                    fetched = await asyncio.to_thread(
-                        self._earnings_fetcher.fetch,
-                        symbol
-                    )
+                    fetched = await asyncio.to_thread(self._earnings_fetcher.fetch, symbol)
                     days_to = fetched.days_to_earnings if fetched else None
 
                 # Fallback logic: conservative for unknown data
@@ -641,12 +631,13 @@ class OptionPlayServer:
                         return q
                 except (ConnectionError, TimeoutError, ValueError) as e:
                     logger.debug(f"Tradier quote failed for {symbol}: {e}")
-                    self._orchestrator.record_request(ProviderType.TRADIER, success=False, error=str(e))
+                    self._orchestrator.record_request(
+                        ProviderType.TRADIER, success=False, error=str(e)
+                    )
             return None
 
         quote = await self._deduplicator.deduplicated_call(
-            key=f"quote:{symbol}",
-            coro_factory=fetch_quote
+            key=f"quote:{symbol}", coro_factory=fetch_quote
         )
 
         self._quote_cache[symbol] = (quote, datetime.now())
@@ -738,7 +729,9 @@ class OptionPlayServer:
             metrics_stats=metrics.to_dict(),
             tradier_available=tradier_available,
             tradier_connected=self._tradier_connected,
-            tradier_api_key_masked=mask_api_key(self._tradier_api_key) if self._tradier_api_key else None,
+            tradier_api_key_masked=(
+                mask_api_key(self._tradier_api_key) if self._tradier_api_key else None
+            ),
             tradier_environment=tradier_environment,
             local_db_enabled=self._local_db_enabled,
             local_db_stats=local_db_stats,
@@ -756,36 +749,36 @@ class OptionPlayServer:
         # Historical cache
         hist_stats = self._historical_cache.stats()
         b.h2("Historical Data Cache")
-        b.kv_line("Entries", hist_stats.get('entries', 0))
-        b.kv_line("Hits", hist_stats.get('hits', 0))
-        b.kv_line("Misses", hist_stats.get('misses', 0))
+        b.kv_line("Entries", hist_stats.get("entries", 0))
+        b.kv_line("Hits", hist_stats.get("hits", 0))
+        b.kv_line("Misses", hist_stats.get("misses", 0))
         b.kv_line("Hit Rate", f"{hist_stats.get('hit_rate_percent', 0)}%")
         b.blank()
 
         # Quote cache
         quote_stats = self._get_quote_cache_stats()
         b.h2("Quote Cache")
-        b.kv_line("Entries", quote_stats['entries'])
-        b.kv_line("Hits", quote_stats['hits'])
-        b.kv_line("Misses", quote_stats['misses'])
+        b.kv_line("Entries", quote_stats["entries"])
+        b.kv_line("Hits", quote_stats["hits"])
+        b.kv_line("Misses", quote_stats["misses"])
         b.kv_line("Hit Rate", f"{quote_stats['hit_rate_percent']}%")
         b.blank()
 
         # Deduplicator stats
         dedup_stats = self._deduplicator.stats()
         b.h2("Request Deduplication")
-        b.kv_line("Total Requests", dedup_stats['total_requests'])
-        b.kv_line("Actual API Calls", dedup_stats['actual_calls'])
-        b.kv_line("Deduplicated", dedup_stats['deduplicated'])
+        b.kv_line("Total Requests", dedup_stats["total_requests"])
+        b.kv_line("Actual API Calls", dedup_stats["actual_calls"])
+        b.kv_line("Deduplicated", dedup_stats["deduplicated"])
         b.kv_line("Dedup Rate", f"{dedup_stats['dedup_rate_percent']}%")
         b.blank()
 
         # Scan cache
         scan_stats = self._get_scan_cache_stats()
         b.h2("Scan Results Cache")
-        b.kv_line("Entries", scan_stats['entries'])
-        b.kv_line("Hits", scan_stats['hits'])
-        b.kv_line("Misses", scan_stats['misses'])
+        b.kv_line("Entries", scan_stats["entries"])
+        b.kv_line("Hits", scan_stats["hits"])
+        b.kv_line("Misses", scan_stats["misses"])
         b.kv_line("Hit Rate", f"{scan_stats['hit_rate_percent']}%")
         b.kv_line("TTL", f"{scan_stats['ttl_seconds']}s")
 
@@ -793,8 +786,8 @@ class OptionPlayServer:
 
     def get_watchlist_info(self) -> str:
         """Get information about the current watchlist."""
-        from .utils.markdown_builder import MarkdownBuilder
         from .config import get_watchlist_loader
+        from .utils.markdown_builder import MarkdownBuilder
 
         loader = get_watchlist_loader()
         all_symbols = loader.get_all_symbols()
@@ -817,6 +810,7 @@ class OptionPlayServer:
 # =============================================================================
 # CLI & INTERACTIVE MODE
 # =============================================================================
+
 
 async def run_interactive() -> None:
     """Interactive test mode."""
@@ -901,6 +895,7 @@ async def run_interactive() -> None:
         except Exception as e:
             print(f"Error: {e}")
             import traceback
+
             traceback.print_exc()
 
     await server.disconnect()

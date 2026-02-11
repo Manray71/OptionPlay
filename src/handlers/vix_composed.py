@@ -72,7 +72,7 @@ class VixHandler(BaseHandler):
         if self._ctx.tradier_connected and self._ctx.tradier_provider:
             try:
                 quote = await self._ctx.tradier_provider.get_quote("VIX")
-                if quote and hasattr(quote, 'last') and quote.last:
+                if quote and hasattr(quote, "last") and quote.last:
                     self._ctx.current_vix = quote.last
                     self._ctx.vix_updated = datetime.now()
                     return quote.last
@@ -83,6 +83,7 @@ class VixHandler(BaseHandler):
         if self._ctx.current_vix is None:
             try:
                 import asyncio
+
                 vix = await asyncio.to_thread(self._fetch_vix_yahoo)
                 if vix:
                     self._ctx.current_vix = vix
@@ -100,8 +101,8 @@ class VixHandler(BaseHandler):
         Returns:
             Formatted Markdown recommendation
         """
-        from ..vix_strategy import get_strategy_for_vix
         from ..formatters import formatters
+        from ..vix_strategy import get_strategy_for_vix
 
         vix = await self.get_vix()
         recommendation = get_strategy_for_vix(vix)
@@ -116,8 +117,7 @@ class VixHandler(BaseHandler):
         Returns:
             Formatted Markdown regime status
         """
-        from ..backtesting import RegimeModel
-        from ..backtesting import get_trained_model_loader
+        from ..backtesting import RegimeModel, get_trained_model_loader
         from ..utils.markdown_builder import MarkdownBuilder
 
         vix = await self.get_vix()
@@ -174,14 +174,19 @@ class VixHandler(BaseHandler):
 
             # Strategies
             b.h2("Enabled Strategies")
-            strategies_list = ", ".join(params.strategies_enabled) if params.strategies_enabled else "None"
+            strategies_list = (
+                ", ".join(params.strategies_enabled) if params.strategies_enabled else "None"
+            )
             b.text(strategies_list)
             b.blank()
 
             # Model Info
             b.h2("Model Info")
             trained_icon = "[OK]" if params.is_trained else "[!]"
-            b.kv_line("Trained Model", f"{trained_icon} {'Yes' if params.is_trained else 'No (using defaults)'}")
+            b.kv_line(
+                "Trained Model",
+                f"{trained_icon} {'Yes' if params.is_trained else 'No (using defaults)'}",
+            )
             b.kv_line("Confidence", params.confidence_level.upper())
 
             # Training stats if available
@@ -197,7 +202,7 @@ class VixHandler(BaseHandler):
 
         except FileNotFoundError:
             # No trained model available - use defaults
-            from ..backtesting import get_regime_for_vix, FIXED_REGIMES
+            from ..backtesting import FIXED_REGIMES, get_regime_for_vix
 
             regime_name, config = get_regime_for_vix(vix, FIXED_REGIMES)
 
@@ -227,7 +232,9 @@ class VixHandler(BaseHandler):
             b.text(", ".join(config.strategies_enabled))
             b.blank()
 
-            b.text("**Note**: Using default parameters. Run `train_regime_model.py` to train a model.")
+            b.text(
+                "**Note**: Using default parameters. Run `train_regime_model.py` to train a model."
+            )
 
             return b.build()
 
@@ -248,8 +255,8 @@ class VixHandler(BaseHandler):
         Returns:
             Formatted Markdown recommendation
         """
-        from ..utils.validation import validate_symbol
         from ..utils.markdown_builder import MarkdownBuilder
+        from ..utils.validation import validate_symbol
         from ..vix_strategy import get_strategy_for_stock
 
         symbol = validate_symbol(symbol)
@@ -284,7 +291,9 @@ class VixHandler(BaseHandler):
         b.kv_line("Min-Score", f"{recommendation.min_score}")
         b.blank()
 
-        b.hint("Use `recommend_strikes` for specific strike recommendations with delta-based spread width.")
+        b.hint(
+            "Use `recommend_strikes` for specific strike recommendations with delta-based spread width."
+        )
         b.blank()
 
         b.h2("Reasoning")
@@ -308,8 +317,8 @@ class VixHandler(BaseHandler):
         Returns:
             Formatted event calendar
         """
-        from ..utils.markdown_builder import MarkdownBuilder
         from ..indicators.events import EventCalendar, EventType
+        from ..utils.markdown_builder import MarkdownBuilder
 
         calendar = EventCalendar(include_macro_events=True)
 
@@ -335,12 +344,14 @@ class VixHandler(BaseHandler):
         for event in events[:20]:
             icon = event_icons.get(event.event_type, "[EVENT]")
             days_until = (event.event_date - date.today()).days
-            rows.append([
-                str(event.event_date),
-                f"+{days_until}d" if days_until >= 0 else f"{days_until}d",
-                f"{icon} {event.event_type.value}",
-                event.description or "-"
-            ])
+            rows.append(
+                [
+                    str(event.event_date),
+                    f"+{days_until}d" if days_until >= 0 else f"{days_until}d",
+                    f"{icon} {event.event_type.value}",
+                    event.description or "-",
+                ]
+            )
 
         b.table(["Date", "Days", "Event", "Description"], rows)
 
@@ -379,22 +390,26 @@ class VixHandler(BaseHandler):
         rows = []
         for s in sorted(statuses, key=lambda x: x.momentum_factor, reverse=True):
             icon = regime_icons.get(s.regime.value, "[ ]")
-            rows.append([
-                s.sector,
-                s.etf_symbol,
-                f"{s.momentum_factor:.3f}",
-                f"{icon} {s.regime.value.upper()}",
-                f"{s.relative_strength_30d:+.1f}%",
-                f"{s.relative_strength_60d:+.1f}%",
-                f"{s.breadth_proxy:.2f}",
-            ])
+            rows.append(
+                [
+                    s.sector,
+                    s.etf_symbol,
+                    f"{s.momentum_factor:.3f}",
+                    f"{icon} {s.regime.value.upper()}",
+                    f"{s.relative_strength_30d:+.1f}%",
+                    f"{s.relative_strength_60d:+.1f}%",
+                    f"{s.breadth_proxy:.2f}",
+                ]
+            )
 
         b.table(
             ["Sector", "ETF", "Factor", "Regime", "RS 30d", "RS 60d", "Breadth"],
             rows,
         )
         b.blank()
-        b.hint("Factor range: 0.6 (weak) to 1.2 (strong). Applied to signal scores when sector_momentum.enabled=true.")
+        b.hint(
+            "Factor range: 0.6 (weak) to 1.2 (strong). Applied to signal scores when sector_momentum.enabled=true."
+        )
 
         return b.build()
 
@@ -410,19 +425,19 @@ class VixHandler(BaseHandler):
             timeout = self._ctx.config.settings.api_connection.yahoo_timeout
 
             req = urllib.request.Request(url)
-            req.add_header('User-Agent', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)')
+            req.add_header("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)")
 
             with urllib.request.urlopen(req, timeout=timeout) as response:
                 data = json.loads(response.read().decode())
 
-            result = data.get('chart', {}).get('result', [{}])[0]
-            meta = result.get('meta', {})
+            result = data.get("chart", {}).get("result", [{}])[0]
+            meta = result.get("meta", {})
 
-            regular_price = meta.get('regularMarketPrice')
+            regular_price = meta.get("regularMarketPrice")
             if regular_price:
                 return float(regular_price)
 
-            closes = result.get('indicators', {}).get('quote', [{}])[0].get('close', [])
+            closes = result.get("indicators", {}).get("quote", [{}])[0].get("close", [])
             if closes:
                 for c in reversed(closes):
                     if c is not None:

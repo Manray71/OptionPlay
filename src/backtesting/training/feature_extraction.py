@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class TradeFeatures:
     """Extracted features from a trade for ML training"""
+
     trade_id: str
     symbol: str
     strategy: str
@@ -99,18 +100,20 @@ class FeatureExtractor:
             regime = self._get_regime(vix) if vix else None
 
             # Create features
-            features.append(TradeFeatures(
-                trade_id=str(trade.get("id", len(features))),
-                symbol=trade.get("symbol", "UNKNOWN"),
-                strategy=trade.get("strategy", "pullback"),
-                signal_date=self._parse_date(trade.get("signal_date")),
-                components=components,
-                is_winner=trade.get("outcome") == "WIN",
-                pnl_percent=float(trade.get("pnl_percent", 0)),
-                vix_at_signal=vix,
-                regime=regime,
-                holding_days=int(trade.get("holding_days", 0)),
-            ))
+            features.append(
+                TradeFeatures(
+                    trade_id=str(trade.get("id", len(features))),
+                    symbol=trade.get("symbol", "UNKNOWN"),
+                    strategy=trade.get("strategy", "pullback"),
+                    signal_date=self._parse_date(trade.get("signal_date")),
+                    components=components,
+                    is_winner=trade.get("outcome") == "WIN",
+                    pnl_percent=float(trade.get("pnl_percent", 0)),
+                    vix_at_signal=vix,
+                    regime=regime,
+                    holding_days=int(trade.get("holding_days", 0)),
+                )
+            )
 
         logger.info(f"Extracted {len(features)} trade features from {len(trades)} trades")
         return features

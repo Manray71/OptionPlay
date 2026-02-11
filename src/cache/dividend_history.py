@@ -18,7 +18,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -33,9 +33,11 @@ DEFAULT_DB_PATH = Path.home() / ".optionplay" / "trades.db"
 # DATA CLASSES
 # =============================================================================
 
+
 @dataclass
 class DividendRecord:
     """Single historical dividend record"""
+
     symbol: str
     ex_date: date
     amount: Optional[float] = None
@@ -54,6 +56,7 @@ class DividendRecord:
 # =============================================================================
 # DIVIDEND HISTORY MANAGER
 # =============================================================================
+
 
 class DividendHistoryManager:
     """
@@ -119,10 +122,7 @@ class DividendHistoryManager:
     # =========================================================================
 
     def save_dividends(
-        self,
-        symbol: str,
-        dividends: List[Dict[str, Any]],
-        source: str = "yfinance"
+        self, symbol: str, dividends: List[Dict[str, Any]], source: str = "yfinance"
     ) -> int:
         """
         Saves multiple dividend entries for a symbol.
@@ -147,17 +147,20 @@ class DividendHistoryManager:
 
                 for div in dividends:
                     try:
-                        cursor.execute("""
+                        cursor.execute(
+                            """
                             INSERT OR REPLACE INTO dividend_history (
                                 symbol, ex_date, amount, source, collected_at
                             ) VALUES (?, ?, ?, ?, ?)
-                        """, (
-                            symbol,
-                            div.get("ex_date"),
-                            div.get("amount"),
-                            source,
-                            datetime.now().isoformat()
-                        ))
+                        """,
+                            (
+                                symbol,
+                                div.get("ex_date"),
+                                div.get("amount"),
+                                source,
+                                datetime.now().isoformat(),
+                            ),
+                        )
                         inserted += 1
 
                     except sqlite3.Error as e:
@@ -183,22 +186,22 @@ class DividendHistoryManager:
         with self._lock:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
-                cursor.execute("""
+                cursor.execute(
+                    """
                     SELECT symbol, ex_date, amount, source
                     FROM dividend_history
                     WHERE symbol = ?
                     ORDER BY ex_date DESC
-                """, (symbol,))
+                """,
+                    (symbol,),
+                )
 
                 rows = cursor.fetchall()
 
         return [self._row_to_record(row) for row in rows]
 
     def get_dividends_in_range(
-        self,
-        symbol: str,
-        from_date: date,
-        to_date: date
+        self, symbol: str, from_date: date, to_date: date
     ) -> List[DividendRecord]:
         """
         Gets dividends within a date range.
@@ -216,23 +219,22 @@ class DividendHistoryManager:
         with self._lock:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
-                cursor.execute("""
+                cursor.execute(
+                    """
                     SELECT symbol, ex_date, amount, source
                     FROM dividend_history
                     WHERE symbol = ? AND ex_date BETWEEN ? AND ?
                     ORDER BY ex_date DESC
-                """, (symbol, from_date.isoformat(), to_date.isoformat()))
+                """,
+                    (symbol, from_date.isoformat(), to_date.isoformat()),
+                )
 
                 rows = cursor.fetchall()
 
         return [self._row_to_record(row) for row in rows]
 
     def is_near_ex_dividend(
-        self,
-        symbol: str,
-        target_date: date,
-        days_before: int = 2,
-        days_after: int = 1
+        self, symbol: str, target_date: date, days_before: int = 2, days_after: int = 1
     ) -> bool:
         """
         Checks if the target date is near an ex-dividend date.
@@ -255,11 +257,7 @@ class DividendHistoryManager:
         return len(dividends) > 0
 
     def is_near_ex_dividend_batch(
-        self,
-        symbols: List[str],
-        target_date: date,
-        days_before: int = 2,
-        days_after: int = 1
+        self, symbols: List[str], target_date: date, days_before: int = 2, days_after: int = 1
     ) -> Dict[str, bool]:
         """
         Batch version of is_near_ex_dividend() for scanner efficiency.
@@ -287,22 +285,22 @@ class DividendHistoryManager:
                 cursor = conn.cursor()
                 placeholders = ",".join("?" * len(symbols_upper))
 
-                cursor.execute(f"""
+                cursor.execute(
+                    f"""
                     SELECT DISTINCT symbol
                     FROM dividend_history
                     WHERE symbol IN ({placeholders})
                       AND ex_date BETWEEN ? AND ?
-                """, (*symbols_upper, from_date.isoformat(), to_date.isoformat()))
+                """,
+                    (*symbols_upper, from_date.isoformat(), to_date.isoformat()),
+                )
 
                 near_symbols = {row["symbol"] for row in cursor.fetchall()}
 
         return {s: s in near_symbols for s in symbols_upper}
 
     def get_ex_dividend_amount(
-        self,
-        symbol: str,
-        target_date: date,
-        days_window: int = 3
+        self, symbol: str, target_date: date, days_window: int = 3
     ) -> Optional[float]:
         """
         Gets the dividend amount for the nearest ex-dividend date.
@@ -323,10 +321,7 @@ class DividendHistoryManager:
             return None
 
         # Return the nearest dividend's amount
-        nearest = min(
-            dividends,
-            key=lambda d: abs((d.ex_date - target_date).days)
-        )
+        nearest = min(dividends, key=lambda d: abs((d.ex_date - target_date).days))
         return nearest.amount
 
     # =========================================================================

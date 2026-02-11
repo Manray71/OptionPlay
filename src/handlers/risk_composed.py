@@ -15,8 +15,8 @@ import logging
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
-from .handler_container import BaseHandler, ServerContext
 from ..constants.trading_rules import VIX_NORMAL_MAX
+from .handler_container import BaseHandler, ServerContext
 
 if TYPE_CHECKING:
     pass
@@ -62,7 +62,7 @@ class RiskHandler(BaseHandler):
         Returns:
             Formatted Markdown with position sizing recommendation
         """
-        from ..risk.position_sizing import PositionSizer, PositionSizerConfig, KellyMode, VIXRegime
+        from ..risk.position_sizing import KellyMode, PositionSizer, PositionSizerConfig, VIXRegime
         from ..utils.markdown_builder import MarkdownBuilder
 
         vix = await self._get_vix() or VIX_NORMAL_MAX
@@ -178,7 +178,7 @@ class RiskHandler(BaseHandler):
 
         b.h2("Market Context")
         b.kv_line("VIX", f"{vix:.1f}")
-        b.kv_line("Regime", result['vix_regime'].upper())
+        b.kv_line("Regime", result["vix_regime"].upper())
         b.blank()
 
         b.h2("Stop Loss Settings")
@@ -216,9 +216,9 @@ class RiskHandler(BaseHandler):
         Returns:
             Formatted spread analysis
         """
-        from ..utils.validation import validate_symbol
+        from ..spread_analyzer import BullPutSpreadParams, SpreadAnalyzer
         from ..utils.markdown_builder import MarkdownBuilder
-        from ..spread_analyzer import SpreadAnalyzer, BullPutSpreadParams
+        from ..utils.validation import validate_symbol
 
         symbol = validate_symbol(symbol)
 
@@ -257,7 +257,9 @@ class RiskHandler(BaseHandler):
         b.kv_line("Risk/Reward", f"{analysis.risk_reward_ratio:.2f}:1")
         b.blank()
 
-        roi_percent = (analysis.max_profit / analysis.max_loss * 100) if analysis.max_loss > 0 else 0
+        roi_percent = (
+            (analysis.max_profit / analysis.max_loss * 100) if analysis.max_loss > 0 else 0
+        )
         annualized_roi = ((1 + roi_percent / 100) ** (365 / dte) - 1) * 100 if dte > 0 else 0
 
         b.h2("Profitability")
@@ -310,9 +312,10 @@ class RiskHandler(BaseHandler):
             Formatted simulation results
         """
         import math
-        from ..utils.validation import validate_symbol
-        from ..utils.markdown_builder import MarkdownBuilder
+
         from ..backtesting import PriceSimulator
+        from ..utils.markdown_builder import MarkdownBuilder
+        from ..utils.validation import validate_symbol
 
         symbol = validate_symbol(symbol)
 
@@ -326,8 +329,10 @@ class RiskHandler(BaseHandler):
             data = await self._fetch_historical_cached(symbol, days=30)
             if data:
                 prices = data[0]
-                returns = [math.log(prices[i] / prices[i-1]) for i in range(1, len(prices))]
-                daily_vol = (sum((r - sum(returns)/len(returns))**2 for r in returns) / len(returns)) ** 0.5
+                returns = [math.log(prices[i] / prices[i - 1]) for i in range(1, len(prices))]
+                daily_vol = (
+                    sum((r - sum(returns) / len(returns)) ** 2 for r in returns) / len(returns)
+                ) ** 0.5
                 volatility = daily_vol * math.sqrt(252)
             else:
                 volatility = 0.25
@@ -421,7 +426,9 @@ class RiskHandler(BaseHandler):
         await self._ensure_connected()
         if self._ctx.tradier_connected and self._ctx.tradier_provider:
             try:
-                data = await self._ctx.tradier_provider.get_historical_for_scanner(symbol, days=days)
+                data = await self._ctx.tradier_provider.get_historical_for_scanner(
+                    symbol, days=days
+                )
                 if data:
                     if self._ctx.historical_cache:
                         self._ctx.historical_cache.set(symbol, data, days=days)

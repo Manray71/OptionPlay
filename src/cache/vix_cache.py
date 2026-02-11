@@ -43,6 +43,7 @@ DB_PATH = Path.home() / ".optionplay" / "trades.db"
 @dataclass
 class VixDataPoint:
     """A VIX data point."""
+
     date: date
     value: float
 
@@ -106,7 +107,7 @@ class VixCacheManager:
             conn.close()
 
             if row:
-                return float(row['value'])
+                return float(row["value"])
             return None
 
         except sqlite3.Error as e:
@@ -133,27 +134,29 @@ class VixCacheManager:
 
             # Try exact match first
             cursor = conn.execute(
-                "SELECT value FROM vix_data WHERE date = ?",
-                (target_date.isoformat(),)
+                "SELECT value FROM vix_data WHERE date = ?", (target_date.isoformat(),)
             )
             row = cursor.fetchone()
 
             if row:
                 conn.close()
-                return float(row['value'])
+                return float(row["value"])
 
             # Fallback: closest previous date
-            cursor = conn.execute("""
+            cursor = conn.execute(
+                """
                 SELECT value FROM vix_data
                 WHERE date < ?
                 ORDER BY date DESC
                 LIMIT 1
-            """, (target_date.isoformat(),))
+            """,
+                (target_date.isoformat(),),
+            )
             row = cursor.fetchone()
             conn.close()
 
             if row:
-                return float(row['value'])
+                return float(row["value"])
             return None
 
         except sqlite3.Error as e:
@@ -179,11 +182,8 @@ class VixCacheManager:
             row = cursor.fetchone()
             conn.close()
 
-            if row['first_date'] and row['last_date']:
-                return (
-                    date.fromisoformat(row['first_date']),
-                    date.fromisoformat(row['last_date'])
-                )
+            if row["first_date"] and row["last_date"]:
+                return (date.fromisoformat(row["first_date"]), date.fromisoformat(row["last_date"]))
             return None
 
         except sqlite3.Error as e:
@@ -219,12 +219,15 @@ class VixCacheManager:
 
         try:
             conn = self._get_connection()
-            cursor = conn.execute("""
+            cursor = conn.execute(
+                """
                 SELECT value FROM vix_data
                 ORDER BY date DESC
                 LIMIT ?
-            """, (days,))
-            values = [row['value'] for row in cursor.fetchall()]
+            """,
+                (days,),
+            )
+            values = [row["value"] for row in cursor.fetchall()]
             conn.close()
 
             return list(reversed(values))  # Oldest first
@@ -248,12 +251,15 @@ class VixCacheManager:
 
         try:
             conn = self._get_connection()
-            cursor = conn.execute("""
+            cursor = conn.execute(
+                """
                 SELECT value FROM vix_data
                 ORDER BY date DESC
                 LIMIT ?
-            """, (days,))
-            values = [row['value'] for row in cursor.fetchall()]
+            """,
+                (days,),
+            )
+            values = [row["value"] for row in cursor.fetchall()]
             conn.close()
 
             if not values:
@@ -263,17 +269,21 @@ class VixCacheManager:
 
             current = values[0]
             sorted_values = sorted(values)
-            percentile = (sorted_values.index(min(sorted_values, key=lambda x: abs(x - current))) + 1) / len(sorted_values) * 100
+            percentile = (
+                (sorted_values.index(min(sorted_values, key=lambda x: abs(x - current))) + 1)
+                / len(sorted_values)
+                * 100
+            )
 
             return {
-                'current': current,
-                'min': min(values),
-                'max': max(values),
-                'mean': statistics.mean(values),
-                'median': statistics.median(values),
-                'stdev': statistics.stdev(values) if len(values) > 1 else 0,
-                'percentile': round(percentile, 1),
-                'days_analyzed': len(values)
+                "current": current,
+                "min": min(values),
+                "max": max(values),
+                "mean": statistics.mean(values),
+                "median": statistics.median(values),
+                "stdev": statistics.stdev(values) if len(values) > 1 else 0,
+                "percentile": round(percentile, 1),
+                "days_analyzed": len(values),
             }
 
         except (sqlite3.Error, statistics.StatisticsError) as e:
@@ -297,10 +307,9 @@ class VixCacheManager:
             conn = self._get_connection()
             start = (date.today() - timedelta(days=days_back)).isoformat()
             cursor = conn.execute(
-                "SELECT date FROM vix_data WHERE date >= ? ORDER BY date",
-                (start,)
+                "SELECT date FROM vix_data WHERE date >= ? ORDER BY date", (start,)
             )
-            existing = {date.fromisoformat(row['date']) for row in cursor.fetchall()}
+            existing = {date.fromisoformat(row["date"]) for row in cursor.fetchall()}
             conn.close()
 
             # Generate expected trading days (Mon-Fri)
@@ -353,6 +362,7 @@ def get_vix_manager() -> VixCacheManager:
     """
     try:
         from ..utils.deprecation import warn_singleton_usage
+
         warn_singleton_usage("get_vix_manager", "ServiceContainer.vix_manager")
     except ImportError:
         pass

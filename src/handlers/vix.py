@@ -10,20 +10,21 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import urllib.request
 import urllib.error
+import urllib.request
 from datetime import date, datetime
 from typing import Optional
 
+from ..constants import DELTA_LONG_TARGET, DELTA_TARGET
+from ..formatters import formatters
+from ..indicators.events import EventCalendar, EventType
 from ..utils.error_handler import mcp_endpoint
 from ..utils.markdown_builder import MarkdownBuilder
 from ..utils.validation import validate_symbol
 from ..vix_strategy import (
-    get_strategy_for_vix, get_strategy_for_stock,
+    get_strategy_for_stock,
+    get_strategy_for_vix,
 )
-from ..constants import DELTA_TARGET, DELTA_LONG_TARGET
-from ..formatters import formatters
-from ..indicators.events import EventCalendar, EventType
 from .base import BaseHandlerMixin
 
 logger = logging.getLogger(__name__)
@@ -46,20 +47,20 @@ class VixHandlerMixin(BaseHandlerMixin):
             timeout = self._config.settings.api_connection.yahoo_timeout
 
             req = urllib.request.Request(url)
-            req.add_header('User-Agent', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)')
+            req.add_header("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)")
 
             with urllib.request.urlopen(req, timeout=timeout) as response:
                 data = json.loads(response.read().decode())
 
-            result = data.get('chart', {}).get('result', [{}])[0]
-            meta = result.get('meta', {})
+            result = data.get("chart", {}).get("result", [{}])[0]
+            meta = result.get("meta", {})
 
-            regular_price = meta.get('regularMarketPrice')
+            regular_price = meta.get("regularMarketPrice")
             if regular_price:
                 return float(regular_price)
 
             # Fallback: last close from candles
-            closes = result.get('indicators', {}).get('quote', [{}])[0].get('close', [])
+            closes = result.get("indicators", {}).get("quote", [{}])[0].get("close", [])
             if closes:
                 for c in reversed(closes):
                     if c is not None:
@@ -145,8 +146,7 @@ class VixHandlerMixin(BaseHandlerMixin):
         Returns:
             Formatted Markdown regime status
         """
-        from ..backtesting import RegimeModel
-        from ..backtesting import get_trained_model_loader
+        from ..backtesting import RegimeModel, get_trained_model_loader
 
         vix = await self.get_vix()
 
@@ -202,14 +202,19 @@ class VixHandlerMixin(BaseHandlerMixin):
 
             # Strategies
             b.h2("Enabled Strategies")
-            strategies_list = ", ".join(params.strategies_enabled) if params.strategies_enabled else "None"
+            strategies_list = (
+                ", ".join(params.strategies_enabled) if params.strategies_enabled else "None"
+            )
             b.text(strategies_list)
             b.blank()
 
             # Model Info
             b.h2("Model Info")
             trained_icon = "[OK]" if params.is_trained else "[!]"
-            b.kv_line("Trained Model", f"{trained_icon} {'Yes' if params.is_trained else 'No (using defaults)'}")
+            b.kv_line(
+                "Trained Model",
+                f"{trained_icon} {'Yes' if params.is_trained else 'No (using defaults)'}",
+            )
             b.kv_line("Confidence", params.confidence_level.upper())
 
             # Training stats if available
@@ -225,7 +230,7 @@ class VixHandlerMixin(BaseHandlerMixin):
 
         except FileNotFoundError:
             # No trained model available - use defaults
-            from ..backtesting import get_regime_for_vix, FIXED_REGIMES
+            from ..backtesting import FIXED_REGIMES, get_regime_for_vix
 
             regime_name, config = get_regime_for_vix(vix, FIXED_REGIMES)
 
@@ -255,7 +260,9 @@ class VixHandlerMixin(BaseHandlerMixin):
             b.text(", ".join(config.strategies_enabled))
             b.blank()
 
-            b.text("**Note**: Using default parameters. Run `train_regime_model.py` to train a model.")
+            b.text(
+                "**Note**: Using default parameters. Run `train_regime_model.py` to train a model."
+            )
 
             return b.build()
 
@@ -309,7 +316,9 @@ class VixHandlerMixin(BaseHandlerMixin):
         b.kv_line("Min-Score", f"{recommendation.min_score}")
         b.blank()
 
-        b.hint("Use `recommend_strikes` for specific strike recommendations with delta-based spread width.")
+        b.hint(
+            "Use `recommend_strikes` for specific strike recommendations with delta-based spread width."
+        )
         b.blank()
 
         b.h2("Reasoning")
@@ -362,12 +371,14 @@ class VixHandlerMixin(BaseHandlerMixin):
         for event in events[:20]:
             icon = event_icons.get(event.event_type, "[EVENT]")
             days_until = (event.event_date - date.today()).days
-            rows.append([
-                str(event.event_date),
-                f"+{days_until}d" if days_until >= 0 else f"{days_until}d",
-                f"{icon} {event.event_type.value}",
-                event.description or "-"
-            ])
+            rows.append(
+                [
+                    str(event.event_date),
+                    f"+{days_until}d" if days_until >= 0 else f"{days_until}d",
+                    f"{icon} {event.event_type.value}",
+                    event.description or "-",
+                ]
+            )
 
         b.table(["Date", "Days", "Event", "Description"], rows)
 
@@ -406,21 +417,25 @@ class VixHandlerMixin(BaseHandlerMixin):
         rows = []
         for s in sorted(statuses, key=lambda x: x.momentum_factor, reverse=True):
             icon = regime_icons.get(s.regime.value, "[ ]")
-            rows.append([
-                s.sector,
-                s.etf_symbol,
-                f"{s.momentum_factor:.3f}",
-                f"{icon} {s.regime.value.upper()}",
-                f"{s.relative_strength_30d:+.1f}%",
-                f"{s.relative_strength_60d:+.1f}%",
-                f"{s.breadth_proxy:.2f}",
-            ])
+            rows.append(
+                [
+                    s.sector,
+                    s.etf_symbol,
+                    f"{s.momentum_factor:.3f}",
+                    f"{icon} {s.regime.value.upper()}",
+                    f"{s.relative_strength_30d:+.1f}%",
+                    f"{s.relative_strength_60d:+.1f}%",
+                    f"{s.breadth_proxy:.2f}",
+                ]
+            )
 
         b.table(
             ["Sector", "ETF", "Factor", "Regime", "RS 30d", "RS 60d", "Breadth"],
             rows,
         )
         b.blank()
-        b.hint("Factor range: 0.6 (weak) to 1.2 (strong). Applied to signal scores when sector_momentum.enabled=true.")
+        b.hint(
+            "Factor range: 0.6 (weak) to 1.2 (strong). Applied to signal scores when sector_momentum.enabled=true."
+        )
 
         return b.build()

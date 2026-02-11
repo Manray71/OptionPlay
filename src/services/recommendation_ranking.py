@@ -14,20 +14,20 @@ from __future__ import annotations
 
 import logging
 from collections import Counter
-from typing import Any, Callable, Dict, List, Optional, Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
 
-from ..vix_strategy import MarketRegime
-from ..models.base import TradeSignal
 from ..constants.trading_rules import (
-    SPREAD_DTE_MIN,
-    SPREAD_DTE_MAX,
-    SPREAD_DTE_TARGET,
     LIQUIDITY_MIN_QUALITY_DAILY_PICKS,
+    SPREAD_DTE_MAX,
+    SPREAD_DTE_MIN,
+    SPREAD_DTE_TARGET,
 )
+from ..models.base import TradeSignal
+from ..vix_strategy import MarketRegime
 
 if TYPE_CHECKING:
-    from ..strike_recommender import StrikeRecommender
     from ..cache.symbol_fundamentals import SymbolFundamentalsManager
+    from ..strike_recommender import StrikeRecommender
 
 logger = logging.getLogger(__name__)
 
@@ -87,17 +87,17 @@ class RecommendationRankingMixin:
 
     # Sektor-Speed-Map aus Phase 4 Analyse (avg days_to_playbook_exit)
     SECTOR_SPEED: Dict[str, float] = {
-        'Utilities': 1.0,
-        'Healthcare': 0.9,
-        'Real Estate': 0.85,
-        'Consumer Defensive': 0.7,
-        'Financial Services': 0.6,
-        'Industrials': 0.5,
-        'Consumer Cyclical': 0.4,
-        'Communication Services': 0.3,
-        'Energy': 0.2,
-        'Technology': 0.1,
-        'Basic Materials': 0.0,
+        "Utilities": 1.0,
+        "Healthcare": 0.9,
+        "Real Estate": 0.85,
+        "Consumer Defensive": 0.7,
+        "Financial Services": 0.6,
+        "Industrials": 0.5,
+        "Consumer Cyclical": 0.4,
+        "Communication Services": 0.3,
+        "Energy": 0.2,
+        "Technology": 0.1,
+        "Basic Materials": 0.0,
     }
 
     # ------------------------------------------------------------------
@@ -175,8 +175,8 @@ class RecommendationRankingMixin:
         Returns:
             Nach kombiniertem Score sortierte Signal-Liste
         """
-        weight: float = self.config['stability_weight']
-        speed_exponent: float = self.config.get('speed_exponent', 0.3)
+        weight: float = self.config["stability_weight"]
+        speed_exponent: float = self.config.get("speed_exponent", 0.3)
 
         def get_combined_score(signal: TradeSignal) -> float:
             """Returns combined score with speed multiplier."""
@@ -189,8 +189,8 @@ class RecommendationRankingMixin:
             pullback_score = None
             market_context_score = None
 
-            if signal.details and 'stability' in signal.details:
-                stability = signal.details['stability'].get('score', 0.0)
+            if signal.details and "stability" in signal.details:
+                stability = signal.details["stability"].get("score", 0.0)
 
             if self._fundamentals_manager:
                 fundamentals = self._fundamentals_manager.get_fundamentals(signal.symbol)
@@ -201,19 +201,23 @@ class RecommendationRankingMixin:
 
             # Fallback: Sektor aus Signal-Details
             if sector is None and signal.details:
-                sector = signal.details.get('sector')
+                sector = signal.details.get("sector")
 
             # Pullback/Market-Context aus Signal-Details extrahieren
             if signal.details:
-                scores = signal.details.get('scores', {})
-                pullback_score = scores.get('pullback_score')
-                market_context_score = scores.get('market_context_score')
+                scores = signal.details.get("scores", {})
+                pullback_score = scores.get("pullback_score")
+                market_context_score = scores.get("market_context_score")
 
             # Base Score: 70% Signal + 30% Stability
             base = (1 - weight) * signal_score + weight * (stability / 10)
 
             # Speed Score berechnen
-            dte = signal.details.get('dte', SPREAD_DTE_TARGET) if signal.details else SPREAD_DTE_TARGET
+            dte = (
+                signal.details.get("dte", SPREAD_DTE_TARGET)
+                if signal.details
+                else SPREAD_DTE_TARGET
+            )
             speed = self.compute_speed_score(
                 dte=dte,
                 stability_score=stability,
@@ -225,7 +229,7 @@ class RecommendationRankingMixin:
             # Speed^exponent Multiplikator (PLAYBOOK)
             # Normalisierung: Speed 0-10 -> 0.5-1.5, dann ^0.3
             speed_normalized = SPEED_MULTIPLIER_MIN + (speed / SPEED_SCORE_MAX)
-            combined = base * (speed_normalized ** speed_exponent)
+            combined = base * (speed_normalized**speed_exponent)
 
             return float(combined)
 
@@ -268,20 +272,20 @@ class RecommendationRankingMixin:
             support_levels: list[float] = []
             if signal.details:
                 # Aus Score-Breakdown
-                if 'score_breakdown' in signal.details:
-                    breakdown = signal.details['score_breakdown']
+                if "score_breakdown" in signal.details:
+                    breakdown = signal.details["score_breakdown"]
                     if isinstance(breakdown, dict):
-                        components = breakdown.get('components', {})
-                        support_info = components.get('support', {})
-                        support_level = support_info.get('level')
+                        components = breakdown.get("components", {})
+                        support_info = components.get("support", {})
+                        support_level = support_info.get("level")
                         if support_level:
                             support_levels.append(support_level)
 
                 # Aus technicals
-                if 'technicals' in signal.details:
-                    technicals = signal.details['technicals']
-                    if 'support_levels' in technicals:
-                        support_levels.extend(technicals['support_levels'])
+                if "technicals" in signal.details:
+                    technicals = signal.details["technicals"]
+                    if "support_levels" in technicals:
+                        support_levels.extend(technicals["support_levels"])
 
             # Fallback: Berechne Support als 10% unter aktuellem Preis
             if not support_levels:
@@ -293,16 +297,17 @@ class RecommendationRankingMixin:
 
             # IV-Rank aus Signal-Details
             iv_rank = None
-            if signal.details and 'iv_rank' in signal.details:
-                iv_rank = signal.details['iv_rank']
+            if signal.details and "iv_rank" in signal.details:
+                iv_rank = signal.details["iv_rank"]
 
             # Fibonacci-Levels
             fib_levels = None
-            if signal.details and 'fib_levels' in signal.details:
-                fib_levels = signal.details['fib_levels']
+            if signal.details and "fib_levels" in signal.details:
+                fib_levels = signal.details["fib_levels"]
 
             # MarketRegime für VIX-basierte Spread-Berechnung
             from ..vix_strategy import MarketRegime as VixRegime
+
             vix_regime = VixRegime(regime.value) if regime != MarketRegime.UNKNOWN else None
 
             # Fetch options chain if fetcher available
@@ -312,6 +317,7 @@ class RecommendationRankingMixin:
                     options = await options_fetcher(symbol)
                     if options:
                         from datetime import date
+
                         options_data = [
                             {
                                 "strike": opt.strike,
@@ -354,12 +360,9 @@ class RecommendationRankingMixin:
 
             # Extract expiry/DTE from options data
             if options_data:
-                dte_values = [
-                    opt.get("dte") for opt in options_data if opt.get("dte")
-                ]
+                dte_values = [opt.get("dte") for opt in options_data if opt.get("dte")]
                 expiry_values = [
-                    opt.get("expiration") for opt in options_data
-                    if opt.get("expiration")
+                    opt.get("expiration") for opt in options_data if opt.get("expiration")
                 ]
                 if dte_values:
                     most_common_dte = Counter(dte_values).most_common(1)[0][0]
@@ -367,7 +370,7 @@ class RecommendationRankingMixin:
                 if expiry_values:
                     most_common_expiry = Counter(expiry_values).most_common(1)[0][0]
                     # Handle both date objects and strings
-                    if hasattr(most_common_expiry, 'isoformat'):
+                    if hasattr(most_common_expiry, "isoformat"):
                         suggested.expiry = most_common_expiry.isoformat()
                     else:
                         suggested.expiry = str(most_common_expiry)
@@ -375,21 +378,16 @@ class RecommendationRankingMixin:
                 # DTE validation against PLAYBOOK rules
                 if suggested.dte is not None:
                     if suggested.dte < SPREAD_DTE_MIN:
-                        suggested.dte_warning = (
-                            f"DTE {suggested.dte} < minimum {SPREAD_DTE_MIN}"
-                        )
+                        suggested.dte_warning = f"DTE {suggested.dte} < minimum {SPREAD_DTE_MIN}"
                     elif suggested.dte > SPREAD_DTE_MAX:
-                        suggested.dte_warning = (
-                            f"DTE {suggested.dte} > maximum {SPREAD_DTE_MAX}"
-                        )
+                        suggested.dte_warning = f"DTE {suggested.dte} > maximum {SPREAD_DTE_MAX}"
 
             # Assess liquidity if options data available
             if options_data:
                 from ..options.liquidity import LiquidityAssessor
+
                 assessor = LiquidityAssessor()
-                spread_liq = assessor.assess_spread(
-                    rec.short_strike, rec.long_strike, options_data
-                )
+                spread_liq = assessor.assess_spread(rec.short_strike, rec.long_strike, options_data)
                 if spread_liq:
                     suggested.liquidity_quality = spread_liq.overall_quality
                     suggested.short_oi = spread_liq.short_strike_liquidity.open_interest
@@ -401,10 +399,7 @@ class RecommendationRankingMixin:
             liq_quality = suggested.liquidity_quality
             _quality_order = {"excellent": 3, "good": 2, "fair": 1, "poor": 0}
             min_rank = _quality_order.get(LIQUIDITY_MIN_QUALITY_DAILY_PICKS, 2)
-            liq_ok = (
-                liq_quality is not None
-                and _quality_order.get(liq_quality, 0) >= min_rank
-            )
+            liq_ok = liq_quality is not None and _quality_order.get(liq_quality, 0) >= min_rank
 
             if rec.quality.value == "poor":
                 suggested.tradeable_status = "NOT_TRADEABLE"
@@ -452,9 +447,9 @@ class RecommendationRankingMixin:
         # Stability und Win-Rate aus Signal-Details
         stability_score = 0.0
         historical_wr = None
-        if signal.details and 'stability' in signal.details:
-            stability_score = signal.details['stability'].get('score', 0.0)
-            historical_wr = signal.details['stability'].get('historical_win_rate')
+        if signal.details and "stability" in signal.details:
+            stability_score = signal.details["stability"].get("score", 0.0)
+            historical_wr = signal.details["stability"].get("historical_win_rate")
 
         # Sektor und Market Cap aus Fundamentals
         sector = None
@@ -471,7 +466,7 @@ class RecommendationRankingMixin:
 
         # Strike-Empfehlung generieren
         suggested_strikes = None
-        if self.config['enable_strike_recommendations']:
+        if self.config["enable_strike_recommendations"]:
             suggested_strikes = await self._generate_strike_recommendation(
                 symbol=signal.symbol,
                 current_price=signal.current_price,
@@ -481,13 +476,13 @@ class RecommendationRankingMixin:
             )
 
         # Speed Score berechnen
-        dte = signal.details.get('dte', SPREAD_DTE_TARGET) if signal.details else SPREAD_DTE_TARGET
+        dte = signal.details.get("dte", SPREAD_DTE_TARGET) if signal.details else SPREAD_DTE_TARGET
         pullback_score = None
         market_context_score = None
         if signal.details:
-            scores = signal.details.get('scores', {})
-            pullback_score = scores.get('pullback_score')
-            market_context_score = scores.get('market_context_score')
+            scores = signal.details.get("scores", {})
+            pullback_score = scores.get("pullback_score")
+            market_context_score = scores.get("market_context_score")
 
         speed = self.compute_speed_score(
             dte=dte,
@@ -506,7 +501,9 @@ class RecommendationRankingMixin:
                 f"\u26a0\ufe0f Stability unter {RANKING_STABILITY_WARNING} ({stability_score:.0f}) - erh\u00f6htes Risiko"
             )
         if regime == MarketRegime.DANGER_ZONE:
-            warnings.append("\u26a0\ufe0f VIX in Danger Zone (20-25) - reduzierte Position empfohlen")
+            warnings.append(
+                "\u26a0\ufe0f VIX in Danger Zone (20-25) - reduzierte Position empfohlen"
+            )
 
         return DailyPick(
             rank=rank,

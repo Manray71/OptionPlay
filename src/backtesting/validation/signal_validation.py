@@ -26,12 +26,13 @@ Implementation split across:
 import logging
 from dataclasses import dataclass, field
 from datetime import date
-from typing import List, Dict, Optional, Tuple, Any
+from typing import Any, Dict, List, Optional, Tuple
+
+# Import mixin with analysis methods
+from .score_analysis import ScoreAnalysisMixin
 
 # Re-export StatisticalCalculator from sub-module
 from .statistical_calc import StatisticalCalculator
-# Import mixin with analysis methods
-from .score_analysis import ScoreAnalysisMixin
 
 logger = logging.getLogger(__name__)
 
@@ -40,9 +41,11 @@ logger = logging.getLogger(__name__)
 # Data Classes
 # =============================================================================
 
+
 @dataclass
 class ScoreBucketStats:
     """Statistiken für einen Score-Bucket"""
+
     bucket_range: Tuple[float, float]  # z.B. (7.0, 9.0)
     bucket_label: str  # z.B. "7-9"
     trade_count: int
@@ -84,6 +87,7 @@ class ScoreBucketStats:
 @dataclass
 class ComponentCorrelation:
     """Korrelationsanalyse für eine einzelne Score-Komponente"""
+
     component_name: str  # z.B. "rsi_score"
     sample_size: int
     win_rate_correlation: float  # Pearson Korrelation mit Win/Loss
@@ -111,6 +115,7 @@ class ComponentCorrelation:
 @dataclass
 class RegimeBucketStats:
     """Statistiken für einen Score-Bucket innerhalb eines VIX-Regimes"""
+
     regime: str  # "low_vol", "normal", "elevated", "high_vol"
     bucket_stats: ScoreBucketStats
     regime_adjustment: float  # Win Rate Delta vs. Gesamt
@@ -127,6 +132,7 @@ class RegimeBucketStats:
 @dataclass
 class SignalReliability:
     """Reliability-Bewertung für ein neues Signal"""
+
     score: float
     score_bucket: str
     historical_win_rate: float
@@ -163,6 +169,7 @@ class SignalReliability:
 @dataclass
 class SignalValidationResult:
     """Vollständiges Signal-Validierungsergebnis"""
+
     # Metadaten
     analysis_date: date
     total_trades_analyzed: int
@@ -209,9 +216,7 @@ class SignalValidationResult:
                 regime: [rb.to_dict() for rb in buckets]
                 for regime, buckets in self.regime_buckets.items()
             },
-            "regime_sensitivity": {
-                k: round(v, 1) for k, v in self.regime_sensitivity.items()
-            },
+            "regime_sensitivity": {k: round(v, 1) for k, v in self.regime_sensitivity.items()},
             "overall_win_rate": round(self.overall_win_rate, 1),
             "overall_sharpe": round(self.overall_sharpe, 2),
             "score_effectiveness": round(self.score_effectiveness, 3),
@@ -244,20 +249,19 @@ class SignalValidationResult:
                 f"PF: {bucket.profit_factor:.2f}"
             )
 
-        lines.extend([
-            "-" * 60,
-            f"  Optimaler Schwellenwert: {self.optimal_threshold:.1f}",
-            f"  Score-Effektivität:      {self.score_effectiveness:.3f}",
-            "-" * 60,
-            "  TOP PRÄDIKTOREN",
-            "-" * 60,
-        ])
+        lines.extend(
+            [
+                "-" * 60,
+                f"  Optimaler Schwellenwert: {self.optimal_threshold:.1f}",
+                f"  Score-Effektivität:      {self.score_effectiveness:.3f}",
+                "-" * 60,
+                "  TOP PRÄDIKTOREN",
+                "-" * 60,
+            ]
+        )
 
         for i, pred in enumerate(self.top_predictors[:3], 1):
-            corr = next(
-                (c for c in self.component_correlations if c.component_name == pred),
-                None
-            )
+            corr = next((c for c in self.component_correlations if c.component_name == pred), None)
             if corr:
                 lines.append(
                     f"  {i}. {pred:20s}  "
@@ -266,11 +270,13 @@ class SignalValidationResult:
                 )
 
         if self.warnings:
-            lines.extend([
-                "-" * 60,
-                "  WARNUNGEN",
-                "-" * 60,
-            ])
+            lines.extend(
+                [
+                    "-" * 60,
+                    "  WARNUNGEN",
+                    "-" * 60,
+                ]
+            )
             for warning in self.warnings:
                 lines.append(f"  ! {warning}")
 
@@ -281,6 +287,7 @@ class SignalValidationResult:
 # =============================================================================
 # Signal Validator (Orchestrator — analysis methods via ScoreAnalysisMixin)
 # =============================================================================
+
 
 class SignalValidator(ScoreAnalysisMixin):
     """
@@ -299,10 +306,10 @@ class SignalValidator(ScoreAnalysisMixin):
 
     # Default Score-Buckets (basierend auf max_score=16)
     DEFAULT_BUCKETS = [
-        (0, 5),    # Nicht qualifiziert
-        (5, 7),    # Marginal
-        (7, 9),    # Gut
-        (9, 11),   # Stark
+        (0, 5),  # Nicht qualifiziert
+        (5, 7),  # Marginal
+        (7, 9),  # Gut
+        (9, 11),  # Stark
         (11, 16),  # Exzellent
     ]
 
@@ -334,7 +341,7 @@ class SignalValidator(ScoreAnalysisMixin):
         self,
         bucket_ranges: Optional[List[Tuple[float, float]]] = None,
         min_trades_per_bucket: int = 30,
-        confidence_level: float = 0.95
+        confidence_level: float = 0.95,
     ) -> None:
         """
         Initialisiert den Validator.
@@ -353,9 +360,7 @@ class SignalValidator(ScoreAnalysisMixin):
         self._last_trades: Optional[List] = None
 
     def validate(
-        self,
-        backtest_result: Any,  # BacktestResult
-        include_regime_analysis: bool = True
+        self, backtest_result: Any, include_regime_analysis: bool = True  # BacktestResult
     ) -> SignalValidationResult:
         """
         Führt vollständige Signal-Validierungs-Analyse durch.
@@ -399,7 +404,8 @@ class SignalValidator(ScoreAnalysisMixin):
         # 2. Komponenten-Korrelation
         component_correlations = self._analyze_component_correlations(valid_trades)
         top_predictors = [
-            c.component_name for c in component_correlations[:3]
+            c.component_name
+            for c in component_correlations[:3]
             if c.predictive_power in ("strong", "moderate")
         ]
 
@@ -447,7 +453,7 @@ class SignalValidator(ScoreAnalysisMixin):
         score: float,
         score_breakdown: Optional[Dict[str, float]] = None,
         vix: Optional[float] = None,
-        validation_result: Optional[SignalValidationResult] = None
+        validation_result: Optional[SignalValidationResult] = None,
     ) -> SignalReliability:
         """
         Ermittelt Reliability-Bewertung für ein neues Signal.
@@ -466,8 +472,7 @@ class SignalValidator(ScoreAnalysisMixin):
 
         if result is None:
             raise ValueError(
-                "Keine Validierungsergebnisse verfügbar. "
-                "Bitte zuerst validate() aufrufen."
+                "Keine Validierungsergebnisse verfügbar. " "Bitte zuerst validate() aufrufen."
             )
 
         warnings = []
@@ -547,6 +552,7 @@ class SignalValidator(ScoreAnalysisMixin):
 # =============================================================================
 # Utility Functions
 # =============================================================================
+
 
 def format_reliability_report(reliability: SignalReliability) -> str:
     """Formatiert SignalReliability als lesbaren Report"""

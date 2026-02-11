@@ -33,18 +33,18 @@ from datetime import date, datetime
 from typing import Any, Dict, List, Optional
 
 from ..constants.trading_rules import (
-    ExitAction,
-    VIXRegime,
     EXIT_FORCE_CLOSE_DTE,
     EXIT_PROFIT_PCT_NORMAL,
-    EXIT_STOP_LOSS_MULTIPLIER,
-    SPREAD_DTE_TARGET,
     EXIT_ROLL_DTE,
-    ROLL_NEW_DTE_MIN,
+    EXIT_STOP_LOSS_MULTIPLIER,
     ROLL_NEW_DTE_MAX,
+    ROLL_NEW_DTE_MIN,
+    SPREAD_DTE_TARGET,
     VIX_ELEVATED_MAX,
-    get_vix_regime,
+    ExitAction,
+    VIXRegime,
     get_regime_rules,
+    get_vix_regime,
 )
 
 logger = logging.getLogger(__name__)
@@ -61,6 +61,7 @@ THETA_ESTIMATE_ORIGINAL_DTE = SPREAD_DTE_TARGET
 # DATA CLASSES
 # =============================================================================
 
+
 @dataclass
 class PositionSnapshot:
     """
@@ -68,19 +69,20 @@ class PositionSnapshot:
 
     Provides a common view regardless of data source.
     """
+
     position_id: str
     symbol: str
     short_strike: float
     long_strike: float
     spread_width: float
-    net_credit: float          # Per share
+    net_credit: float  # Per share
     contracts: int
-    expiration: str            # YYYY-MM-DD
+    expiration: str  # YYYY-MM-DD
     dte: int
-    max_profit: float          # Total in USD
-    max_loss: float            # Total in USD
+    max_profit: float  # Total in USD
+    max_loss: float  # Total in USD
     breakeven: float
-    source: str = "internal"   # "internal" or "ibkr"
+    source: str = "internal"  # "internal" or "ibkr"
 
     # Live data (optional, from IBKR)
     current_spread_value: Optional[float] = None
@@ -94,11 +96,12 @@ class PositionSnapshot:
 @dataclass
 class PositionSignal:
     """Exit signal for a single position."""
+
     position_id: str
     symbol: str
     action: ExitAction
-    reason: str               # Human-readable
-    priority: int             # 1=highest, 8=HOLD
+    reason: str  # Human-readable
+    priority: int  # 1=highest, 8=HOLD
     dte: int
     pnl_pct: Optional[float] = None
     details: dict[str, Any] = field(default_factory=dict)
@@ -107,6 +110,7 @@ class PositionSignal:
 @dataclass
 class MonitorResult:
     """Result of monitoring all positions."""
+
     signals: list[PositionSignal]
     vix: Optional[float] = None
     regime: Optional[str] = None
@@ -133,6 +137,7 @@ class MonitorResult:
 # =============================================================================
 # SNAPSHOT BUILDERS
 # =============================================================================
+
 
 def snapshot_from_internal(position: Any) -> PositionSnapshot:
     """
@@ -249,6 +254,7 @@ def estimate_pnl_from_theta(snapshot: PositionSnapshot) -> PositionSnapshot:
 # POSITION MONITOR
 # =============================================================================
 
+
 class PositionMonitor:
     """
     Monitors positions and generates exit signals per PLAYBOOK §4.
@@ -266,6 +272,7 @@ class PositionMonitor:
         if self._earnings_manager is None:
             try:
                 from ..cache import get_earnings_history_manager
+
                 self._earnings_manager = get_earnings_history_manager()
             except ImportError:
                 logger.warning("Earnings history manager not available")
@@ -277,6 +284,7 @@ class PositionMonitor:
         if self._fundamentals_manager is None:
             try:
                 from ..cache import get_fundamentals_manager
+
                 self._fundamentals_manager = get_fundamentals_manager()
             except ImportError:
                 logger.debug("Fundamentals manager not available")
@@ -486,10 +494,7 @@ class PositionMonitor:
             return None
 
         # At 21 DTE: profitable + rollable → ROLL, otherwise → CLOSE
-        is_profitable = (
-            snap.pnl_pct_of_max_profit is not None
-            and snap.pnl_pct_of_max_profit > 0
-        )
+        is_profitable = snap.pnl_pct_of_max_profit is not None and snap.pnl_pct_of_max_profit > 0
 
         can_roll = self._can_roll(snap, current_vix)
 
@@ -532,10 +537,7 @@ class PositionMonitor:
         if current_vix is None or current_vix < VIX_ELEVATED_MAX:
             return None
 
-        is_profitable = (
-            snap.pnl_pct_of_max_profit is not None
-            and snap.pnl_pct_of_max_profit > 0
-        )
+        is_profitable = snap.pnl_pct_of_max_profit is not None and snap.pnl_pct_of_max_profit > 0
 
         if is_profitable:
             return PositionSignal(

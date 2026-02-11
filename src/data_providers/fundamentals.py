@@ -6,8 +6,8 @@
 import logging
 import time
 from datetime import datetime
-from typing import Dict, Any, Optional, List
 from functools import lru_cache
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -55,17 +55,17 @@ def get_analyst_data(symbol: str) -> Dict[str, Any]:
         buy = hold = sell = 0
 
         # Methode 1: recommendation_summary (aggregiert)
-        rec_summary = getattr(ticker, 'recommendations_summary', None)
+        rec_summary = getattr(ticker, "recommendations_summary", None)
         if rec_summary is not None and not rec_summary.empty:
             # Summiere über alle Perioden
             for col in rec_summary.columns:
                 col_lower = col.lower()
                 total = rec_summary[col].sum()
-                if 'buy' in col_lower or 'strong' in col_lower:
+                if "buy" in col_lower or "strong" in col_lower:
                     buy += int(total)
-                elif 'hold' in col_lower:
+                elif "hold" in col_lower:
                     hold += int(total)
-                elif 'sell' in col_lower or 'under' in col_lower:
+                elif "sell" in col_lower or "under" in col_lower:
                     sell += int(total)
         else:
             # Methode 2: Einzelne recommendations (Fallback)
@@ -73,12 +73,12 @@ def get_analyst_data(symbol: str) -> Dict[str, Any]:
             if recs is not None and not recs.empty:
                 recent = recs.tail(30)  # Letzte 30 Einträge
                 for _, row in recent.iterrows():
-                    grade = str(row.get('To Grade', '')).lower()
-                    if any(x in grade for x in ['buy', 'outperform', 'overweight', 'strong buy']):
+                    grade = str(row.get("To Grade", "")).lower()
+                    if any(x in grade for x in ["buy", "outperform", "overweight", "strong buy"]):
                         buy += 1
-                    elif any(x in grade for x in ['hold', 'neutral', 'equal', 'market perform']):
+                    elif any(x in grade for x in ["hold", "neutral", "equal", "market perform"]):
                         hold += 1
-                    elif any(x in grade for x in ['sell', 'underperform', 'underweight', 'reduce']):
+                    elif any(x in grade for x in ["sell", "underperform", "underweight", "reduce"]):
                         sell += 1
 
         # Sentiment bestimmen
@@ -94,10 +94,10 @@ def get_analyst_data(symbol: str) -> Dict[str, Any]:
             sentiment = "UNKNOWN"
 
         # Kursziele
-        target_median = info.get('targetMeanPrice')
-        target_high = info.get('targetHighPrice')
-        target_low = info.get('targetLowPrice')
-        current_price = info.get('currentPrice') or info.get('regularMarketPrice')
+        target_median = info.get("targetMeanPrice")
+        target_high = info.get("targetHighPrice")
+        target_low = info.get("targetLowPrice")
+        current_price = info.get("currentPrice") or info.get("regularMarketPrice")
 
         # Upside berechnen
         upside_pct = None
@@ -174,8 +174,8 @@ def get_earnings_data(symbol: str) -> Dict[str, Any]:
             return cached_data
 
     try:
-        import yfinance as yf
         import pandas as pd
+        import yfinance as yf
 
         ticker = yf.Ticker(symbol)
 
@@ -189,21 +189,21 @@ def get_earnings_data(symbol: str) -> Dict[str, Any]:
         next_date = None
 
         if earnings_dates is not None and not earnings_dates.empty:
-            now = pd.Timestamp.now(tz='UTC')
+            now = pd.Timestamp.now(tz="UTC")
 
             # Konvertiere Index zu UTC wenn nötig
             if earnings_dates.index.tz is None:
-                earnings_dates.index = earnings_dates.index.tz_localize('UTC')
+                earnings_dates.index = earnings_dates.index.tz_localize("UTC")
 
             # Vergangene Earnings (letzter bekannter)
             past = earnings_dates[earnings_dates.index < now]
             if not past.empty:
                 last_row = past.iloc[0]
-                last_date = past.index[0].strftime('%Y-%m-%d')
+                last_date = past.index[0].strftime("%Y-%m-%d")
 
                 # EPS Daten extrahieren
-                eps_actual = last_row.get('Reported EPS')
-                eps_estimate = last_row.get('EPS Estimate')
+                eps_actual = last_row.get("Reported EPS")
+                eps_estimate = last_row.get("EPS Estimate")
 
                 if eps_actual is not None and eps_estimate is not None:
                     try:
@@ -220,14 +220,16 @@ def get_earnings_data(symbol: str) -> Dict[str, Any]:
 
                         # Surprise berechnen
                         if eps_estimate != 0:
-                            surprise_pct = round((eps_actual - eps_estimate) / abs(eps_estimate) * 100, 1)
+                            surprise_pct = round(
+                                (eps_actual - eps_estimate) / abs(eps_estimate) * 100, 1
+                            )
                     except (TypeError, ValueError):
                         pass
 
             # Nächster Earnings-Termin
             future = earnings_dates[earnings_dates.index >= now]
             if not future.empty:
-                next_date = future.index[-1].strftime('%Y-%m-%d')
+                next_date = future.index[-1].strftime("%Y-%m-%d")
 
         result_data = {
             "last_date": last_date,
@@ -284,8 +286,7 @@ def get_fundamentals(symbol: str) -> Dict[str, Any]:
 
 
 def get_fundamentals_for_symbols(
-    symbols: List[str],
-    max_symbols: int = 10
+    symbols: List[str], max_symbols: int = 10
 ) -> Dict[str, Dict[str, Any]]:
     """
     Holt Fundamentaldaten für mehrere Symbole.
@@ -323,27 +324,27 @@ def generate_positive_factors(fundamentals: Dict[str, Any]) -> List[str]:
     factors = []
 
     # Analyst Sentiment
-    if fundamentals.get('sentiment') == 'BULLISH':
-        buy = fundamentals.get('buy', 0)
-        total = fundamentals.get('total_ratings', 0)
+    if fundamentals.get("sentiment") == "BULLISH":
+        buy = fundamentals.get("buy", 0)
+        total = fundamentals.get("total_ratings", 0)
         if total > 0:
             pct = round(buy / total * 100)
             factors.append(f"Starke Analysten-Unterstützung ({pct}% Buy-Ratings)")
 
     # Upside Potential
-    upside = fundamentals.get('upside_pct')
+    upside = fundamentals.get("upside_pct")
     if upside and upside > 10:
         factors.append(f"Signifikantes Upside-Potential ({upside:.0f}% zum Kursziel)")
 
     # Earnings Beat
-    earnings = fundamentals.get('earnings', {})
-    if earnings.get('result') == 'Beat':
-        surprise = earnings.get('surprise_pct', 0)
+    earnings = fundamentals.get("earnings", {})
+    if earnings.get("result") == "Beat":
+        surprise = earnings.get("surprise_pct", 0)
         factors.append(f"Letzter Earnings Beat ({surprise:+.1f}% Überraschung)")
 
     # Price vs Target
-    current = fundamentals.get('current_price')
-    target_low = fundamentals.get('target_low')
+    current = fundamentals.get("current_price")
+    target_low = fundamentals.get("target_low")
     if current and target_low and current < target_low:
         factors.append("Preis unter niedrigstem Analysten-Kursziel")
 
@@ -363,26 +364,26 @@ def generate_negative_factors(fundamentals: Dict[str, Any]) -> List[str]:
     factors = []
 
     # Bearish Sentiment
-    if fundamentals.get('sentiment') == 'BEARISH':
-        sell = fundamentals.get('sell', 0)
-        total = fundamentals.get('total_ratings', 0)
+    if fundamentals.get("sentiment") == "BEARISH":
+        sell = fundamentals.get("sell", 0)
+        total = fundamentals.get("total_ratings", 0)
         if total > 0:
             pct = round(sell / total * 100)
             factors.append(f"Negative Analysten-Stimmung ({pct}% Sell-Ratings)")
 
     # Downside Risk
-    upside = fundamentals.get('upside_pct')
+    upside = fundamentals.get("upside_pct")
     if upside and upside < -10:
         factors.append(f"Preis über Kursziel ({abs(upside):.0f}% über Median)")
 
     # Earnings Miss
-    earnings = fundamentals.get('earnings', {})
-    if earnings.get('result') == 'Miss':
-        surprise = earnings.get('surprise_pct', 0)
+    earnings = fundamentals.get("earnings", {})
+    if earnings.get("result") == "Miss":
+        surprise = earnings.get("surprise_pct", 0)
         factors.append(f"Letzter Earnings Miss ({surprise:.1f}% unter Erwartung)")
 
     # No Analyst Coverage
-    total = fundamentals.get('total_ratings', 0)
+    total = fundamentals.get("total_ratings", 0)
     if total == 0:
         factors.append("Keine Analysten-Abdeckung")
 
@@ -402,49 +403,60 @@ def generate_news_assessment_table(fundamentals: Dict[str, Any]) -> List[Dict[st
     table = []
 
     # Earnings Bewertung
-    earnings = fundamentals.get('earnings', {})
-    if earnings.get('result'):
-        rating = "Positiv" if earnings['result'] == 'Beat' else (
-            "Negativ" if earnings['result'] == 'Miss' else "Neutral"
+    earnings = fundamentals.get("earnings", {})
+    if earnings.get("result"):
+        rating = (
+            "Positiv"
+            if earnings["result"] == "Beat"
+            else ("Negativ" if earnings["result"] == "Miss" else "Neutral")
         )
-        table.append({
-            "factor": "Earnings",
-            "rating": rating,
-            "comment": f"Q-Ergebnis: {earnings['result']}" + (
-                f" ({earnings.get('surprise_pct', 0):+.1f}%)" if earnings.get('surprise_pct') else ""
-            )
-        })
+        table.append(
+            {
+                "factor": "Earnings",
+                "rating": rating,
+                "comment": f"Q-Ergebnis: {earnings['result']}"
+                + (
+                    f" ({earnings.get('surprise_pct', 0):+.1f}%)"
+                    if earnings.get("surprise_pct")
+                    else ""
+                ),
+            }
+        )
     else:
-        table.append({
-            "factor": "Earnings",
-            "rating": "Unbekannt",
-            "comment": "Keine Earnings-Daten verfügbar"
-        })
+        table.append(
+            {
+                "factor": "Earnings",
+                "rating": "Unbekannt",
+                "comment": "Keine Earnings-Daten verfügbar",
+            }
+        )
 
     # Analysten Bewertung
-    sentiment = fundamentals.get('sentiment', 'UNKNOWN')
-    buy = fundamentals.get('buy', 0)
-    hold = fundamentals.get('hold', 0)
-    sell = fundamentals.get('sell', 0)
+    sentiment = fundamentals.get("sentiment", "UNKNOWN")
+    buy = fundamentals.get("buy", 0)
+    hold = fundamentals.get("hold", 0)
+    sell = fundamentals.get("sell", 0)
 
-    if sentiment != 'UNKNOWN':
-        rating = "Positiv" if sentiment == 'BULLISH' else (
-            "Negativ" if sentiment == 'BEARISH' else "Neutral"
+    if sentiment != "UNKNOWN":
+        rating = (
+            "Positiv"
+            if sentiment == "BULLISH"
+            else ("Negativ" if sentiment == "BEARISH" else "Neutral")
         )
-        table.append({
-            "factor": "Analysten",
-            "rating": rating,
-            "comment": f"{buy} Buy / {hold} Hold / {sell} Sell"
-        })
+        table.append(
+            {
+                "factor": "Analysten",
+                "rating": rating,
+                "comment": f"{buy} Buy / {hold} Hold / {sell} Sell",
+            }
+        )
     else:
-        table.append({
-            "factor": "Analysten",
-            "rating": "Unbekannt",
-            "comment": "Keine Ratings verfügbar"
-        })
+        table.append(
+            {"factor": "Analysten", "rating": "Unbekannt", "comment": "Keine Ratings verfügbar"}
+        )
 
     # Kursziel Bewertung
-    upside = fundamentals.get('upside_pct')
+    upside = fundamentals.get("upside_pct")
     if upside is not None:
         if upside > 15:
             rating = "Positiv"
@@ -455,30 +467,20 @@ def generate_news_assessment_table(fundamentals: Dict[str, Any]) -> List[Dict[st
         else:
             rating = "Neutral"
             comment = f"{upside:+.0f}% zum Ziel"
-        table.append({
-            "factor": "Kursziel",
-            "rating": rating,
-            "comment": comment
-        })
+        table.append({"factor": "Kursziel", "rating": rating, "comment": comment})
 
     # Gesamt-Risiko Bewertung
     negative = generate_negative_factors(fundamentals)
-    risk_level = "Niedrig" if len(negative) <= 1 else (
-        "Hoch" if len(negative) >= 3 else "Mittel"
+    risk_level = "Niedrig" if len(negative) <= 1 else ("Hoch" if len(negative) >= 3 else "Mittel")
+    table.append(
+        {"factor": "Risiko", "rating": risk_level, "comment": f"{len(negative)} Faktor(en)"}
     )
-    table.append({
-        "factor": "Risiko",
-        "rating": risk_level,
-        "comment": f"{len(negative)} Faktor(en)"
-    })
 
     return table
 
 
 def generate_fundamental_conclusion(
-    symbol: str,
-    fundamentals: Dict[str, Any],
-    for_bull_put_spread: bool = True
+    symbol: str, fundamentals: Dict[str, Any], for_bull_put_spread: bool = True
 ) -> str:
     """
     Generiert einen Fazit-Text basierend auf Fundamentaldaten.
@@ -491,24 +493,24 @@ def generate_fundamental_conclusion(
     Returns:
         Fazit-Text als String
     """
-    sentiment = fundamentals.get('sentiment', 'UNKNOWN')
-    earnings = fundamentals.get('earnings', {})
-    upside = fundamentals.get('upside_pct')
+    sentiment = fundamentals.get("sentiment", "UNKNOWN")
+    earnings = fundamentals.get("earnings", {})
+    upside = fundamentals.get("upside_pct")
 
     parts = []
 
     # Sentiment Einordnung
-    if sentiment == 'BULLISH':
+    if sentiment == "BULLISH":
         parts.append(f"{symbol} wird von Analysten überwiegend positiv bewertet")
-    elif sentiment == 'BEARISH':
+    elif sentiment == "BEARISH":
         parts.append(f"{symbol} wird von Analysten kritisch gesehen")
     else:
         parts.append(f"Die Analysten-Meinung zu {symbol} ist gemischt")
 
     # Earnings Einordnung
-    if earnings.get('result') == 'Beat':
+    if earnings.get("result") == "Beat":
         parts.append("Der letzte Earnings-Report übertraf die Erwartungen")
-    elif earnings.get('result') == 'Miss':
+    elif earnings.get("result") == "Miss":
         parts.append("Der letzte Earnings-Report verfehlte die Erwartungen")
 
     # Kursziel Einordnung
@@ -517,9 +519,9 @@ def generate_fundamental_conclusion(
 
     # Bull-Put-Spread Bewertung
     if for_bull_put_spread:
-        if sentiment == 'BULLISH' and earnings.get('result') in ['Beat', 'Meet']:
+        if sentiment == "BULLISH" and earnings.get("result") in ["Beat", "Meet"]:
             parts.append("Die Fundamentaldaten unterstützen einen Bull-Put-Spread")
-        elif sentiment == 'BEARISH':
+        elif sentiment == "BEARISH":
             parts.append("Vorsicht bei Bull-Put-Spread aufgrund negativer Stimmung geboten")
         else:
             parts.append("Die Fundamentaldaten sind für einen Bull-Put-Spread akzeptabel")

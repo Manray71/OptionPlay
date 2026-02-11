@@ -37,7 +37,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Any, Optional, Dict
+from typing import Any, Dict, Optional
 
 from ..constants.trading_rules import SPREAD_MIN_CREDIT_PCT
 
@@ -56,76 +56,78 @@ EQS_SCORE_NEUTRAL = 50.0
 EQS_DEFAULT_BONUS_MAX_PCT = 0.3
 
 # --- IV Rank scoring (_score_iv_rank) ---
-EQS_IV_RANK_ZONE_LOW = 20           # Below: too little premium
-EQS_IV_RANK_ZONE_MID_LOW = 40       # Start of sweet spot ramp
-EQS_IV_RANK_ZONE_MID_HIGH = 65      # End of sweet spot (peak)
-EQS_IV_RANK_ZONE_HIGH = 80          # Above: event risk warning
-EQS_IV_RANK_MULT_LOW = 2.5          # 0->0, 20->50
-EQS_IV_RANK_MULT_MID_LOW = 1.5      # 20->50, 40->80
-EQS_IV_RANK_MULT_MID_HIGH = 0.8     # 40->80, 65->100
-EQS_IV_RANK_MULT_HIGH = 1.333       # 65->100, 80->80
-EQS_IV_RANK_FLOOR = 30.0            # Minimum score for very high IV rank
+EQS_IV_RANK_ZONE_LOW = 20  # Below: too little premium
+EQS_IV_RANK_ZONE_MID_LOW = 40  # Start of sweet spot ramp
+EQS_IV_RANK_ZONE_MID_HIGH = 65  # End of sweet spot (peak)
+EQS_IV_RANK_ZONE_HIGH = 80  # Above: event risk warning
+EQS_IV_RANK_MULT_LOW = 2.5  # 0->0, 20->50
+EQS_IV_RANK_MULT_MID_LOW = 1.5  # 20->50, 40->80
+EQS_IV_RANK_MULT_MID_HIGH = 0.8  # 40->80, 65->100
+EQS_IV_RANK_MULT_HIGH = 1.333  # 65->100, 80->80
+EQS_IV_RANK_FLOOR = 30.0  # Minimum score for very high IV rank
 
 # --- IV Percentile scoring (_score_iv_percentile) ---
 EQS_IV_PCT_ZONE_LOW = 30
 EQS_IV_PCT_ZONE_MID = 50
 EQS_IV_PCT_ZONE_HIGH = 80
-EQS_IV_PCT_SCORE_LOW = 30           # Score at zone_low boundary
-EQS_IV_PCT_SCORE_MID = 70           # Score at zone_mid boundary
-EQS_IV_PCT_MULT_LOW = 1.0           # 0->0, 30->30
-EQS_IV_PCT_MULT_MID = 2.0           # 30->30, 50->70
-EQS_IV_PCT_MULT_HIGH = 1.0          # 50->70, 80->100
-EQS_IV_PCT_DECAY_MULT = 1.5         # Decay above 80%
-EQS_IV_PCT_FLOOR = 50.0             # Minimum score for very high percentile
+EQS_IV_PCT_SCORE_LOW = 30  # Score at zone_low boundary
+EQS_IV_PCT_SCORE_MID = 70  # Score at zone_mid boundary
+EQS_IV_PCT_MULT_LOW = 1.0  # 0->0, 30->30
+EQS_IV_PCT_MULT_MID = 2.0  # 30->30, 50->70
+EQS_IV_PCT_MULT_HIGH = 1.0  # 50->70, 80->100
+EQS_IV_PCT_DECAY_MULT = 1.5  # Decay above 80%
+EQS_IV_PCT_FLOOR = 50.0  # Minimum score for very high percentile
 
 # --- Credit Ratio scoring (_score_credit_ratio) ---
 # EQS_CREDIT_MIN_PCT uses SPREAD_MIN_CREDIT_PCT from trading_rules (10%)
-EQS_CREDIT_MID_PCT = 15             # Mid threshold
-EQS_CREDIT_HIGH_PCT = 25            # High threshold (cap)
-EQS_CREDIT_MULT_LOW = 12            # 10->0, 15->60
-EQS_CREDIT_SCORE_MID = 60           # Score at 15%
-EQS_CREDIT_MULT_HIGH = 4            # 15->60, 25->100
+EQS_CREDIT_MID_PCT = 15  # Mid threshold
+EQS_CREDIT_HIGH_PCT = 25  # High threshold (cap)
+EQS_CREDIT_MULT_LOW = 12  # 10->0, 15->60
+EQS_CREDIT_SCORE_MID = 60  # Score at 15%
+EQS_CREDIT_MULT_HIGH = 4  # 15->60, 25->100
 
 # --- Theta Efficiency scoring (_score_theta_efficiency) ---
-EQS_THETA_PCT_CONVERSION = 100      # Convert ratio to percentage
-EQS_THETA_MULTIPLIER = 25           # Scale percentage to score
+EQS_THETA_PCT_CONVERSION = 100  # Convert ratio to percentage
+EQS_THETA_MULTIPLIER = 25  # Scale percentage to score
 
 # --- Pullback scoring (_score_pullback_pct) ---
-EQS_PULLBACK_ZONE_MINIMAL = 1       # < 1%: barely a pullback
-EQS_PULLBACK_ZONE_SHALLOW = 3       # 1-3%: shallow
-EQS_PULLBACK_ZONE_SWEET = 8         # 3-8%: sweet spot
-EQS_PULLBACK_ZONE_DEEP = 12         # 8-12%: getting risky
-EQS_PULLBACK_SCORE_MINIMAL = 20     # Score for < 1% pullback
-EQS_PULLBACK_MULT_SHALLOW = 20      # 1->20, 3->60
-EQS_PULLBACK_MULT_SWEET = 8         # 3->60, 8->100
-EQS_PULLBACK_MULT_DEEP = 10         # 8->100, 12->60
-EQS_PULLBACK_FLOOR = 30.0           # Score for very deep pullbacks (>12%)
+EQS_PULLBACK_ZONE_MINIMAL = 1  # < 1%: barely a pullback
+EQS_PULLBACK_ZONE_SHALLOW = 3  # 1-3%: shallow
+EQS_PULLBACK_ZONE_SWEET = 8  # 3-8%: sweet spot
+EQS_PULLBACK_ZONE_DEEP = 12  # 8-12%: getting risky
+EQS_PULLBACK_SCORE_MINIMAL = 20  # Score for < 1% pullback
+EQS_PULLBACK_MULT_SHALLOW = 20  # 1->20, 3->60
+EQS_PULLBACK_MULT_SWEET = 8  # 3->60, 8->100
+EQS_PULLBACK_MULT_DEEP = 10  # 8->100, 12->60
+EQS_PULLBACK_FLOOR = 30.0  # Score for very deep pullbacks (>12%)
 
 # --- RSI scoring (_score_rsi) ---
-EQS_RSI_ZONE_VERY_LOW = 25          # Strongly oversold
-EQS_RSI_ZONE_OVERSOLD = 35          # Oversold
-EQS_RSI_ZONE_NEUTRAL = 50           # Neutral boundary
-EQS_RSI_ZONE_OVERBOUGHT = 70        # Overbought boundary
-EQS_RSI_SCORE_OVERSOLD = 70         # Score at 35
-EQS_RSI_SCORE_NEUTRAL = 40          # Score at 50 and in neutral zone
-EQS_RSI_SCORE_OVERBOUGHT = 20       # Score for overbought (>70)
-EQS_RSI_MULT_OVERSOLD = 3           # 25->100, 35->70
-EQS_RSI_MULT_NEUTRAL = 2            # 35->70, 50->40
+EQS_RSI_ZONE_VERY_LOW = 25  # Strongly oversold
+EQS_RSI_ZONE_OVERSOLD = 35  # Oversold
+EQS_RSI_ZONE_NEUTRAL = 50  # Neutral boundary
+EQS_RSI_ZONE_OVERBOUGHT = 70  # Overbought boundary
+EQS_RSI_SCORE_OVERSOLD = 70  # Score at 35
+EQS_RSI_SCORE_NEUTRAL = 40  # Score at 50 and in neutral zone
+EQS_RSI_SCORE_OVERBOUGHT = 20  # Score for overbought (>70)
+EQS_RSI_MULT_OVERSOLD = 3  # 25->100, 35->70
+EQS_RSI_MULT_NEUTRAL = 2  # 35->70, 50->40
 
 # --- Trend scoring ---
-EQS_TREND_BULLISH = 100.0           # Score when trend is bullish
-EQS_TREND_BEARISH = 30.0            # Score when trend is bearish
+EQS_TREND_BULLISH = 100.0  # Score when trend is bullish
+EQS_TREND_BEARISH = 30.0  # Score when trend is bearish
 
 
 # =============================================================================
 # DATA CLASSES
 # =============================================================================
 
+
 @dataclass
 class EntryQuality:
     """Bewertung der Entry-Qualitaet."""
-    eqs_total: float          # 0-100
-    eqs_normalized: float     # 0.0-1.0
+
+    eqs_total: float  # 0-100
+    eqs_normalized: float  # 0.0-1.0
 
     # Einzelfaktoren (0-100 jeweils)
     iv_rank_score: float
@@ -147,24 +149,24 @@ class EntryQuality:
     def to_dict(self) -> dict[str, Any]:
         """Gibt Entry Quality als Dict zurueck."""
         return {
-            'eqs_total': self.eqs_total,
-            'eqs_normalized': self.eqs_normalized,
-            'factors': {
-                'iv_rank': self.iv_rank_score,
-                'iv_percentile': self.iv_percentile_score,
-                'credit_ratio': self.credit_ratio_score,
-                'theta_efficiency': self.theta_efficiency_score,
-                'pullback': self.pullback_score,
-                'rsi': self.rsi_score,
-                'trend': self.trend_score,
+            "eqs_total": self.eqs_total,
+            "eqs_normalized": self.eqs_normalized,
+            "factors": {
+                "iv_rank": self.iv_rank_score,
+                "iv_percentile": self.iv_percentile_score,
+                "credit_ratio": self.credit_ratio_score,
+                "theta_efficiency": self.theta_efficiency_score,
+                "pullback": self.pullback_score,
+                "rsi": self.rsi_score,
+                "trend": self.trend_score,
             },
-            'raw': {
-                'iv_rank': self.iv_rank,
-                'iv_percentile': self.iv_percentile,
-                'credit_pct': self.credit_pct,
-                'theta_per_day': self.theta_per_day,
-                'pullback_pct': self.pullback_pct,
-                'rsi': self.rsi,
+            "raw": {
+                "iv_rank": self.iv_rank,
+                "iv_percentile": self.iv_percentile,
+                "credit_pct": self.credit_pct,
+                "theta_per_day": self.theta_per_day,
+                "pullback_pct": self.pullback_pct,
+                "rsi": self.rsi,
             },
         }
 
@@ -172,6 +174,7 @@ class EntryQuality:
 # =============================================================================
 # ENTRY QUALITY SCORER
 # =============================================================================
+
 
 class EntryQualityScorer:
     """
@@ -184,13 +187,13 @@ class EntryQualityScorer:
 
     # Gewichtung der Faktoren (Summe = 1.0)
     WEIGHTS: dict[str, float] = {
-        "iv_rank":          0.20,  # IV Range-Position
-        "iv_percentile":    0.15,  # IV Haeufigkeitsverteilung
-        "credit_ratio":     0.20,  # Credit / Spread-Breite
+        "iv_rank": 0.20,  # IV Range-Position
+        "iv_percentile": 0.15,  # IV Haeufigkeitsverteilung
+        "credit_ratio": 0.20,  # Credit / Spread-Breite
         "theta_efficiency": 0.15,  # Theta / Credit Verhaeltnis
-        "pullback":         0.15,  # Pullback-Tiefe
-        "rsi":              0.10,  # RSI(14) Niveau
-        "trend":            0.05,  # Trend-Alignment
+        "pullback": 0.15,  # Pullback-Tiefe
+        "rsi": 0.10,  # RSI(14) Niveau
+        "trend": 0.05,  # Trend-Alignment
     }
 
     def score(
@@ -239,9 +242,7 @@ class EntryQualityScorer:
 
         # --- Theta Efficiency Score ---
         # Theta pro Tag / Credit -> wie schnell decayed der Spread relativ zum Credit?
-        scores["theta_efficiency"] = self._score_theta_efficiency(
-            spread_theta, credit_bid
-        )
+        scores["theta_efficiency"] = self._score_theta_efficiency(spread_theta, credit_bid)
 
         # --- Pullback Score ---
         # Tiefer Dip = besserer Entry (Mean Reversion)
@@ -255,10 +256,7 @@ class EntryQualityScorer:
         scores["trend"] = EQS_TREND_BULLISH if trend_bullish else EQS_TREND_BEARISH
 
         # --- Gewichteter Gesamtscore ---
-        eqs_total = sum(
-            scores[factor] * weight
-            for factor, weight in self.WEIGHTS.items()
-        )
+        eqs_total = sum(scores[factor] * weight for factor, weight in self.WEIGHTS.items())
         eqs_normalized = eqs_total / EQS_SCORE_MAX  # 0.0-1.0
 
         return EntryQuality(
@@ -296,15 +294,23 @@ class EntryQualityScorer:
             return EQS_SCORE_NEUTRAL  # Neutral wenn nicht verfuegbar
 
         if iv_rank < EQS_IV_RANK_ZONE_LOW:
-            return iv_rank * EQS_IV_RANK_MULT_LOW                                          # 0 -> 0, 20 -> 50
+            return iv_rank * EQS_IV_RANK_MULT_LOW  # 0 -> 0, 20 -> 50
         elif iv_rank < EQS_IV_RANK_ZONE_MID_LOW:
-            return 50 + (iv_rank - EQS_IV_RANK_ZONE_LOW) * EQS_IV_RANK_MULT_MID_LOW       # 20 -> 50, 40 -> 80
+            return (
+                50 + (iv_rank - EQS_IV_RANK_ZONE_LOW) * EQS_IV_RANK_MULT_MID_LOW
+            )  # 20 -> 50, 40 -> 80
         elif iv_rank <= EQS_IV_RANK_ZONE_MID_HIGH:
-            return 80 + (iv_rank - EQS_IV_RANK_ZONE_MID_LOW) * EQS_IV_RANK_MULT_MID_HIGH  # 40 -> 80, 65 -> 100
+            return (
+                80 + (iv_rank - EQS_IV_RANK_ZONE_MID_LOW) * EQS_IV_RANK_MULT_MID_HIGH
+            )  # 40 -> 80, 65 -> 100
         elif iv_rank <= EQS_IV_RANK_ZONE_HIGH:
-            return EQS_SCORE_MAX - (iv_rank - EQS_IV_RANK_ZONE_MID_HIGH) * EQS_IV_RANK_MULT_HIGH  # 65 -> 100, 80 -> 80
+            return (
+                EQS_SCORE_MAX - (iv_rank - EQS_IV_RANK_ZONE_MID_HIGH) * EQS_IV_RANK_MULT_HIGH
+            )  # 65 -> 100, 80 -> 80
         else:
-            return max(EQS_IV_RANK_FLOOR, 80 - (iv_rank - EQS_IV_RANK_ZONE_HIGH))         # 80 -> 80, 100 -> 60, min 30
+            return max(
+                EQS_IV_RANK_FLOOR, 80 - (iv_rank - EQS_IV_RANK_ZONE_HIGH)
+            )  # 80 -> 80, 100 -> 60, min 30
 
     @staticmethod
     def _score_iv_percentile(iv_percentile: Optional[float]) -> float:
@@ -318,13 +324,20 @@ class EntryQualityScorer:
             return EQS_SCORE_NEUTRAL  # Neutral
 
         if iv_percentile < EQS_IV_PCT_ZONE_LOW:
-            return iv_percentile * EQS_IV_PCT_MULT_LOW                                          # 0 -> 0, 30 -> 30
+            return iv_percentile * EQS_IV_PCT_MULT_LOW  # 0 -> 0, 30 -> 30
         elif iv_percentile < EQS_IV_PCT_ZONE_MID:
-            return EQS_IV_PCT_SCORE_LOW + (iv_percentile - EQS_IV_PCT_ZONE_LOW) * EQS_IV_PCT_MULT_MID   # 30 -> 30, 50 -> 70
+            return (
+                EQS_IV_PCT_SCORE_LOW + (iv_percentile - EQS_IV_PCT_ZONE_LOW) * EQS_IV_PCT_MULT_MID
+            )  # 30 -> 30, 50 -> 70
         elif iv_percentile <= EQS_IV_PCT_ZONE_HIGH:
-            return EQS_IV_PCT_SCORE_MID + (iv_percentile - EQS_IV_PCT_ZONE_MID) * EQS_IV_PCT_MULT_HIGH  # 50 -> 70, 80 -> 100
+            return (
+                EQS_IV_PCT_SCORE_MID + (iv_percentile - EQS_IV_PCT_ZONE_MID) * EQS_IV_PCT_MULT_HIGH
+            )  # 50 -> 70, 80 -> 100
         else:
-            return max(EQS_IV_PCT_FLOOR, EQS_SCORE_MAX - (iv_percentile - EQS_IV_PCT_ZONE_HIGH) * EQS_IV_PCT_DECAY_MULT)  # 80 -> 100, 100 -> 70, min 50
+            return max(
+                EQS_IV_PCT_FLOOR,
+                EQS_SCORE_MAX - (iv_percentile - EQS_IV_PCT_ZONE_HIGH) * EQS_IV_PCT_DECAY_MULT,
+            )  # 80 -> 100, 100 -> 70, min 50
 
     @staticmethod
     def _score_credit_ratio(credit_pct: Optional[float]) -> float:
@@ -337,13 +350,15 @@ class EntryQualityScorer:
             return 0.0  # Kein Credit -> Score 0
 
         if credit_pct < SPREAD_MIN_CREDIT_PCT:
-            return 0.0                                                                       # Unter Minimum
+            return 0.0  # Unter Minimum
         elif credit_pct < EQS_CREDIT_MID_PCT:
-            return (credit_pct - SPREAD_MIN_CREDIT_PCT) * EQS_CREDIT_MULT_LOW                # 10 -> 0, 15 -> 60
+            return (credit_pct - SPREAD_MIN_CREDIT_PCT) * EQS_CREDIT_MULT_LOW  # 10 -> 0, 15 -> 60
         elif credit_pct < EQS_CREDIT_HIGH_PCT:
-            return EQS_CREDIT_SCORE_MID + (credit_pct - EQS_CREDIT_MID_PCT) * EQS_CREDIT_MULT_HIGH  # 15 -> 60, 25 -> 100
+            return (
+                EQS_CREDIT_SCORE_MID + (credit_pct - EQS_CREDIT_MID_PCT) * EQS_CREDIT_MULT_HIGH
+            )  # 15 -> 60, 25 -> 100
         else:
-            return EQS_SCORE_MAX                                                             # Cap
+            return EQS_SCORE_MAX  # Cap
 
     @staticmethod
     def _score_theta_efficiency(
@@ -376,15 +391,22 @@ class EntryQualityScorer:
         depth = abs(pullback_pct)
 
         if depth < EQS_PULLBACK_ZONE_MINIMAL:
-            return float(EQS_PULLBACK_SCORE_MINIMAL)                                              # Kaum Pullback
+            return float(EQS_PULLBACK_SCORE_MINIMAL)  # Kaum Pullback
         elif depth < EQS_PULLBACK_ZONE_SHALLOW:
-            return EQS_PULLBACK_SCORE_MINIMAL + (depth - EQS_PULLBACK_ZONE_MINIMAL) * EQS_PULLBACK_MULT_SHALLOW   # 1% -> 20, 3% -> 60
+            return (
+                EQS_PULLBACK_SCORE_MINIMAL
+                + (depth - EQS_PULLBACK_ZONE_MINIMAL) * EQS_PULLBACK_MULT_SHALLOW
+            )  # 1% -> 20, 3% -> 60
         elif depth <= EQS_PULLBACK_ZONE_SWEET:
-            return 60 + (depth - EQS_PULLBACK_ZONE_SHALLOW) * EQS_PULLBACK_MULT_SWEET             # 3% -> 60, 8% -> 100
+            return (
+                60 + (depth - EQS_PULLBACK_ZONE_SHALLOW) * EQS_PULLBACK_MULT_SWEET
+            )  # 3% -> 60, 8% -> 100
         elif depth <= EQS_PULLBACK_ZONE_DEEP:
-            return EQS_SCORE_MAX - (depth - EQS_PULLBACK_ZONE_SWEET) * EQS_PULLBACK_MULT_DEEP     # 8% -> 100, 12% -> 60
+            return (
+                EQS_SCORE_MAX - (depth - EQS_PULLBACK_ZONE_SWEET) * EQS_PULLBACK_MULT_DEEP
+            )  # 8% -> 100, 12% -> 60
         else:
-            return EQS_PULLBACK_FLOOR                                                              # Zu tief, Warnung
+            return EQS_PULLBACK_FLOOR  # Zu tief, Warnung
 
     @staticmethod
     def _score_rsi(rsi: Optional[float]) -> float:
@@ -397,15 +419,19 @@ class EntryQualityScorer:
             return EQS_SCORE_NEUTRAL  # Neutral
 
         if rsi < EQS_RSI_ZONE_VERY_LOW:
-            return EQS_SCORE_MAX                                                               # Stark ueberverkauft
+            return EQS_SCORE_MAX  # Stark ueberverkauft
         elif rsi < EQS_RSI_ZONE_OVERSOLD:
-            return EQS_RSI_SCORE_OVERSOLD + (EQS_RSI_ZONE_OVERSOLD - rsi) * EQS_RSI_MULT_OVERSOLD   # 25 -> 100, 35 -> 70
+            return (
+                EQS_RSI_SCORE_OVERSOLD + (EQS_RSI_ZONE_OVERSOLD - rsi) * EQS_RSI_MULT_OVERSOLD
+            )  # 25 -> 100, 35 -> 70
         elif rsi < EQS_RSI_ZONE_NEUTRAL:
-            return EQS_RSI_SCORE_NEUTRAL + (EQS_RSI_ZONE_NEUTRAL - rsi) * EQS_RSI_MULT_NEUTRAL      # 35 -> 70, 50 -> 40
+            return (
+                EQS_RSI_SCORE_NEUTRAL + (EQS_RSI_ZONE_NEUTRAL - rsi) * EQS_RSI_MULT_NEUTRAL
+            )  # 35 -> 70, 50 -> 40
         elif rsi < EQS_RSI_ZONE_OVERBOUGHT:
-            return float(EQS_RSI_SCORE_NEUTRAL)                                                # Neutral
+            return float(EQS_RSI_SCORE_NEUTRAL)  # Neutral
         else:
-            return float(EQS_RSI_SCORE_OVERBOUGHT)                                            # Ueberkauft -- weniger ideal
+            return float(EQS_RSI_SCORE_OVERBOUGHT)  # Ueberkauft -- weniger ideal
 
     def apply_eqs_bonus(
         self,

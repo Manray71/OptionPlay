@@ -35,17 +35,18 @@ from typing import Optional
 
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
-from mcp.types import Tool, TextContent, Prompt, PromptMessage, PromptArgument
+from mcp.types import Prompt, PromptArgument, PromptMessage, TextContent, Tool
 
 # IMPORTANT: Load .env file BEFORE importing other modules that need API keys
 # This ensures environment variables are set before SecureConfig is used
 from .utils.secure_config import get_secure_config
+
 _config = get_secure_config()  # This triggers .env loading
 
-from .mcp_server import OptionPlayServer
 from .container import ServiceContainer
-from .utils.metrics import api_requests, api_latency, errors
+from .mcp_server import OptionPlayServer
 from .mcp_tool_registry import tool_registry
+from .utils.metrics import api_latency, api_requests, errors
 
 # Logging
 logging.basicConfig(level=logging.INFO)
@@ -76,6 +77,7 @@ def get_server() -> OptionPlayServer:
 # TOOL DEFINITIONS
 # =============================================================================
 
+
 @app.list_tools()
 async def list_tools() -> list[Tool]:
     """List all available OptionPlay tools (53 tools + 55 aliases)."""
@@ -97,7 +99,7 @@ WORKFLOW_PROMPTS = {
 3. Scanne mit Multi-Strategie die gefilterten Symbole
 4. Zeige die Top 5 Kandidaten mit ihrer besten Strategie
 
-Fasse die Ergebnisse übersichtlich zusammen."""
+Fasse die Ergebnisse übersichtlich zusammen.""",
     },
     "analyze_symbol": {
         "name": "Symbol-Analyse",
@@ -113,7 +115,7 @@ Fasse die Ergebnisse übersichtlich zusammen."""
 4. Hole Strike-Empfehlungen
 5. Zeige Options-Chain für die empfohlenen Strikes
 
-Gib eine klare Handelsempfehlung."""
+Gib eine klare Handelsempfehlung.""",
     },
     "quick_scan": {
         "name": "Schnell-Scan",
@@ -123,7 +125,7 @@ Gib eine klare Handelsempfehlung."""
 1. Prüfe VIX
 2. Scanne nach Pullback-Kandidaten (Top 5)
 
-Zeige die Ergebnisse kompakt an."""
+Zeige die Ergebnisse kompakt an.""",
     },
     "earnings_check": {
         "name": "Earnings-Check",
@@ -134,7 +136,7 @@ Zeige die Ergebnisse kompakt an."""
 2. Zeige wie viele Symbole sicher sind
 3. Liste die nächsten 10 Earnings-Termine
 
-Dies hilft bei der Planung der nächsten Trades."""
+Dies hilft bei der Planung der nächsten Trades.""",
     },
     "portfolio_review": {
         "name": "Portfolio-Review",
@@ -144,14 +146,14 @@ Dies hilft bei der Planung der nächsten Trades."""
 1. Zeige Portfolio-Übersicht
 2. Prüfe IBKR-Status (falls verfügbar)
 3. Zeige offene Spreads
-4. Gib einen Gesamt-P&L-Überblick"""
+4. Gib einen Gesamt-P&L-Überblick""",
     },
     "setup_trade": {
         "name": "Trade-Setup",
         "description": "Vollständiges Setup für einen neuen Trade",
         "arguments": [
             PromptArgument(name="symbol", description="Aktien-Symbol", required=True),
-            PromptArgument(name="dte", description="Tage bis Verfall (z.B. 45)", required=False)
+            PromptArgument(name="dte", description="Tage bis Verfall (z.B. 45)", required=False),
         ],
         "prompt": """Bereite einen Trade für {symbol} vor:
 
@@ -160,8 +162,8 @@ Dies hilft bei der Planung der nächsten Trades."""
 3. Technische Analyse (Support, Fibonacci)
 4. Strike-Empfehlungen mit {dte} DTE (falls angegeben, sonst 60-90)
 5. Options-Chain mit Bid/Ask
-6. Zusammenfassung: Empfohlener Spread, Credit, Max Risk, P(Profit)"""
-    }
+6. Zusammenfassung: Empfohlener Spread, Credit, Max Risk, P(Profit)""",
+    },
 }
 
 
@@ -170,11 +172,13 @@ async def list_prompts() -> list[Prompt]:
     """List available workflow prompts."""
     prompts = []
     for key, workflow in WORKFLOW_PROMPTS.items():
-        prompts.append(Prompt(
-            name=key,
-            description=workflow["description"],
-            arguments=workflow.get("arguments", [])
-        ))
+        prompts.append(
+            Prompt(
+                name=key,
+                description=workflow["description"],
+                arguments=workflow.get("arguments", []),
+            )
+        )
     return prompts
 
 
@@ -191,17 +195,13 @@ async def get_prompt(name: str, arguments: dict | None = None) -> list[PromptMes
         for key, value in arguments.items():
             prompt_text = prompt_text.replace(f"{{{key}}}", str(value))
 
-    return [
-        PromptMessage(
-            role="user",
-            content=TextContent(type="text", text=prompt_text)
-        )
-    ]
+    return [PromptMessage(role="user", content=TextContent(type="text", text=prompt_text))]
 
 
 # =============================================================================
 # TOOL HANDLER
 # =============================================================================
+
 
 @app.call_tool()
 async def call_tool(name: str, arguments: dict) -> list[TextContent]:
@@ -241,14 +241,11 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
 # MAIN
 # =============================================================================
 
+
 async def main() -> None:
     """Run the MCP server."""
     async with stdio_server() as (read_stream, write_stream):
-        await app.run(
-            read_stream,
-            write_stream,
-            app.create_initialization_options()
-        )
+        await app.run(read_stream, write_stream, app.create_initialization_options())
 
 
 if __name__ == "__main__":

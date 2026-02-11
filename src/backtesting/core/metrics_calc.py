@@ -80,7 +80,7 @@ class MetricsCalcMixin:
 
         Verwendet NumPy-optimierte 20-Tage HV mit VIX-Anpassung.
         """
-        from ...pricing import batch_historical_volatility, batch_estimate_iv
+        from ...pricing import batch_estimate_iv, batch_historical_volatility
 
         if symbol not in self._historical_data:
             return self.config.default_iv

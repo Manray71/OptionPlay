@@ -10,9 +10,9 @@
 #
 # Solution: Normalize all scores to 0-10 scale for direct comparability
 
+import logging
 from dataclasses import dataclass
 from typing import Dict, Optional
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class StrategyScoreConfig:
     """Configuration for a strategy's scoring system."""
+
     max_possible: float
     # Thresholds for signal strength (on normalized 0-10 scale)
     strong_threshold: float = 7.0
@@ -32,7 +33,7 @@ class StrategyScoreConfig:
 # =============================================================================
 
 STRATEGY_SCORE_CONFIGS: Dict[str, StrategyScoreConfig] = {
-    'pullback': StrategyScoreConfig(
+    "pullback": StrategyScoreConfig(
         max_possible=26.0,
         # Component breakdown:
         # RSI: 3, RSI Divergence: 3, Support: 2.5, Fibonacci: 2,
@@ -42,7 +43,7 @@ STRATEGY_SCORE_CONFIGS: Dict[str, StrategyScoreConfig] = {
         moderate_threshold=5.0,
         weak_threshold=3.0,
     ),
-    'bounce': StrategyScoreConfig(
+    "bounce": StrategyScoreConfig(
         max_possible=10.0,
         # Component breakdown (v2 refactored):
         # Support Quality: 2.5, Proximity: 2.0, Bounce Confirmation: 2.5,
@@ -51,7 +52,7 @@ STRATEGY_SCORE_CONFIGS: Dict[str, StrategyScoreConfig] = {
         moderate_threshold=5.0,
         weak_threshold=3.5,
     ),
-    'ath_breakout': StrategyScoreConfig(
+    "ath_breakout": StrategyScoreConfig(
         max_possible=10.0,
         # Component breakdown (v2 refactored):
         # Consolidation Quality: 2.5, Breakout Strength: 2.0,
@@ -60,7 +61,7 @@ STRATEGY_SCORE_CONFIGS: Dict[str, StrategyScoreConfig] = {
         moderate_threshold=5.5,
         weak_threshold=4.0,
     ),
-    'earnings_dip': StrategyScoreConfig(
+    "earnings_dip": StrategyScoreConfig(
         max_possible=9.5,
         # Component breakdown (v2 refactored):
         # Drop Magnitude: 2.0, Stabilization: 2.5, Fundamental: 2.0,
@@ -69,7 +70,7 @@ STRATEGY_SCORE_CONFIGS: Dict[str, StrategyScoreConfig] = {
         moderate_threshold=5.0,
         weak_threshold=3.5,
     ),
-    'trend_continuation': StrategyScoreConfig(
+    "trend_continuation": StrategyScoreConfig(
         max_possible=10.5,
         # Component breakdown (v2 new):
         # SMA Alignment: 2.5, Trend Stability: 2.0 (+0.5 bonus),
@@ -133,10 +134,7 @@ def denormalize_score(normalized_score: float, strategy: str) -> float:
     return (normalized_score / 10.0) * config.max_possible
 
 
-def get_signal_strength(
-    normalized_score: float,
-    strategy: str = 'pullback'
-) -> str:
+def get_signal_strength(normalized_score: float, strategy: str = "pullback") -> str:
     """
     Determine signal strength based on normalized score.
 
@@ -147,16 +145,16 @@ def get_signal_strength(
     Returns:
         'STRONG', 'MODERATE', 'WEAK', or 'NONE'
     """
-    config = STRATEGY_SCORE_CONFIGS.get(strategy, STRATEGY_SCORE_CONFIGS['pullback'])
+    config = STRATEGY_SCORE_CONFIGS.get(strategy, STRATEGY_SCORE_CONFIGS["pullback"])
 
     if normalized_score >= config.strong_threshold:
-        return 'STRONG'
+        return "STRONG"
     elif normalized_score >= config.moderate_threshold:
-        return 'MODERATE'
+        return "MODERATE"
     elif normalized_score >= config.weak_threshold:
-        return 'WEAK'
+        return "WEAK"
     else:
-        return 'NONE'
+        return "NONE"
 
 
 def get_max_possible(strategy: str) -> float:
@@ -175,10 +173,7 @@ def get_max_possible(strategy: str) -> float:
     return 10.0  # Default fallback
 
 
-def compare_scores(
-    scores: Dict[str, float],
-    normalize: bool = True
-) -> Dict[str, float]:
+def compare_scores(scores: Dict[str, float], normalize: bool = True) -> Dict[str, float]:
     """
     Compare scores across different strategies.
 
@@ -192,10 +187,7 @@ def compare_scores(
     if not normalize:
         return scores
 
-    return {
-        strategy: normalize_score(score, strategy)
-        for strategy, score in scores.items()
-    }
+    return {strategy: normalize_score(score, strategy) for strategy, score in scores.items()}
 
 
 class ScoreNormalizer:
@@ -228,23 +220,19 @@ class ScoreNormalizer:
 
     def get_strength(self, normalized_score: float, strategy: str) -> str:
         """Get signal strength for a normalized score."""
-        config = self.configs.get(strategy, self.configs.get('pullback'))
+        config = self.configs.get(strategy, self.configs.get("pullback"))
         if not config:
-            return 'NONE'
+            return "NONE"
 
         if normalized_score >= config.strong_threshold:
-            return 'STRONG'
+            return "STRONG"
         elif normalized_score >= config.moderate_threshold:
-            return 'MODERATE'
+            return "MODERATE"
         elif normalized_score >= config.weak_threshold:
-            return 'WEAK'
-        return 'NONE'
+            return "WEAK"
+        return "NONE"
 
-    def rank_candidates(
-        self,
-        candidates: list,
-        score_attr: str = 'score'
-    ) -> list:
+    def rank_candidates(self, candidates: list, score_attr: str = "score") -> list:
         """
         Rank candidates by normalized score for cross-strategy comparison.
 
@@ -258,7 +246,7 @@ class ScoreNormalizer:
         ranked = []
         for c in candidates:
             raw_score = getattr(c, score_attr, 0)
-            strategy = getattr(c, 'strategy', 'pullback')
+            strategy = getattr(c, "strategy", "pullback")
             normalized = self.normalize(raw_score, strategy)
             ranked.append((normalized, c))
 

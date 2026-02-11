@@ -22,7 +22,6 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
-
 # =============================================================================
 # CONSTANTS
 # =============================================================================
@@ -73,7 +72,11 @@ DEFAULT_REGIME_PREFERENCES = {
 FEATURE_IMPACT = {
     "vwap": {"high": 0.0, "medium": 0.15, "low": -0.05},  # Boost for medium VWAP
     "market_context": {"downtrend": 0.10, "sideways": 0.12, "uptrend": 0.0},
-    "sector": {"favorable": 0.40, "neutral": 0.0, "unfavorable": -0.10},  # Big boost for favorable sector
+    "sector": {
+        "favorable": 0.40,
+        "neutral": 0.0,
+        "unfavorable": -0.10,
+    },  # Big boost for favorable sector
 }
 
 # Symbol Clustering Results (2026-01-28):
@@ -84,12 +87,10 @@ CLUSTER_STRATEGY_MAP = {
     "low_medium_mean_reverting": {"strategy": "bounce", "win_rate": 80.9, "confidence": 1.0},
     "low_high_mean_reverting": {"strategy": "bounce", "win_rate": 80.0, "confidence": 0.7},
     "low_low_mean_reverting": {"strategy": "earnings_dip", "win_rate": 76.5, "confidence": 0.6},
-
     # Moderate (medium vol) clusters
     "medium_medium_mean_reverting": {"strategy": "bounce", "win_rate": 64.3, "confidence": 1.0},
     "medium_high_mean_reverting": {"strategy": "ath_breakout", "win_rate": 65.4, "confidence": 1.0},
     "medium_low_mean_reverting": {"strategy": "earnings_dip", "win_rate": 62.3, "confidence": 0.9},
-
     # Volatile (high vol) clusters - ATH Breakout or Bounce
     "high_medium_mean_reverting": {"strategy": "ath_breakout", "win_rate": 54.0, "confidence": 1.0},
     "high_high_mean_reverting": {"strategy": "bounce", "win_rate": 54.6, "confidence": 0.9},
@@ -109,7 +110,11 @@ SECTOR_STRATEGY_MAP = {
     "Communication Services": {"strategy": "pullback", "win_rate": 50.9, "confidence": 0.65},
     "Consumer Discretionary": {"strategy": "ath_breakout", "win_rate": 52.3, "confidence": 0.7},
     "Materials": {"strategy": "ath_breakout", "win_rate": 50.0, "confidence": 0.6},
-    "Technology": {"strategy": "ath_breakout", "win_rate": 43.2, "confidence": 0.5},  # Lower confidence
+    "Technology": {
+        "strategy": "ath_breakout",
+        "win_rate": 43.2,
+        "confidence": 0.5,
+    },  # Lower confidence
 }
 
 # Default component weights (baseline)
@@ -141,17 +146,20 @@ MIN_SCORE_THRESHOLDS = {
 # ENUMS
 # =============================================================================
 
+
 class SelectionMethod(str, Enum):
     """Method for selecting strategy"""
-    BEST_SCORE = "best_score"              # Highest raw score
-    WEIGHTED_BEST = "weighted_best"         # Regime-weighted best
-    ENSEMBLE_VOTE = "ensemble_vote"         # Voting across methods
-    META_LEARNER = "meta_learner"           # ML-based selection
+
+    BEST_SCORE = "best_score"  # Highest raw score
+    WEIGHTED_BEST = "weighted_best"  # Regime-weighted best
+    ENSEMBLE_VOTE = "ensemble_vote"  # Voting across methods
+    META_LEARNER = "meta_learner"  # ML-based selection
     CONFIDENCE_WEIGHTED = "confidence_weighted"  # Confidence-weighted combination
 
 
 class RotationTrigger(str, Enum):
     """Trigger for strategy rotation"""
+
     PERFORMANCE_DECAY = "performance_decay"
     REGIME_CHANGE = "regime_change"
     TIME_BASED = "time_based"
@@ -162,9 +170,11 @@ class RotationTrigger(str, Enum):
 # DATA CLASSES
 # =============================================================================
 
+
 @dataclass
 class StrategyScore:
     """Score from a single strategy"""
+
     strategy: str
     raw_score: float
     weighted_score: float  # After ML weights applied
@@ -190,6 +200,7 @@ class StrategyScore:
 @dataclass
 class EnsembleRecommendation:
     """Recommendation from ensemble selector"""
+
     symbol: str
     timestamp: datetime
 
@@ -231,9 +242,7 @@ class EnsembleRecommendation:
                 "score": round(self.ensemble_score, 2),
                 "confidence": round(self.ensemble_confidence, 3),
             },
-            "all_strategies": {
-                k: v.to_dict() for k, v in self.strategy_scores.items()
-            },
+            "all_strategies": {k: v.to_dict() for k, v in self.strategy_scores.items()},
             "alternatives": self.alternative_strategies,
             "context": {
                 "regime": self.regime,
@@ -258,9 +267,7 @@ class EnsembleRecommendation:
         ]
 
         for strat, score in sorted(
-            self.strategy_scores.items(),
-            key=lambda x: x[1].adjusted_score,
-            reverse=True
+            self.strategy_scores.items(), key=lambda x: x[1].adjusted_score, reverse=True
         ):
             marker = " *" if strat == self.recommended_strategy else ""
             lines.append(
@@ -277,6 +284,7 @@ class EnsembleRecommendation:
 @dataclass
 class SymbolPerformance:
     """Historical performance tracking for a symbol"""
+
     symbol: str
 
     # Per-strategy win rates
@@ -335,6 +343,7 @@ class SymbolPerformance:
 @dataclass
 class RotationState:
     """State tracking for strategy rotation"""
+
     current_preferences: Dict[str, float]  # Current strategy weights
     last_rotation_date: date
     rotation_reason: Optional[RotationTrigger]

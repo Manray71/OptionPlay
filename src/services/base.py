@@ -24,17 +24,17 @@ from __future__ import annotations
 import asyncio
 import logging
 from abc import ABC
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
-from collections.abc import AsyncIterator
-from typing import Optional, Any
+from typing import Any, Optional
 
+from ..cache import HistoricalCache, get_historical_cache
 from ..config import get_config
-from ..utils.rate_limiter import get_marketdata_limiter, AdaptiveRateLimiter
 from ..utils.circuit_breaker import CircuitBreaker, CircuitBreakerOpen, get_circuit_breaker
+from ..utils.rate_limiter import AdaptiveRateLimiter, get_marketdata_limiter
 from ..utils.secure_config import get_api_key, mask_api_key
-from ..cache import get_historical_cache, HistoricalCache
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +56,7 @@ class ServiceContext:
         historical_cache: Shared Cache
         connected: Verbindungsstatus
     """
+
     api_key: str
     config: Optional[Any] = None  # ConfigLoader
     rate_limiter: AdaptiveRateLimiter = field(default_factory=get_marketdata_limiter)
@@ -75,8 +76,7 @@ class ServiceContext:
 
         if self.historical_cache is None:
             self.historical_cache = get_historical_cache(
-                ttl_seconds=perf.cache_ttl_seconds,
-                max_entries=perf.cache_max_entries
+                ttl_seconds=perf.cache_ttl_seconds, max_entries=perf.cache_max_entries
             )
 
         if self._circuit_breaker is None:
@@ -85,17 +85,17 @@ class ServiceContext:
                 failure_threshold=cb_cfg.failure_threshold,
                 recovery_timeout=cb_cfg.recovery_timeout,
             )
-    
+
     @property
     def circuit_breaker(self) -> CircuitBreaker:
         """Gibt den Circuit Breaker zurück."""
         return self._circuit_breaker
-    
+
     @property
     def api_key_masked(self) -> str:
         """Maskierter API Key für Logging."""
         return mask_api_key(self.api_key)
-    
+
     async def get_provider(self) -> Any:
         """
         Gibt den verbundenen Provider zurück.
@@ -104,13 +104,14 @@ class ServiceContext:
         """
         if self._provider is None:
             from ..data_providers.marketdata import MarketDataProvider
+
             self._provider = MarketDataProvider(self.api_key)
 
         if not self._connected:
             await self._connect_provider()
 
         return self._provider
-    
+
     async def _connect_provider(self) -> None:
         """Verbindet den Provider mit Retry-Logik."""
         if not self._circuit_breaker.can_execute():
@@ -118,7 +119,7 @@ class ServiceContext:
             raise CircuitBreakerOpen("marketdata_api", retry_after)
 
         api_conn = self.config.settings.api_connection
-        
+
         for attempt in range(api_conn.max_retries):
             try:
                 await self.rate_limiter.acquire()
@@ -135,12 +136,12 @@ class ServiceContext:
                 logger.warning(f"Connection attempt {attempt + 1} failed: {e}")
                 self._circuit_breaker.record_failure(e)
                 if attempt < api_conn.max_retries - 1:
-                    await asyncio.sleep(api_conn.retry_base_delay ** attempt)
-        
+                    await asyncio.sleep(api_conn.retry_base_delay**attempt)
+
         raise ConnectionError(
             f"Cannot connect to Marketdata.app after {api_conn.max_retries} attempts"
         )
-    
+
     async def disconnect(self) -> None:
         """Trennt die Verbindung zum Provider."""
         if self._provider and self._connected:
@@ -152,12 +153,12 @@ class ServiceContext:
 class BaseService(ABC):
     """
     Basis-Klasse für alle OptionPlay Services.
-    
+
     Stellt gemeinsame Funktionalität bereit:
     - Zugriff auf ServiceContext (Provider, Cache, etc.)
     - Rate-limited API-Aufrufe
     - Einheitliches Error-Handling
-    
+
     Verwendung:
         class MyService(BaseService):
             async def fetch_data(self, symbol: str):
@@ -165,7 +166,7 @@ class BaseService(ABC):
                 async with self._rate_limited():
                     return await provider.get_quote(symbol)
     """
-    
+
     def __init__(self, context: ServiceContext) -> None:
         """
         Initialisiert den Service mit SharedContext.
@@ -176,16 +177,16 @@ class BaseService(ABC):
         self._context = context
         self._config = context.config
         self._logger = logging.getLogger(self.__class__.__name__)
-    
+
     @property
     def api_key_masked(self) -> str:
         """Maskierter API Key für Logging."""
         return self._context.api_key_masked
-    
+
     async def _get_provider(self) -> Any:
         """Gibt den verbundenen Provider zurück."""
         return await self._context.get_provider()
-    
+
     @asynccontextmanager
     async def _rate_limited(self) -> AsyncIterator[None]:
         """
@@ -202,11 +203,11 @@ class BaseService(ABC):
         except Exception:
             self._context.rate_limiter.record_rate_limit()
             raise
-    
+
     def _get_historical_cache(self) -> HistoricalCache:
         """Gibt den Historical Cache zurück."""
         return self._context.historical_cache
-    
+
     def _get_circuit_breaker(self) -> CircuitBreaker:
         """Gibt den Circuit Breaker zurück."""
         return self._context.circuit_breaker
@@ -215,17 +216,17 @@ class BaseService(ABC):
 def create_service_context(api_key: Optional[str] = None) -> ServiceContext:
     """
     Factory-Funktion für ServiceContext.
-    
+
     Args:
         api_key: Optional API Key (sonst aus Umgebungsvariable)
-        
+
     Returns:
         Konfigurierter ServiceContext
-        
+
     Raises:
         ValueError: Wenn kein API Key gefunden
     """
     if not api_key:
         api_key = get_api_key("MARKETDATA_API_KEY", required=True)
-    
+
     return ServiceContext(api_key=api_key)

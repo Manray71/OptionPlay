@@ -10,59 +10,58 @@
 from dataclasses import dataclass
 
 from .trading_rules import (
-    SPREAD_MIN_CREDIT_PCT,
     BLACKLIST_STABILITY_THRESHOLD,
-    VIX_LOW_VOL_MAX,
-    VIX_NORMAL_MAX,
+    ENTRY_IV_RANK_MAX,
+    ENTRY_IV_RANK_MIN,
+    SPREAD_MIN_CREDIT_PCT,
     VIX_DANGER_ZONE_MAX,
     VIX_ELEVATED_MAX,
+    VIX_LOW_VOL_MAX,
     VIX_NO_TRADING_THRESHOLD,
-    ENTRY_IV_RANK_MIN,
-    ENTRY_IV_RANK_MAX,
+    VIX_NORMAL_MAX,
 )
-
 
 # =============================================================================
 # SCORE THRESHOLDS
 # =============================================================================
 
 # Signal Strength Classification (normalized 0-10 scale)
-SCORE_STRONG_THRESHOLD = 7.0      # Strong signal
-SCORE_MODERATE_THRESHOLD = 5.0    # Moderate signal
-SCORE_WEAK_THRESHOLD = 3.0        # Weak signal
+SCORE_STRONG_THRESHOLD = 7.0  # Strong signal
+SCORE_MODERATE_THRESHOLD = 5.0  # Moderate signal
+SCORE_WEAK_THRESHOLD = 3.0  # Weak signal
 
 # Minimum Scores for filtering
-MIN_SCORE_DEFAULT = 3.5           # Standard minimum for candidates
-MIN_ACTIONABLE_SCORE = 5.0        # Minimum for immediate action
+MIN_SCORE_DEFAULT = 3.5  # Standard minimum for candidates
+MIN_ACTIONABLE_SCORE = 5.0  # Minimum for immediate action
 
 
 # =============================================================================
 # CREDIT REQUIREMENTS (for spread evaluation)
 # =============================================================================
 
-MIN_CREDIT_PCT = SPREAD_MIN_CREDIT_PCT   # Delegiert an trading_rules (PLAYBOOK §2: 10%)
-TARGET_CREDIT_PCT = 30.0             # Target credit percentage
+MIN_CREDIT_PCT = SPREAD_MIN_CREDIT_PCT  # Delegiert an trading_rules (PLAYBOOK §2: 10%)
+TARGET_CREDIT_PCT = 30.0  # Target credit percentage
 
 # OTM Extensions (beyond risk_management.py targets)
-OTM_IDEAL_PCT = 12.0                 # Ideal OTM percentage
-OTM_MAX_PCT = 25.0                   # Maximum OTM percentage
+OTM_IDEAL_PCT = 12.0  # Ideal OTM percentage
+OTM_MAX_PCT = 25.0  # Maximum OTM percentage
 
 
 # =============================================================================
 # VIX TREND Z-SCORE THRESHOLDS
 # =============================================================================
 
-VIX_ZSCORE_RISING_FAST = 1.5         # Z-score for rapidly rising VIX
-VIX_ZSCORE_RISING = 0.75             # Z-score for rising VIX
-VIX_ZSCORE_FALLING = -0.75           # Z-score for falling VIX
-VIX_ZSCORE_FALLING_FAST = -1.5       # Z-score for rapidly falling VIX
+VIX_ZSCORE_RISING_FAST = 1.5  # Z-score for rapidly rising VIX
+VIX_ZSCORE_RISING = 0.75  # Z-score for rising VIX
+VIX_ZSCORE_FALLING = -0.75  # Z-score for falling VIX
+VIX_ZSCORE_FALLING_FAST = -1.5  # Z-score for rapidly falling VIX
 
 
 # =============================================================================
 # POSITION SIZING MODIFIERS
 # =============================================================================
 
-POSITION_SIZE_DANGER_ZONE = 0.75     # Position size factor in danger zone
+POSITION_SIZE_DANGER_ZONE = 0.75  # Position size factor in danger zone
 
 
 # =============================================================================
@@ -70,15 +69,15 @@ POSITION_SIZE_DANGER_ZONE = 0.75     # Position size factor in danger zone
 # =============================================================================
 
 # Symbol Stability Scores (0-100)
-STABILITY_PREMIUM = 80.0      # Premium symbols (highest reliability)
-STABILITY_GOOD = 70.0         # Good symbols
-STABILITY_OK = 50.0           # Acceptable symbols
+STABILITY_PREMIUM = 80.0  # Premium symbols (highest reliability)
+STABILITY_GOOD = 70.0  # Good symbols
+STABILITY_OK = 50.0  # Acceptable symbols
 STABILITY_BLACKLIST = BLACKLIST_STABILITY_THRESHOLD  # Delegiert an trading_rules (PLAYBOOK §7: 40)
 
 # Corresponding score thresholds for stability-first filter
-STABILITY_PREMIUM_MIN_SCORE = 4.0   # Premium can have lower score
-STABILITY_GOOD_MIN_SCORE = 5.0      # Good needs standard score
-STABILITY_OK_MIN_SCORE = 6.0        # OK needs higher score
+STABILITY_PREMIUM_MIN_SCORE = 4.0  # Premium can have lower score
+STABILITY_GOOD_MIN_SCORE = 5.0  # Good needs standard score
+STABILITY_OK_MIN_SCORE = 6.0  # OK needs higher score
 
 
 # =============================================================================
@@ -86,10 +85,10 @@ STABILITY_OK_MIN_SCORE = 6.0        # OK needs higher score
 # =============================================================================
 
 # Historical win rates based on stability
-WIN_RATE_PREMIUM = 94.5       # Stability >= 80
-WIN_RATE_GOOD = 86.1          # Stability 70-80
-WIN_RATE_OK = 75.0            # Stability 50-70
-WIN_RATE_BLACKLIST = 66.0     # Stability < 50
+WIN_RATE_PREMIUM = 94.5  # Stability >= 80
+WIN_RATE_GOOD = 86.1  # Stability 70-80
+WIN_RATE_OK = 75.0  # Stability 50-70
+WIN_RATE_BLACKLIST = 66.0  # Stability < 50
 
 
 # =============================================================================
@@ -97,12 +96,12 @@ WIN_RATE_BLACKLIST = 66.0     # Stability < 50
 # =============================================================================
 
 # VIX Level Classification (PLAYBOOK §3) — delegiert an trading_rules
-VIX_LOW = VIX_LOW_VOL_MAX              # Low Vol boundary (PLAYBOOK: 15)
-VIX_NORMAL = VIX_NORMAL_MAX            # Normal/Danger Zone boundary (PLAYBOOK: 20)
-VIX_ELEVATED = VIX_DANGER_ZONE_MAX     # Danger Zone/Elevated boundary (PLAYBOOK: 25)
-VIX_HIGH = VIX_ELEVATED_MAX            # Elevated/High Vol boundary (PLAYBOOK: 30)
+VIX_LOW = VIX_LOW_VOL_MAX  # Low Vol boundary (PLAYBOOK: 15)
+VIX_NORMAL = VIX_NORMAL_MAX  # Normal/Danger Zone boundary (PLAYBOOK: 20)
+VIX_ELEVATED = VIX_DANGER_ZONE_MAX  # Danger Zone/Elevated boundary (PLAYBOOK: 25)
+VIX_HIGH = VIX_ELEVATED_MAX  # Elevated/High Vol boundary (PLAYBOOK: 30)
 VIX_NO_TRADING = VIX_NO_TRADING_THRESHOLD  # No trading above this (PLAYBOOK: 35)
-VIX_EXTREME = 40.0                     # Extreme volatility (defensive, no PLAYBOOK constant)
+VIX_EXTREME = 40.0  # Extreme volatility (defensive, no PLAYBOOK constant)
 
 
 # =============================================================================
@@ -111,12 +110,12 @@ VIX_EXTREME = 40.0                     # Extreme volatility (defensive, no PLAYB
 
 # IV Rank for credit spreads (0-100)
 # PLAYBOOK §1: IV Rank 30-80% (weicher Filter, WARNING)
-IV_RANK_MIN = ENTRY_IV_RANK_MIN    # Delegiert an trading_rules (PLAYBOOK §1: 30)
-IV_RANK_MAX = ENTRY_IV_RANK_MAX    # Delegiert an trading_rules (PLAYBOOK §1: 80)
+IV_RANK_MIN = ENTRY_IV_RANK_MIN  # Delegiert an trading_rules (PLAYBOOK §1: 30)
+IV_RANK_MAX = ENTRY_IV_RANK_MAX  # Delegiert an trading_rules (PLAYBOOK §1: 80)
 
 # Optimal range
-IV_RANK_OPTIMAL_LOW = ENTRY_IV_RANK_MIN   # Lower bound optimal (same as minimum)
-IV_RANK_OPTIMAL_HIGH = 60.0   # Upper bound optimal
+IV_RANK_OPTIMAL_LOW = ENTRY_IV_RANK_MIN  # Lower bound optimal (same as minimum)
+IV_RANK_OPTIMAL_HIGH = 60.0  # Upper bound optimal
 
 
 # =============================================================================
@@ -124,7 +123,7 @@ IV_RANK_OPTIMAL_HIGH = 60.0   # Upper bound optimal
 # =============================================================================
 
 # Minimum reliability grade for recommendations
-RELIABILITY_MIN_GRADE = "D"   # D or better accepted
+RELIABILITY_MIN_GRADE = "D"  # D or better accepted
 
 # Grade win rate ranges (for display)
 RELIABILITY_GRADE_A_MIN_WR = 90.0
@@ -138,17 +137,18 @@ RELIABILITY_GRADE_D_MIN_WR = 60.0
 # =============================================================================
 
 # SPY Trend Detection
-MARKET_UPTREND_SMA_RATIO = 1.0    # Price above SMA = uptrend
+MARKET_UPTREND_SMA_RATIO = 1.0  # Price above SMA = uptrend
 MARKET_DOWNTREND_SMA_RATIO = 1.0  # Price below SMA = downtrend
 
 # Sector Correlation
-SECTOR_CORRELATION_HIGH = 0.7     # High correlation with SPY
-SECTOR_CORRELATION_LOW = 0.3      # Low correlation
+SECTOR_CORRELATION_HIGH = 0.7  # High correlation with SPY
+SECTOR_CORRELATION_LOW = 0.3  # Low correlation
 
 
 # =============================================================================
 # CONVENIENCE CLASS
 # =============================================================================
+
 
 @dataclass(frozen=True)
 class Thresholds:

@@ -11,16 +11,16 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, List, Optional
 
+from ..constants.trading_rules import TradeDecision, get_vix_regime
+from ..services.trade_validator import (
+    TradeValidationRequest,
+    TradeValidationResult,
+    TradeValidator,
+    get_trade_validator,
+)
 from ..utils.error_handler import mcp_endpoint
 from ..utils.markdown_builder import MarkdownBuilder
 from ..utils.validation import validate_symbol
-from ..constants.trading_rules import TradeDecision, get_vix_regime
-from ..services.trade_validator import (
-    TradeValidator,
-    TradeValidationRequest,
-    TradeValidationResult,
-    get_trade_validator,
-)
 from .base import BaseHandlerMixin
 
 logger = logging.getLogger(__name__)
@@ -163,7 +163,7 @@ class ValidateHandlerMixin(BaseHandlerMixin):
             b.kv_line("Spread-Breite", f"${sizing['spread_width']:.2f}")
             b.kv_line("Max Verlust/Kontrakt", f"${sizing['max_loss_per_contract']:.0f}")
             b.kv_line("Max Risiko", f"{sizing['risk_pct']:.1f}% = ${sizing['max_risk_usd']:.0f}")
-            b.kv_line("Empfohlene Kontrakte", sizing['recommended_contracts'])
+            b.kv_line("Empfohlene Kontrakte", sizing["recommended_contracts"])
             b.kv_line("Gesamt-Credit", f"${sizing['total_credit']:.0f}")
             b.kv_line("Gesamt-Risiko", f"${sizing['total_risk']:.0f}")
             b.blank()
@@ -174,15 +174,16 @@ class ValidateHandlerMixin(BaseHandlerMixin):
         """Get currently open positions from portfolio tracking."""
         try:
             from ..services.portfolio_constraints import get_constraint_checker
+
             # Try IBKR first, then internal tracking
             try:
-                if hasattr(self, '_ibkr_bridge') and self._ibkr_bridge:
+                if hasattr(self, "_ibkr_bridge") and self._ibkr_bridge:
                     portfolio = self._ibkr_bridge.get_portfolio()
                     if portfolio:
                         return [
                             {
-                                'symbol': p.get('symbol', ''),
-                                'sector': p.get('sector', ''),
+                                "symbol": p.get("symbol", ""),
+                                "sector": p.get("sector", ""),
                             }
                             for p in portfolio
                         ]
@@ -192,13 +193,14 @@ class ValidateHandlerMixin(BaseHandlerMixin):
             # Fallback: internal portfolio
             try:
                 from ..handlers.portfolio import _get_portfolio_db
+
                 db = _get_portfolio_db()
                 if db:
                     positions = db.get_open_positions()
                     return [
                         {
-                            'symbol': p.get('symbol', ''),
-                            'sector': '',
+                            "symbol": p.get("symbol", ""),
+                            "sector": "",
                         }
                         for p in positions
                     ]

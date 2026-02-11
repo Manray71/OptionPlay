@@ -27,7 +27,7 @@ import math
 import statistics
 from dataclasses import dataclass, field
 from datetime import date
-from typing import List, Dict, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +35,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class PerformanceMetrics:
     """Umfassende Performance-Metriken"""
+
     # Basis
     total_trades: int = 0
     winning_trades: int = 0
@@ -464,7 +465,7 @@ def calculate_sortino_ratio(
     # Downside Deviation (Semi-Deviation)
     # sqrt(mean(squared downside deviations))
     downside_dev = math.sqrt(
-        sum(r ** 2 for r in downside_returns) / len(returns)  # Teile durch ALLE Returns
+        sum(r**2 for r in downside_returns) / len(returns)  # Teile durch ALLE Returns
     )
 
     if downside_dev == 0:
@@ -482,10 +483,7 @@ def calculate_sortino_ratio(
     return sortino_annual
 
 
-def calculate_max_drawdown(
-    pnls: List[float],
-    initial_capital: float
-) -> Dict:
+def calculate_max_drawdown(pnls: List[float], initial_capital: float) -> Dict:
     """
     Berechnet Max Drawdown und verwandte Metriken.
 
@@ -634,8 +632,8 @@ def calculate_equity_stats(pnls: List[float], initial_capital: float) -> Dict:
     std_r = statistics.stdev(returns) if len(returns) > 1 else 1
 
     if std_r > 0:
-        skewness = sum((r - mean_r) ** 3 for r in returns) / (len(returns) * std_r ** 3)
-        kurtosis = sum((r - mean_r) ** 4 for r in returns) / (len(returns) * std_r ** 4) - 3
+        skewness = sum((r - mean_r) ** 3 for r in returns) / (len(returns) * std_r**3)
+        kurtosis = sum((r - mean_r) ** 4 for r in returns) / (len(returns) * std_r**4) - 3
     else:
         skewness = 0
         kurtosis = 0
@@ -687,6 +685,6 @@ def calculate_risk_of_ruin(
     if base >= 1:
         return 1.0
 
-    ror = base ** ruin_units
+    ror = base**ruin_units
 
     return min(1.0, max(0.0, ror))

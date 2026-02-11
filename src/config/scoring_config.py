@@ -12,12 +12,13 @@ import os
 import threading
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
 
 try:
     import numpy as np
+
     HAS_NUMPY = True
 except ImportError:
     HAS_NUMPY = False
@@ -58,11 +59,7 @@ def _deep_merge(base: dict, override: dict) -> dict:
     """Recursively merge override into base (override wins on conflicts)."""
     result = base.copy()
     for key, value in override.items():
-        if (
-            key in result
-            and isinstance(result[key], dict)
-            and isinstance(value, dict)
-        ):
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
             result[key] = _deep_merge(result[key], value)
         else:
             result[key] = value
@@ -122,46 +119,83 @@ class RecursiveConfigResolver:
     _FALLBACK_STRATEGIES: Dict[str, Dict[str, Any]] = {
         "pullback": {
             "weights": {
-                "rsi": 3.0, "rsi_divergence": 3.0, "support": 2.5,
-                "fibonacci": 2.0, "ma": 2.0, "trend_strength": 2.0,
-                "volume": 1.0, "macd": 2.0, "stoch": 2.0,
-                "keltner": 2.0, "vwap": 3.0, "market_context": 2.0,
-                "sector": 1.0, "gap": 1.0,
+                "rsi": 3.0,
+                "rsi_divergence": 3.0,
+                "support": 2.5,
+                "fibonacci": 2.0,
+                "ma": 2.0,
+                "trend_strength": 2.0,
+                "volume": 1.0,
+                "macd": 2.0,
+                "stoch": 2.0,
+                "keltner": 2.0,
+                "vwap": 3.0,
+                "market_context": 2.0,
+                "sector": 1.0,
+                "gap": 1.0,
             },
             "max_possible": 26.0,
         },
         "bounce": {
             "weights": {
-                "support": 3.0, "rsi": 2.0, "rsi_divergence": 3.0,
-                "candlestick": 2.0, "volume": 2.0, "trend": 2.0,
-                "macd": 2.0, "stoch": 2.0, "keltner": 2.0,
-                "vwap": 3.0, "market_context": 2.0, "sector": 1.0,
+                "support": 3.0,
+                "rsi": 2.0,
+                "rsi_divergence": 3.0,
+                "candlestick": 2.0,
+                "volume": 2.0,
+                "trend": 2.0,
+                "macd": 2.0,
+                "stoch": 2.0,
+                "keltner": 2.0,
+                "vwap": 3.0,
+                "market_context": 2.0,
+                "sector": 1.0,
                 "gap": 1.0,
             },
             "max_possible": 27.0,
         },
         "ath_breakout": {
             "weights": {
-                "ath": 3.0, "volume": 2.0, "trend": 2.0,
-                "rsi": 1.0, "rs": 2.0, "momentum": 2.0,
-                "macd": 2.0, "keltner": 2.0, "vwap": 3.0,
-                "market_context": 2.0, "sector": 1.0, "gap": 1.0,
+                "ath": 3.0,
+                "volume": 2.0,
+                "trend": 2.0,
+                "rsi": 1.0,
+                "rs": 2.0,
+                "momentum": 2.0,
+                "macd": 2.0,
+                "keltner": 2.0,
+                "vwap": 3.0,
+                "market_context": 2.0,
+                "sector": 1.0,
+                "gap": 1.0,
             },
             "max_possible": 23.0,
         },
         "earnings_dip": {
             "weights": {
-                "dip": 3.0, "gap": 2.0, "rsi": 2.0,
-                "stabilization": 2.0, "volume": 2.0, "trend": 2.0,
-                "macd": 2.0, "stoch": 2.0, "keltner": 2.0,
-                "vwap": 3.0, "market_context": 2.0, "sector": 1.0,
+                "dip": 3.0,
+                "gap": 2.0,
+                "rsi": 2.0,
+                "stabilization": 2.0,
+                "volume": 2.0,
+                "trend": 2.0,
+                "macd": 2.0,
+                "stoch": 2.0,
+                "keltner": 2.0,
+                "vwap": 3.0,
+                "market_context": 2.0,
+                "sector": 1.0,
             },
             "max_possible": 21.0,
         },
     }
 
     _FALLBACK_STABILITY: Dict[str, float] = {
-        "low": 70, "normal": 70, "elevated": 80, "danger": 80, "high": 999,
+        "low": 70,
+        "normal": 70,
+        "elevated": 80,
+        "danger": 80,
+        "high": 999,
     }
 
     # ------------------------------------------------------------------
@@ -306,12 +340,15 @@ class RecursiveConfigResolver:
         """
         sm = self._raw.get("sector_momentum", {})
         global_range = sm.get("factor_range", {"min": 0.6, "max": 1.2})
-        global_weights = sm.get("component_weights", {
-            "relative_strength_30d": 0.40,
-            "relative_strength_60d": 0.30,
-            "breadth": 0.20,
-            "vol_premium": 0.10,
-        })
+        global_weights = sm.get(
+            "component_weights",
+            {
+                "relative_strength_30d": 0.40,
+                "relative_strength_60d": 0.30,
+                "breadth": 0.20,
+                "vol_premium": 0.10,
+            },
+        )
 
         if strategy:
             overrides = sm.get("strategy_overrides", {})
@@ -331,53 +368,65 @@ class RecursiveConfigResolver:
 
     def get_sector_momentum_config(self) -> dict:
         """Get sector momentum configuration."""
-        return self._raw.get("sector_momentum", {
-            "enabled": False,
-            "cache_ttl_hours": 4,
-        })
+        return self._raw.get(
+            "sector_momentum",
+            {
+                "enabled": False,
+                "cache_ttl_hours": 4,
+            },
+        )
 
     def get_parallelization_config(self) -> dict:
         """Get parallelization configuration."""
-        return self._raw.get("parallelization", {
-            "sector_batch_size": 11,
-            "scan_concurrency": 50,
-            "training_workers": None,
-        })
+        return self._raw.get(
+            "parallelization",
+            {
+                "sector_batch_size": 11,
+                "scan_concurrency": 50,
+                "training_workers": None,
+            },
+        )
 
     def get_liquidity_config(self) -> dict:
         """Get liquidity threshold configuration."""
-        return self._raw.get("liquidity", {
-            "entry": {
-                "open_interest_min": 100,
-                "bid_ask_spread_max": 0.20,
+        return self._raw.get(
+            "liquidity",
+            {
+                "entry": {
+                    "open_interest_min": 100,
+                    "bid_ask_spread_max": 0.20,
+                },
+                "quality": {
+                    "open_interest": {"excellent": 500, "good": 100, "fair": 50},
+                    "spread_pct": {"excellent": 5.0, "good": 10.0, "fair": 15.0},
+                    "volume": {"excellent": 200, "good": 50, "fair": 10},
+                },
+                "min_quality_daily_picks": "good",
             },
-            "quality": {
-                "open_interest": {"excellent": 500, "good": 100, "fair": 50},
-                "spread_pct": {"excellent": 5.0, "good": 10.0, "fair": 15.0},
-                "volume": {"excellent": 200, "good": 50, "fair": 10},
-            },
-            "min_quality_daily_picks": "good",
-        })
+        )
 
     def get_feature_engineering_config(self) -> dict:
         """Get feature-engineering thresholds (VWAP, Market Context, Gap)."""
-        return self._raw.get("feature_engineering", {
-            "vwap": {
-                "period": 20,
-                "strong_above": 3.0,
-                "above": 1.0,
-                "below": -1.0,
-                "strong_below": -3.0,
+        return self._raw.get(
+            "feature_engineering",
+            {
+                "vwap": {
+                    "period": 20,
+                    "strong_above": 3.0,
+                    "above": 1.0,
+                    "below": -1.0,
+                    "strong_below": -3.0,
+                },
+                "market_context": {
+                    "sma_short": 20,
+                    "sma_medium": 50,
+                },
+                "gap": {
+                    "size_large": 3.0,
+                    "size_medium": 1.0,
+                },
             },
-            "market_context": {
-                "sma_short": 20,
-                "sma_medium": 50,
-            },
-            "gap": {
-                "size_large": 3.0,
-                "size_medium": 1.0,
-            },
-        })
+        )
 
     def list_strategies(self) -> List[str]:
         """List all configured strategy names."""
@@ -402,6 +451,7 @@ class RecursiveConfigResolver:
 # ------------------------------------------------------------------
 # Module-level convenience functions
 # ------------------------------------------------------------------
+
 
 def get_scoring_resolver(yaml_path: Optional[str] = None) -> RecursiveConfigResolver:
     """Get (or create) the singleton RecursiveConfigResolver."""

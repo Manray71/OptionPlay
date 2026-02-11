@@ -17,8 +17,8 @@ import urllib.request
 from datetime import date, datetime
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
+from ..constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS, SPREAD_DTE_MAX, SPREAD_DTE_MIN
 from .handler_container import BaseHandler, ServerContext
-from ..constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS, SPREAD_DTE_MIN, SPREAD_DTE_MAX
 
 if TYPE_CHECKING:
     pass
@@ -43,8 +43,8 @@ class QuoteHandler(BaseHandler):
 
     async def get_quote(self, symbol: str) -> str:
         """Get current stock quote."""
-        from ..utils.validation import validate_symbol
         from ..formatters import formatters
+        from ..utils.validation import validate_symbol
 
         symbol = validate_symbol(symbol)
         quote = await self._get_quote_cached(symbol)
@@ -71,8 +71,8 @@ class QuoteHandler(BaseHandler):
         Returns:
             Formatted options chain
         """
-        from ..utils.validation import validate_symbol, validate_dte_range
         from ..formatters import formatters
+        from ..utils.validation import validate_dte_range, validate_symbol
 
         symbol = validate_symbol(symbol)
         dte_min, dte_max = validate_dte_range(dte_min, dte_max)
@@ -91,7 +91,7 @@ class QuoteHandler(BaseHandler):
             right=right,
             dte_min=dte_min,
             dte_max=dte_max,
-            max_options=max_options
+            max_options=max_options,
         )
 
     def _fetch_yahoo_earnings(self, symbol: str) -> Dict:
@@ -99,33 +99,33 @@ class QuoteHandler(BaseHandler):
         try:
             url = f"https://query1.finance.yahoo.com/v10/finance/quoteSummary/{symbol}?modules=calendarEvents"
             req = urllib.request.Request(url)
-            req.add_header('User-Agent', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)')
+            req.add_header("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)")
 
             with urllib.request.urlopen(req, timeout=10) as response:
                 data = json.loads(response.read().decode())
 
-            calendar = data.get('quoteSummary', {}).get('result', [{}])[0].get('calendarEvents', {})
-            earnings = calendar.get('earnings', {})
+            calendar = data.get("quoteSummary", {}).get("result", [{}])[0].get("calendarEvents", {})
+            earnings = calendar.get("earnings", {})
             earnings_date = None
-            earnings_dates = earnings.get('earningsDate', [])
+            earnings_dates = earnings.get("earningsDate", [])
 
             if earnings_dates:
-                timestamp = earnings_dates[0].get('raw')
+                timestamp = earnings_dates[0].get("raw")
                 if timestamp:
                     earnings_date = datetime.fromtimestamp(timestamp).date()
 
             if earnings_date:
                 days_to = (earnings_date - date.today()).days
                 return {
-                    'earnings_date': earnings_date.isoformat(),
-                    'days_to_earnings': days_to if days_to >= 0 else None,
-                    'source': 'yahoo_direct'
+                    "earnings_date": earnings_date.isoformat(),
+                    "days_to_earnings": days_to if days_to >= 0 else None,
+                    "source": "yahoo_direct",
                 }
 
-            return {'earnings_date': None, 'days_to_earnings': None, 'source': 'yahoo_direct'}
+            return {"earnings_date": None, "days_to_earnings": None, "source": "yahoo_direct"}
         except Exception as e:
             self._logger.debug(f"Yahoo earnings API error for {symbol}: {e}")
-            return {'earnings_date': None, 'days_to_earnings': None, 'source': 'error'}
+            return {"earnings_date": None, "days_to_earnings": None, "source": "error"}
 
     async def get_earnings(self, symbol: str, min_days: int = ENTRY_EARNINGS_MIN_DAYS) -> str:
         """
@@ -138,16 +138,20 @@ class QuoteHandler(BaseHandler):
         Returns:
             Formatted earnings information
         """
-        from ..utils.validation import validate_symbol, is_etf
-        from ..formatters import formatters
         from ..cache import get_earnings_fetcher
+        from ..formatters import formatters
+        from ..utils.validation import is_etf, validate_symbol
 
         symbol = validate_symbol(symbol)
 
         if is_etf(symbol):
             return formatters.earnings.format(
-                symbol=symbol, earnings_date=None, days_to_earnings=None,
-                min_days=min_days, source="etf", is_etf=True
+                symbol=symbol,
+                earnings_date=None,
+                days_to_earnings=None,
+                min_days=min_days,
+                source="etf",
+                is_etf=True,
             )
 
         earnings_date = None
@@ -172,9 +176,9 @@ class QuoteHandler(BaseHandler):
         if not earnings_date:
             try:
                 yahoo_data = await asyncio.to_thread(self._fetch_yahoo_earnings, symbol)
-                if yahoo_data.get('earnings_date'):
-                    earnings_date = yahoo_data['earnings_date']
-                    days_to_earnings = yahoo_data['days_to_earnings']
+                if yahoo_data.get("earnings_date"):
+                    earnings_date = yahoo_data["earnings_date"]
+                    days_to_earnings = yahoo_data["days_to_earnings"]
                     source_used = "yahoo_direct"
             except Exception as e:
                 self._logger.debug(f"Yahoo direct earnings failed for {symbol}: {e}")
@@ -194,12 +198,16 @@ class QuoteHandler(BaseHandler):
                 self._logger.debug(f"yfinance earnings failed for {symbol}: {e}")
 
         return formatters.earnings.format(
-            symbol=symbol, earnings_date=earnings_date,
-            days_to_earnings=days_to_earnings, min_days=min_days,
-            source=source_used
+            symbol=symbol,
+            earnings_date=earnings_date,
+            days_to_earnings=days_to_earnings,
+            min_days=min_days,
+            source=source_used,
         )
 
-    async def get_earnings_aggregated(self, symbol: str, min_days: int = ENTRY_EARNINGS_MIN_DAYS) -> str:
+    async def get_earnings_aggregated(
+        self, symbol: str, min_days: int = ENTRY_EARNINGS_MIN_DAYS
+    ) -> str:
         """
         Check earnings date with multi-source aggregation and majority voting.
 
@@ -210,12 +218,14 @@ class QuoteHandler(BaseHandler):
         Returns:
             Aggregated earnings information with confidence
         """
-        from ..utils.validation import validate_symbol
-        from ..utils.markdown_builder import MarkdownBuilder
         from ..cache import get_earnings_fetcher
         from ..utils.earnings_aggregator import (
-            EarningsResult, get_earnings_aggregator, create_earnings_result,
+            EarningsResult,
+            create_earnings_result,
+            get_earnings_aggregator,
         )
+        from ..utils.markdown_builder import MarkdownBuilder
+        from ..utils.validation import validate_symbol
 
         symbol = validate_symbol(symbol)
         results: List[EarningsResult] = []
@@ -233,9 +243,13 @@ class QuoteHandler(BaseHandler):
                         earnings_date=earnings.earnings_date,
                         days_to_earnings=earnings.days_to_earnings,
                     )
-                return create_earnings_result(source="marketdata", earnings_date=None, days_to_earnings=None)
+                return create_earnings_result(
+                    source="marketdata", earnings_date=None, days_to_earnings=None
+                )
             except Exception as e:
-                return create_earnings_result(source="marketdata", earnings_date=None, days_to_earnings=None, error=str(e))
+                return create_earnings_result(
+                    source="marketdata", earnings_date=None, days_to_earnings=None, error=str(e)
+                )
 
         async def fetch_yahoo() -> EarningsResult:
             try:
@@ -246,7 +260,9 @@ class QuoteHandler(BaseHandler):
                     days_to_earnings=yahoo_data.get("days_to_earnings"),
                 )
             except Exception as e:
-                return create_earnings_result(source="yahoo_direct", earnings_date=None, days_to_earnings=None, error=str(e))
+                return create_earnings_result(
+                    source="yahoo_direct", earnings_date=None, days_to_earnings=None, error=str(e)
+                )
 
         async def fetch_yfinance() -> EarningsResult:
             try:
@@ -260,9 +276,13 @@ class QuoteHandler(BaseHandler):
                         earnings_date=fetched.earnings_date,
                         days_to_earnings=fetched.days_to_earnings,
                     )
-                return create_earnings_result(source="yfinance", earnings_date=None, days_to_earnings=None)
+                return create_earnings_result(
+                    source="yfinance", earnings_date=None, days_to_earnings=None
+                )
             except Exception as e:
-                return create_earnings_result(source="yfinance", earnings_date=None, days_to_earnings=None, error=str(e))
+                return create_earnings_result(
+                    source="yfinance", earnings_date=None, days_to_earnings=None, error=str(e)
+                )
 
         results = await asyncio.gather(fetch_marketdata(), fetch_yahoo(), fetch_yfinance())
 
@@ -308,10 +328,10 @@ class QuoteHandler(BaseHandler):
         Returns:
             Formatted Markdown with safe symbols and cache statistics
         """
-        from ..utils.validation import validate_symbols, is_etf
-        from ..utils.markdown_builder import MarkdownBuilder
-        from ..config import get_watchlist_loader
         from ..cache import get_earnings_fetcher
+        from ..config import get_watchlist_loader
+        from ..utils.markdown_builder import MarkdownBuilder
+        from ..utils.validation import is_etf, validate_symbols
 
         if not symbols:
             watchlist_loader = get_watchlist_loader()
@@ -412,8 +432,8 @@ class QuoteHandler(BaseHandler):
         Returns:
             Formatted historical data
         """
-        from ..utils.validation import validate_symbol
         from ..formatters import formatters
+        from ..utils.validation import validate_symbol
 
         symbol = validate_symbol(symbol)
         provider = await self._ensure_connected()
@@ -434,8 +454,8 @@ class QuoteHandler(BaseHandler):
         Returns:
             List of available expiration dates
         """
-        from ..utils.validation import validate_symbol
         from ..utils.markdown_builder import MarkdownBuilder
+        from ..utils.validation import validate_symbol
 
         symbol = validate_symbol(symbol)
         expirations = None
@@ -486,10 +506,10 @@ class QuoteHandler(BaseHandler):
         Returns:
             Validation result with safety status
         """
-        from ..utils.validation import validate_symbol, is_etf
-        from ..utils.markdown_builder import MarkdownBuilder
         from ..cache import get_earnings_fetcher
         from ..constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS
+        from ..utils.markdown_builder import MarkdownBuilder
+        from ..utils.validation import is_etf, validate_symbol
 
         symbol = validate_symbol(symbol)
 
@@ -547,7 +567,9 @@ class QuoteHandler(BaseHandler):
 
     # --- Shared helper methods ---
 
-    async def _get_options_chain_with_fallback(self, symbol, dte_min=SPREAD_DTE_MIN, dte_max=SPREAD_DTE_MAX, right="P"):
+    async def _get_options_chain_with_fallback(
+        self, symbol, dte_min=SPREAD_DTE_MIN, dte_max=SPREAD_DTE_MAX, right="P"
+    ):
         """Fetch options chain with Tradier-first, IBKR-fallback."""
         options = None
         right_upper = right.upper()

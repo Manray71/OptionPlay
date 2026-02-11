@@ -6,19 +6,18 @@
 
 from dataclasses import dataclass
 
-
 # =============================================================================
 # PULLBACK STRATEGY
 # =============================================================================
 
 # Trend Requirements
-PULLBACK_MIN_UPTREND_DAYS = 20    # Minimum days in uptrend
-PULLBACK_SMA_TREND_PERIOD = 50   # SMA for trend confirmation
+PULLBACK_MIN_UPTREND_DAYS = 20  # Minimum days in uptrend
+PULLBACK_SMA_TREND_PERIOD = 50  # SMA for trend confirmation
 
 # Pullback Detection
-PULLBACK_MIN_PULLBACK_PCT = 3.0   # Minimum pullback (%)
+PULLBACK_MIN_PULLBACK_PCT = 3.0  # Minimum pullback (%)
 PULLBACK_MAX_PULLBACK_PCT = 15.0  # Maximum pullback (%)
-PULLBACK_LOOKBACK_DAYS = 20       # Lookback for swing high
+PULLBACK_LOOKBACK_DAYS = 20  # Lookback for swing high
 
 # Score Bonuses
 PULLBACK_VOLUME_CONFIRMATION_BONUS = 1.0
@@ -31,18 +30,18 @@ PULLBACK_SUPPORT_CONFLUENCE_BONUS = 2.0
 # =============================================================================
 
 # ATH Detection
-ATH_LOOKBACK_DAYS = 252          # 1 year for all-time high
-ATH_CONSOLIDATION_DAYS = 20      # Consolidation before breakout
+ATH_LOOKBACK_DAYS = 252  # 1 year for all-time high
+ATH_CONSOLIDATION_DAYS = 20  # Consolidation before breakout
 
 # Breakout Confirmation
-ATH_BREAKOUT_THRESHOLD_PCT = 1.0     # Minimum above ATH (%)
-ATH_CONFIRMATION_DAYS = 2            # Days for confirmation
-ATH_CONFIRMATION_THRESHOLD = 0.5     # Min % above ATH for confirmation
+ATH_BREAKOUT_THRESHOLD_PCT = 1.0  # Minimum above ATH (%)
+ATH_CONFIRMATION_DAYS = 2  # Days for confirmation
+ATH_CONFIRMATION_THRESHOLD = 0.5  # Min % above ATH for confirmation
 
 # Additional Filters
-ATH_VOLUME_SPIKE_MULTIPLIER = 1.5    # Volume spike at breakout
-ATH_RSI_MAX = 80.0                   # Max RSI (not overbought)
-ATH_MIN_UPTREND_DAYS = 50            # Minimum uptrend before breakout
+ATH_VOLUME_SPIKE_MULTIPLIER = 1.5  # Volume spike at breakout
+ATH_RSI_MAX = 80.0  # Max RSI (not overbought)
+ATH_MIN_UPTREND_DAYS = 50  # Minimum uptrend before breakout
 
 # Score Bonuses
 ATH_VOLUME_CONFIRMATION_BONUS = 2.0
@@ -54,13 +53,13 @@ ATH_CLEAN_BREAKOUT_BONUS = 1.5
 # =============================================================================
 
 # Support Detection
-BOUNCE_LOOKBACK_DAYS = 60        # Lookback for support levels
-BOUNCE_MIN_TOUCHES = 2           # Minimum support touches
-BOUNCE_PROXIMITY_PCT = 2.0       # Max distance to support (%)
+BOUNCE_LOOKBACK_DAYS = 60  # Lookback for support levels
+BOUNCE_MIN_TOUCHES = 2  # Minimum support touches
+BOUNCE_PROXIMITY_PCT = 2.0  # Max distance to support (%)
 
 # Bounce Confirmation
-BOUNCE_REVERSAL_BARS = 3         # Bars for reversal confirmation
-BOUNCE_MIN_BOUNCE_PCT = 1.0      # Minimum bounce (%)
+BOUNCE_REVERSAL_BARS = 3  # Bars for reversal confirmation
+BOUNCE_MIN_BOUNCE_PCT = 1.0  # Minimum bounce (%)
 
 # Score Bonuses
 BOUNCE_STRONG_SUPPORT_BONUS = 2.0
@@ -73,23 +72,23 @@ BOUNCE_RSI_OVERSOLD_BONUS = 1.0
 # =============================================================================
 
 # Dip Detection
-EARNINGS_DIP_MIN_PCT = 5.0       # Minimum dip after earnings (%)
-EARNINGS_DIP_MAX_PCT = 25.0      # Maximum dip (above = fundamentally broken)
-EARNINGS_DIP_LOOKBACK_DAYS = 5   # Days after earnings for dip
+EARNINGS_DIP_MIN_PCT = 5.0  # Minimum dip after earnings (%)
+EARNINGS_DIP_MAX_PCT = 25.0  # Maximum dip (above = fundamentally broken)
+EARNINGS_DIP_LOOKBACK_DAYS = 5  # Days after earnings for dip
 
 # Entry Requirements
-EARNINGS_RSI_OVERSOLD = 35.0     # RSI threshold for oversold
+EARNINGS_RSI_OVERSOLD = 35.0  # RSI threshold for oversold
 
 # Risk Management
-EARNINGS_STOP_BELOW_LOW_PCT = 3.0    # Stop below dip low (%)
+EARNINGS_STOP_BELOW_LOW_PCT = 3.0  # Stop below dip low (%)
 EARNINGS_TARGET_RECOVERY_PCT = 50.0  # Target: 50% recovery of dip
 
 # Gap Analysis
-EARNINGS_GAP_MIN_PCT = 2.0           # Minimum gap after earnings (%)
-EARNINGS_GAP_FILL_THRESHOLD = 50.0   # Gap fill percentage
+EARNINGS_GAP_MIN_PCT = 2.0  # Minimum gap after earnings (%)
+EARNINGS_GAP_FILL_THRESHOLD = 50.0  # Gap fill percentage
 
 # Timing
-EARNINGS_MAX_DAYS_SINCE = 10     # Max days since earnings for signal
+EARNINGS_MAX_DAYS_SINCE = 10  # Max days since earnings for signal
 
 
 # =============================================================================
@@ -102,8 +101,8 @@ TREND_SMA_MEDIUM = 50
 TREND_SMA_LONG = 200
 
 # Price Action
-MIN_PRICE_FOR_OPTIONS = 10.0     # Minimum price for options trading
-MAX_PRICE_FOR_SPREAD = 500.0     # Maximum for standard spreads
+MIN_PRICE_FOR_OPTIONS = 10.0  # Minimum price for options trading
+MAX_PRICE_FOR_SPREAD = 500.0  # Maximum for standard spreads
 
 # Sector Adjustments
 SECTOR_TECH_VOLATILITY_FACTOR = 1.2
@@ -114,6 +113,7 @@ SECTOR_FINANCIALS_VOLATILITY_FACTOR = 1.1
 # =============================================================================
 # CONVENIENCE CLASS
 # =============================================================================
+
 
 @dataclass(frozen=True)
 class StrategyParameters:

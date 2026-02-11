@@ -8,11 +8,12 @@
 # Lösung: Perzentil-basierte Normalisierung + Expected Value Berechnung
 
 import logging
-from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass, field
 from pathlib import Path
-import yaml
+from typing import Dict, List, Optional, Tuple
+
 import numpy as np
+import yaml
 
 logger = logging.getLogger(__name__)
 
@@ -23,21 +24,21 @@ logger = logging.getLogger(__name__)
 
 STRATEGY_METRICS = {
     "pullback": {
-        "win_rate": 0.861,           # 86.1%
-        "avg_pnl": 158.08,           # $158.08 per trade
+        "win_rate": 0.861,  # 86.1%
+        "avg_pnl": 158.08,  # $158.08 per trade
         "sharpe": 17.50,
-        "score_percentiles": {       # Score → Percentile mapping (from backtest)
+        "score_percentiles": {  # Score → Percentile mapping (from backtest)
             "p10": 4.2,
             "p25": 5.1,
             "p50": 6.0,
             "p75": 7.2,
             "p90": 8.5,
             "p95": 9.3,
-        }
+        },
     },
     "bounce": {
-        "win_rate": 0.859,           # 85.9%
-        "avg_pnl": 157.29,           # $157.29 per trade
+        "win_rate": 0.859,  # 85.9%
+        "avg_pnl": 157.29,  # $157.29 per trade
         "sharpe": 17.35,
         "score_percentiles": {
             "p10": 4.0,
@@ -46,11 +47,11 @@ STRATEGY_METRICS = {
             "p75": 7.0,
             "p90": 8.3,
             "p95": 9.1,
-        }
+        },
     },
     "ath_breakout": {
-        "win_rate": 0.868,           # 86.8%
-        "avg_pnl": 156.42,           # $156.42 per trade
+        "win_rate": 0.868,  # 86.8%
+        "avg_pnl": 156.42,  # $156.42 per trade
         "sharpe": 17.74,
         "score_percentiles": {
             "p10": 4.5,
@@ -59,32 +60,33 @@ STRATEGY_METRICS = {
             "p75": 7.4,
             "p90": 8.7,
             "p95": 9.5,
-        }
+        },
     },
     "earnings_dip": {
-        "win_rate": 0.849,           # 84.9%
-        "avg_pnl": 174.65,           # $174.65 per trade (highest!)
+        "win_rate": 0.849,  # 84.9%
+        "avg_pnl": 174.65,  # $174.65 per trade (highest!)
         "sharpe": 19.09,
         "score_percentiles": {
             "p10": 5.5,
             "p25": 6.2,
-            "p50": 7.0,              # Higher baseline for earnings_dip
+            "p50": 7.0,  # Higher baseline for earnings_dip
             "p75": 8.0,
             "p90": 9.2,
             "p95": 10.0,
-        }
-    }
+        },
+    },
 }
 
 
 @dataclass
 class NormalizedScore:
     """Normalisierter Score für eine Strategie."""
+
     strategy: str
     raw_score: float
-    normalized_score: float         # 0-100 Skala
-    percentile: float               # Position relativ zur Historie
-    expected_value: float           # Score × WinRate × AvgPnL
+    normalized_score: float  # 0-100 Skala
+    percentile: float  # Position relativ zur Historie
+    expected_value: float  # Score × WinRate × AvgPnL
     win_rate: float
     avg_pnl: float
 
@@ -95,32 +97,33 @@ class NormalizedScore:
 @dataclass
 class MultiStrategyRanking:
     """Ranking eines Symbols über alle Strategien."""
+
     symbol: str
     current_price: float
     scores: List[NormalizedScore]
     best_strategy: str
     best_expected_value: float
-    strategy_count: int             # Anzahl qualifizierender Strategien
+    strategy_count: int  # Anzahl qualifizierender Strategien
 
     def to_dict(self) -> Dict:
         return {
-            'symbol': self.symbol,
-            'current_price': self.current_price,
-            'best_strategy': self.best_strategy,
-            'best_expected_value': round(self.best_expected_value, 2),
-            'strategy_count': self.strategy_count,
-            'scores': [
+            "symbol": self.symbol,
+            "current_price": self.current_price,
+            "best_strategy": self.best_strategy,
+            "best_expected_value": round(self.best_expected_value, 2),
+            "strategy_count": self.strategy_count,
+            "scores": [
                 {
-                    'strategy': s.strategy,
-                    'raw_score': round(s.raw_score, 2),
-                    'normalized_score': round(s.normalized_score, 1),
-                    'percentile': round(s.percentile, 1),
-                    'expected_value': round(s.expected_value, 2),
-                    'win_rate': f"{s.win_rate:.1%}",
-                    'avg_pnl': f"${s.avg_pnl:.0f}"
+                    "strategy": s.strategy,
+                    "raw_score": round(s.raw_score, 2),
+                    "normalized_score": round(s.normalized_score, 1),
+                    "percentile": round(s.percentile, 1),
+                    "expected_value": round(s.expected_value, 2),
+                    "win_rate": f"{s.win_rate:.1%}",
+                    "avg_pnl": f"${s.avg_pnl:.0f}",
                 }
                 for s in sorted(self.scores, reverse=True)
-            ]
+            ],
         }
 
 
@@ -162,11 +165,7 @@ class MultiStrategyRanker:
         """
         self.metrics = metrics or STRATEGY_METRICS
 
-    def normalize_score(
-        self,
-        strategy: str,
-        raw_score: float
-    ) -> NormalizedScore:
+    def normalize_score(self, strategy: str, raw_score: float) -> NormalizedScore:
         """
         Normalisiert einen Raw-Score auf eine 0-100 Skala.
 
@@ -187,15 +186,25 @@ class MultiStrategyRanker:
         if raw_score <= percentiles["p10"]:
             percentile = 10 * (raw_score / percentiles["p10"]) if percentiles["p10"] > 0 else 0
         elif raw_score <= percentiles["p25"]:
-            percentile = 10 + 15 * (raw_score - percentiles["p10"]) / (percentiles["p25"] - percentiles["p10"])
+            percentile = 10 + 15 * (raw_score - percentiles["p10"]) / (
+                percentiles["p25"] - percentiles["p10"]
+            )
         elif raw_score <= percentiles["p50"]:
-            percentile = 25 + 25 * (raw_score - percentiles["p25"]) / (percentiles["p50"] - percentiles["p25"])
+            percentile = 25 + 25 * (raw_score - percentiles["p25"]) / (
+                percentiles["p50"] - percentiles["p25"]
+            )
         elif raw_score <= percentiles["p75"]:
-            percentile = 50 + 25 * (raw_score - percentiles["p50"]) / (percentiles["p75"] - percentiles["p50"])
+            percentile = 50 + 25 * (raw_score - percentiles["p50"]) / (
+                percentiles["p75"] - percentiles["p50"]
+            )
         elif raw_score <= percentiles["p90"]:
-            percentile = 75 + 15 * (raw_score - percentiles["p75"]) / (percentiles["p90"] - percentiles["p75"])
+            percentile = 75 + 15 * (raw_score - percentiles["p75"]) / (
+                percentiles["p90"] - percentiles["p75"]
+            )
         elif raw_score <= percentiles["p95"]:
-            percentile = 90 + 5 * (raw_score - percentiles["p90"]) / (percentiles["p95"] - percentiles["p90"])
+            percentile = 90 + 5 * (raw_score - percentiles["p90"]) / (
+                percentiles["p95"] - percentiles["p90"]
+            )
         else:
             # Über 95. Perzentil - extrapoliere
             percentile = min(100, 95 + 5 * (raw_score - percentiles["p95"]) / percentiles["p95"])
@@ -217,7 +226,7 @@ class MultiStrategyRanker:
             percentile=percentile,
             expected_value=expected_value,
             win_rate=m["win_rate"],
-            avg_pnl=m["avg_pnl"]
+            avg_pnl=m["avg_pnl"],
         )
 
     def rank_symbol(
@@ -225,7 +234,7 @@ class MultiStrategyRanker:
         symbol: str,
         current_price: float,
         strategy_scores: Dict[str, Optional[float]],
-        min_score: float = 5.0
+        min_score: float = 5.0,
     ) -> MultiStrategyRanking:
         """
         Rankt ein Symbol über alle verfügbaren Strategien.
@@ -266,14 +275,11 @@ class MultiStrategyRanker:
             scores=normalized_scores,
             best_strategy=best_strategy,
             best_expected_value=best_ev,
-            strategy_count=len(normalized_scores)
+            strategy_count=len(normalized_scores),
         )
 
     def rank_multiple(
-        self,
-        symbols_data: List[Dict],
-        min_score: float = 5.0,
-        min_strategies: int = 1
+        self, symbols_data: List[Dict], min_score: float = 5.0, min_strategies: int = 1
     ) -> List[MultiStrategyRanking]:
         """
         Rankt mehrere Symbole und sortiert nach bestem Expected Value.
@@ -293,7 +299,7 @@ class MultiStrategyRanker:
                 symbol=data["symbol"],
                 current_price=data.get("price", 0.0),
                 strategy_scores=data.get("scores", {}),
-                min_score=min_score
+                min_score=min_score,
             )
 
             if ranking.strategy_count >= min_strategies:
@@ -315,7 +321,7 @@ class MultiStrategyRanker:
             f"  Qualifying Strategies: {ranking.strategy_count}",
             f"",
             f"  {'Strategy':<15} {'Score':<8} {'Norm':<8} {'Pctl':<8} {'EV':<10} {'WR':<8}",
-            f"  {'-'*55}"
+            f"  {'-'*55}",
         ]
 
         for s in ranking.scores:
@@ -331,6 +337,7 @@ class MultiStrategyRanker:
 # CONVENIENCE FUNCTIONS
 # =============================================================================
 
+
 def get_ranker() -> MultiStrategyRanker:
     """Returns the default MultiStrategyRanker instance."""
     return MultiStrategyRanker()
@@ -342,7 +349,7 @@ def compare_strategies(
     pullback_score: Optional[float] = None,
     bounce_score: Optional[float] = None,
     ath_breakout_score: Optional[float] = None,
-    earnings_dip_score: Optional[float] = None
+    earnings_dip_score: Optional[float] = None,
 ) -> MultiStrategyRanking:
     """
     Convenience function to compare strategies for a symbol.
@@ -358,9 +365,9 @@ def compare_strategies(
     """
     ranker = MultiStrategyRanker()
     scores = {
-        'pullback': pullback_score,
-        'bounce': bounce_score,
-        'ath_breakout': ath_breakout_score,
-        'earnings_dip': earnings_dip_score
+        "pullback": pullback_score,
+        "bounce": bounce_score,
+        "ath_breakout": ath_breakout_score,
+        "earnings_dip": earnings_dip_score,
     }
     return ranker.rank_symbol(symbol, price, scores)

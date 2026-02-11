@@ -12,7 +12,7 @@ Provides:
 
 import logging
 from datetime import datetime
-from typing import List, Dict, Any
+from typing import Any, Dict, List
 
 from ..utils.markdown_builder import MarkdownBuilder
 from .connection import IBKRConnection
@@ -64,12 +64,14 @@ class IBKRPortfolio:
 
                 # Additional fields for options
                 if contract.secType == "OPT":
-                    position_data.update({
-                        "strike": contract.strike,
-                        "right": contract.right,  # 'C' or 'P'
-                        "expiry": contract.lastTradeDateOrContractMonth,
-                        "multiplier": int(contract.multiplier or 100),
-                    })
+                    position_data.update(
+                        {
+                            "strike": contract.strike,
+                            "right": contract.right,  # 'C' or 'P'
+                            "expiry": contract.lastTradeDateOrContractMonth,
+                            "multiplier": int(contract.multiplier or 100),
+                        }
+                    )
 
                 positions.append(position_data)
 
@@ -104,12 +106,14 @@ class IBKRPortfolio:
             rows = []
             for p in stocks:
                 market_value = p["quantity"] * p["avg_cost"]
-                rows.append([
-                    p["symbol"],
-                    f"{p['quantity']:,.0f}",
-                    f"${p['avg_cost']:.2f}",
-                    f"${market_value:,.2f}",
-                ])
+                rows.append(
+                    [
+                        p["symbol"],
+                        f"{p['quantity']:,.0f}",
+                        f"${p['avg_cost']:.2f}",
+                        f"${market_value:,.2f}",
+                    ]
+                )
             b.table(["Symbol", "Qty", "Avg Cost", "Value"], rows)
             b.blank()
 
@@ -131,13 +135,15 @@ class IBKRPortfolio:
                 for p in sorted(opts, key=lambda x: (x["expiry"], x["strike"])):
                     right = "Put" if p["right"] == "P" else "Call"
                     qty_str = f"{p['quantity']:+,.0f}"  # With sign
-                    rows.append([
-                        p["expiry"],
-                        f"${p['strike']:.0f}",
-                        right,
-                        qty_str,
-                        f"${p['avg_cost']:.2f}",
-                    ])
+                    rows.append(
+                        [
+                            p["expiry"],
+                            f"${p['strike']:.0f}",
+                            right,
+                            qty_str,
+                            f"${p['avg_cost']:.2f}",
+                        ]
+                    )
                 b.table(["Expiry", "Strike", "Type", "Qty", "Avg Cost"], rows)
                 b.blank()
 
@@ -197,7 +203,9 @@ class IBKRPortfolio:
             for short in short_puts:
                 # Find matching Long Put
                 for long in long_puts:
-                    if long["strike"] < short["strike"] and abs(long["quantity"]) == abs(short["quantity"]):
+                    if long["strike"] < short["strike"] and abs(long["quantity"]) == abs(
+                        short["quantity"]
+                    ):
                         # avgCost from IBKR is total cost per contract (not per share)
                         # Net Credit = Short Premium - Long Premium (both totals)
                         net_credit_total = short["avg_cost"] - long["avg_cost"]
@@ -215,7 +223,8 @@ class IBKRPortfolio:
                             "short_cost": short["avg_cost"],
                             "long_cost": long["avg_cost"],
                             "net_credit": net_credit_per_share,  # Per share
-                            "net_credit_total": net_credit_total * int(abs(short["quantity"])),  # Total
+                            "net_credit_total": net_credit_total
+                            * int(abs(short["quantity"])),  # Total
                         }
                         spreads.append(spread)
                         break
@@ -257,20 +266,21 @@ class IBKRPortfolio:
                 logger.debug(f"Could not calculate DTE for {s.get('symbol', '?')}: {e}")
                 dte_str = "?"
 
-            rows.append([
-                s["symbol"],
-                f"${s['long_strike']:.0f}/${s['short_strike']:.0f}",
-                s["expiry"][:4] + "-" + s["expiry"][4:6] + "-" + s["expiry"][6:],
-                dte_str,
-                str(s["contracts"]),
-                f"${s['net_credit']:.2f}",
-                f"${max_profit:,.0f}",
-                f"${max_loss:,.0f}",
-            ])
+            rows.append(
+                [
+                    s["symbol"],
+                    f"${s['long_strike']:.0f}/${s['short_strike']:.0f}",
+                    s["expiry"][:4] + "-" + s["expiry"][4:6] + "-" + s["expiry"][6:],
+                    dte_str,
+                    str(s["contracts"]),
+                    f"${s['net_credit']:.2f}",
+                    f"${max_profit:,.0f}",
+                    f"${max_loss:,.0f}",
+                ]
+            )
 
         b.table(
-            ["Symbol", "Strikes", "Expiry", "DTE", "Qty", "Credit", "Max Profit", "Max Loss"],
-            rows
+            ["Symbol", "Strikes", "Expiry", "DTE", "Qty", "Credit", "Max Profit", "Max Loss"], rows
         )
 
         b.blank()

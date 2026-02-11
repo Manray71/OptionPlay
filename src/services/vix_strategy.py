@@ -2,19 +2,30 @@
 # ====================================
 # Automatic strategy selection based on VIX
 
+import logging
 import warnings
 from dataclasses import dataclass
-from typing import Optional, Dict, Any, List, Tuple
 from enum import Enum
-import logging
+from typing import Any, Dict, List, Optional, Tuple
 
 from ..constants import (
-    VIX_LOW, VIX_NORMAL, VIX_ELEVATED, VIX_HIGH,
-    DTE_MIN, DTE_MAX, DTE_TARGET,
-    DELTA_TARGET, DELTA_MIN, DELTA_MAX, DELTA_CONSERVATIVE, DELTA_AGGRESSIVE,
+    DELTA_AGGRESSIVE,
+    DELTA_CONSERVATIVE,
     DELTA_LONG_TARGET,
-    EARNINGS_MIN_DAYS, EARNINGS_MIN_DAYS_STRICT, EARNINGS_SAFE_DAYS,
+    DELTA_MAX,
+    DELTA_MIN,
+    DELTA_TARGET,
+    DTE_MAX,
+    DTE_MIN,
+    DTE_TARGET,
+    EARNINGS_MIN_DAYS,
+    EARNINGS_MIN_DAYS_STRICT,
+    EARNINGS_SAFE_DAYS,
     MIN_SCORE_DEFAULT,
+    VIX_ELEVATED,
+    VIX_HIGH,
+    VIX_LOW,
+    VIX_NORMAL,
 )
 
 logger = logging.getLogger(__name__)
@@ -24,18 +35,21 @@ logger = logging.getLogger(__name__)
 # VIX TREND ANALYSIS
 # =============================================================================
 
+
 class VixTrend(Enum):
     """VIX trend direction based on 5-day Z-score."""
-    RISING_FAST = "rising_fast"    # Z-Score > 1.5: Rising fast
-    RISING = "rising"              # Z-Score > 0.75: Rising
-    STABLE = "stable"              # Z-Score -0.75 to 0.75: Stable
-    FALLING = "falling"            # Z-Score < -0.75: Falling
+
+    RISING_FAST = "rising_fast"  # Z-Score > 1.5: Rising fast
+    RISING = "rising"  # Z-Score > 0.75: Rising
+    STABLE = "stable"  # Z-Score -0.75 to 0.75: Stable
+    FALLING = "falling"  # Z-Score < -0.75: Falling
     FALLING_FAST = "falling_fast"  # Z-Score < -1.5: Falling fast
 
 
 @dataclass
 class VixTrendInfo:
     """VIX trend information."""
+
     trend: VixTrend
     z_score: float
     current_vix: float
@@ -67,12 +81,13 @@ class MarketRegime(Enum):
     - ELEVATED (25-30):  88.6% Win Rate - Paradoxically good
     - HIGH_VOL (>30):    80.5% Win Rate - Crash mode
     """
-    LOW_VOL = "low_vol"           # VIX < 15
-    NORMAL = "normal"             # VIX 15-20 (Sweet Spot)
-    DANGER_ZONE = "danger_zone"   # VIX 20-25 (CRITICAL!)
-    ELEVATED = "elevated"         # VIX 25-30 (OK)
-    HIGH_VOL = "high_vol"         # VIX > 30
-    UNKNOWN = "unknown"           # No VIX data
+
+    LOW_VOL = "low_vol"  # VIX < 15
+    NORMAL = "normal"  # VIX 15-20 (Sweet Spot)
+    DANGER_ZONE = "danger_zone"  # VIX 20-25 (CRITICAL!)
+    ELEVATED = "elevated"  # VIX 25-30 (OK)
+    HIGH_VOL = "high_vol"  # VIX > 30
+    UNKNOWN = "unknown"  # No VIX data
 
 
 @dataclass
@@ -86,16 +101,18 @@ class VIXThresholds:
 
     Values from src/constants/thresholds.py
     """
-    low_vol_max: float = VIX_LOW           # < 15 = LOW_VOL
-    normal_max: float = VIX_NORMAL         # 15-20 = NORMAL (Sweet Spot)
+
+    low_vol_max: float = VIX_LOW  # < 15 = LOW_VOL
+    normal_max: float = VIX_NORMAL  # 15-20 = NORMAL (Sweet Spot)
     danger_zone_max: float = VIX_ELEVATED  # 20-25 = DANGER_ZONE (CRITICAL!)
-    elevated_max: float = VIX_HIGH         # 25-30 = ELEVATED (OK)
+    elevated_max: float = VIX_HIGH  # 25-30 = ELEVATED (OK)
     # Everything above elevated_max is HIGH_VOL
 
 
 @dataclass
 class StrategyRecommendation:
     """Strategy recommendation based on market conditions"""
+
     profile_name: str
     regime: MarketRegime
     vix_level: Optional[float]
@@ -117,20 +134,20 @@ class StrategyRecommendation:
 
     def to_dict(self) -> Dict[str, Any]:
         return {
-            'profile': self.profile_name,
-            'regime': self.regime.value,
-            'vix': self.vix_level,
-            'recommendations': {
-                'delta_target': self.delta_target,
-                'long_delta_target': self.long_delta_target,
-                'delta_range': [self.delta_min, self.delta_max],
-                'spread_width': self.spread_width if self.spread_width is not None else 'dynamic',
-                'min_score': self.min_score,
-                'earnings_buffer_days': self.earnings_buffer_days,
-                'dte_range': [self.dte_min, self.dte_max]
+            "profile": self.profile_name,
+            "regime": self.regime.value,
+            "vix": self.vix_level,
+            "recommendations": {
+                "delta_target": self.delta_target,
+                "long_delta_target": self.long_delta_target,
+                "delta_range": [self.delta_min, self.delta_max],
+                "spread_width": self.spread_width if self.spread_width is not None else "dynamic",
+                "min_score": self.min_score,
+                "earnings_buffer_days": self.earnings_buffer_days,
+                "dte_range": [self.dte_min, self.dte_max],
             },
-            'reasoning': self.reasoning,
-            'warnings': self.warnings
+            "reasoning": self.reasoning,
+            "warnings": self.warnings,
         }
 
 
@@ -151,60 +168,60 @@ class VIXStrategySelector:
     # Spread width is DYNAMIC — derived from delta-selected strikes (not fixed)
     # Earnings buffer: at least EARNINGS_MIN_DAYS
     PROFILES = {
-        'conservative': {
-            'delta_target': DELTA_TARGET,
-            'delta_range': (DELTA_MAX, DELTA_MIN),  # PLAYBOOK ±0.03
-            'min_score': 6,
-            'earnings_buffer_days': EARNINGS_MIN_DAYS,
-            'dte_min': DTE_MIN,
-            'dte_max': DTE_MAX
+        "conservative": {
+            "delta_target": DELTA_TARGET,
+            "delta_range": (DELTA_MAX, DELTA_MIN),  # PLAYBOOK ±0.03
+            "min_score": 6,
+            "earnings_buffer_days": EARNINGS_MIN_DAYS,
+            "dte_min": DTE_MIN,
+            "dte_max": DTE_MAX,
         },
-        'standard': {
-            'delta_target': DELTA_TARGET,
-            'delta_range': (DELTA_MAX, DELTA_MIN),
-            'min_score': 5,
-            'earnings_buffer_days': EARNINGS_MIN_DAYS,
-            'dte_min': DTE_MIN,
-            'dte_max': DTE_MAX
+        "standard": {
+            "delta_target": DELTA_TARGET,
+            "delta_range": (DELTA_MAX, DELTA_MIN),
+            "min_score": 5,
+            "earnings_buffer_days": EARNINGS_MIN_DAYS,
+            "dte_min": DTE_MIN,
+            "dte_max": DTE_MAX,
         },
-        'danger_zone': {
+        "danger_zone": {
             # VIX 20-25: "Danger Zone" with only 78.9% Win Rate
             # Stricter requirements, reduced position sizes
             # Delta ist heilig (PLAYBOOK §2) — no regime override
-            'delta_target': DELTA_TARGET,
-            'delta_range': (DELTA_MAX, DELTA_MIN),  # PLAYBOOK ±0.03 (same as all regimes)
-            'min_score': 7,                  # Higher quality required!
-            'earnings_buffer_days': EARNINGS_MIN_DAYS,
-            'dte_min': DTE_MIN,
-            'dte_max': DTE_MAX,
-            'position_size_factor': 0.75     # 25% reduced size
+            "delta_target": DELTA_TARGET,
+            "delta_range": (DELTA_MAX, DELTA_MIN),  # PLAYBOOK ±0.03 (same as all regimes)
+            "min_score": 7,  # Higher quality required!
+            "earnings_buffer_days": EARNINGS_MIN_DAYS,
+            "dte_min": DTE_MIN,
+            "dte_max": DTE_MAX,
+            "position_size_factor": 0.75,  # 25% reduced size
         },
-        'elevated': {
+        "elevated": {
             # VIX 25-30: Paradoxically good (88.6% Win Rate)
-            'delta_target': DELTA_TARGET,
-            'delta_range': (DELTA_MAX, DELTA_MIN),
-            'min_score': 5,
-            'earnings_buffer_days': EARNINGS_MIN_DAYS,
-            'dte_min': DTE_MIN,
-            'dte_max': DTE_MAX
+            "delta_target": DELTA_TARGET,
+            "delta_range": (DELTA_MAX, DELTA_MIN),
+            "min_score": 5,
+            "earnings_buffer_days": EARNINGS_MIN_DAYS,
+            "dte_min": DTE_MIN,
+            "dte_max": DTE_MAX,
         },
-        'high_volatility': {
-            'delta_target': DELTA_TARGET,
-            'delta_range': (DELTA_MAX, DELTA_MIN),
-            'min_score': 6,
-            'earnings_buffer_days': EARNINGS_MIN_DAYS,
-            'dte_min': DTE_MIN,
-            'dte_max': DTE_MAX,
-            'position_size_factor': 0.50     # 50% reduced size
-        }
+        "high_volatility": {
+            "delta_target": DELTA_TARGET,
+            "delta_range": (DELTA_MAX, DELTA_MIN),
+            "min_score": 6,
+            "earnings_buffer_days": EARNINGS_MIN_DAYS,
+            "dte_min": DTE_MIN,
+            "dte_max": DTE_MAX,
+            "position_size_factor": 0.50,  # 50% reduced size
+        },
     }
 
     # Trend thresholds for regime adjustment
     TREND_THRESHOLDS = {
-        'rising_fast': 1.5,   # Z-Score > 1.5: Rising fast
-        'rising': 0.75,       # Z-Score > 0.75: Rising
-        'falling': -0.75,     # Z-Score < -0.75: Falling
-        'falling_fast': -1.5, # Z-Score < -1.5: Falling fast
+        "rising_fast": 1.5,  # Z-Score > 1.5: Rising fast
+        "rising": 0.75,  # Z-Score > 0.75: Rising
+        "falling": -0.75,  # Z-Score < -0.75: Falling
+        "falling_fast": -1.5,  # Z-Score < -1.5: Falling fast
     }
 
     def __init__(self, thresholds: Optional[VIXThresholds] = None) -> None:
@@ -228,13 +245,16 @@ class VIXStrategySelector:
         cache_ttl = 300
         now = time.time()
 
-        if (self._vix_history_cache is not None and
-            self._cache_timestamp is not None and
-            now - self._cache_timestamp < cache_ttl):
+        if (
+            self._vix_history_cache is not None
+            and self._cache_timestamp is not None
+            and now - self._cache_timestamp < cache_ttl
+        ):
             return self._vix_history_cache
 
         try:
             from ..cache.vix_cache import get_vix_manager
+
             manager = get_vix_manager()
             history = manager.get_vix_history(days=days)
 
@@ -275,7 +295,7 @@ class VIXStrategySelector:
                 current_vix=fallback_vix,
                 mean_5d=fallback_vix,
                 std_5d=0.0,
-                history_available=False
+                history_available=False,
             )
 
         import statistics
@@ -296,13 +316,13 @@ class VIXStrategySelector:
         z_score = (current_vix - mean_5d) / std_5d
 
         # Determine trend
-        if z_score > self.TREND_THRESHOLDS['rising_fast']:
+        if z_score > self.TREND_THRESHOLDS["rising_fast"]:
             trend = VixTrend.RISING_FAST
-        elif z_score > self.TREND_THRESHOLDS['rising']:
+        elif z_score > self.TREND_THRESHOLDS["rising"]:
             trend = VixTrend.RISING
-        elif z_score < self.TREND_THRESHOLDS['falling_fast']:
+        elif z_score < self.TREND_THRESHOLDS["falling_fast"]:
             trend = VixTrend.FALLING_FAST
-        elif z_score < self.TREND_THRESHOLDS['falling']:
+        elif z_score < self.TREND_THRESHOLDS["falling"]:
             trend = VixTrend.FALLING
         else:
             trend = VixTrend.STABLE
@@ -313,7 +333,7 @@ class VIXStrategySelector:
             current_vix=current_vix,
             mean_5d=round(mean_5d, 2),
             std_5d=round(std_5d, 2),
-            history_available=True
+            history_available=True,
         )
 
     def get_regime(self, vix: Optional[float], use_trend: bool = True) -> MarketRegime:
@@ -408,9 +428,7 @@ class VIXStrategySelector:
             return MarketRegime.HIGH_VOL
 
     def _adjust_regime_for_trend(
-        self,
-        base_regime: MarketRegime,
-        trend_info: VixTrendInfo
+        self, base_regime: MarketRegime, trend_info: VixTrendInfo
     ) -> MarketRegime:
         """
         Adjusts the regime based on VIX trend.
@@ -511,7 +529,9 @@ class VIXStrategySelector:
 
         return False
 
-    def get_regime_with_trend(self, vix: Optional[float]) -> Tuple[MarketRegime, Optional[VixTrendInfo]]:
+    def get_regime_with_trend(
+        self, vix: Optional[float]
+    ) -> Tuple[MarketRegime, Optional[VixTrendInfo]]:
         """
         Returns regime and trend info together.
 
@@ -528,22 +548,22 @@ class VIXStrategySelector:
         regime = self.get_regime(vix, use_trend=True)
 
         return regime, trend_info
-    
+
     def select_profile(self, vix: Optional[float]) -> str:
         """Selects the optimal profile based on VIX (5-tier system)"""
         regime = self.get_regime(vix)
 
         profile_mapping = {
-            MarketRegime.LOW_VOL: 'conservative',
-            MarketRegime.NORMAL: 'standard',
-            MarketRegime.DANGER_ZONE: 'danger_zone',   # VIX 20-25: CAUTION!
-            MarketRegime.ELEVATED: 'elevated',          # VIX 25-30: OK
-            MarketRegime.HIGH_VOL: 'high_volatility',
-            MarketRegime.UNKNOWN: 'standard'            # Fallback
+            MarketRegime.LOW_VOL: "conservative",
+            MarketRegime.NORMAL: "standard",
+            MarketRegime.DANGER_ZONE: "danger_zone",  # VIX 20-25: CAUTION!
+            MarketRegime.ELEVATED: "elevated",  # VIX 25-30: OK
+            MarketRegime.HIGH_VOL: "high_volatility",
+            MarketRegime.UNKNOWN: "standard",  # Fallback
         }
 
         return profile_mapping[regime]
-    
+
     def get_recommendation(self, vix: Optional[float]) -> StrategyRecommendation:
         """
         Returns complete strategy recommendation.
@@ -615,7 +635,9 @@ class VIXStrategySelector:
             )
             warnings.append("VIX not available - manual market check recommended")
 
-        delta_range = profile.get('delta_range', (profile['delta_target'] - 0.05, profile['delta_target'] + 0.05))
+        delta_range = profile.get(
+            "delta_range", (profile["delta_target"] - 0.05, profile["delta_target"] + 0.05)
+        )
 
         logger.info(
             f"VIX strategy: vix={vix if vix is not None else 'N/A'}, "
@@ -627,19 +649,19 @@ class VIXStrategySelector:
             profile_name=profile_name,
             regime=regime,
             vix_level=vix,
-            delta_target=profile['delta_target'],
+            delta_target=profile["delta_target"],
             delta_min=delta_range[0],
             delta_max=delta_range[1],
             long_delta_target=DELTA_LONG_TARGET,  # -0.05 (PLAYBOOK §2)
             spread_width=None,  # Dynamic: determined by delta-based strike selection
-            min_score=profile['min_score'],
-            earnings_buffer_days=profile['earnings_buffer_days'],
-            dte_min=profile.get('dte_min', DTE_MIN),
-            dte_max=profile.get('dte_max', DTE_MAX),
+            min_score=profile["min_score"],
+            earnings_buffer_days=profile["earnings_buffer_days"],
+            dte_min=profile.get("dte_min", DTE_MIN),
+            dte_max=profile.get("dte_max", DTE_MAX),
             reasoning=reasoning,
-            warnings=warnings
+            warnings=warnings,
         )
-    
+
     def get_all_profiles(self) -> Dict[str, Dict]:
         """Returns all available profiles"""
         return self.PROFILES.copy()
@@ -652,7 +674,7 @@ class VIXStrategySelector:
             MarketRegime.DANGER_ZONE: "DANGER ZONE (VIX 20-25) - Only 78.9% WR!",
             MarketRegime.ELEVATED: "Elevated Volatility (VIX 25-30) - 88.6% WR",
             MarketRegime.HIGH_VOL: "High Volatility (VIX > 30) - 80.5% WR",
-            MarketRegime.UNKNOWN: "Unknown (no VIX data)"
+            MarketRegime.UNKNOWN: "Unknown (no VIX data)",
         }
         return descriptions.get(regime, "Unknown")
 
@@ -661,6 +683,7 @@ class VIXStrategySelector:
 # =============================================================================
 # HELPER FUNCTIONS
 # =============================================================================
+
 
 def get_strategy_for_vix(vix: Optional[float]) -> StrategyRecommendation:
     """
@@ -675,10 +698,7 @@ def get_strategy_for_vix(vix: Optional[float]) -> StrategyRecommendation:
     return selector.get_recommendation(vix)
 
 
-def get_strategy_for_stock(
-    vix: Optional[float],
-    stock_price: float
-) -> StrategyRecommendation:
+def get_strategy_for_stock(vix: Optional[float], stock_price: float) -> StrategyRecommendation:
     """
     Strategy recommendation for a stock based on VIX regime.
 
@@ -712,7 +732,11 @@ def format_recommendation(rec: StrategyRecommendation) -> str:
         f"  Delta Target: {rec.delta_target}",
         f"  Delta Range:  [{rec.delta_min}, {rec.delta_max}]",
         f"  DTE:          {rec.dte_min}-{rec.dte_max} days",
-        f"  Spread Width: ${rec.spread_width:.2f}" if rec.spread_width is not None else "  Spread Width: Dynamic (delta-based)",
+        (
+            f"  Spread Width: ${rec.spread_width:.2f}"
+            if rec.spread_width is not None
+            else "  Spread Width: Dynamic (delta-based)"
+        ),
         f"  Min Score:    {rec.min_score}",
         f"  Earnings:     >{rec.earnings_buffer_days} days",
         f"───────────────────────────────────────────────────────────",

@@ -14,25 +14,22 @@ This module re-exports everything so existing imports continue to work:
 """
 
 from dataclasses import dataclass
-from typing import Optional, Dict, List, Any
+from typing import Any, Dict, List, Optional
 
-from ..constants.trading_rules import SPREAD_DTE_MIN, SPREAD_DTE_MAX
+from ..constants.trading_rules import SPREAD_DTE_MAX, SPREAD_DTE_MIN
 
 # Re-export all public names from the ibkr package
-from . import (
-    # Data classes
+from . import (  # Data classes; Connection utilities; Sub-module classes
+    IBKR_REVERSE_MAP,
+    IBKR_SYMBOL_MAP,
+    IBKRConnection,
+    IBKRMarketData,
     IBKRNews,
+    IBKRPortfolio,
     MaxPainData,
     StrikeRecommendation,
-    # Connection utilities
-    IBKRConnection,
-    IBKR_SYMBOL_MAP,
-    IBKR_REVERSE_MAP,
-    to_ibkr_symbol,
     from_ibkr_symbol,
-    # Sub-module classes
-    IBKRPortfolio,
-    IBKRMarketData,
+    to_ibkr_symbol,
 )
 
 
@@ -58,6 +55,7 @@ class IBKRBridge:
     @dataclass
     class QuoteData:
         """Quote data for a symbol."""
+
         symbol: str
         last: Optional[float] = None
         bid: Optional[float] = None
@@ -141,18 +139,11 @@ class IBKRBridge:
     # ------------------------------------------------------------------
 
     async def get_news(
-        self,
-        symbols: List[str],
-        days: int = 5,
-        max_per_symbol: int = 5
+        self, symbols: List[str], days: int = 5, max_per_symbol: int = 5
     ) -> List[IBKRNews]:
         return await self._market_data.get_news(symbols, days, max_per_symbol)
 
-    async def get_news_formatted(
-        self,
-        symbols: List[str],
-        days: int = 5
-    ) -> str:
+    async def get_news_formatted(self, symbols: List[str], days: int = 5) -> str:
         return await self._market_data.get_news_formatted(symbols, days)
 
     # ------------------------------------------------------------------
@@ -170,9 +161,7 @@ class IBKRBridge:
     # ------------------------------------------------------------------
 
     async def get_max_pain(
-        self,
-        symbols: List[str],
-        expiry: Optional[str] = None
+        self, symbols: List[str], expiry: Optional[str] = None
     ) -> List[MaxPainData]:
         return await self._market_data.get_max_pain(symbols, expiry)
 
@@ -208,17 +197,14 @@ class IBKRBridge:
         batch_size: int = 50,
         pause_seconds: int = 60,
         callback: Optional[callable] = None,
-        include_outside_rth: bool = True
+        include_outside_rth: bool = True,
     ) -> List[Dict[str, Any]]:
         return await self._market_data.get_quotes_batch(
             symbols, batch_size, pause_seconds, callback, include_outside_rth
         )
 
     async def get_quotes_batch_formatted(
-        self,
-        symbols: List[str],
-        batch_size: int = 50,
-        pause_seconds: int = 60
+        self, symbols: List[str], batch_size: int = 50, pause_seconds: int = 60
     ) -> str:
         return await self._market_data.get_quotes_batch_formatted(
             symbols, batch_size, pause_seconds
@@ -235,9 +221,7 @@ class IBKRBridge:
         dte_max: int = SPREAD_DTE_MAX,
         right: str = "P",
     ) -> list:
-        return await self._market_data.get_option_chain(
-            symbol, dte_min, dte_max, right
-        )
+        return await self._market_data.get_option_chain(symbol, dte_min, dte_max, right)
 
 
 # =============================================================================

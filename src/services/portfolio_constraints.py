@@ -35,18 +35,18 @@ Created: 2026-02-01
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from collections.abc import Callable
-from typing import Optional, Any
 import logging
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from typing import Any, Optional
 
 from ..constants.trading_rules import (
     BLACKLIST_SYMBOLS,
     ENTRY_STABILITY_MIN,
     EXIT_PROFIT_PCT_NORMAL,
+    VIXRegimeRules,
     get_regime_rules,
     get_vix_regime,
-    VIXRegimeRules,
 )
 
 logger = logging.getLogger(__name__)
@@ -59,17 +59,18 @@ class PortfolioConstraints:
 
     Alle Limits sind konfigurierbar und können überschrieben werden.
     """
+
     # Position Limits
-    max_positions: int = 5          # Max. offene Positionen
-    max_per_sector: int = 2          # Max. Positionen pro Sektor
+    max_positions: int = 5  # Max. offene Positionen
+    max_per_sector: int = 2  # Max. Positionen pro Sektor
 
     # Risk Limits (USD)
-    max_daily_risk_usd: float = 1500.0   # Max. Risiko pro Tag
+    max_daily_risk_usd: float = 1500.0  # Max. Risiko pro Tag
     max_weekly_risk_usd: float = 5000.0  # Max. Risiko pro Woche
     max_position_size_usd: float = 2000.0  # Max. Risiko pro Position
 
     # Diversification
-    max_correlation: float = 0.70    # Warnung bei höherer Korrelation
+    max_correlation: float = 0.70  # Warnung bei höherer Korrelation
     min_cash_reserve_pct: float = 0.20  # Min. 20% Cash-Reserve
 
     # Sector-spezifische Limits (optional)
@@ -82,10 +83,11 @@ class PortfolioConstraints:
 @dataclass
 class ConstraintResult:
     """Ergebnis einer Constraint-Prüfung."""
+
     allowed: bool
-    blockers: list[str]        # Harte Blocker (Position darf nicht geöffnet werden)
-    warnings: list[str]        # Warnungen (Position erlaubt, aber Vorsicht)
-    details: dict[str, Any]    # Zusätzliche Details
+    blockers: list[str]  # Harte Blocker (Position darf nicht geöffnet werden)
+    warnings: list[str]  # Warnungen (Position erlaubt, aber Vorsicht)
+    details: dict[str, Any]  # Zusätzliche Details
 
     @property
     def messages(self) -> list[str]:
@@ -168,6 +170,7 @@ class PortfolioConstraintChecker:
         if self._fundamentals_manager is None:
             try:
                 from ..cache import get_fundamentals_manager
+
                 self._fundamentals_manager = get_fundamentals_manager()
             except ImportError:
                 logger.warning("Fundamentals manager not available")
@@ -201,7 +204,7 @@ class PortfolioConstraintChecker:
             symbol=symbol,
             max_risk=max_risk,
             open_positions=open_positions,
-            account_value=account_value
+            account_value=account_value,
         )
         return result.allowed, result.messages
 
@@ -238,44 +241,42 @@ class PortfolioConstraintChecker:
         regime = limits.get("regime", "UNKNOWN")
 
         details: dict[str, Any] = {
-            'symbol': symbol,
-            'max_risk': max_risk,
-            'current_positions': len(open_positions),
-            'vix_regime': regime,
-            'max_positions': max_positions,
-            'max_per_sector': max_per_sector,
+            "symbol": symbol,
+            "max_risk": max_risk,
+            "current_positions": len(open_positions),
+            "vix_regime": regime,
+            "max_positions": max_positions,
+            "max_per_sector": max_per_sector,
         }
 
         # 0. VIX Regime: No new trades allowed?
         if not limits["new_trades_allowed"]:
-            blockers.append(
-                f"🚫 VIX-Regime {regime}: Keine neuen Trades erlaubt"
-            )
-            details['new_trades_blocked'] = True
+            blockers.append(f"🚫 VIX-Regime {regime}: Keine neuen Trades erlaubt")
+            details["new_trades_blocked"] = True
 
         # 1. Blacklist Check
         if self._check_blacklist(symbol):
             blockers.append(f"🚫 {symbol} ist auf der Blacklist (hohes Risiko)")
-            details['blacklisted'] = True
+            details["blacklisted"] = True
 
         # 2. Position Limit Check (VIX-adjusted)
         pos_result = self._check_position_limit(open_positions, max_positions)
         if not pos_result[0]:
             blockers.append(pos_result[1])
-            details['position_limit_reached'] = True
+            details["position_limit_reached"] = True
 
         # 3. Sector Limit Check (VIX-adjusted)
         sector_result = self._check_sector_limit(symbol, open_positions, max_per_sector)
         if not sector_result[0]:
             blockers.append(sector_result[1])
-            details['sector'] = sector_result[2]
-            details['sector_count'] = sector_result[3]
+            details["sector"] = sector_result[2]
+            details["sector_count"] = sector_result[3]
 
         # 4. Daily Risk Check
         daily_result = self._check_daily_risk(max_risk)
         if not daily_result[0]:
             blockers.append(daily_result[1])
-            details['daily_risk_used'] = self._daily_risk_used
+            details["daily_risk_used"] = self._daily_risk_used
 
         # 5. Position Size Check
         if max_risk > self.constraints.max_position_size_usd:
@@ -292,9 +293,7 @@ class PortfolioConstraintChecker:
         sector_count = self._count_sector_positions(symbol, open_positions)
         if sector_count >= 1 and sector_count < max_per_sector:
             sector = self._get_sector(symbol)
-            warnings.append(
-                f"⚠️ Bereits {sector_count} Position(en) im Sektor {sector}"
-            )
+            warnings.append(f"⚠️ Bereits {sector_count} Position(en) im Sektor {sector}")
 
         # 8. Weekly Risk Warning
         if self._weekly_risk_used + max_risk > self.constraints.max_weekly_risk_usd * 0.8:
@@ -305,13 +304,10 @@ class PortfolioConstraintChecker:
             )
 
         allowed = len(blockers) == 0
-        details['allowed'] = allowed
+        details["allowed"] = allowed
 
         return ConstraintResult(
-            allowed=allowed,
-            blockers=blockers,
-            warnings=warnings,
-            details=details
+            allowed=allowed, blockers=blockers, warnings=warnings, details=details
         )
 
     def _check_blacklist(self, symbol: str) -> bool:
@@ -348,7 +344,9 @@ class PortfolioConstraintChecker:
         count = self._count_sector_positions(symbol, open_positions)
 
         # Base limit: VIX-adjusted or static default
-        base_limit = max_per_sector if max_per_sector is not None else self.constraints.max_per_sector
+        base_limit = (
+            max_per_sector if max_per_sector is not None else self.constraints.max_per_sector
+        )
 
         # Sector-specific override: use the stricter (lower) of both
         sector_specific = self.constraints.sector_limits.get(sector)
@@ -362,7 +360,7 @@ class PortfolioConstraintChecker:
                 False,
                 f"🚫 Sektor-Limit erreicht: {count}/{sector_limit} in {sector}",
                 sector,
-                count
+                count,
             )
 
         return True, "", sector, count
@@ -377,16 +375,12 @@ class PortfolioConstraintChecker:
             return (
                 False,
                 f"🚫 Tages-Budget überschritten: "
-                f"${remaining:.0f} verbleibend, ${max_risk:.0f} benötigt"
+                f"${remaining:.0f} verbleibend, ${max_risk:.0f} benötigt",
             )
 
         return True, ""
 
-    def _check_correlations(
-        self,
-        symbol: str,
-        open_positions: list[dict[str, Any]]
-    ) -> list[str]:
+    def _check_correlations(self, symbol: str, open_positions: list[dict[str, Any]]) -> list[str]:
         """
         Prüft Korrelationen mit bestehenden Positionen.
 
@@ -397,15 +391,13 @@ class PortfolioConstraintChecker:
         max_corr = self.constraints.max_correlation
 
         for pos in open_positions:
-            pos_symbol = pos.get('symbol', '')
+            pos_symbol = pos.get("symbol", "")
             if not pos_symbol or pos_symbol == symbol:
                 continue
 
             corr = self._get_correlation(symbol, pos_symbol)
             if corr and corr > max_corr:
-                warnings.append(
-                    f"⚠️ Hohe Korrelation ({corr:.2f}) mit {pos_symbol}"
-                )
+                warnings.append(f"⚠️ Hohe Korrelation ({corr:.2f}) mit {pos_symbol}")
 
         return warnings
 
@@ -421,11 +413,7 @@ class PortfolioConstraintChecker:
             logger.debug(f"Error getting sector for {symbol}: {e}")
             return "Unknown"
 
-    def _count_sector_positions(
-        self,
-        symbol: str,
-        open_positions: list[dict[str, Any]]
-    ) -> int:
+    def _count_sector_positions(self, symbol: str, open_positions: list[dict[str, Any]]) -> int:
         """Zählt offene Positionen im gleichen Sektor."""
         target_sector = self._get_sector(symbol)
 
@@ -434,7 +422,7 @@ class PortfolioConstraintChecker:
 
         count = 0
         for pos in open_positions:
-            pos_symbol = pos.get('symbol', '')
+            pos_symbol = pos.get("symbol", "")
             if not pos_symbol:
                 continue
 
@@ -510,21 +498,21 @@ class PortfolioConstraintChecker:
     def get_status(self) -> dict[str, Any]:
         """Gibt aktuellen Constraint-Status zurück."""
         return {
-            'constraints': {
-                'max_positions': self.constraints.max_positions,
-                'max_per_sector': self.constraints.max_per_sector,
-                'max_daily_risk_usd': self.constraints.max_daily_risk_usd,
-                'max_weekly_risk_usd': self.constraints.max_weekly_risk_usd,
-                'max_position_size_usd': self.constraints.max_position_size_usd,
-                'max_correlation': self.constraints.max_correlation,
-                'symbol_blacklist': self.constraints.symbol_blacklist,
+            "constraints": {
+                "max_positions": self.constraints.max_positions,
+                "max_per_sector": self.constraints.max_per_sector,
+                "max_daily_risk_usd": self.constraints.max_daily_risk_usd,
+                "max_weekly_risk_usd": self.constraints.max_weekly_risk_usd,
+                "max_position_size_usd": self.constraints.max_position_size_usd,
+                "max_correlation": self.constraints.max_correlation,
+                "symbol_blacklist": self.constraints.symbol_blacklist,
             },
-            'current': {
-                'daily_risk_used': self._daily_risk_used,
-                'weekly_risk_used': self._weekly_risk_used,
-                'daily_remaining': self.constraints.max_daily_risk_usd - self._daily_risk_used,
-                'weekly_remaining': self.constraints.max_weekly_risk_usd - self._weekly_risk_used,
-            }
+            "current": {
+                "daily_risk_used": self._daily_risk_used,
+                "weekly_risk_used": self._weekly_risk_used,
+                "daily_remaining": self.constraints.max_daily_risk_usd - self._daily_risk_used,
+                "weekly_remaining": self.constraints.max_weekly_risk_usd - self._weekly_risk_used,
+            },
         }
 
 
@@ -533,7 +521,7 @@ _constraint_checker: Optional[PortfolioConstraintChecker] = None
 
 
 def get_constraint_checker(
-    constraints: Optional[PortfolioConstraints] = None
+    constraints: Optional[PortfolioConstraints] = None,
 ) -> PortfolioConstraintChecker:
     """
     Gibt Singleton PortfolioConstraintChecker zurück.

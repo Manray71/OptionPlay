@@ -42,8 +42,8 @@ class PortfolioHandler(BaseHandler):
 
     def portfolio_summary(self) -> str:
         """Get portfolio summary with P&L statistics."""
-        from ..portfolio import get_portfolio_manager
         from ..formatters import portfolio_formatter
+        from ..portfolio import get_portfolio_manager
 
         portfolio = get_portfolio_manager()
         summary = portfolio.get_summary()
@@ -59,8 +59,8 @@ class PortfolioHandler(BaseHandler):
         Returns:
             Formatted positions table
         """
-        from ..portfolio import get_portfolio_manager
         from ..formatters import portfolio_formatter
+        from ..portfolio import get_portfolio_manager
 
         portfolio = get_portfolio_manager()
 
@@ -86,8 +86,8 @@ class PortfolioHandler(BaseHandler):
         Returns:
             Formatted position details
         """
-        from ..portfolio import get_portfolio_manager
         from ..formatters import portfolio_formatter
+        from ..portfolio import get_portfolio_manager
 
         portfolio = get_portfolio_manager()
         position = portfolio.get_position(position_id)
@@ -124,10 +124,10 @@ class PortfolioHandler(BaseHandler):
         Returns:
             Confirmation message
         """
-        from ..utils.validation import validate_symbol
-        from ..utils.markdown_builder import MarkdownBuilder
         from ..portfolio import get_portfolio_manager
         from ..services.portfolio_constraints import get_constraint_checker
+        from ..utils.markdown_builder import MarkdownBuilder
+        from ..utils.validation import validate_symbol
 
         symbol = validate_symbol(symbol)
         portfolio = get_portfolio_manager()
@@ -136,16 +136,11 @@ class PortfolioHandler(BaseHandler):
         max_risk = spread_width * 100 * contracts
 
         if not skip_constraints:
-            open_positions = [
-                {"symbol": p.symbol}
-                for p in portfolio.get_open_positions()
-            ]
+            open_positions = [{"symbol": p.symbol} for p in portfolio.get_open_positions()]
 
             checker = get_constraint_checker()
             result = checker.check_all_constraints(
-                symbol=symbol,
-                max_risk=max_risk,
-                open_positions=open_positions
+                symbol=symbol, max_risk=max_risk, open_positions=open_positions
             )
 
             b = MarkdownBuilder()
@@ -205,8 +200,8 @@ class PortfolioHandler(BaseHandler):
         Returns:
             Confirmation with P&L
         """
-        from ..utils.markdown_builder import MarkdownBuilder
         from ..portfolio import get_portfolio_manager
+        from ..utils.markdown_builder import MarkdownBuilder
 
         portfolio = get_portfolio_manager()
 
@@ -234,8 +229,8 @@ class PortfolioHandler(BaseHandler):
         Returns:
             Confirmation with profit
         """
-        from ..utils.markdown_builder import MarkdownBuilder
         from ..portfolio import get_portfolio_manager
+        from ..utils.markdown_builder import MarkdownBuilder
 
         portfolio = get_portfolio_manager()
 
@@ -261,8 +256,8 @@ class PortfolioHandler(BaseHandler):
         Returns:
             Formatted list of expiring positions
         """
-        from ..portfolio import get_portfolio_manager
         from ..formatters import portfolio_formatter
+        from ..portfolio import get_portfolio_manager
 
         portfolio = get_portfolio_manager()
         positions = portfolio.get_expiring_soon(days)
@@ -278,8 +273,8 @@ class PortfolioHandler(BaseHandler):
         Returns:
             Formatted trade history
         """
-        from ..portfolio import get_portfolio_manager
         from ..formatters import portfolio_formatter
+        from ..portfolio import get_portfolio_manager
 
         portfolio = get_portfolio_manager()
         trades = portfolio.get_trades()
@@ -287,8 +282,8 @@ class PortfolioHandler(BaseHandler):
 
     def portfolio_pnl_symbols(self) -> str:
         """Show realized P&L grouped by symbol."""
-        from ..portfolio import get_portfolio_manager
         from ..formatters import portfolio_formatter
+        from ..portfolio import get_portfolio_manager
 
         portfolio = get_portfolio_manager()
         pnl = portfolio.get_pnl_by_symbol()
@@ -296,8 +291,8 @@ class PortfolioHandler(BaseHandler):
 
     def portfolio_pnl_monthly(self) -> str:
         """Show monthly P&L report."""
-        from ..portfolio import get_portfolio_manager
         from ..formatters import portfolio_formatter
+        from ..portfolio import get_portfolio_manager
 
         portfolio = get_portfolio_manager()
         pnl = portfolio.get_monthly_pnl()
@@ -318,24 +313,19 @@ class PortfolioHandler(BaseHandler):
         Returns:
             Constraint check result
         """
-        from ..utils.validation import validate_symbol
-        from ..utils.markdown_builder import MarkdownBuilder
         from ..portfolio import get_portfolio_manager
         from ..services.portfolio_constraints import get_constraint_checker
+        from ..utils.markdown_builder import MarkdownBuilder
+        from ..utils.validation import validate_symbol
 
         symbol = validate_symbol(symbol)
         portfolio = get_portfolio_manager()
 
-        open_positions = [
-            {"symbol": p.symbol}
-            for p in portfolio.get_open_positions()
-        ]
+        open_positions = [{"symbol": p.symbol} for p in portfolio.get_open_positions()]
 
         checker = get_constraint_checker()
         result = checker.check_all_constraints(
-            symbol=symbol,
-            max_risk=max_risk,
-            open_positions=open_positions
+            symbol=symbol, max_risk=max_risk, open_positions=open_positions
         )
 
         b = MarkdownBuilder()
@@ -361,8 +351,8 @@ class PortfolioHandler(BaseHandler):
 
         b.blank().h2("Constraint Status")
         status = checker.get_status()
-        b.kv("Max Positions", status['constraints']['max_positions'])
-        b.kv("Max per Sector", status['constraints']['max_per_sector'])
+        b.kv("Max Positions", status["constraints"]["max_positions"])
+        b.kv("Max per Sector", status["constraints"]["max_per_sector"])
         b.kv("Daily Risk Used", f"${status['current']['daily_risk_used']:.0f}")
         b.kv("Daily Remaining", f"${status['current']['daily_remaining']:.0f}")
 
@@ -370,8 +360,8 @@ class PortfolioHandler(BaseHandler):
 
     def portfolio_constraints(self) -> str:
         """Show current constraint configuration and status."""
-        from ..utils.markdown_builder import MarkdownBuilder
         from ..services.portfolio_constraints import get_constraint_checker
+        from ..utils.markdown_builder import MarkdownBuilder
 
         checker = get_constraint_checker()
         status = checker.get_status()
@@ -380,15 +370,15 @@ class PortfolioHandler(BaseHandler):
         b.h1("Portfolio Constraints").blank()
 
         b.h2("Configuration")
-        for key, value in status['constraints'].items():
-            if key == 'symbol_blacklist':
+        for key, value in status["constraints"].items():
+            if key == "symbol_blacklist":
                 b.kv("Blacklist", ", ".join(value[:5]) + ("..." if len(value) > 5 else ""))
-            elif 'usd' in key or 'size' in key:
-                b.kv(key.replace('_', ' ').title(), f"${value:,.0f}")
-            elif 'pct' in key or 'correlation' in key:
-                b.kv(key.replace('_', ' ').title(), f"{value:.0%}")
+            elif "usd" in key or "size" in key:
+                b.kv(key.replace("_", " ").title(), f"${value:,.0f}")
+            elif "pct" in key or "correlation" in key:
+                b.kv(key.replace("_", " ").title(), f"{value:.0%}")
             else:
-                b.kv(key.replace('_', ' ').title(), value)
+                b.kv(key.replace("_", " ").title(), value)
 
         b.blank().h2("Current Status")
         b.kv("Daily Risk Used", f"${status['current']['daily_risk_used']:,.0f}")

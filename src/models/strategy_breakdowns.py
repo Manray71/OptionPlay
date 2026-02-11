@@ -11,6 +11,7 @@ from typing import Any, Optional
 @dataclass
 class BounceScoreBreakdown:
     """Detaillierte Aufschlüsselung des Bounce-Scores"""
+
     # Support-Test Score (0-3)
     support_score: float = 0
     support_level: Optional[float] = None
@@ -95,90 +96,91 @@ class BounceScoreBreakdown:
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            'total_score': self.total_score,
-            'max_possible': self.max_possible,
-            'qualified': self.total_score >= 3.5,
-            'components': {
-                'support': {
-                    'score': self.support_score,
-                    'level': self.support_level,
-                    'distance_pct': round(self.support_distance_pct, 2),
-                    'strength': self.support_strength,
-                    'touches': self.support_touches,
-                    'reason': self.support_reason
+            "total_score": self.total_score,
+            "max_possible": self.max_possible,
+            "qualified": self.total_score >= 3.5,
+            "components": {
+                "support": {
+                    "score": self.support_score,
+                    "level": self.support_level,
+                    "distance_pct": round(self.support_distance_pct, 2),
+                    "strength": self.support_strength,
+                    "touches": self.support_touches,
+                    "reason": self.support_reason,
                 },
-                'rsi': {
-                    'score': self.rsi_score,
-                    'value': round(self.rsi_value, 2),
-                    'reason': self.rsi_reason
+                "rsi": {
+                    "score": self.rsi_score,
+                    "value": round(self.rsi_value, 2),
+                    "reason": self.rsi_reason,
                 },
-                'rsi_divergence': {
-                    'score': self.rsi_divergence_score,
-                    'type': self.rsi_divergence_type,
-                    'strength': round(self.rsi_divergence_strength, 3),
-                    'formation_days': self.rsi_divergence_formation_days,
-                    'reason': self.rsi_divergence_reason
+                "rsi_divergence": {
+                    "score": self.rsi_divergence_score,
+                    "type": self.rsi_divergence_type,
+                    "strength": round(self.rsi_divergence_strength, 3),
+                    "formation_days": self.rsi_divergence_formation_days,
+                    "reason": self.rsi_divergence_reason,
                 },
-                'candlestick': {
-                    'score': self.candlestick_score,
-                    'pattern': self.candlestick_pattern,
-                    'bullish': self.candlestick_bullish,
-                    'reason': self.candlestick_reason
+                "candlestick": {
+                    "score": self.candlestick_score,
+                    "pattern": self.candlestick_pattern,
+                    "bullish": self.candlestick_bullish,
+                    "reason": self.candlestick_reason,
                 },
-                'volume': {
-                    'score': self.volume_score,
-                    'ratio': round(self.volume_ratio, 2),
-                    'trend': self.volume_trend,
-                    'reason': self.volume_reason
+                "volume": {
+                    "score": self.volume_score,
+                    "ratio": round(self.volume_ratio, 2),
+                    "trend": self.volume_trend,
+                    "reason": self.volume_reason,
                 },
-                'trend': {
-                    'score': self.trend_score,
-                    'status': self.trend_status,
-                    'reason': self.trend_reason
+                "trend": {
+                    "score": self.trend_score,
+                    "status": self.trend_status,
+                    "reason": self.trend_reason,
                 },
-                'macd': {
-                    'score': self.macd_score,
-                    'signal': self.macd_signal,
-                    'histogram': round(self.macd_histogram, 4),
-                    'reason': self.macd_reason
+                "macd": {
+                    "score": self.macd_score,
+                    "signal": self.macd_signal,
+                    "histogram": round(self.macd_histogram, 4),
+                    "reason": self.macd_reason,
                 },
-                'stochastic': {
-                    'score': self.stoch_score,
-                    'signal': self.stoch_signal,
-                    'k': round(self.stoch_k, 2),
-                    'd': round(self.stoch_d, 2),
-                    'reason': self.stoch_reason
+                "stochastic": {
+                    "score": self.stoch_score,
+                    "signal": self.stoch_signal,
+                    "k": round(self.stoch_k, 2),
+                    "d": round(self.stoch_d, 2),
+                    "reason": self.stoch_reason,
                 },
-                'keltner': {
-                    'score': self.keltner_score,
-                    'position': self.keltner_position,
-                    'percent': round(self.keltner_percent, 3),
-                    'reason': self.keltner_reason
+                "keltner": {
+                    "score": self.keltner_score,
+                    "position": self.keltner_position,
+                    "percent": round(self.keltner_percent, 3),
+                    "reason": self.keltner_reason,
                 },
-                'vwap': {
-                    'score': self.vwap_score,
-                    'value': round(self.vwap_value, 2),
-                    'distance_pct': round(self.vwap_distance_pct, 2),
-                    'position': self.vwap_position,
-                    'reason': self.vwap_reason
+                "vwap": {
+                    "score": self.vwap_score,
+                    "value": round(self.vwap_value, 2),
+                    "distance_pct": round(self.vwap_distance_pct, 2),
+                    "position": self.vwap_position,
+                    "reason": self.vwap_reason,
                 },
-                'market_context': {
-                    'score': self.market_context_score,
-                    'spy_trend': self.spy_trend,
-                    'reason': self.market_context_reason
+                "market_context": {
+                    "score": self.market_context_score,
+                    "spy_trend": self.spy_trend,
+                    "reason": self.market_context_reason,
                 },
-                'sector': {
-                    'score': self.sector_score,
-                    'name': self.sector,
-                    'reason': self.sector_reason
-                }
-            }
+                "sector": {
+                    "score": self.sector_score,
+                    "name": self.sector,
+                    "reason": self.sector_reason,
+                },
+            },
         }
 
 
 @dataclass
 class ATHBreakoutScoreBreakdown:
     """Detaillierte Aufschlüsselung des ATH-Breakout-Scores (v2 — 4-Component)"""
+
     # Consolidation Quality (0-2.5) — stored in ath_score for compat
     ath_score: float = 0
     ath_old: float = 0
@@ -237,41 +239,42 @@ class ATHBreakoutScoreBreakdown:
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            'total_score': self.total_score,
-            'max_possible': self.max_possible,
-            'qualified': self.total_score >= 4.0,
-            'components': {
-                'ath_breakout': {
-                    'score': self.ath_score,
-                    'old_ath': round(self.ath_old, 2),
-                    'current_high': round(self.ath_current, 2),
-                    'pct_above': round(self.ath_pct_above, 2),
-                    'had_consolidation': self.ath_had_consolidation,
-                    'reason': self.ath_reason
+            "total_score": self.total_score,
+            "max_possible": self.max_possible,
+            "qualified": self.total_score >= 4.0,
+            "components": {
+                "ath_breakout": {
+                    "score": self.ath_score,
+                    "old_ath": round(self.ath_old, 2),
+                    "current_high": round(self.ath_current, 2),
+                    "pct_above": round(self.ath_pct_above, 2),
+                    "had_consolidation": self.ath_had_consolidation,
+                    "reason": self.ath_reason,
                 },
-                'volume': {
-                    'score': self.volume_score,
-                    'ratio': round(self.volume_ratio, 2),
-                    'trend': self.volume_trend,
-                    'reason': self.volume_reason
+                "volume": {
+                    "score": self.volume_score,
+                    "ratio": round(self.volume_ratio, 2),
+                    "trend": self.volume_trend,
+                    "reason": self.volume_reason,
                 },
-                'trend': {
-                    'score': self.trend_score,
-                    'status': self.trend_status,
-                    'reason': self.trend_reason
+                "trend": {
+                    "score": self.trend_score,
+                    "status": self.trend_status,
+                    "reason": self.trend_reason,
                 },
-                'rsi': {
-                    'score': self.rsi_score,
-                    'value': round(self.rsi_value, 2),
-                    'reason': self.rsi_reason
+                "rsi": {
+                    "score": self.rsi_score,
+                    "value": round(self.rsi_value, 2),
+                    "reason": self.rsi_reason,
                 },
-            }
+            },
         }
 
 
 @dataclass
 class EarningsDipScoreBreakdown:
     """Detaillierte Aufschlüsselung des Earnings-Dip-Scores (v2 — 5-Component + Penalties)"""
+
     # Drop Magnitude (0-2.0) — stored in dip_score
     dip_score: float = 0
     dip_pct: float = 0
@@ -341,46 +344,47 @@ class EarningsDipScoreBreakdown:
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            'total_score': self.total_score,
-            'max_possible': self.max_possible,
-            'qualified': self.total_score >= 3.5,
-            'components': {
-                'dip': {
-                    'score': self.dip_score,
-                    'dip_pct': round(self.dip_pct, 2),
-                    'dip_low': round(self.dip_low, 2),
-                    'pre_earnings_price': round(self.pre_earnings_price, 2),
-                    'reason': self.dip_reason
+            "total_score": self.total_score,
+            "max_possible": self.max_possible,
+            "qualified": self.total_score >= 3.5,
+            "components": {
+                "dip": {
+                    "score": self.dip_score,
+                    "dip_pct": round(self.dip_pct, 2),
+                    "dip_low": round(self.dip_low, 2),
+                    "pre_earnings_price": round(self.pre_earnings_price, 2),
+                    "reason": self.dip_reason,
                 },
-                'stabilization': {
-                    'score': self.stabilization_score,
-                    'days_without_new_low': self.days_without_new_low,
-                    'reason': self.stabilization_reason
+                "stabilization": {
+                    "score": self.stabilization_score,
+                    "days_without_new_low": self.days_without_new_low,
+                    "reason": self.stabilization_reason,
                 },
-                'fundamental': {
-                    'score': self.trend_score,
-                    'was_in_uptrend': self.was_in_uptrend,
-                    'reason': self.trend_reason
+                "fundamental": {
+                    "score": self.trend_score,
+                    "was_in_uptrend": self.was_in_uptrend,
+                    "reason": self.trend_reason,
                 },
-                'overreaction': {
-                    'rsi_score': self.rsi_score,
-                    'rsi_value': round(self.rsi_value, 2),
-                    'rsi_reason': self.rsi_reason,
-                    'volume_score': self.volume_score,
-                    'panic_vol_ratio': round(self.volume_ratio, 2),
-                    'volume_reason': self.volume_reason,
+                "overreaction": {
+                    "rsi_score": self.rsi_score,
+                    "rsi_value": round(self.rsi_value, 2),
+                    "rsi_reason": self.rsi_reason,
+                    "volume_score": self.volume_score,
+                    "panic_vol_ratio": round(self.volume_ratio, 2),
+                    "volume_reason": self.volume_reason,
                 },
-                'bps_suitability': {
-                    'score': self.gap_score,
-                    'reason': self.gap_reason,
+                "bps_suitability": {
+                    "score": self.gap_score,
+                    "reason": self.gap_reason,
                 },
-            }
+            },
         }
 
 
 @dataclass
 class TrendContinuationScoreBreakdown:
     """Detaillierte Aufschlüsselung des Trend-Continuation-Scores (v2 — 5-Component)"""
+
     # SMA Alignment (0-2.5)
     sma_alignment_score: float = 0
     sma_20: float = 0
@@ -429,50 +433,50 @@ class TrendContinuationScoreBreakdown:
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            'total_score': self.total_score,
-            'max_possible': self.max_possible,
-            'qualified': self.total_score >= 5.0,
-            'components': {
-                'sma_alignment': {
-                    'score': self.sma_alignment_score,
-                    'sma_20': round(self.sma_20, 2),
-                    'sma_50': round(self.sma_50, 2),
-                    'sma_200': round(self.sma_200, 2),
-                    'spread_pct': round(self.sma_spread_pct, 2),
-                    'all_rising': self.sma_all_rising,
-                    'reason': self.sma_reason
+            "total_score": self.total_score,
+            "max_possible": self.max_possible,
+            "qualified": self.total_score >= 5.0,
+            "components": {
+                "sma_alignment": {
+                    "score": self.sma_alignment_score,
+                    "sma_20": round(self.sma_20, 2),
+                    "sma_50": round(self.sma_50, 2),
+                    "sma_200": round(self.sma_200, 2),
+                    "spread_pct": round(self.sma_spread_pct, 2),
+                    "all_rising": self.sma_all_rising,
+                    "reason": self.sma_reason,
                 },
-                'trend_stability': {
-                    'score': self.stability_score,
-                    'closes_below_sma50': self.closes_below_sma50,
-                    'stability_days': self.stability_days,
-                    'golden_cross_days': self.golden_cross_days,
-                    'reason': self.stability_reason
+                "trend_stability": {
+                    "score": self.stability_score,
+                    "closes_below_sma50": self.closes_below_sma50,
+                    "stability_days": self.stability_days,
+                    "golden_cross_days": self.golden_cross_days,
+                    "reason": self.stability_reason,
                 },
-                'trend_buffer': {
-                    'score': self.buffer_score,
-                    'buffer_to_sma50_pct': round(self.buffer_to_sma50_pct, 2),
-                    'buffer_to_sma200_pct': round(self.buffer_to_sma200_pct, 2),
-                    'reason': self.buffer_reason
+                "trend_buffer": {
+                    "score": self.buffer_score,
+                    "buffer_to_sma50_pct": round(self.buffer_to_sma50_pct, 2),
+                    "buffer_to_sma200_pct": round(self.buffer_to_sma200_pct, 2),
+                    "reason": self.buffer_reason,
                 },
-                'momentum_health': {
-                    'score': self.momentum_score,
-                    'rsi': round(self.rsi_value, 2),
-                    'adx': round(self.adx_value, 2),
-                    'macd_bullish': self.macd_bullish,
-                    'volume_divergence': self.volume_divergence,
-                    'reason': self.momentum_reason
+                "momentum_health": {
+                    "score": self.momentum_score,
+                    "rsi": round(self.rsi_value, 2),
+                    "adx": round(self.adx_value, 2),
+                    "macd_bullish": self.macd_bullish,
+                    "volume_divergence": self.volume_divergence,
+                    "reason": self.momentum_reason,
                 },
-                'volatility': {
-                    'score': self.volatility_score,
-                    'atr_pct': round(self.atr_pct, 3),
-                    'reason': self.volatility_reason
+                "volatility": {
+                    "score": self.volatility_score,
+                    "atr_pct": round(self.atr_pct, 3),
+                    "reason": self.volatility_reason,
                 },
             },
-            'strike_zone': {
-                'conservative_short': round(self.conservative_short_strike, 2),
-                'aggressive_short': round(self.aggressive_short_strike, 2),
+            "strike_zone": {
+                "conservative_short": round(self.conservative_short_strike, 2),
+                "aggressive_short": round(self.aggressive_short_strike, 2),
             },
-            'vix_regime': self.vix_regime,
-            'vix_adjustment': self.vix_adjustment,
+            "vix_regime": self.vix_regime,
+            "vix_adjustment": self.vix_adjustment,
         }

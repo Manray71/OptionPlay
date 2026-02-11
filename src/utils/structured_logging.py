@@ -19,15 +19,15 @@
 
 from __future__ import annotations
 
+import functools
 import json
 import logging
 import sys
 import time
-import functools
 from contextlib import contextmanager
 from datetime import datetime
-from typing import IO, Any, Callable, Dict, Generator, Optional, TypedDict, TypeVar, cast
 from threading import local
+from typing import IO, Any, Callable, Dict, Generator, Optional, TypedDict, TypeVar, cast
 
 # Thread-local storage for context
 _context = local()
@@ -35,6 +35,7 @@ _context = local()
 
 class _LocationInfo(TypedDict):
     """Source location for error-level log entries."""
+
     file: str
     line: int
     function: str
@@ -42,12 +43,14 @@ class _LocationInfo(TypedDict):
 
 class _ExceptionInfo(TypedDict):
     """Exception details attached to log entries."""
+
     type: str
     message: str
 
 
 class LogEntry(TypedDict, total=False):
     """Structured log entry produced by StructuredFormatter."""
+
     timestamp: str
     level: str
     logger: str
@@ -60,6 +63,7 @@ class LogEntry(TypedDict, total=False):
 
 class PerformanceLogExtra(TypedDict, total=False):
     """Extra fields emitted by log_performance and log_api_call decorators."""
+
     function: str
     api_call: str
     symbol: str
@@ -83,16 +87,25 @@ class StructuredFormatter(logging.Formatter):
     - (extra fields from context or log call)
     """
 
-    SENSITIVE_KEYS = frozenset({
-        'password', 'api_key', 'apikey', 'token', 'secret',
-        'authorization', 'auth', 'credential', 'credentials'
-    })
+    SENSITIVE_KEYS = frozenset(
+        {
+            "password",
+            "api_key",
+            "apikey",
+            "token",
+            "secret",
+            "authorization",
+            "auth",
+            "credential",
+            "credentials",
+        }
+    )
 
     def format(self, record: logging.LogRecord) -> str:
         """Format log record as JSON."""
         # Base fields
         log_dict: LogEntry = LogEntry(
-            timestamp=datetime.utcnow().isoformat() + 'Z',
+            timestamp=datetime.utcnow().isoformat() + "Z",
             level=record.levelname,
             logger=record.name,
             message=record.getMessage(),
@@ -100,41 +113,58 @@ class StructuredFormatter(logging.Formatter):
 
         # Add location info for errors
         if record.levelno >= logging.ERROR:
-            log_dict['location'] = {
-                'file': record.pathname,
-                'line': record.lineno,
-                'function': record.funcName,
+            log_dict["location"] = {
+                "file": record.pathname,
+                "line": record.lineno,
+                "function": record.funcName,
             }
 
         # Add exception info if present
         if record.exc_info and record.exc_info[0] is not None:
-            log_dict['exception'] = {
-                'type': record.exc_info[0].__name__,
-                'message': str(record.exc_info[1]),
+            log_dict["exception"] = {
+                "type": record.exc_info[0].__name__,
+                "message": str(record.exc_info[1]),
             }
 
         # Add thread-local context
-        context = getattr(_context, 'data', {})
+        context = getattr(_context, "data", {})
         if context:
-            log_dict['context'] = context.copy()
+            log_dict["context"] = context.copy()
 
         # Add extra fields from record (excluding standard attributes)
         standard_attrs = {
-            'name', 'msg', 'args', 'created', 'filename', 'funcName',
-            'levelname', 'levelno', 'lineno', 'module', 'msecs',
-            'pathname', 'process', 'processName', 'relativeCreated',
-            'stack_info', 'exc_info', 'exc_text', 'thread', 'threadName',
-            'taskName', 'message',
+            "name",
+            "msg",
+            "args",
+            "created",
+            "filename",
+            "funcName",
+            "levelname",
+            "levelno",
+            "lineno",
+            "module",
+            "msecs",
+            "pathname",
+            "process",
+            "processName",
+            "relativeCreated",
+            "stack_info",
+            "exc_info",
+            "exc_text",
+            "thread",
+            "threadName",
+            "taskName",
+            "message",
         }
 
         extras = {
             k: self._mask_sensitive(k, v)
             for k, v in record.__dict__.items()
-            if k not in standard_attrs and not k.startswith('_')
+            if k not in standard_attrs and not k.startswith("_")
         }
 
         if extras:
-            log_dict['extra'] = extras
+            log_dict["extra"] = extras
 
         return json.dumps(log_dict, default=str)
 
@@ -142,8 +172,8 @@ class StructuredFormatter(logging.Formatter):
         """Mask sensitive values."""
         if key.lower() in self.SENSITIVE_KEYS:
             if isinstance(value, str) and len(value) > 4:
-                return value[:2] + '*' * (len(value) - 4) + value[-2:]
-            return '****'
+                return value[:2] + "*" * (len(value) - 4) + value[-2:]
+            return "****"
         return value
 
 
@@ -164,7 +194,7 @@ class StructuredLogger(logging.Logger):
         extra: Optional[Dict[str, Any]] = None,
         stack_info: bool = False,
         stacklevel: int = 1,
-        **kwargs: Any
+        **kwargs: Any,
     ) -> None:
         """Override to support keyword arguments as extra fields."""
         if kwargs:
@@ -174,7 +204,7 @@ class StructuredLogger(logging.Logger):
 
 
 # Type variable for decorator
-F = TypeVar('F', bound=Callable[..., Any])
+F = TypeVar("F", bound=Callable[..., Any])
 
 
 def get_logger(name: str) -> StructuredLogger:
@@ -192,13 +222,13 @@ def get_logger(name: str) -> StructuredLogger:
     logging.setLoggerClass(StructuredLogger)
     logger = logging.getLogger(name)
     logging.setLoggerClass(old_class)
-    return cast(StructuredLogger, logger)  # getLogger returns Logger; we registered StructuredLogger class above
+    return cast(
+        StructuredLogger, logger
+    )  # getLogger returns Logger; we registered StructuredLogger class above
 
 
 def configure_logging(
-    level: int = logging.INFO,
-    json_output: bool = True,
-    stream: Optional[IO[str]] = None
+    level: int = logging.INFO, json_output: bool = True, stream: Optional[IO[str]] = None
 ) -> None:
     """
     Configure structured logging for the application.
@@ -222,9 +252,9 @@ def configure_logging(
     if json_output:
         handler.setFormatter(StructuredFormatter())
     else:
-        handler.setFormatter(logging.Formatter(
-            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-        ))
+        handler.setFormatter(
+            logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+        )
 
     root.addHandler(handler)
 
@@ -238,7 +268,7 @@ def log_context(**kwargs: Any) -> Generator[None, None, None]:
         with log_context(request_id="abc123", user="john"):
             logger.info("Processing")  # includes request_id and user
     """
-    if not hasattr(_context, 'data'):
+    if not hasattr(_context, "data"):
         _context.data = {}
 
     old_data = _context.data.copy()
@@ -258,6 +288,7 @@ def log_performance(logger: Optional[logging.Logger] = None) -> Callable[[F], F]
         async def fetch_data():
             ...
     """
+
     def decorator(func: F) -> F:
         nonlocal logger
         if logger is None:
@@ -272,10 +303,10 @@ def log_performance(logger: Optional[logging.Logger] = None) -> Callable[[F], F]
                 logger.debug(
                     f"{func.__name__} completed",
                     extra={
-                        'function': func.__name__,
-                        'duration_ms': round(elapsed, 2),
-                        'status': 'success'
-                    }
+                        "function": func.__name__,
+                        "duration_ms": round(elapsed, 2),
+                        "status": "success",
+                    },
                 )
                 return result
             except Exception as e:
@@ -283,11 +314,11 @@ def log_performance(logger: Optional[logging.Logger] = None) -> Callable[[F], F]
                 logger.error(
                     f"{func.__name__} failed",
                     extra={
-                        'function': func.__name__,
-                        'duration_ms': round(elapsed, 2),
-                        'status': 'error',
-                        'error': str(e)
-                    }
+                        "function": func.__name__,
+                        "duration_ms": round(elapsed, 2),
+                        "status": "error",
+                        "error": str(e),
+                    },
                 )
                 raise
 
@@ -300,10 +331,10 @@ def log_performance(logger: Optional[logging.Logger] = None) -> Callable[[F], F]
                 logger.debug(
                     f"{func.__name__} completed",
                     extra={
-                        'function': func.__name__,
-                        'duration_ms': round(elapsed, 2),
-                        'status': 'success'
-                    }
+                        "function": func.__name__,
+                        "duration_ms": round(elapsed, 2),
+                        "status": "success",
+                    },
                 )
                 return result
             except Exception as e:
@@ -311,15 +342,16 @@ def log_performance(logger: Optional[logging.Logger] = None) -> Callable[[F], F]
                 logger.error(
                     f"{func.__name__} failed",
                     extra={
-                        'function': func.__name__,
-                        'duration_ms': round(elapsed, 2),
-                        'status': 'error',
-                        'error': str(e)
-                    }
+                        "function": func.__name__,
+                        "duration_ms": round(elapsed, 2),
+                        "status": "error",
+                        "error": str(e),
+                    },
                 )
                 raise
 
         import asyncio
+
         if asyncio.iscoroutinefunction(func):
             return async_wrapper  # type: ignore[return-value]  # wrapper preserves F signature via functools.wraps
         return sync_wrapper  # type: ignore[return-value]  # wrapper preserves F signature via functools.wraps
@@ -328,8 +360,7 @@ def log_performance(logger: Optional[logging.Logger] = None) -> Callable[[F], F]
 
 
 def log_api_call(
-    logger: Optional[logging.Logger] = None,
-    include_args: bool = False
+    logger: Optional[logging.Logger] = None, include_args: bool = False
 ) -> Callable[[F], F]:
     """
     Decorator to log API calls with timing and status.
@@ -339,6 +370,7 @@ def log_api_call(
         async def get_quote(symbol: str):
             ...
     """
+
     def decorator(func: F) -> F:
         nonlocal logger
         if logger is None:
@@ -350,32 +382,32 @@ def log_api_call(
             symbol = None
             if args and isinstance(args[0], str) and len(args[0]) <= 10:
                 symbol = args[0]
-            elif 'symbol' in kwargs:
-                symbol = kwargs['symbol']
+            elif "symbol" in kwargs:
+                symbol = kwargs["symbol"]
 
             extra: PerformanceLogExtra = PerformanceLogExtra(
                 api_call=func.__name__,
             )
             if symbol:
-                extra['symbol'] = symbol
+                extra["symbol"] = symbol
             if include_args:
-                extra['args'] = str(args[1:]) if args else ''
-                extra['kwargs'] = str(kwargs)
+                extra["args"] = str(args[1:]) if args else ""
+                extra["kwargs"] = str(kwargs)
 
             start = time.perf_counter()
             try:
                 result = await func(*args, **kwargs)
                 elapsed = (time.perf_counter() - start) * 1000
-                extra['duration_ms'] = round(elapsed, 2)
-                extra['status'] = 'success'
+                extra["duration_ms"] = round(elapsed, 2)
+                extra["status"] = "success"
                 logger.info(f"API call {func.__name__}", extra=extra)
                 return result
             except Exception as e:
                 elapsed = (time.perf_counter() - start) * 1000
-                extra['duration_ms'] = round(elapsed, 2)
-                extra['status'] = 'error'
-                extra['error_type'] = type(e).__name__
-                extra['error'] = str(e)
+                extra["duration_ms"] = round(elapsed, 2)
+                extra["status"] = "error"
+                extra["error_type"] = type(e).__name__
+                extra["error"] = str(e)
                 logger.warning(f"API call {func.__name__} failed", extra=extra)
                 raise
 
@@ -387,19 +419,20 @@ def log_api_call(
             try:
                 result = func(*args, **kwargs)
                 elapsed = (time.perf_counter() - start) * 1000
-                extra['duration_ms'] = round(elapsed, 2)
-                extra['status'] = 'success'
+                extra["duration_ms"] = round(elapsed, 2)
+                extra["status"] = "success"
                 logger.info(f"API call {func.__name__}", extra=extra)
                 return result
             except Exception as e:
                 elapsed = (time.perf_counter() - start) * 1000
-                extra['duration_ms'] = round(elapsed, 2)
-                extra['status'] = 'error'
-                extra['error'] = str(e)
+                extra["duration_ms"] = round(elapsed, 2)
+                extra["status"] = "error"
+                extra["error"] = str(e)
                 logger.warning(f"API call {func.__name__} failed", extra=extra)
                 raise
 
         import asyncio
+
         if asyncio.iscoroutinefunction(func):
             return async_wrapper  # type: ignore[return-value]  # wrapper preserves F signature via functools.wraps
         return sync_wrapper  # type: ignore[return-value]  # wrapper preserves F signature via functools.wraps
@@ -409,13 +442,13 @@ def log_api_call(
 
 # Convenience re-exports
 __all__ = [
-    'LogEntry',
-    'PerformanceLogExtra',
-    'StructuredFormatter',
-    'StructuredLogger',
-    'get_logger',
-    'configure_logging',
-    'log_context',
-    'log_performance',
-    'log_api_call',
+    "LogEntry",
+    "PerformanceLogExtra",
+    "StructuredFormatter",
+    "StructuredLogger",
+    "get_logger",
+    "configure_logging",
+    "log_context",
+    "log_performance",
+    "log_api_call",
 ]

@@ -24,11 +24,13 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 from enum import Enum
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Any, Dict, List, Optional, Tuple
 
 from ...constants.trading_rules import (
-    VIX_LOW_VOL_MAX, VIX_NORMAL_MAX, VIX_ELEVATED_MAX,
     EXIT_PROFIT_PCT_NORMAL,
+    VIX_ELEVATED_MAX,
+    VIX_LOW_VOL_MAX,
+    VIX_NORMAL_MAX,
 )
 
 logger = logging.getLogger(__name__)
@@ -38,8 +40,10 @@ logger = logging.getLogger(__name__)
 # ENUMS
 # =============================================================================
 
+
 class RegimeType(str, Enum):
     """VIX-based market regime classification"""
+
     LOW_VOL = "low_vol"
     NORMAL = "normal"
     ELEVATED = "elevated"
@@ -48,13 +52,15 @@ class RegimeType(str, Enum):
 
 class RegimeBoundaryMethod(str, Enum):
     """Method for determining regime boundaries"""
-    FIXED = "fixed"          # Fixed VIX thresholds (15/20/30)
+
+    FIXED = "fixed"  # Fixed VIX thresholds (15/20/30)
     PERCENTILE = "percentile"  # Based on historical VIX percentiles
 
 
 # =============================================================================
 # CONFIGURATION DATA CLASSES
 # =============================================================================
+
 
 @dataclass
 class RegimeConfig:
@@ -64,29 +70,36 @@ class RegimeConfig:
     Defines VIX boundaries, trading parameters, and strategy settings
     for a specific volatility environment.
     """
+
     # Identification
-    name: str                               # e.g., "low_vol", "normal"
+    name: str  # e.g., "low_vol", "normal"
     regime_type: RegimeType
 
     # VIX Boundaries
-    vix_lower: float                        # VIX >= this to enter
-    vix_upper: float                        # VIX < this to enter
+    vix_lower: float  # VIX >= this to enter
+    vix_upper: float  # VIX < this to enter
 
     # Hysteresis Settings (for regime transitions)
-    entry_buffer: float = 0.0               # Extra VIX points needed to enter
-    exit_buffer: float = 1.0                # Buffer before exiting regime
-    min_days_in_regime: int = 2             # Minimum days before switching
+    entry_buffer: float = 0.0  # Extra VIX points needed to enter
+    exit_buffer: float = 1.0  # Buffer before exiting regime
+    min_days_in_regime: int = 2  # Minimum days before switching
 
     # Trading Parameters
-    min_score: float = 5.0                  # Minimum signal score
-    profit_target_pct: float = 50.0         # Profit target (% of max profit)
-    stop_loss_pct: float = 150.0            # Stop loss (% of max profit)
-    position_size_pct: float = 5.0          # Max position as % of capital
-    max_concurrent_positions: int = 10      # Max open positions
+    min_score: float = 5.0  # Minimum signal score
+    profit_target_pct: float = 50.0  # Profit target (% of max profit)
+    stop_loss_pct: float = 150.0  # Stop loss (% of max profit)
+    position_size_pct: float = 5.0  # Max position as % of capital
+    max_concurrent_positions: int = 10  # Max open positions
 
     # Strategy Settings
     strategies_enabled: List[str] = field(
-        default_factory=lambda: ["pullback", "bounce", "ath_breakout", "earnings_dip", "trend_continuation"]
+        default_factory=lambda: [
+            "pullback",
+            "bounce",
+            "ath_breakout",
+            "earnings_dip",
+            "trend_continuation",
+        ]
     )
     strategy_weights: Dict[str, float] = field(default_factory=dict)
 
@@ -99,14 +112,13 @@ class RegimeConfig:
     is_trained: bool = False
     training_date: Optional[datetime] = None
     sample_size: int = 0
-    confidence_level: str = "unknown"       # "high", "medium", "low"
+    confidence_level: str = "unknown"  # "high", "medium", "low"
 
     def __post_init__(self) -> None:
         """Validate configuration after initialization"""
         if self.vix_lower >= self.vix_upper:
             raise ValueError(
-                f"vix_lower ({self.vix_lower}) must be less than "
-                f"vix_upper ({self.vix_upper})"
+                f"vix_lower ({self.vix_lower}) must be less than " f"vix_upper ({self.vix_upper})"
             )
         if self.min_score < 0 or self.min_score > 15:
             raise ValueError(f"min_score must be between 0 and 15, got {self.min_score}")
@@ -192,7 +204,10 @@ class RegimeConfig:
             stop_loss_pct=trading.get("stop_loss_pct", 150.0),
             position_size_pct=trading.get("position_size_pct", 5.0),
             max_concurrent_positions=trading.get("max_concurrent_positions", 10),
-            strategies_enabled=strategies.get("enabled", ["pullback", "bounce", "ath_breakout", "earnings_dip", "trend_continuation"]),
+            strategies_enabled=strategies.get(
+                "enabled",
+                ["pullback", "bounce", "ath_breakout", "earnings_dip", "trend_continuation"],
+            ),
             strategy_weights=strategies.get("weights", {}),
             component_adjustments=data.get("component_adjustments", {}),
             description=metadata.get("description", ""),
@@ -206,6 +221,7 @@ class RegimeConfig:
 @dataclass
 class RegimeTransition:
     """Tracks regime transitions with hysteresis"""
+
     from_regime: Optional[str]
     to_regime: str
     transition_date: date
@@ -221,6 +237,7 @@ class RegimeState:
     Maintains state for smooth regime transitions, preventing
     whipsaw behavior during volatile VIX periods.
     """
+
     current_regime: str
     entered_date: date
     days_in_regime: int = 1
@@ -318,11 +335,17 @@ FIXED_REGIMES: Dict[str, RegimeConfig] = {
         vix_upper=VIX_LOW_VOL_MAX,
         description="Low volatility environment - aggressive positioning allowed",
         min_score=4.0,
-        profit_target_pct=40.0,     # Regime-specific (trained)
-        stop_loss_pct=200.0,        # Regime-specific (trained)
+        profit_target_pct=40.0,  # Regime-specific (trained)
+        stop_loss_pct=200.0,  # Regime-specific (trained)
         position_size_pct=6.0,
         max_concurrent_positions=15,
-        strategies_enabled=["pullback", "bounce", "ath_breakout", "earnings_dip", "trend_continuation"],
+        strategies_enabled=[
+            "pullback",
+            "bounce",
+            "ath_breakout",
+            "earnings_dip",
+            "trend_continuation",
+        ],
     ),
     RegimeType.NORMAL.value: RegimeConfig(
         name="normal",
@@ -332,10 +355,16 @@ FIXED_REGIMES: Dict[str, RegimeConfig] = {
         description="Normal volatility - standard trading parameters",
         min_score=5.0,
         profit_target_pct=EXIT_PROFIT_PCT_NORMAL,  # PLAYBOOK: 50%
-        stop_loss_pct=150.0,        # Regime-specific (trained)
+        stop_loss_pct=150.0,  # Regime-specific (trained)
         position_size_pct=5.0,
         max_concurrent_positions=10,
-        strategies_enabled=["pullback", "bounce", "ath_breakout", "earnings_dip", "trend_continuation"],
+        strategies_enabled=[
+            "pullback",
+            "bounce",
+            "ath_breakout",
+            "earnings_dip",
+            "trend_continuation",
+        ],
     ),
     RegimeType.ELEVATED.value: RegimeConfig(
         name="elevated",
@@ -344,8 +373,8 @@ FIXED_REGIMES: Dict[str, RegimeConfig] = {
         vix_upper=VIX_ELEVATED_MAX,
         description="Elevated volatility - conservative approach",
         min_score=6.0,
-        profit_target_pct=60.0,     # Regime-specific (trained)
-        stop_loss_pct=100.0,        # Regime-specific (trained)
+        profit_target_pct=60.0,  # Regime-specific (trained)
+        stop_loss_pct=100.0,  # Regime-specific (trained)
         position_size_pct=4.0,
         max_concurrent_positions=7,
         strategies_enabled=["pullback", "bounce"],  # No breakout/dip
@@ -357,8 +386,8 @@ FIXED_REGIMES: Dict[str, RegimeConfig] = {
         vix_upper=100,
         description="High volatility - defensive or pause trading",
         min_score=8.0,
-        profit_target_pct=75.0,     # Regime-specific (trained)
-        stop_loss_pct=75.0,         # Regime-specific (trained)
+        profit_target_pct=75.0,  # Regime-specific (trained)
+        stop_loss_pct=75.0,  # Regime-specific (trained)
         position_size_pct=2.0,
         max_concurrent_positions=3,
         strategies_enabled=["pullback"],  # Only highest conviction plays
@@ -388,8 +417,7 @@ def create_percentile_regimes(
 
     if len(vix_history) < 30:
         logger.warning(
-            f"Only {len(vix_history)} VIX data points. "
-            "Using fixed regimes as fallback."
+            f"Only {len(vix_history)} VIX data points. " "Using fixed regimes as fallback."
         )
         return FIXED_REGIMES.copy()
 
@@ -453,6 +481,7 @@ def create_percentile_regimes(
 # UTILITY FUNCTIONS
 # =============================================================================
 
+
 def get_regime_for_vix(
     vix: float,
     regimes: Optional[Dict[str, RegimeConfig]] = None,
@@ -499,10 +528,7 @@ def save_regimes(
     data = {
         "version": "1.0.0",
         "saved_date": datetime.now().isoformat(),
-        "regimes": {
-            name: config.to_dict()
-            for name, config in regimes.items()
-        },
+        "regimes": {name: config.to_dict() for name, config in regimes.items()},
     }
 
     with open(filepath, "w", encoding="utf-8") as f:
@@ -579,6 +605,7 @@ REGIME_NAME_REVERSE_MAPPING = {v: k for k, v in REGIME_NAME_MAPPING.items()}
 @dataclass
 class TrainedStrategyConfig:
     """Configuration for a strategy within a regime, loaded from trained model."""
+
     enabled: bool
     min_score: float
     profit_target_pct: float
@@ -593,6 +620,7 @@ class TrainedStrategyConfig:
 @dataclass
 class TrainedRegimeConfig:
     """Full regime configuration with per-strategy parameters from training."""
+
     regime_name: str
     strategies: Dict[str, TrainedStrategyConfig]
 
@@ -604,10 +632,7 @@ class TrainedRegimeConfig:
 
     def get_enabled_strategies(self) -> List[str]:
         """Get list of enabled strategies for this regime."""
-        return [
-            name for name, cfg in self.strategies.items()
-            if cfg.enabled
-        ]
+        return [name for name, cfg in self.strategies.items() if cfg.enabled]
 
 
 class TrainedModelLoader:
@@ -832,7 +857,10 @@ class TrainedModelLoader:
             # Merge trained strategies with base strategies that aren't in the trained model yet
             enabled_strategies = trained_cfg.get_enabled_strategies()
             for base_strat in base.strategies_enabled:
-                if base_strat not in trained_cfg.strategies and base_strat not in enabled_strategies:
+                if (
+                    base_strat not in trained_cfg.strategies
+                    and base_strat not in enabled_strategies
+                ):
                     enabled_strategies.append(base_strat)
             if enabled_strategies:
                 min_scores = [
@@ -860,7 +888,9 @@ class TrainedModelLoader:
                 stop_loss_pct=base.stop_loss_pct,
                 position_size_pct=base.position_size_pct,
                 max_concurrent_positions=base.max_concurrent_positions,
-                strategies_enabled=enabled_strategies if enabled_strategies else base.strategies_enabled.copy(),
+                strategies_enabled=(
+                    enabled_strategies if enabled_strategies else base.strategies_enabled.copy()
+                ),
                 strategy_weights={
                     s: cfg.train_wr / 100.0
                     for s, cfg in trained_cfg.strategies.items()
@@ -870,7 +900,9 @@ class TrainedModelLoader:
                 is_trained=True,
                 training_date=datetime.now(),
                 sample_size=self._summary.get("total_trades", 0),
-                confidence_level="high" if self._summary.get("total_trades", 0) > 10000 else "medium",
+                confidence_level=(
+                    "high" if self._summary.get("total_trades", 0) > 10000 else "medium"
+                ),
             )
 
         # Add any missing regimes from defaults

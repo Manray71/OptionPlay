@@ -75,6 +75,7 @@ SECTOR_FETCH_BUFFER_DAYS = 10
 
 class SectorRegime(str, Enum):
     """Sector momentum regime classification."""
+
     STRONG = "strong"
     NEUTRAL = "neutral"
     WEAK = "weak"
@@ -84,6 +85,7 @@ class SectorRegime(str, Enum):
 @dataclass(frozen=True)
 class SectorStatus:
     """Sector momentum analysis result."""
+
     sector: str
     etf_symbol: str
     relative_strength_30d: float
@@ -124,36 +126,46 @@ class SectorCycleService:
 
     @property
     def _etf_mapping(self) -> Dict[str, str]:
-        return self._config.get("etf_mapping", {
-            "Technology": "XLK",
-            "Healthcare": "XLV",
-            "Financials": "XLF",
-            "Consumer Discretionary": "XLY",
-            "Consumer Staples": "XLP",
-            "Energy": "XLE",
-            "Industrials": "XLI",
-            "Communication Services": "XLC",
-            "Utilities": "XLU",
-            "Materials": "XLB",
-            "Real Estate": "XLRE",
-        })
+        return self._config.get(
+            "etf_mapping",
+            {
+                "Technology": "XLK",
+                "Healthcare": "XLV",
+                "Financials": "XLF",
+                "Consumer Discretionary": "XLY",
+                "Consumer Staples": "XLP",
+                "Energy": "XLE",
+                "Industrials": "XLI",
+                "Communication Services": "XLC",
+                "Utilities": "XLU",
+                "Materials": "XLB",
+                "Real Estate": "XLRE",
+            },
+        )
 
     @property
     def _factor_range(self) -> Dict[str, float]:
-        return self._config.get("factor_range", {"min": SECTOR_FACTOR_MIN, "max": SECTOR_FACTOR_MAX})
+        return self._config.get(
+            "factor_range", {"min": SECTOR_FACTOR_MIN, "max": SECTOR_FACTOR_MAX}
+        )
 
     @property
     def _lookback_days(self) -> Dict[str, int]:
-        return self._config.get("lookback_days", {"short": SECTOR_LOOKBACK_SHORT, "long": SECTOR_LOOKBACK_LONG})
+        return self._config.get(
+            "lookback_days", {"short": SECTOR_LOOKBACK_SHORT, "long": SECTOR_LOOKBACK_LONG}
+        )
 
     @property
     def _component_weights(self) -> Dict[str, float]:
-        return self._config.get("component_weights", {
-            "relative_strength_30d": SECTOR_WEIGHT_RS_30D,
-            "relative_strength_60d": SECTOR_WEIGHT_RS_60D,
-            "breadth": SECTOR_WEIGHT_BREADTH,
-            "vol_premium": SECTOR_WEIGHT_VOL_PREMIUM,
-        })
+        return self._config.get(
+            "component_weights",
+            {
+                "relative_strength_30d": SECTOR_WEIGHT_RS_30D,
+                "relative_strength_60d": SECTOR_WEIGHT_RS_60D,
+                "breadth": SECTOR_WEIGHT_BREADTH,
+                "vol_premium": SECTOR_WEIGHT_VOL_PREMIUM,
+            },
+        )
 
     def _is_cache_valid(self) -> bool:
         if not self._cache:
@@ -166,6 +178,7 @@ class SectorCycleService:
             return self._provider
         try:
             from ..container import get_container
+
             container = get_container()
             self._provider = await container.ensure_provider()
         except (ImportError, AttributeError):
@@ -179,10 +192,10 @@ class SectorCycleService:
             if provider is None:
                 return None
             result = await provider.get_historical(symbol, days=days)
-            if result and hasattr(result, 'closes'):
+            if result and hasattr(result, "closes"):
                 return result.closes
             if isinstance(result, list):
-                return [r.close for r in result if hasattr(r, 'close')]
+                return [r.close for r in result if hasattr(r, "close")]
             return None
         except Exception as e:
             logger.debug(f"Failed to fetch {symbol}: {e}")
@@ -237,7 +250,13 @@ class SectorCycleService:
 
         etf_mapping = self._etf_mapping
         lookback = self._lookback_days
-        max_days = max(lookback.get("short", SECTOR_LOOKBACK_SHORT), lookback.get("long", SECTOR_LOOKBACK_LONG)) + SECTOR_FETCH_BUFFER_DAYS
+        max_days = (
+            max(
+                lookback.get("short", SECTOR_LOOKBACK_SHORT),
+                lookback.get("long", SECTOR_LOOKBACK_LONG),
+            )
+            + SECTOR_FETCH_BUFFER_DAYS
+        )
 
         # Fetch all ETFs + SPY in parallel
         symbols = list(etf_mapping.values()) + ["SPY"]
@@ -257,7 +276,9 @@ class SectorCycleService:
             logger.warning("No SPY data, returning neutral factors")
             return self._neutral_fallback()
 
-        spy_vol = self._calculate_volatility(spy_prices, lookback.get("short", SECTOR_LOOKBACK_SHORT))
+        spy_vol = self._calculate_volatility(
+            spy_prices, lookback.get("short", SECTOR_LOOKBACK_SHORT)
+        )
         component_weights = self._component_weights
         factor_min = self._factor_range.get("min", SECTOR_FACTOR_MIN)
         factor_max = self._factor_range.get("max", SECTOR_FACTOR_MAX)
@@ -324,9 +345,7 @@ class SectorCycleService:
 
         return statuses
 
-    async def get_sector_factor(
-        self, sector: str, strategy: Optional[str] = None
-    ) -> float:
+    async def get_sector_factor(self, sector: str, strategy: Optional[str] = None) -> float:
         """
         Get momentum factor for a single sector, optionally strategy-adjusted (v3).
 
@@ -348,9 +367,7 @@ class SectorCycleService:
         # v3: Re-clamp to strategy-specific range
         return self._apply_strategy_factor_range(status, strategy)
 
-    def _apply_strategy_factor_range(
-        self, status: SectorStatus, strategy: str
-    ) -> float:
+    def _apply_strategy_factor_range(self, status: SectorStatus, strategy: str) -> float:
         """
         Re-calculate factor with strategy-specific range and component weights (v3).
 

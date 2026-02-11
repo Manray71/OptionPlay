@@ -15,11 +15,11 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from datetime import datetime, date, timedelta
-from enum import Enum
-from typing import List, Optional, Dict, Any, Tuple
 import logging
+from dataclasses import dataclass, field
+from datetime import date, datetime, timedelta
+from enum import Enum
+from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -28,45 +28,50 @@ logger = logging.getLogger(__name__)
 # EVENT TYPES
 # =============================================================================
 
+
 class EventType(Enum):
     """Typen von marktrelevanten Events."""
-    EARNINGS = "earnings"           # Quartalszahlen
-    DIVIDEND = "dividend"           # Ex-Dividend Datum
-    SPLIT = "split"                 # Aktien-Split
-    FED_MEETING = "fed_meeting"     # FOMC Meeting
-    FED_MINUTES = "fed_minutes"     # FOMC Minutes Release
-    CPI = "cpi"                     # Consumer Price Index
-    PPI = "ppi"                     # Producer Price Index
-    NFP = "nfp"                     # Non-Farm Payrolls
-    GDP = "gdp"                     # GDP Release
-    RETAIL_SALES = "retail_sales"   # Retail Sales Data
-    OPEX = "opex"                   # Options Expiration
-    FDA = "fda"                     # FDA Decision (Biotech)
-    ANALYST = "analyst"             # Analyst Rating Change
-    MERGER = "merger"               # M&A Announcement
-    GUIDANCE = "guidance"           # Guidance Update
+
+    EARNINGS = "earnings"  # Quartalszahlen
+    DIVIDEND = "dividend"  # Ex-Dividend Datum
+    SPLIT = "split"  # Aktien-Split
+    FED_MEETING = "fed_meeting"  # FOMC Meeting
+    FED_MINUTES = "fed_minutes"  # FOMC Minutes Release
+    CPI = "cpi"  # Consumer Price Index
+    PPI = "ppi"  # Producer Price Index
+    NFP = "nfp"  # Non-Farm Payrolls
+    GDP = "gdp"  # GDP Release
+    RETAIL_SALES = "retail_sales"  # Retail Sales Data
+    OPEX = "opex"  # Options Expiration
+    FDA = "fda"  # FDA Decision (Biotech)
+    ANALYST = "analyst"  # Analyst Rating Change
+    MERGER = "merger"  # M&A Announcement
+    GUIDANCE = "guidance"  # Guidance Update
     OTHER = "other"
 
 
 class EventImpact(Enum):
     """Erwarteter Impact eines Events auf S/R Levels."""
-    NONE = 0           # Kein Impact
-    LOW = 1            # Geringer Impact (z.B. Minor News)
-    MEDIUM = 2         # Mittlerer Impact (z.B. CPI)
-    HIGH = 3           # Hoher Impact (z.B. Fed)
-    CRITICAL = 4       # Kritisch - Levels wahrscheinlich invalidiert (Earnings, FDA)
+
+    NONE = 0  # Kein Impact
+    LOW = 1  # Geringer Impact (z.B. Minor News)
+    MEDIUM = 2  # Mittlerer Impact (z.B. CPI)
+    HIGH = 3  # Hoher Impact (z.B. Fed)
+    CRITICAL = 4  # Kritisch - Levels wahrscheinlich invalidiert (Earnings, FDA)
 
 
 class EventScope(Enum):
     """Gültigkeitsbereich eines Events."""
-    SYMBOL = "symbol"      # Nur ein Symbol betroffen
-    SECTOR = "sector"      # Gesamter Sektor betroffen
-    MARKET = "market"      # Gesamter Markt betroffen
+
+    SYMBOL = "symbol"  # Nur ein Symbol betroffen
+    SECTOR = "sector"  # Gesamter Sektor betroffen
+    MARKET = "market"  # Gesamter Markt betroffen
 
 
 # =============================================================================
 # DATA STRUCTURES
 # =============================================================================
+
 
 @dataclass
 class MarketEvent:
@@ -85,6 +90,7 @@ class MarketEvent:
         pre_market: True wenn vor Marktöffnung
         details: Zusätzliche Event-Details
     """
+
     event_type: EventType
     event_date: date
     symbol: Optional[str] = None
@@ -123,15 +129,15 @@ class MarketEvent:
     def to_dict(self) -> Dict[str, Any]:
         """Konvertiert zu Dictionary."""
         return {
-            'event_type': self.event_type.value,
-            'event_date': self.event_date.isoformat(),
-            'symbol': self.symbol,
-            'description': self.description,
-            'impact': self.impact.value,
-            'scope': self.scope.value,
-            'days_until': self.days_until,
-            'confirmed': self.confirmed,
-            'pre_market': self.pre_market
+            "event_type": self.event_type.value,
+            "event_date": self.event_date.isoformat(),
+            "symbol": self.symbol,
+            "description": self.description,
+            "impact": self.impact.value,
+            "scope": self.scope.value,
+            "days_until": self.days_until,
+            "confirmed": self.confirmed,
+            "pre_market": self.pre_market,
         }
 
 
@@ -147,6 +153,7 @@ class EventValidationResult:
         warning_events: Events die Vorsicht erfordern
         recommendations: Empfehlungen basierend auf Events
     """
+
     is_valid: bool = True
     confidence_multiplier: float = 1.0
     blocking_events: List[MarketEvent] = field(default_factory=list)
@@ -161,11 +168,11 @@ class EventValidationResult:
     def to_dict(self) -> Dict[str, Any]:
         """Konvertiert zu Dictionary."""
         return {
-            'is_valid': self.is_valid,
-            'confidence_multiplier': round(self.confidence_multiplier, 2),
-            'blocking_events': [e.to_dict() for e in self.blocking_events],
-            'warning_events': [e.to_dict() for e in self.warning_events],
-            'recommendations': self.recommendations
+            "is_valid": self.is_valid,
+            "confidence_multiplier": round(self.confidence_multiplier, 2),
+            "blocking_events": [e.to_dict() for e in self.blocking_events],
+            "warning_events": [e.to_dict() for e in self.warning_events],
+            "recommendations": self.recommendations,
         }
 
 
@@ -196,21 +203,11 @@ DEFAULT_EVENT_IMPACT: Dict[EventType, EventImpact] = {
 # Confidence-Reduktion pro Impact-Level und Tage bis Event
 # Format: {impact: {days_range: multiplier}}
 IMPACT_MULTIPLIERS: Dict[EventImpact, Dict[str, float]] = {
-    EventImpact.NONE: {
-        "0-3": 1.0, "4-7": 1.0, "8-14": 1.0, "15+": 1.0
-    },
-    EventImpact.LOW: {
-        "0-3": 0.9, "4-7": 0.95, "8-14": 1.0, "15+": 1.0
-    },
-    EventImpact.MEDIUM: {
-        "0-3": 0.7, "4-7": 0.85, "8-14": 0.95, "15+": 1.0
-    },
-    EventImpact.HIGH: {
-        "0-3": 0.5, "4-7": 0.7, "8-14": 0.85, "15+": 0.95
-    },
-    EventImpact.CRITICAL: {
-        "0-3": 0.2, "4-7": 0.5, "8-14": 0.7, "15+": 0.85
-    },
+    EventImpact.NONE: {"0-3": 1.0, "4-7": 1.0, "8-14": 1.0, "15+": 1.0},
+    EventImpact.LOW: {"0-3": 0.9, "4-7": 0.95, "8-14": 1.0, "15+": 1.0},
+    EventImpact.MEDIUM: {"0-3": 0.7, "4-7": 0.85, "8-14": 0.95, "15+": 1.0},
+    EventImpact.HIGH: {"0-3": 0.5, "4-7": 0.7, "8-14": 0.85, "15+": 0.95},
+    EventImpact.CRITICAL: {"0-3": 0.2, "4-7": 0.5, "8-14": 0.7, "15+": 0.85},
 }
 
 
@@ -267,6 +264,7 @@ FOMC_MEETINGS_2026 = [
     date(2026, 12, 16),
 ]
 
+
 # Monatliche OPEX (3. Freitag)
 def get_monthly_opex(year: int, month: int) -> date:
     """Berechnet den monatlichen Options Expiration Tag (3. Freitag)."""
@@ -280,9 +278,7 @@ def get_monthly_opex(year: int, month: int) -> date:
 
 
 def get_macro_events(
-    start_date: Optional[date] = None,
-    end_date: Optional[date] = None,
-    include_opex: bool = True
+    start_date: Optional[date] = None, end_date: Optional[date] = None, include_opex: bool = True
 ) -> List[MarketEvent]:
     """
     Generiert Liste von Makro-Events für einen Zeitraum.
@@ -306,15 +302,17 @@ def get_macro_events(
     all_fomc = FOMC_MEETINGS_2025 + FOMC_MEETINGS_2026
     for meeting_date in all_fomc:
         if start_date <= meeting_date <= end_date:
-            events.append(MarketEvent(
-                event_type=EventType.FED_MEETING,
-                event_date=meeting_date,
-                description="FOMC Meeting",
-                impact=EventImpact.HIGH,
-                scope=EventScope.MARKET,
-                source="fed_calendar",
-                confirmed=True
-            ))
+            events.append(
+                MarketEvent(
+                    event_type=EventType.FED_MEETING,
+                    event_date=meeting_date,
+                    description="FOMC Meeting",
+                    impact=EventImpact.HIGH,
+                    scope=EventScope.MARKET,
+                    source="fed_calendar",
+                    confirmed=True,
+                )
+            )
 
     # Monthly OPEX
     if include_opex:
@@ -322,15 +320,17 @@ def get_macro_events(
         while current <= end_date:
             opex = get_monthly_opex(current.year, current.month)
             if start_date <= opex <= end_date:
-                events.append(MarketEvent(
-                    event_type=EventType.OPEX,
-                    event_date=opex,
-                    description="Monthly Options Expiration",
-                    impact=EventImpact.MEDIUM,
-                    scope=EventScope.MARKET,
-                    source="calculated",
-                    confirmed=True
-                ))
+                events.append(
+                    MarketEvent(
+                        event_type=EventType.OPEX,
+                        event_date=opex,
+                        description="Monthly Options Expiration",
+                        impact=EventImpact.MEDIUM,
+                        scope=EventScope.MARKET,
+                        source="calculated",
+                        confirmed=True,
+                    )
+                )
             # Nächster Monat
             if current.month == 12:
                 current = current.replace(year=current.year + 1, month=1)
@@ -343,6 +343,7 @@ def get_macro_events(
 # =============================================================================
 # EVENT CALENDAR
 # =============================================================================
+
 
 class EventCalendar:
     """
@@ -383,46 +384,41 @@ class EventCalendar:
         self._events.sort(key=lambda e: e.event_date)
 
     def add_earnings(
-        self,
-        symbol: str,
-        earnings_date: date,
-        confirmed: bool = False,
-        source: str = "unknown"
+        self, symbol: str, earnings_date: date, confirmed: bool = False, source: str = "unknown"
     ) -> None:
         """Fügt Earnings-Event hinzu."""
         self._symbols_with_earnings.add(symbol.upper())
-        self.add_event(MarketEvent(
-            event_type=EventType.EARNINGS,
-            event_date=earnings_date,
-            symbol=symbol.upper(),
-            description=f"{symbol} Quarterly Earnings",
-            impact=EventImpact.CRITICAL,
-            scope=EventScope.SYMBOL,
-            source=source,
-            confirmed=confirmed
-        ))
+        self.add_event(
+            MarketEvent(
+                event_type=EventType.EARNINGS,
+                event_date=earnings_date,
+                symbol=symbol.upper(),
+                description=f"{symbol} Quarterly Earnings",
+                impact=EventImpact.CRITICAL,
+                scope=EventScope.SYMBOL,
+                source=source,
+                confirmed=confirmed,
+            )
+        )
 
-    def add_dividend(
-        self,
-        symbol: str,
-        ex_date: date,
-        amount: Optional[float] = None
-    ) -> None:
+    def add_dividend(self, symbol: str, ex_date: date, amount: Optional[float] = None) -> None:
         """Fügt Ex-Dividend Event hinzu."""
         desc = f"{symbol} Ex-Dividend"
         if amount:
             desc += f" (${amount:.2f})"
 
-        self.add_event(MarketEvent(
-            event_type=EventType.DIVIDEND,
-            event_date=ex_date,
-            symbol=symbol.upper(),
-            description=desc,
-            impact=EventImpact.LOW,
-            scope=EventScope.SYMBOL,
-            source="dividend_calendar",
-            details={'amount': amount} if amount else {}
-        ))
+        self.add_event(
+            MarketEvent(
+                event_type=EventType.DIVIDEND,
+                event_date=ex_date,
+                symbol=symbol.upper(),
+                description=desc,
+                impact=EventImpact.LOW,
+                scope=EventScope.SYMBOL,
+                source="dividend_calendar",
+                details={"amount": amount} if amount else {},
+            )
+        )
 
     def add_dividends_from_db(self, dividend_manager=None) -> int:
         """
@@ -437,6 +433,7 @@ class EventCalendar:
         if dividend_manager is None:
             try:
                 from ..cache.dividend_history import get_dividend_history_manager
+
                 dividend_manager = get_dividend_history_manager()
             except (ImportError, Exception) as e:
                 logger.debug("Cannot load dividend manager: %s", e)
@@ -449,12 +446,15 @@ class EventCalendar:
             with dividend_manager._lock:
                 with dividend_manager._get_connection() as conn:
                     cursor = conn.cursor()
-                    cursor.execute("""
+                    cursor.execute(
+                        """
                         SELECT symbol, ex_date, amount
                         FROM dividend_history
                         WHERE ex_date >= ? AND ex_date <= ?
                         ORDER BY ex_date
-                    """, (today.isoformat(), (today + timedelta(days=90)).isoformat()))
+                    """,
+                        (today.isoformat(), (today + timedelta(days=90)).isoformat()),
+                    )
 
                     for row in cursor:
                         ex_dt = row["ex_date"]
@@ -491,7 +491,7 @@ class EventCalendar:
                             symbol=symbol,
                             earnings_date=earnings_dt,
                             confirmed=entry.confirmed,
-                            source=entry.source
+                            source=entry.source,
                         )
                         count += 1
                 except (ValueError, TypeError):
@@ -499,10 +499,7 @@ class EventCalendar:
         return count
 
     def get_events_for_symbol(
-        self,
-        symbol: str,
-        start_date: Optional[date] = None,
-        end_date: Optional[date] = None
+        self, symbol: str, start_date: Optional[date] = None, end_date: Optional[date] = None
     ) -> List[MarketEvent]:
         """
         Gibt alle relevanten Events für ein Symbol zurück.
@@ -522,22 +519,13 @@ class EventCalendar:
 
         return sorted(relevant, key=lambda e: e.event_date)
 
-    def get_upcoming_events(
-        self,
-        days_ahead: int = 14
-    ) -> List[MarketEvent]:
+    def get_upcoming_events(self, days_ahead: int = 14) -> List[MarketEvent]:
         """Gibt alle Events in den nächsten X Tagen zurück."""
         end_date = date.today() + timedelta(days=days_ahead)
-        return [
-            e for e in self._events
-            if date.today() <= e.event_date <= end_date
-        ]
+        return [e for e in self._events if date.today() <= e.event_date <= end_date]
 
     def validate_for_sr(
-        self,
-        symbol: str,
-        lookback_days: int = 7,
-        lookahead_days: int = 14
+        self, symbol: str, lookback_days: int = 7, lookahead_days: int = 14
     ) -> EventValidationResult:
         """
         Validiert ob S/R Levels für ein Symbol zuverlässig sind.
@@ -599,18 +587,18 @@ class EventCalendar:
 
         # Spezielle Warnung für Earnings
         if symbol.upper() not in self._symbols_with_earnings:
-            result.recommendations.append(
-                "Earnings-Datum unbekannt - manuell prüfen empfohlen"
-            )
+            result.recommendations.append("Earnings-Datum unbekannt - manuell prüfen empfohlen")
 
         return result
 
     def get_next_earnings(self, symbol: str) -> Optional[MarketEvent]:
         """Gibt das nächste Earnings-Event für ein Symbol zurück."""
         for event in self._events:
-            if (event.event_type == EventType.EARNINGS and
-                event.symbol == symbol.upper() and
-                event.is_upcoming):
+            if (
+                event.event_type == EventType.EARNINGS
+                and event.symbol == symbol.upper()
+                and event.is_upcoming
+            ):
                 return event
         return None
 
@@ -625,10 +613,10 @@ class EventCalendar:
             by_type[t] = by_type.get(t, 0) + 1
 
         return {
-            'total_events': len(self._events),
-            'upcoming_events': len(upcoming),
-            'symbols_with_earnings': len(self._symbols_with_earnings),
-            'events_by_type': by_type
+            "total_events": len(self._events),
+            "upcoming_events": len(upcoming),
+            "symbols_with_earnings": len(self._symbols_with_earnings),
+            "events_by_type": by_type,
         }
 
 
@@ -636,12 +624,13 @@ class EventCalendar:
 # INTEGRATION WITH S/R MODULE
 # =============================================================================
 
+
 def validate_sr_levels_with_events(
     symbol: str,
     support_levels: List[float],
     resistance_levels: List[float],
     calendar: Optional[EventCalendar] = None,
-    lookahead_days: int = 14
+    lookahead_days: int = 14,
 ) -> Tuple[List[float], List[float], EventValidationResult]:
     """
     Validiert und adjustiert S/R Levels basierend auf Events.
@@ -683,25 +672,21 @@ def validate_sr_levels_with_events(
 
 __all__ = [
     # Enums
-    'EventType',
-    'EventImpact',
-    'EventScope',
-
+    "EventType",
+    "EventImpact",
+    "EventScope",
     # Data Classes
-    'MarketEvent',
-    'EventValidationResult',
-
+    "MarketEvent",
+    "EventValidationResult",
     # Classes
-    'EventCalendar',
-
+    "EventCalendar",
     # Functions
-    'get_macro_events',
-    'get_monthly_opex',
-    'get_confidence_multiplier',
-    'validate_sr_levels_with_events',
-
+    "get_macro_events",
+    "get_monthly_opex",
+    "get_confidence_multiplier",
+    "validate_sr_levels_with_events",
     # Constants
-    'DEFAULT_EVENT_IMPACT',
-    'FOMC_MEETINGS_2025',
-    'FOMC_MEETINGS_2026',
+    "DEFAULT_EVENT_IMPACT",
+    "FOMC_MEETINGS_2025",
+    "FOMC_MEETINGS_2026",
 ]

@@ -20,17 +20,17 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
-from ...constants.trading_rules import VIX_LOW_VOL_MAX, VIX_NORMAL_MAX, VIX_ELEVATED_MAX
+from ...constants.trading_rules import VIX_ELEVATED_MAX, VIX_LOW_VOL_MAX, VIX_NORMAL_MAX
 from ..models.ensemble_models import (
-    STRATEGIES,
-    DEFAULT_REGIME_PREFERENCES,
     CLUSTER_STRATEGY_MAP,
-    SECTOR_STRATEGY_MAP,
     DEFAULT_COMPONENT_WEIGHTS,
+    DEFAULT_REGIME_PREFERENCES,
     MIN_SCORE_THRESHOLDS,
+    SECTOR_STRATEGY_MAP,
+    STRATEGIES,
+    EnsembleRecommendation,
     SelectionMethod,
     StrategyScore,
-    EnsembleRecommendation,
     SymbolPerformance,
 )
 from .meta_learner import MetaLearner
@@ -99,7 +99,8 @@ class EnsembleSelector:
 
         # Filter to valid strategies (meeting minimum threshold)
         valid_scores = {
-            strat: score for strat, score in strategy_scores.items()
+            strat: score
+            for strat, score in strategy_scores.items()
             if score.weighted_score >= MIN_SCORE_THRESHOLDS.get(strat, self.min_score_threshold)
         }
 
@@ -109,7 +110,9 @@ class EnsembleSelector:
 
         # Check for sector/cluster-based strategy preference
         sector_cluster_pref = self.get_strategy_preference(symbol, sector)
-        cluster_rec = self.get_cluster_recommendation(symbol) if hasattr(self, '_symbol_clusters') else None
+        cluster_rec = (
+            self.get_cluster_recommendation(symbol) if hasattr(self, "_symbol_clusters") else None
+        )
         sector_rec = self.get_sector_recommendation(sector) if sector else None
 
         # Select based on method
@@ -127,12 +130,12 @@ class EnsembleSelector:
                 best_strat = pref_strat
                 confidence = pref_conf
                 reason = pref_source
-            elif cluster_rec and cluster_rec.get('confidence', 0) >= 0.8:
-                cluster_strat = cluster_rec['strategy']
-                cluster_wr = cluster_rec['win_rate']
+            elif cluster_rec and cluster_rec.get("confidence", 0) >= 0.8:
+                cluster_strat = cluster_rec["strategy"]
+                cluster_wr = cluster_rec["win_rate"]
                 if cluster_strat in valid_scores and cluster_wr >= 65:
                     best_strat = cluster_strat
-                    confidence = cluster_rec['confidence']
+                    confidence = cluster_rec["confidence"]
                     reason = f"cluster: {cluster_rec['cluster_name']} ({cluster_wr:.1f}% WR)"
         elif self.method == SelectionMethod.CONFIDENCE_WEIGHTED:
             best_strat, confidence, reason = self._select_confidence_weighted(valid_scores)
@@ -142,9 +145,7 @@ class EnsembleSelector:
             )
 
         # Calculate ensemble score (weighted combination)
-        ensemble_score, ensemble_conf = self._calculate_ensemble_score(
-            valid_scores, regime
-        )
+        ensemble_score, ensemble_conf = self._calculate_ensemble_score(valid_scores, regime)
 
         # Get alternative strategies
         alternatives = self._get_alternatives(valid_scores, best_strat)
@@ -230,8 +231,7 @@ class EnsembleSelector:
     ) -> Tuple[str, float, str]:
         """Select best strategy with regime weighting"""
         regime_prefs = DEFAULT_REGIME_PREFERENCES.get(
-            regime or "normal",
-            DEFAULT_REGIME_PREFERENCES["normal"]
+            regime or "normal", DEFAULT_REGIME_PREFERENCES["normal"]
         )
 
         # Apply rotation preferences if available
@@ -290,9 +290,7 @@ class EnsembleSelector:
         votes[best_conf] += 1.0
 
         # Method 4: Meta-learner
-        best_ml, ml_conf, _ = self._meta_learner.predict_best_strategy(
-            symbol, scores, regime
-        )
+        best_ml, ml_conf, _ = self._meta_learner.predict_best_strategy(symbol, scores, regime)
         votes[best_ml] += ml_conf  # Weight by ML confidence
 
         # Winner
@@ -314,8 +312,7 @@ class EnsembleSelector:
 
         # Get weights
         regime_prefs = DEFAULT_REGIME_PREFERENCES.get(
-            regime or "normal",
-            DEFAULT_REGIME_PREFERENCES["normal"]
+            regime or "normal", DEFAULT_REGIME_PREFERENCES["normal"]
         )
 
         # Weighted average of scores
@@ -341,17 +338,12 @@ class EnsembleSelector:
     ) -> List[str]:
         """Get alternative strategies (sorted by score)"""
         others = [
-            (strat, score.adjusted_score)
-            for strat, score in scores.items()
-            if strat != selected
+            (strat, score.adjusted_score) for strat, score in scores.items() if strat != selected
         ]
         others.sort(key=lambda x: -x[1])
 
         # Return top 2 alternatives that meet threshold
-        return [
-            strat for strat, adj_score in others[:2]
-            if adj_score >= self.min_score_threshold
-        ]
+        return [strat for strat, adj_score in others[:2] if adj_score >= self.min_score_threshold]
 
     def _calculate_diversification_benefit(
         self,
@@ -611,16 +603,16 @@ class EnsembleSelector:
 
     def get_cluster_recommendation(self, symbol: str) -> Optional[Dict[str, Any]]:
         """Get strategy recommendation based on symbol's cluster."""
-        if not hasattr(self, '_symbol_clusters') or not self._symbol_clusters:
+        if not hasattr(self, "_symbol_clusters") or not self._symbol_clusters:
             return None
 
         cluster_info = self._symbol_clusters.get(symbol)
         if not cluster_info:
             return None
 
-        vol_regime = cluster_info.get('vol_regime', 'medium')
-        price_tier = cluster_info.get('price_tier', 'medium')
-        trend_bias = cluster_info.get('trend_bias', 'mean_reverting')
+        vol_regime = cluster_info.get("vol_regime", "medium")
+        price_tier = cluster_info.get("price_tier", "medium")
+        trend_bias = cluster_info.get("trend_bias", "mean_reverting")
 
         cluster_key = f"{vol_regime}_{price_tier}_{trend_bias}"
 
@@ -628,7 +620,7 @@ class EnsembleSelector:
         if strategy_info:
             return {
                 "symbol": symbol,
-                "cluster_name": cluster_info.get('cluster_name', 'Unknown'),
+                "cluster_name": cluster_info.get("cluster_name", "Unknown"),
                 "strategy": strategy_info["strategy"],
                 "win_rate": strategy_info["win_rate"],
                 "confidence": strategy_info["confidence"],
@@ -638,9 +630,9 @@ class EnsembleSelector:
 
         return {
             "symbol": symbol,
-            "cluster_name": cluster_info.get('cluster_name', 'Unknown'),
-            "strategy": cluster_info.get('best_strategy', 'pullback'),
-            "win_rate": cluster_info.get('strategy_win_rate', 50.0),
+            "cluster_name": cluster_info.get("cluster_name", "Unknown"),
+            "strategy": cluster_info.get("best_strategy", "pullback"),
+            "win_rate": cluster_info.get("strategy_win_rate", 50.0),
             "confidence": 0.5,
             "vol_regime": vol_regime,
             "price_tier": price_tier,
@@ -660,7 +652,7 @@ class EnsembleSelector:
 
     def get_sector_weights(self, sector: str) -> Dict[str, float]:
         """Get trained component weights for a specific sector."""
-        if not hasattr(self, '_sector_weights') or not self._sector_weights:
+        if not hasattr(self, "_sector_weights") or not self._sector_weights:
             return DEFAULT_COMPONENT_WEIGHTS.copy()
 
         sector_data = self._sector_weights.get(sector)
@@ -671,7 +663,7 @@ class EnsembleSelector:
 
     def get_cluster_weights(self, cluster_name: str) -> Dict[str, float]:
         """Get trained component weights for a specific cluster."""
-        if not hasattr(self, '_cluster_weights') or not self._cluster_weights:
+        if not hasattr(self, "_cluster_weights") or not self._cluster_weights:
             return DEFAULT_COMPONENT_WEIGHTS.copy()
 
         cluster_data = self._cluster_weights.get(cluster_name)
@@ -694,24 +686,28 @@ class EnsembleSelector:
         3. Default weights
         """
         # Try cluster weights first
-        cluster_info = self._symbol_clusters.get(symbol) if hasattr(self, '_symbol_clusters') else None
+        cluster_info = (
+            self._symbol_clusters.get(symbol) if hasattr(self, "_symbol_clusters") else None
+        )
         if cluster_info:
-            cluster_name = cluster_info.get('cluster_name')
-            if cluster_name and hasattr(self, '_cluster_weights'):
+            cluster_name = cluster_info.get("cluster_name")
+            if cluster_name and hasattr(self, "_cluster_weights"):
                 cluster_data = self._cluster_weights.get(cluster_name)
                 if cluster_data:
-                    cluster_wr = cluster_data.get('win_rate', 0)
+                    cluster_wr = cluster_data.get("win_rate", 0)
                     if cluster_wr >= 55:
-                        weights = cluster_data.get('optimal_weights', DEFAULT_COMPONENT_WEIGHTS.copy())
+                        weights = cluster_data.get(
+                            "optimal_weights", DEFAULT_COMPONENT_WEIGHTS.copy()
+                        )
                         return weights, f"cluster:{cluster_name} ({cluster_wr:.1f}% WR)"
 
         # Try sector weights
-        if sector and hasattr(self, '_sector_weights'):
+        if sector and hasattr(self, "_sector_weights"):
             sector_data = self._sector_weights.get(sector)
             if sector_data:
-                sector_wr = sector_data.get('win_rate', 0)
+                sector_wr = sector_data.get("win_rate", 0)
                 if sector_wr >= 50:
-                    weights = sector_data.get('optimal_weights', DEFAULT_COMPONENT_WEIGHTS.copy())
+                    weights = sector_data.get("optimal_weights", DEFAULT_COMPONENT_WEIGHTS.copy())
                     return weights, f"sector:{sector} ({sector_wr:.1f}% WR)"
 
         return DEFAULT_COMPONENT_WEIGHTS.copy(), "default"
@@ -731,19 +727,23 @@ class EnsembleSelector:
 
         candidates = []
 
-        if cluster_rec and cluster_rec.get('win_rate', 0) >= 60:
-            candidates.append((
-                cluster_rec['strategy'],
-                cluster_rec['confidence'] * (cluster_rec['win_rate'] / 100),
-                f"cluster:{cluster_rec['cluster_name']}"
-            ))
+        if cluster_rec and cluster_rec.get("win_rate", 0) >= 60:
+            candidates.append(
+                (
+                    cluster_rec["strategy"],
+                    cluster_rec["confidence"] * (cluster_rec["win_rate"] / 100),
+                    f"cluster:{cluster_rec['cluster_name']}",
+                )
+            )
 
-        if sector_rec and sector_rec.get('win_rate', 0) >= 55:
-            candidates.append((
-                sector_rec['strategy'],
-                sector_rec['confidence'] * (sector_rec['win_rate'] / 100),
-                f"sector:{sector}"
-            ))
+        if sector_rec and sector_rec.get("win_rate", 0) >= 55:
+            candidates.append(
+                (
+                    sector_rec["strategy"],
+                    sector_rec["confidence"] * (sector_rec["win_rate"] / 100),
+                    f"sector:{sector}",
+                )
+            )
 
         if not candidates:
             return None, 0.0, "no preference"

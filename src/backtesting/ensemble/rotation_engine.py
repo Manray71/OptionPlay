@@ -12,8 +12,8 @@ import numpy as np
 
 from ..models.ensemble_models import (
     STRATEGIES,
-    RotationTrigger,
     RotationState,
+    RotationTrigger,
 )
 
 logger = logging.getLogger(__name__)
@@ -39,7 +39,8 @@ class StrategyRotationEngine:
         self.min_trades = min_trades_for_rotation
 
         self._state = RotationState(
-            current_preferences=initial_preferences or {s: 1.0 / len(STRATEGIES) for s in STRATEGIES},
+            current_preferences=initial_preferences
+            or {s: 1.0 / len(STRATEGIES) for s in STRATEGIES},
             last_rotation_date=date.today(),
             rotation_reason=None,
             recent_win_rates={s: [] for s in STRATEGIES},
@@ -59,8 +60,9 @@ class StrategyRotationEngine:
         # Keep only recent window
         max_trades = 50  # Rolling window
         if len(self._state.recent_win_rates[strategy]) > max_trades:
-            self._state.recent_win_rates[strategy] = \
-                self._state.recent_win_rates[strategy][-max_trades:]
+            self._state.recent_win_rates[strategy] = self._state.recent_win_rates[strategy][
+                -max_trades:
+            ]
 
         # Update consecutive losses
         if outcome:
@@ -95,8 +97,7 @@ class StrategyRotationEngine:
             "old_preferences": old_prefs,
             "new_preferences": new_prefs,
             "recent_performance": {
-                s: np.mean(wrs) if wrs else 0.5
-                for s, wrs in self._state.recent_win_rates.items()
+                s: np.mean(wrs) if wrs else 0.5 for s, wrs in self._state.recent_win_rates.items()
             },
         }
 
@@ -119,9 +120,9 @@ class StrategyRotationEngine:
             wrs = self._state.recent_win_rates.get(strat, [])
             if len(wrs) >= 5:
                 # Recent win rate with recency weighting
-                weights = [0.5 ** i for i in range(len(wrs))]
+                weights = [0.5**i for i in range(len(wrs))]
                 weights = weights[::-1]  # More weight to recent
-                performances[strat] = np.average(wrs, weights=weights[:len(wrs)])
+                performances[strat] = np.average(wrs, weights=weights[: len(wrs)])
             else:
                 # Default to prior
                 performances[strat] = self._state.current_preferences.get(strat, 0.25)
@@ -142,7 +143,9 @@ class StrategyRotationEngine:
         return {
             "current_preferences": self._state.current_preferences,
             "last_rotation": self._state.last_rotation_date.isoformat(),
-            "last_rotation_reason": self._state.rotation_reason.value if self._state.rotation_reason else None,
+            "last_rotation_reason": (
+                self._state.rotation_reason.value if self._state.rotation_reason else None
+            ),
             "days_since_rotation": (date.today() - self._state.last_rotation_date).days,
             "recent_performance": {
                 s: round(np.mean(wrs), 3) if wrs else None

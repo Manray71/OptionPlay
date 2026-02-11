@@ -15,8 +15,8 @@ import logging
 from datetime import date, datetime
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-from .handler_container import BaseHandler, ServerContext
 from ..constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS
+from .handler_container import BaseHandler, ServerContext
 
 if TYPE_CHECKING:
     pass
@@ -52,8 +52,8 @@ class ReportHandler(BaseHandler):
         Returns:
             Path to generated PDF file with summary
         """
-        from ..utils.validation import validate_symbol
         from ..utils.markdown_builder import MarkdownBuilder
+        from ..utils.validation import validate_symbol
 
         symbol = validate_symbol(symbol)
 
@@ -86,10 +86,10 @@ class ReportHandler(BaseHandler):
         Returns:
             Path to generated PDF file with summary
         """
-        from ..utils.markdown_builder import MarkdownBuilder
-        from ..config import get_watchlist_loader
         from ..cache import get_earnings_fetcher
+        from ..config import get_watchlist_loader
         from ..scanner.multi_strategy_scanner import MultiStrategyScanner, ScanConfig
+        from ..utils.markdown_builder import MarkdownBuilder
 
         # 1. Get VIX
         vix_value = await self._get_vix()
@@ -99,7 +99,9 @@ class ReportHandler(BaseHandler):
         vix_data = {
             "value": vix_value or "N/A",
             "regime": regime.name if regime else "Unknown",
-            "recommended_strategy": strategy_rec.profile_name.title() if strategy_rec else 'Standard',
+            "recommended_strategy": (
+                strategy_rec.profile_name.title() if strategy_rec else "Standard"
+            ),
         }
 
         # 2. Get symbols
@@ -117,18 +119,22 @@ class ReportHandler(BaseHandler):
         for sym in symbols[:100]:
             try:
                 earnings_info = await self._check_earnings_async(sym)
-                days = earnings_info.get('days_to_earnings')
+                days = earnings_info.get("days_to_earnings")
                 earnings_data[sym] = {
-                    'days_to_earnings': days,
-                    'next_date': earnings_info.get('next_date'),
-                    'safe': days is None or days >= ENTRY_EARNINGS_MIN_DAYS,
+                    "days_to_earnings": days,
+                    "next_date": earnings_info.get("next_date"),
+                    "safe": days is None or days >= ENTRY_EARNINGS_MIN_DAYS,
                 }
-                if earnings_data[sym]['safe']:
+                if earnings_data[sym]["safe"]:
                     safe_symbols.append(sym)
             except Exception as e:
                 self._logger.debug(f"Earnings check failed for {sym}: {e}")
                 safe_symbols.append(sym)
-                earnings_data[sym] = {'days_to_earnings': None, 'next_date': 'Unknown', 'safe': True}
+                earnings_data[sym] = {
+                    "days_to_earnings": None,
+                    "next_date": "Unknown",
+                    "safe": True,
+                }
 
         # 4. Run scan
         config = ScanConfig(min_score=0)
@@ -146,9 +152,9 @@ class ReportHandler(BaseHandler):
                 prices, volumes, highs, lows, *_ = data
 
                 e_info = earnings_data.get(sym, {})
-                if e_info.get('next_date') and e_info['next_date'] != 'Unknown':
+                if e_info.get("next_date") and e_info["next_date"] != "Unknown":
                     try:
-                        earnings_date = date.fromisoformat(e_info['next_date'])
+                        earnings_date = date.fromisoformat(e_info["next_date"])
                         scanner.set_earnings_date(sym, earnings_date)
                     except (ValueError, TypeError):
                         pass
@@ -175,25 +181,29 @@ class ReportHandler(BaseHandler):
         b.kv_line("Results", len(scan_results))
         b.kv_line(f"Qualified (>={min_score})", len(qualified))
         b.kv_line("VIX", f"{vix_value:.1f}" if vix_value else "N/A")
-        b.kv_line("Strategy", vix_data['recommended_strategy'])
+        b.kv_line("Strategy", vix_data["recommended_strategy"])
         b.blank()
 
         if qualified:
             b.h2("Top Picks")
             for i, sig in enumerate(qualified[:5], 1):
-                b.bullet(f"**#{i} {sig.symbol}**: Score {sig.score:.1f}/10, ${sig.current_price:.2f}")
+                b.bullet(
+                    f"**#{i} {sig.symbol}**: Score {sig.score:.1f}/10, ${sig.current_price:.2f}"
+                )
             b.blank()
 
         if scan_results:
             b.h2("All Candidates")
             rows = []
             for sig in scan_results[:20]:
-                rows.append([
-                    sig.symbol,
-                    f"{sig.score:.1f}",
-                    f"${sig.current_price:.2f}" if sig.current_price else "N/A",
-                    sig.strategy,
-                ])
+                rows.append(
+                    [
+                        sig.symbol,
+                        f"{sig.score:.1f}",
+                        f"${sig.current_price:.2f}" if sig.current_price else "N/A",
+                        sig.strategy,
+                    ]
+                )
             b.table(["Symbol", "Score", "Price", "Strategy"], rows)
 
         return b.build()
@@ -212,8 +222,8 @@ class ReportHandler(BaseHandler):
                     earnings_date = date.fromisoformat(cached.earnings_date)
                     days = (earnings_date - date.today()).days
                     return {
-                        'days_to_earnings': days,
-                        'next_date': cached.earnings_date,
+                        "days_to_earnings": days,
+                        "next_date": cached.earnings_date,
                     }
                 except (ValueError, TypeError):
                     pass
@@ -224,16 +234,16 @@ class ReportHandler(BaseHandler):
                     earnings_date = date.fromisoformat(result.earnings_date)
                     days = (earnings_date - date.today()).days
                     return {
-                        'days_to_earnings': days,
-                        'next_date': result.earnings_date,
+                        "days_to_earnings": days,
+                        "next_date": result.earnings_date,
                     }
                 except (ValueError, TypeError):
                     pass
 
-            return {'days_to_earnings': None, 'next_date': None}
+            return {"days_to_earnings": None, "next_date": None}
         except Exception as e:
             self._logger.debug(f"Earnings check error for {symbol}: {e}")
-            return {'days_to_earnings': None, 'next_date': None}
+            return {"days_to_earnings": None, "next_date": None}
 
     # --- Shared helper methods ---
 
@@ -257,7 +267,9 @@ class ReportHandler(BaseHandler):
         await self._ensure_connected()
         if self._ctx.tradier_connected and self._ctx.tradier_provider:
             try:
-                data = await self._ctx.tradier_provider.get_historical_for_scanner(symbol, days=days)
+                data = await self._ctx.tradier_provider.get_historical_for_scanner(
+                    symbol, days=days
+                )
                 if data:
                     if self._ctx.historical_cache:
                         self._ctx.historical_cache.set(symbol, data, days=days)

@@ -26,12 +26,12 @@ Verwendung:
     print(state.quote_cache.hit_rate)
 """
 
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
 
-from ..constants.trading_rules import VIX_LOW_VOL_MAX, VIX_NORMAL_MAX, VIX_ELEVATED_MAX
+from ..constants.trading_rules import VIX_ELEVATED_MAX, VIX_LOW_VOL_MAX, VIX_NORMAL_MAX
 
 # Import MarketRegime for VIX state
 # Use fallback if vix_strategy can't be imported (e.g., missing dependencies)
@@ -57,6 +57,7 @@ class ConnectionStatus(Enum):
         CONNECTED → RECONNECTING → CONNECTED
                                ↘ FAILED
     """
+
     DISCONNECTED = "disconnected"
     CONNECTING = "connecting"
     CONNECTED = "connected"
@@ -79,6 +80,7 @@ class ConnectionState:
         total_reconnects: Gesamtzahl der Reconnects
         last_error: Letzter Fehler (für Debugging)
     """
+
     status: ConnectionStatus = ConnectionStatus.DISCONNECTED
     last_connected_at: Optional[datetime] = None
     last_attempt_at: Optional[datetime] = None
@@ -154,7 +156,9 @@ class ConnectionState:
         return {
             "status": self.status.value,
             "is_connected": self.is_connected,
-            "last_connected_at": self.last_connected_at.isoformat() if self.last_connected_at else None,
+            "last_connected_at": (
+                self.last_connected_at.isoformat() if self.last_connected_at else None
+            ),
             "last_attempt_at": self.last_attempt_at.isoformat() if self.last_attempt_at else None,
             "consecutive_failures": self.consecutive_failures,
             "total_reconnects": self.total_reconnects,
@@ -180,6 +184,7 @@ class VIXState:
         stale_threshold_seconds: Sekunden bis VIX als stale gilt
         previous_value: Vorheriger VIX für Change-Detection
     """
+
     current_value: Optional[float] = None
     updated_at: Optional[datetime] = None
     regime: Optional[MarketRegime] = None
@@ -224,11 +229,7 @@ class VIXState:
         }
         return descriptions.get(self.regime, str(self.regime.value))
 
-    def update(
-        self,
-        value: float,
-        regime: Optional[MarketRegime] = None
-    ) -> None:
+    def update(self, value: float, regime: Optional[MarketRegime] = None) -> None:
         """
         Aktualisiert VIX-Wert und Regime.
 
@@ -289,6 +290,7 @@ class CacheMetrics:
         ttl_seconds: Configured TTL
         max_entries: Configured max entries
     """
+
     name: str
     hits: int = 0
     misses: int = 0
@@ -396,6 +398,7 @@ class ServerState:
         started_at: Server-Startzeit
         request_count: Gesamtzahl der Requests
     """
+
     connection: ConnectionState = field(default_factory=ConnectionState)
     vix: VIXState = field(default_factory=VIXState)
     quote_cache: CacheMetrics = field(
@@ -437,9 +440,9 @@ class ServerState:
     def total_cache_requests(self) -> int:
         """Gesamtzahl Cache-Anfragen über alle Caches."""
         return (
-            self.quote_cache.total_requests +
-            self.scan_cache.total_requests +
-            self.historical_cache.total_requests
+            self.quote_cache.total_requests
+            + self.scan_cache.total_requests
+            + self.historical_cache.total_requests
         )
 
     @property
@@ -449,11 +452,7 @@ class ServerState:
         if total == 0:
             return 0.0
 
-        total_hits = (
-            self.quote_cache.hits +
-            self.scan_cache.hits +
-            self.historical_cache.hits
-        )
+        total_hits = self.quote_cache.hits + self.scan_cache.hits + self.historical_cache.hits
         return total_hits / total
 
     def record_request(self) -> None:

@@ -8,26 +8,6 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
-from ..models.indicators import (
-    KeltnerChannelResult,
-    MACDResult,
-    RSIDivergenceResult,
-    StochasticResult,
-)
-
-# Import shared indicator functions used by scoring/calculation methods
-from ..indicators.volatility import calculate_atr_simple, calculate_keltner_channel
-
-# Import Volume Profile indicators
-from ..indicators.volume_profile import (
-    calculate_vwap,
-    get_sector,
-    get_sector_adjustment,
-)
-
-# Import Gap Analysis
-from ..indicators.gap_analysis import analyze_gap
-
 # Import central constants
 from ..constants import (
     GAP_LOOKBACK_DAYS,
@@ -42,6 +22,25 @@ from ..constants import (
     VWAP_PERIOD,
     VWAP_STRONG_ABOVE,
     VWAP_STRONG_BELOW,
+)
+
+# Import Gap Analysis
+from ..indicators.gap_analysis import analyze_gap
+
+# Import shared indicator functions used by scoring/calculation methods
+from ..indicators.volatility import calculate_atr_simple, calculate_keltner_channel
+
+# Import Volume Profile indicators
+from ..indicators.volume_profile import (
+    calculate_vwap,
+    get_sector,
+    get_sector_adjustment,
+)
+from ..models.indicators import (
+    KeltnerChannelResult,
+    MACDResult,
+    RSIDivergenceResult,
+    StochasticResult,
 )
 
 logger = logging.getLogger(__name__)
@@ -112,7 +111,7 @@ class PullbackScoringMixin:
         if not divergence:
             return 0, "No RSI divergence detected"
 
-        if divergence.divergence_type == 'bullish':
+        if divergence.divergence_type == "bullish":
             # Scoring based on divergence strength
             strength = divergence.strength
 
@@ -128,9 +127,12 @@ class PullbackScoringMixin:
 
             return score, reason
 
-        elif divergence.divergence_type == 'bearish':
+        elif divergence.divergence_type == "bearish":
             # Bearish divergence in pullback = warning signal, but no deduction
-            return 0, f"Bearish divergence detected - caution! (strength: {divergence.strength:.0%})"
+            return (
+                0,
+                f"Bearish divergence detected - caution! (strength: {divergence.strength:.0%})",
+            )
 
         return 0, "No significant divergence"
 
@@ -159,7 +161,10 @@ class PullbackScoringMixin:
         if distance_pct <= cfg.proximity_percent:
             return cfg.weight_close, f"Within {cfg.proximity_percent}% of support ${nearest:.2f}"
         elif distance_pct <= cfg.proximity_percent_wide:
-            return cfg.weight_near, f"Within {cfg.proximity_percent_wide}% of support ${nearest:.2f}"
+            return (
+                cfg.weight_near,
+                f"Within {cfg.proximity_percent_wide}% of support ${nearest:.2f}",
+            )
         else:
             return 0, f"{distance_pct:.1f}% from nearest support"
 
@@ -208,10 +213,18 @@ class PullbackScoringMixin:
 
         # E.3: Very low volume = weak conviction penalty
         if ratio < cfg.very_low_threshold:
-            return cfg.weight_very_low, f"Very low volume: {ratio:.1f}x avg (weak conviction)", "very_low"
+            return (
+                cfg.weight_very_low,
+                f"Very low volume: {ratio:.1f}x avg (weak conviction)",
+                "very_low",
+            )
         # NEW: Decreasing volume is POSITIVE during a pullback
         elif ratio < cfg.decrease_threshold:
-            return cfg.weight_decreasing, f"Low volume pullback: {ratio:.1f}x avg (healthy)", "decreasing"
+            return (
+                cfg.weight_decreasing,
+                f"Low volume pullback: {ratio:.1f}x avg (healthy)",
+                "decreasing",
+            )
         elif ratio >= cfg.spike_multiplier:
             # High volume during pullback = potentially problematic (panic)
             return 0, f"Volume spike: {ratio:.1f}x avg (caution)", "increasing"
@@ -230,7 +243,7 @@ class PullbackScoringMixin:
 
         cfg = self.config.macd
 
-        if macd.crossover == 'bullish':
+        if macd.crossover == "bullish":
             return cfg.weight_bullish_cross, "MACD bullish crossover", "bullish_cross"
         elif macd.histogram and macd.histogram > 0:
             return cfg.weight_bullish, "MACD histogram positive", "bullish"
@@ -251,11 +264,15 @@ class PullbackScoringMixin:
 
         cfg = self.config.stochastic
 
-        if stoch.zone == 'oversold':
-            if stoch.crossover == 'bullish':
-                return cfg.weight_oversold_cross, f"Stoch oversold ({stoch.k:.0f}) + bullish cross", "oversold_bullish_cross"
+        if stoch.zone == "oversold":
+            if stoch.crossover == "bullish":
+                return (
+                    cfg.weight_oversold_cross,
+                    f"Stoch oversold ({stoch.k:.0f}) + bullish cross",
+                    "oversold_bullish_cross",
+                )
             return cfg.weight_oversold, f"Stoch oversold ({stoch.k:.0f})", "oversold"
-        elif stoch.zone == 'overbought':
+        elif stoch.zone == "overbought":
             return 0, f"Stoch overbought ({stoch.k:.0f})", "overbought"
 
         return 0, f"Stoch neutral ({stoch.k:.0f})", "neutral"
@@ -284,7 +301,11 @@ class PullbackScoringMixin:
         slope_lookback = min(cfg.slope_lookback, len(prices) - 1)
         if slope_lookback > 0:
             sma20_recent = sum(prices[-20:]) / 20 if len(prices) >= 20 else current_price
-            sma20_older = sum(prices[-20 - slope_lookback:-slope_lookback]) / 20 if len(prices) >= 20 + slope_lookback else sma20_recent
+            sma20_older = (
+                sum(prices[-20 - slope_lookback : -slope_lookback]) / 20
+                if len(prices) >= 20 + slope_lookback
+                else sma20_recent
+            )
             sma20_slope = (sma20_recent - sma20_older) / sma20_older if sma20_older > 0 else 0
         else:
             sma20_slope = 0
@@ -294,18 +315,43 @@ class PullbackScoringMixin:
             # Full alignment: SMA20 > SMA50 > SMA200
             if sma_20 > sma_50 > sma_200 and current_price > sma_200:
                 if sma20_slope >= cfg.min_positive_slope:
-                    return cfg.weight_strong_alignment, "strong", sma20_slope, "Strong uptrend (SMA20 > SMA50 > SMA200, rising)"
+                    return (
+                        cfg.weight_strong_alignment,
+                        "strong",
+                        sma20_slope,
+                        "Strong uptrend (SMA20 > SMA50 > SMA200, rising)",
+                    )
                 else:
-                    return cfg.weight_moderate_alignment, "moderate", sma20_slope, "Aligned SMAs but flat/declining slope"
+                    return (
+                        cfg.weight_moderate_alignment,
+                        "moderate",
+                        sma20_slope,
+                        "Aligned SMAs but flat/declining slope",
+                    )
             elif current_price > sma_200 and sma_20 > sma_200:
-                return cfg.weight_moderate_alignment, "moderate", sma20_slope, "Above SMA200, partial alignment"
+                return (
+                    cfg.weight_moderate_alignment,
+                    "moderate",
+                    sma20_slope,
+                    "Above SMA200, partial alignment",
+                )
         else:
             # Without SMA50: Only check SMA20 vs SMA200
             if sma_20 > sma_200 and current_price > sma_200:
                 if sma20_slope >= cfg.min_positive_slope:
-                    return cfg.weight_strong_alignment, "strong", sma20_slope, "Strong uptrend (SMA20 > SMA200, rising)"
+                    return (
+                        cfg.weight_strong_alignment,
+                        "strong",
+                        sma20_slope,
+                        "Strong uptrend (SMA20 > SMA200, rising)",
+                    )
                 else:
-                    return cfg.weight_moderate_alignment, "moderate", sma20_slope, "Above SMA200 but flat slope"
+                    return (
+                        cfg.weight_moderate_alignment,
+                        "moderate",
+                        sma20_slope,
+                        "Above SMA200 but flat slope",
+                    )
 
         # No uptrend
         if current_price < sma_200:
@@ -339,7 +385,9 @@ class PullbackScoringMixin:
 
         if lows is not None:
             tolerance = nearest * (cfg.touch_tolerance_pct / 100)
-            touches = sum(1 for low in lows[-cfg.lookback_days:] if abs(low - nearest) <= tolerance)
+            touches = sum(
+                1 for low in lows[-cfg.lookback_days :] if abs(low - nearest) <= tolerance
+            )
 
             if touches >= cfg.min_touches + SCORE_SUPPORT_STRONG_EXTRA_TOUCHES:
                 strength = "strong"
@@ -359,7 +407,9 @@ class PullbackScoringMixin:
         if strength == "strong" and base_score > 0:
             base_score += SCORE_SUPPORT_STRONG_BONUS  # Bonus for strong support
 
-        reason = f"Within {distance_pct:.1f}% of {strength} support ${nearest:.2f} ({touches} touches)"
+        reason = (
+            f"Within {distance_pct:.1f}% of {strength} support ${nearest:.2f} ({touches} touches)"
+        )
         return base_score, reason, strength, touches
 
     # =========================================================================
@@ -371,32 +421,32 @@ class PullbackScoringMixin:
         if not macd:
             return None
 
-        if macd.crossover == 'bullish':
-            return 'bullish_cross'
-        elif macd.crossover == 'bearish':
-            return 'bearish_cross'
+        if macd.crossover == "bullish":
+            return "bullish_cross"
+        elif macd.crossover == "bearish":
+            return "bearish_cross"
         elif macd.histogram > 0:
-            return 'bullish'
+            return "bullish"
         elif macd.histogram < 0:
-            return 'bearish'
+            return "bearish"
 
-        return 'neutral'
+        return "neutral"
 
     def _get_stoch_signal(self, stoch: Optional[StochasticResult]) -> Optional[str]:
         """Determines Stochastic signal for display"""
         if not stoch:
             return None
 
-        if stoch.zone == 'oversold':
-            if stoch.crossover == 'bullish':
-                return 'oversold_bullish_cross'
-            return 'oversold'
-        elif stoch.zone == 'overbought':
-            if stoch.crossover == 'bearish':
-                return 'overbought_bearish_cross'
-            return 'overbought'
+        if stoch.zone == "oversold":
+            if stoch.crossover == "bullish":
+                return "oversold_bullish_cross"
+            return "oversold"
+        elif stoch.zone == "overbought":
+            if stoch.crossover == "bearish":
+                return "overbought_bearish_cross"
+            return "overbought"
 
-        return 'neutral'
+        return "neutral"
 
     # =========================================================================
     # KELTNER CHANNEL (calculation + scoring)
@@ -411,8 +461,11 @@ class PullbackScoringMixin:
         """Calculates Keltner Channel. Delegates to shared indicators library."""
         cfg = self.config.keltner
         return calculate_keltner_channel(
-            prices=prices, highs=highs, lows=lows,
-            ema_period=cfg.ema_period, atr_period=cfg.atr_period,
+            prices=prices,
+            highs=highs,
+            lows=lows,
+            ema_period=cfg.ema_period,
+            atr_period=cfg.atr_period,
             atr_multiplier=cfg.atr_multiplier,
         )
 
@@ -447,18 +500,21 @@ class PullbackScoringMixin:
         position = keltner.price_position
         pct = keltner.percent_position
 
-        if position == 'below_lower':
+        if position == "below_lower":
             return cfg.weight_below_lower, f"Price below Keltner Lower Band ({pct:.2f})"
 
-        if position == 'near_lower':
+        if position == "near_lower":
             # Near lower band = potential buy opportunity
             return cfg.weight_near_lower, f"Price near Keltner Lower Band ({pct:.2f})"
 
-        if position == 'in_channel' and pct < KELTNER_NEUTRAL_LOW:
+        if position == "in_channel" and pct < KELTNER_NEUTRAL_LOW:
             # In channel, but in lower third
-            return cfg.weight_mean_reversion * SCORE_KELTNER_LOWER_THIRD_MULT, f"Pullback in lower channel area ({pct:.2f})"
+            return (
+                cfg.weight_mean_reversion * SCORE_KELTNER_LOWER_THIRD_MULT,
+                f"Pullback in lower channel area ({pct:.2f})",
+            )
 
-        if position == 'above_upper':
+        if position == "above_upper":
             # Overbought = no pullback signal
             return 0, f"Price above Keltner Upper Band ({pct:.2f}) - overbought"
 
@@ -610,7 +666,7 @@ class PullbackScoringMixin:
             (score, gap_type, gap_size_pct, is_filled, reason)
         """
         # Use context if available (already calculated)
-        if context and hasattr(context, 'gap_result') and context.gap_result:
+        if context and hasattr(context, "gap_result") and context.gap_result:
             gap = context.gap_result
             gap_type = gap.gap_type
             gap_size = gap.gap_size_pct
@@ -618,15 +674,17 @@ class PullbackScoringMixin:
             quality_score = gap.quality_score
 
             # Convert quality_score (-1 to +1) to display score
-            if gap_type in ('down', 'partial_down'):
+            if gap_type in ("down", "partial_down"):
                 score = max(0, quality_score)  # 0 to 1
                 if abs(gap_size) >= GAP_SIZE_LARGE:
-                    reason = f"Large down-gap: {gap_size:.1f}% - strong entry (+1.21% outperformance)"
+                    reason = (
+                        f"Large down-gap: {gap_size:.1f}% - strong entry (+1.21% outperformance)"
+                    )
                 elif abs(gap_size) >= GAP_SIZE_MEDIUM:
                     reason = f"Down-gap: {gap_size:.1f}% - favorable entry (+0.43% 30d)"
                 else:
                     reason = f"Small down-gap: {gap_size:.1f}% - mild positive"
-            elif gap_type in ('up', 'partial_up'):
+            elif gap_type in ("up", "partial_up"):
                 score = min(0, quality_score)  # -0.5 to 0
                 if abs(gap_size) >= GAP_SIZE_LARGE:
                     reason = f"Large up-gap: {gap_size:+.1f}% - caution, overbought risk"
@@ -660,10 +718,11 @@ class PullbackScoringMixin:
                 min_gap_pct=abs(GAP_SIZE_SMALL_NEG),
             )
 
-            if gap_result and gap_result.gap_type != 'none':
+            if gap_result and gap_result.gap_type != "none":
                 # Recursively call with context
                 class TempContext:
                     pass
+
                 temp_ctx = TempContext()
                 temp_ctx.gap_result = gap_result
                 return self._score_gap(prices, highs, lows, temp_ctx)

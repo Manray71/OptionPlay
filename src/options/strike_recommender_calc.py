@@ -12,11 +12,11 @@ Usage:
 """
 
 import logging
-from typing import Dict, Optional, Any
+from typing import Any, Dict, Optional
 
 from ..constants.trading_rules import (
-    LIQUIDITY_SPREAD_PCT_GOOD,
     ENTRY_IV_RANK_MIN,
+    LIQUIDITY_SPREAD_PCT_GOOD,
 )
 
 # Black-Scholes for accurate delta calculation
@@ -24,9 +24,12 @@ try:
     from .black_scholes import (
         BlackScholes,
         OptionType,
-        calculate_delta as bs_calculate_delta,
+    )
+    from .black_scholes import calculate_delta as bs_calculate_delta
+    from .black_scholes import (
         calculate_probability_otm,
     )
+
     _BLACK_SCHOLES_AVAILABLE = True
 except ImportError:
     _BLACK_SCHOLES_AVAILABLE = False
@@ -94,9 +97,11 @@ class StrikeMetricsMixin:
                 metrics["max_profit"] = round(net_credit * 100, 2)
                 metrics["max_loss"] = round((spread_width - net_credit) * 100, 2)
                 metrics["break_even"] = round(short_strike - net_credit, 2)
-                metrics["risk_reward"] = round(
-                    metrics["max_profit"] / metrics["max_loss"], 2
-                ) if metrics["max_loss"] > 0 else 0
+                metrics["risk_reward"] = (
+                    round(metrics["max_profit"] / metrics["max_loss"], 2)
+                    if metrics["max_loss"] > 0
+                    else 0
+                )
 
             if short_put.get("delta"):
                 metrics["delta"] = short_put["delta"]
@@ -114,8 +119,7 @@ class StrikeMetricsMixin:
                 put_mid = (put_bid + put_ask) / 2 if (put_bid + put_ask) > 0 else 0
                 if put_bid <= 0:
                     liquidity_warnings.append(
-                        f"{label} strike ${put_data.get('strike', 0):.0f}: "
-                        f"No bid (Bid=0)"
+                        f"{label} strike ${put_data.get('strike', 0):.0f}: " f"No bid (Bid=0)"
                     )
                 elif put_mid > 0:
                     spread_pct = (put_ask - put_bid) / put_mid * 100
@@ -163,9 +167,11 @@ class StrikeMetricsMixin:
                         metrics["max_profit"] = round(estimated_credit * 100, 2)
                         metrics["max_loss"] = round((spread_width - estimated_credit) * 100, 2)
                         metrics["break_even"] = round(short_strike - estimated_credit, 2)
-                        metrics["risk_reward"] = round(
-                            metrics["max_profit"] / metrics["max_loss"], 2
-                        ) if metrics["max_loss"] > 0 else 0
+                        metrics["risk_reward"] = (
+                            round(metrics["max_profit"] / metrics["max_loss"], 2)
+                            if metrics["max_loss"] > 0
+                            else 0
+                        )
 
                 except Exception as e:
                     logger.debug(f"Black-Scholes calculation failed: {e}")
@@ -223,7 +229,9 @@ class StrikeMetricsMixin:
                         dte=dte,
                         volatility=estimated_iv,
                         option_type=OptionType.PUT,
-                    ) * 100, 1
+                    )
+                    * 100,
+                    1,
                 )
             except (ValueError, TypeError):
                 if "delta" in metrics:
@@ -261,7 +269,9 @@ class StrikeMetricsMixin:
         try:
             from .strike_recommender import StrikeQuality
         except ImportError:
-            from strike_recommender import StrikeQuality  # type: ignore[no-redef]  # fallback for non-package execution
+            from strike_recommender import (
+                StrikeQuality,  # type: ignore[no-redef]  # fallback for non-package execution
+            )
 
         score = 50  # Base score
         warnings = []
@@ -329,8 +339,7 @@ class StrikeMetricsMixin:
         ):
             quality = StrikeQuality.ACCEPTABLE
             warnings.append(
-                "Keine Options-Daten — Delta nicht validiert. "
-                "Strikes sind Schätzungen."
+                "Keine Options-Daten — Delta nicht validiert. " "Strikes sind Schätzungen."
             )
 
         return quality, score, warnings
@@ -381,13 +390,15 @@ class StrikeMetricsMixin:
                         confirmed_by_fib = True
                         break
 
-            analyzed.append(SupportLevel(
-                price=price,
-                touches=touches,
-                strength=strength,
-                confirmed_by_fib=confirmed_by_fib,
-                distance_pct=distance_pct,
-            ))
+            analyzed.append(
+                SupportLevel(
+                    price=price,
+                    touches=touches,
+                    strength=strength,
+                    confirmed_by_fib=confirmed_by_fib,
+                    distance_pct=distance_pct,
+                )
+            )
 
         analyzed.sort(
             key=lambda x: (

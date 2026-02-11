@@ -10,12 +10,12 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
+from ..formatters import portfolio_formatter
+from ..portfolio import get_portfolio_manager
+from ..services.portfolio_constraints import get_constraint_checker
 from ..utils.error_handler import sync_endpoint
 from ..utils.markdown_builder import MarkdownBuilder
 from ..utils.validation import validate_symbol
-from ..portfolio import get_portfolio_manager
-from ..formatters import portfolio_formatter
-from ..services.portfolio_constraints import get_constraint_checker
 from .base import BaseHandlerMixin
 
 logger = logging.getLogger(__name__)
@@ -114,16 +114,11 @@ class PortfolioHandlerMixin(BaseHandlerMixin):
 
         # Check constraints before adding position
         if not skip_constraints:
-            open_positions = [
-                {"symbol": p.symbol}
-                for p in portfolio.get_open_positions()
-            ]
+            open_positions = [{"symbol": p.symbol} for p in portfolio.get_open_positions()]
 
             checker = get_constraint_checker()
             result = checker.check_all_constraints(
-                symbol=symbol,
-                max_risk=max_risk,
-                open_positions=open_positions
+                symbol=symbol, max_risk=max_risk, open_positions=open_positions
             )
 
             # Build response with warnings even if allowed
@@ -301,16 +296,11 @@ class PortfolioHandlerMixin(BaseHandlerMixin):
         symbol = validate_symbol(symbol)
         portfolio = get_portfolio_manager()
 
-        open_positions = [
-            {"symbol": p.symbol}
-            for p in portfolio.get_open_positions()
-        ]
+        open_positions = [{"symbol": p.symbol} for p in portfolio.get_open_positions()]
 
         checker = get_constraint_checker()
         result = checker.check_all_constraints(
-            symbol=symbol,
-            max_risk=max_risk,
-            open_positions=open_positions
+            symbol=symbol, max_risk=max_risk, open_positions=open_positions
         )
 
         b = MarkdownBuilder()
@@ -338,8 +328,8 @@ class PortfolioHandlerMixin(BaseHandlerMixin):
         # Status
         b.blank().h2("Constraint Status")
         status = checker.get_status()
-        b.kv("Max Positions", status['constraints']['max_positions'])
-        b.kv("Max per Sector", status['constraints']['max_per_sector'])
+        b.kv("Max Positions", status["constraints"]["max_positions"])
+        b.kv("Max per Sector", status["constraints"]["max_per_sector"])
         b.kv("Daily Risk Used", f"${status['current']['daily_risk_used']:.0f}")
         b.kv("Daily Remaining", f"${status['current']['daily_remaining']:.0f}")
 
@@ -360,15 +350,15 @@ class PortfolioHandlerMixin(BaseHandlerMixin):
         b.h1("Portfolio Constraints").blank()
 
         b.h2("Configuration")
-        for key, value in status['constraints'].items():
-            if key == 'symbol_blacklist':
+        for key, value in status["constraints"].items():
+            if key == "symbol_blacklist":
                 b.kv("Blacklist", ", ".join(value[:5]) + ("..." if len(value) > 5 else ""))
-            elif 'usd' in key or 'size' in key:
-                b.kv(key.replace('_', ' ').title(), f"${value:,.0f}")
-            elif 'pct' in key or 'correlation' in key:
-                b.kv(key.replace('_', ' ').title(), f"{value:.0%}")
+            elif "usd" in key or "size" in key:
+                b.kv(key.replace("_", " ").title(), f"${value:,.0f}")
+            elif "pct" in key or "correlation" in key:
+                b.kv(key.replace("_", " ").title(), f"{value:.0%}")
             else:
-                b.kv(key.replace('_', ' ').title(), value)
+                b.kv(key.replace("_", " ").title(), value)
 
         b.blank().h2("Current Status")
         b.kv("Daily Risk Used", f"${status['current']['daily_risk_used']:,.0f}")
