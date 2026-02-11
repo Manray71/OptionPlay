@@ -29,7 +29,10 @@ from ..analyzers.pool import AnalyzerPool, PoolConfig, get_analyzer_pool
 from ..models.base import TradeSignal, SignalType, SignalStrength
 from ..config import PullbackScoringConfig
 from ..config.liquidity_blacklist import is_illiquid, filter_liquid_symbols
-from ..constants.trading_rules import ENTRY_STABILITY_MIN, ENTRY_PRICE_MIN, ENTRY_PRICE_MAX, ENTRY_EARNINGS_MIN_DAYS
+from ..constants.trading_rules import (
+    ENTRY_STABILITY_MIN, ENTRY_PRICE_MIN, ENTRY_PRICE_MAX, ENTRY_EARNINGS_MIN_DAYS,
+    ENTRY_IV_RANK_MIN, ENTRY_IV_RANK_MAX,
+)
 
 # Optional dependencies — these may not be available in all environments
 try:
@@ -91,8 +94,8 @@ class ScanConfig:
     exclude_earnings_within_days: int = ENTRY_EARNINGS_MIN_DAYS
 
     # IV-Rank Filter (für Credit-Spreads wichtig!)
-    iv_rank_minimum: float = 30.0   # Min IV-Rank für ausreichend Prämie
-    iv_rank_maximum: float = 80.0   # Max IV-Rank (zu hohe IV = erhöhtes Risiko)
+    iv_rank_minimum: float = ENTRY_IV_RANK_MIN   # Min IV-Rank für ausreichend Prämie (PLAYBOOK §1)
+    iv_rank_maximum: float = ENTRY_IV_RANK_MAX   # Max IV-Rank (zu hohe IV = erhöhtes Risiko)
     enable_iv_filter: bool = True   # IV-Filter aktivieren/deaktivieren
 
     # Liquidity Filter (basiert auf historischen Options-Daten)
@@ -192,8 +195,8 @@ class ScanConfig:
     fundamentals_max_beta: float = 2.0         # Max Beta zu SPY
 
     # IV Rank aus Fundamentals (symbol_fundamentals.iv_rank_252d)
-    fundamentals_iv_rank_min: float = 20.0
-    fundamentals_iv_rank_max: float = 80.0
+    fundamentals_iv_rank_min: float = 20.0  # Intentionally looser than ENTRY_IV_RANK_MIN (pre-filter)
+    fundamentals_iv_rank_max: float = ENTRY_IV_RANK_MAX
 
     # SPY Correlation Filter
     fundamentals_max_spy_correlation: Optional[float] = None  # z.B. 0.7

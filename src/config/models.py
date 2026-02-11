@@ -12,17 +12,25 @@ try:
     from ..constants.trading_rules import (
         ENTRY_EARNINGS_MIN_DAYS,
         ENTRY_STABILITY_MIN,
+        ENTRY_PRICE_MIN, ENTRY_PRICE_MAX,
+        ENTRY_VOLUME_MIN,
+        ENTRY_IV_RANK_MIN, ENTRY_IV_RANK_MAX,
         SPREAD_SHORT_DELTA_TARGET, SPREAD_SHORT_DELTA_MIN, SPREAD_SHORT_DELTA_MAX,
         SPREAD_LONG_DELTA_TARGET, SPREAD_LONG_DELTA_MIN, SPREAD_LONG_DELTA_MAX,
         SPREAD_DTE_MIN, SPREAD_DTE_MAX, SPREAD_DTE_TARGET,
+        SPREAD_MIN_CREDIT_PCT,
     )
 except ImportError:
     from constants.trading_rules import (
         ENTRY_EARNINGS_MIN_DAYS,
         ENTRY_STABILITY_MIN,
+        ENTRY_PRICE_MIN, ENTRY_PRICE_MAX,
+        ENTRY_VOLUME_MIN,
+        ENTRY_IV_RANK_MIN, ENTRY_IV_RANK_MAX,
         SPREAD_SHORT_DELTA_TARGET, SPREAD_SHORT_DELTA_MIN, SPREAD_SHORT_DELTA_MAX,
         SPREAD_LONG_DELTA_TARGET, SPREAD_LONG_DELTA_MIN, SPREAD_LONG_DELTA_MAX,
         SPREAD_DTE_MIN, SPREAD_DTE_MAX, SPREAD_DTE_TARGET,
+        SPREAD_MIN_CREDIT_PCT,
     )
 
 
@@ -410,8 +418,8 @@ class FundamentalsFilterConfig:
 
     # IV Rank Filter (ergänzt bestehenden IV-Filter)
     # Optimal: IV Rank 20-80 (nicht zu niedrig, nicht zu hoch)
-    iv_rank_min: float = 20.0
-    iv_rank_max: float = 80.0
+    iv_rank_min: float = 20.0  # Intentionally looser than ENTRY_IV_RANK_MIN (pre-filter)
+    iv_rank_max: float = ENTRY_IV_RANK_MAX
     use_iv_percentile: bool = False  # True = iv_percentile statt iv_rank
 
     # SPY Correlation Filter (für Diversifikation)
@@ -441,11 +449,11 @@ class FundamentalsFilterConfig:
 class FilterConfig:
     """Filter Einstellungen"""
     earnings_exclude_days: int = ENTRY_EARNINGS_MIN_DAYS
-    price_minimum: float = 20.0
-    price_maximum: float = 1500.0
-    volume_minimum: int = 500000
-    iv_rank_minimum: float = 30.0
-    iv_rank_maximum: float = 80.0
+    price_minimum: float = ENTRY_PRICE_MIN
+    price_maximum: float = ENTRY_PRICE_MAX
+    volume_minimum: int = ENTRY_VOLUME_MIN
+    iv_rank_minimum: float = ENTRY_IV_RANK_MIN
+    iv_rank_maximum: float = ENTRY_IV_RANK_MAX
     # Fundamentals-Filter
     fundamentals: FundamentalsFilterConfig = field(default_factory=FundamentalsFilterConfig)
 
@@ -526,7 +534,7 @@ class OptionsConfig:
     long_delta_maximum: float = SPREAD_LONG_DELTA_MAX   # More aggressive boundary (PLAYBOOK §2)
     long_delta_target: float = SPREAD_LONG_DELTA_TARGET
     # Spread-Breite: NICHT konfigurierbar — ergibt sich aus Delta-Differenz (PLAYBOOK §2)
-    min_credit_pct: float = 10.0  # PLAYBOOK §2: ≥10% Spread-Breite
+    min_credit_pct: float = SPREAD_MIN_CREDIT_PCT  # PLAYBOOK §2: ≥10% Spread-Breite
     min_open_interest: int = 100
 
     @property

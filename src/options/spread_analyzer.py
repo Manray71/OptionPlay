@@ -33,7 +33,7 @@ from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Tuple
 from enum import Enum
 
-from ..constants.trading_rules import EXIT_PROFIT_PCT_NORMAL
+from ..constants.trading_rules import EXIT_PROFIT_PCT_NORMAL, SPREAD_MIN_CREDIT_PCT
 
 # Black-Scholes Integration for accurate pricing and Greeks
 try:
@@ -276,7 +276,7 @@ class SpreadAnalyzer:
 
         # Warning thresholds
         "min_buffer_pct": 5.0,  # Warning if buffer < 5%
-        "min_credit_pct": 10.0,  # Warning if credit < 10% of width (PLAYBOOK §2)
+        "min_credit_pct": SPREAD_MIN_CREDIT_PCT,  # Warning if credit < 10% of width (PLAYBOOK §2)
         "max_dte_for_theta": 60,  # Theta most effective under 60 DTE
 
         # Profit target recommendations
