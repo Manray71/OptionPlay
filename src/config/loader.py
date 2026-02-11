@@ -38,14 +38,22 @@ from .validation import validate_settings, ConfigValidationError
 try:
     from ..constants.trading_rules import (
         ENTRY_EARNINGS_MIN_DAYS,
+        ENTRY_PRICE_MIN, ENTRY_PRICE_MAX,
+        ENTRY_VOLUME_MIN, ENTRY_IV_RANK_MIN, ENTRY_IV_RANK_MAX,
+        SPREAD_DTE_MIN, SPREAD_DTE_MAX, SPREAD_DTE_TARGET,
         SPREAD_SHORT_DELTA_TARGET, SPREAD_SHORT_DELTA_MIN, SPREAD_SHORT_DELTA_MAX,
         SPREAD_LONG_DELTA_TARGET, SPREAD_LONG_DELTA_MIN, SPREAD_LONG_DELTA_MAX,
+        SPREAD_MIN_CREDIT_PCT,
     )
 except ImportError:
     from constants.trading_rules import (
         ENTRY_EARNINGS_MIN_DAYS,
+        ENTRY_PRICE_MIN, ENTRY_PRICE_MAX,
+        ENTRY_VOLUME_MIN, ENTRY_IV_RANK_MIN, ENTRY_IV_RANK_MAX,
+        SPREAD_DTE_MIN, SPREAD_DTE_MAX, SPREAD_DTE_TARGET,
         SPREAD_SHORT_DELTA_TARGET, SPREAD_SHORT_DELTA_MIN, SPREAD_SHORT_DELTA_MAX,
         SPREAD_LONG_DELTA_TARGET, SPREAD_LONG_DELTA_MIN, SPREAD_LONG_DELTA_MAX,
+        SPREAD_MIN_CREDIT_PCT,
     )
 
 logger = logging.getLogger(__name__)
@@ -290,11 +298,11 @@ class ConfigLoader:
 
             settings.filters = FilterConfig(
                 earnings_exclude_days=f.get('earnings', {}).get('exclude_days_before', ENTRY_EARNINGS_MIN_DAYS),
-                price_minimum=f.get('price', {}).get('minimum', 20.0),
-                price_maximum=f.get('price', {}).get('maximum', 500.0),
-                volume_minimum=f.get('volume', {}).get('minimum_daily', 500000),
-                iv_rank_minimum=f.get('implied_volatility', {}).get('iv_rank_minimum', 30),
-                iv_rank_maximum=f.get('implied_volatility', {}).get('iv_rank_maximum', 80),
+                price_minimum=f.get('price', {}).get('minimum', ENTRY_PRICE_MIN),
+                price_maximum=f.get('price', {}).get('maximum', ENTRY_PRICE_MAX),
+                volume_minimum=f.get('volume', {}).get('minimum_daily', ENTRY_VOLUME_MIN),
+                iv_rank_minimum=f.get('implied_volatility', {}).get('iv_rank_minimum', ENTRY_IV_RANK_MIN),
+                iv_rank_maximum=f.get('implied_volatility', {}).get('iv_rank_maximum', ENTRY_IV_RANK_MAX),
                 fundamentals=fundamentals_config,
             )
 
@@ -302,9 +310,9 @@ class ConfigLoader:
         if 'options_analysis' in raw:
             oa = raw['options_analysis']
             settings.options = OptionsConfig(
-                dte_minimum=oa.get('expiration', {}).get('dte_minimum', 60),
-                dte_maximum=oa.get('expiration', {}).get('dte_maximum', 90),
-                dte_target=oa.get('expiration', {}).get('dte_target', 75),
+                dte_minimum=oa.get('expiration', {}).get('dte_minimum', SPREAD_DTE_MIN),
+                dte_maximum=oa.get('expiration', {}).get('dte_maximum', SPREAD_DTE_MAX),
+                dte_target=oa.get('expiration', {}).get('dte_target', SPREAD_DTE_TARGET),
                 # Short Put Delta ±0.20 (PLAYBOOK §2: ±0.03)
                 delta_minimum=oa.get('short_put', {}).get('delta_minimum', SPREAD_SHORT_DELTA_MIN),
                 delta_maximum=oa.get('short_put', {}).get('delta_maximum', SPREAD_SHORT_DELTA_MAX),
@@ -314,7 +322,7 @@ class ConfigLoader:
                 long_delta_maximum=oa.get('long_put', {}).get('delta_maximum', SPREAD_LONG_DELTA_MAX),
                 long_delta_target=oa.get('long_put', {}).get('delta_target', SPREAD_LONG_DELTA_TARGET),
                 # Spread-Breite: dynamisch aus Delta (PLAYBOOK §2)
-                min_credit_pct=oa.get('premium', {}).get('minimum_credit_percent', 10),
+                min_credit_pct=oa.get('premium', {}).get('minimum_credit_percent', SPREAD_MIN_CREDIT_PCT),
                 min_open_interest=oa.get('liquidity', {}).get('min_open_interest', 100)
             )
             logger.info(

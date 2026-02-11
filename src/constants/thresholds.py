@@ -12,6 +12,13 @@ from dataclasses import dataclass
 from .trading_rules import (
     SPREAD_MIN_CREDIT_PCT,
     BLACKLIST_STABILITY_THRESHOLD,
+    VIX_LOW_VOL_MAX,
+    VIX_NORMAL_MAX,
+    VIX_DANGER_ZONE_MAX,
+    VIX_ELEVATED_MAX,
+    VIX_NO_TRADING_THRESHOLD,
+    ENTRY_IV_RANK_MIN,
+    ENTRY_IV_RANK_MAX,
 )
 
 
@@ -89,13 +96,13 @@ WIN_RATE_BLACKLIST = 66.0     # Stability < 50
 # VIX REGIME THRESHOLDS
 # =============================================================================
 
-# VIX Level Classification (PLAYBOOK §3)
-VIX_LOW = 15.0            # Low Vol boundary
-VIX_NORMAL = 20.0         # Normal/Danger Zone boundary
-VIX_ELEVATED = 25.0       # Danger Zone/Elevated boundary
-VIX_HIGH = 30.0           # Elevated/High Vol boundary (no new trades)
-VIX_NO_TRADING = 35.0     # No trading at all above this
-VIX_EXTREME = 40.0        # Extreme volatility (defensive)
+# VIX Level Classification (PLAYBOOK §3) — delegiert an trading_rules
+VIX_LOW = VIX_LOW_VOL_MAX              # Low Vol boundary (PLAYBOOK: 15)
+VIX_NORMAL = VIX_NORMAL_MAX            # Normal/Danger Zone boundary (PLAYBOOK: 20)
+VIX_ELEVATED = VIX_DANGER_ZONE_MAX     # Danger Zone/Elevated boundary (PLAYBOOK: 25)
+VIX_HIGH = VIX_ELEVATED_MAX            # Elevated/High Vol boundary (PLAYBOOK: 30)
+VIX_NO_TRADING = VIX_NO_TRADING_THRESHOLD  # No trading above this (PLAYBOOK: 35)
+VIX_EXTREME = 40.0                     # Extreme volatility (defensive, no PLAYBOOK constant)
 
 
 # =============================================================================
@@ -104,11 +111,11 @@ VIX_EXTREME = 40.0        # Extreme volatility (defensive)
 
 # IV Rank for credit spreads (0-100)
 # PLAYBOOK §1: IV Rank 30-80% (weicher Filter, WARNING)
-IV_RANK_MIN = 30.0            # Minimum for sufficient premium (PLAYBOOK: 30)
-IV_RANK_MAX = 80.0            # Maximum (too high IV = risk)
+IV_RANK_MIN = ENTRY_IV_RANK_MIN    # Delegiert an trading_rules (PLAYBOOK §1: 30)
+IV_RANK_MAX = ENTRY_IV_RANK_MAX    # Delegiert an trading_rules (PLAYBOOK §1: 80)
 
 # Optimal range
-IV_RANK_OPTIMAL_LOW = 30.0    # Lower bound optimal
+IV_RANK_OPTIMAL_LOW = ENTRY_IV_RANK_MIN   # Lower bound optimal (same as minimum)
 IV_RANK_OPTIMAL_HIGH = 60.0   # Upper bound optimal
 
 

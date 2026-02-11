@@ -40,6 +40,10 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional, Dict, List
 
+from ..constants.trading_rules import (
+    VIX_LOW_VOL_MAX, VIX_NORMAL_MAX, VIX_ELEVATED_MAX, VIX_NO_TRADING_THRESHOLD,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -131,11 +135,11 @@ class PositionSizerConfig:
     kelly_mode: KellyMode = KellyMode.HALF
     kelly_cap: float = 0.25  # Max 25% auch bei sehr gutem Edge
 
-    # VIX Adjustment Faktoren
-    vix_low_threshold: float = 15.0
-    vix_normal_threshold: float = 20.0
-    vix_elevated_threshold: float = 30.0
-    vix_high_threshold: float = 40.0
+    # VIX Adjustment Faktoren (aus trading_rules.py)
+    vix_low_threshold: float = VIX_LOW_VOL_MAX
+    vix_normal_threshold: float = VIX_NORMAL_MAX
+    vix_elevated_threshold: float = VIX_ELEVATED_MAX
+    vix_high_threshold: float = VIX_NO_TRADING_THRESHOLD
 
     # VIX Skalierungsfaktoren (Multiplikatoren)
     vix_scale_low: float = 1.0       # Keine Reduktion bei low VIX
