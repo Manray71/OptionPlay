@@ -53,6 +53,10 @@ sys.path.insert(0, str(project_root))
 from dotenv import load_dotenv
 load_dotenv()
 
+from src.constants.trading_rules import (
+    SPREAD_SHORT_DELTA_TARGET, SPREAD_SHORT_DELTA_MIN, SPREAD_SHORT_DELTA_MAX,
+    SPREAD_LONG_DELTA_TARGET, SPREAD_LONG_DELTA_MIN, SPREAD_LONG_DELTA_MAX,
+)
 from src.backtesting import TradeTracker, TradeOutcome, ExitReason
 from src.config.models import PullbackScoringConfig
 from src.analyzers.pullback import PullbackAnalyzer
@@ -120,14 +124,14 @@ class BacktestConfig:
     dte_min: int = 60
     dte_max: int = 90
 
-    # Delta-basierte Strike-Auswahl (Basisstrategie)
+    # Delta-basierte Strike-Auswahl (PLAYBOOK)
     use_delta_based_strikes: bool = True
-    short_delta_target: float = -0.20
-    short_delta_min: float = -0.25
-    short_delta_max: float = -0.15
-    long_delta_target: float = -0.05
-    long_delta_min: float = -0.08
-    long_delta_max: float = -0.03
+    short_delta_target: float = SPREAD_SHORT_DELTA_TARGET
+    short_delta_min: float = SPREAD_SHORT_DELTA_MIN
+    short_delta_max: float = SPREAD_SHORT_DELTA_MAX
+    long_delta_target: float = SPREAD_LONG_DELTA_TARGET
+    long_delta_min: float = SPREAD_LONG_DELTA_MIN
+    long_delta_max: float = SPREAD_LONG_DELTA_MAX
 
     # Exit-Kriterien
     profit_target_pct: float = 50.0

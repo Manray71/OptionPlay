@@ -449,7 +449,7 @@ class StrikeRecommender(StrikeMetricsMixin):
 
         if options_data:
             # Delta-based alternatives: vary long delta target
-            long_delta_targets = [-0.04, -0.05, -0.06]
+            long_delta_targets = [SPREAD_LONG_DELTA_TARGET + 0.01, SPREAD_LONG_DELTA_TARGET, SPREAD_LONG_DELTA_TARGET - 0.01]
             for long_delta_target in long_delta_targets:
                 # Temporarily adjust config for this search
                 orig_target = self.config["long_delta_target"]

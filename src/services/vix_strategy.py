@@ -561,11 +561,11 @@ class VIXStrategySelector:
         warnings = []
 
         # Reasoning based on regime (5-tier system)
-        # Base strategy: Short Put Delta -0.20, DTE 60-90 days
+        # Base strategy: Short Put Delta DELTA_TARGET, DTE 60-90 days
         if regime == MarketRegime.LOW_VOL:
             reasoning = (
                 f"VIX at {vix:.1f} shows low volatility. "
-                "Short Put with Delta -0.20, DTE 60-90 days. "
+                f"Short Put with Delta {DELTA_TARGET}, DTE 60-90 days. "
                 "Premiums are lower - focus on quality."
             )
             warnings.append("Low premiums - focus on quality over quantity")
@@ -573,7 +573,7 @@ class VIXStrategySelector:
         elif regime == MarketRegime.NORMAL:
             reasoning = (
                 f"VIX at {vix:.1f} - Sweet Spot! Best conditions. "
-                "Short Put with Delta -0.20, DTE 60-90 days. "
+                f"Short Put with Delta {DELTA_TARGET}, DTE 60-90 days. "
                 "84% Win Rate in this range."
             )
 
@@ -601,7 +601,7 @@ class VIXStrategySelector:
         elif regime == MarketRegime.HIGH_VOL:
             reasoning = (
                 f"VIX at {vix:.1f} shows extreme volatility (crash mode). "
-                "Short Put with Delta -0.20, DTE 60-90 days. "
+                f"Short Put with Delta {DELTA_TARGET}, DTE 60-90 days. "
                 "Spread width dynamic (delta-based)."
             )
             warnings.append("CRASH MODE: Reduce position sizes to 50%")
@@ -611,7 +611,7 @@ class VIXStrategySelector:
         else:  # UNKNOWN
             reasoning = (
                 "No VIX data available. "
-                "Using standard profile: Delta -0.20, DTE 60-90 days."
+                f"Using standard profile: Delta {DELTA_TARGET}, DTE 60-90 days."
             )
             warnings.append("VIX not available - manual market check recommended")
 

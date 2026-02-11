@@ -12,6 +12,12 @@ from .trading_rules import (
     SPREAD_DTE_MIN,
     SPREAD_DTE_MAX,
     SPREAD_DTE_TARGET,
+    SPREAD_SHORT_DELTA_TARGET,
+    SPREAD_SHORT_DELTA_MIN,
+    SPREAD_SHORT_DELTA_MAX,
+    SPREAD_LONG_DELTA_TARGET,
+    SPREAD_LONG_DELTA_MIN,
+    SPREAD_LONG_DELTA_MAX,
 )
 
 
@@ -35,21 +41,21 @@ DTE_MAX_STRICT = 120      # Absolute maximum
 # WARNING: These values are part of the strategy and were optimized based on
 # historical win rates. Changes invalidate the strategy!
 
-# Short Put Delta (sold)
+# Short Put Delta (sold) — delegiert an trading_rules
 # PLAYBOOK §2: Delta -0.20 ±0.03 — "Delta ist heilig"
-DELTA_TARGET = -0.20      # Target delta for short put
-DELTA_MIN = -0.17         # Minimum delta (PLAYBOOK: ±0.03)
-DELTA_MAX = -0.23         # Maximum delta (PLAYBOOK: ±0.03)
+DELTA_TARGET = SPREAD_SHORT_DELTA_TARGET
+DELTA_MIN = SPREAD_SHORT_DELTA_MIN
+DELTA_MAX = SPREAD_SHORT_DELTA_MAX
 
 # Alternatives for different market conditions
-DELTA_CONSERVATIVE = -0.17    # Lower risk (same as DELTA_MIN per PLAYBOOK)
-DELTA_AGGRESSIVE = -0.23      # Higher risk (same as DELTA_MAX per PLAYBOOK)
+DELTA_CONSERVATIVE = SPREAD_SHORT_DELTA_MIN    # Lower risk
+DELTA_AGGRESSIVE = SPREAD_SHORT_DELTA_MAX      # Higher risk
 
-# Long Put Delta (bought)
+# Long Put Delta (bought) — delegiert an trading_rules
 # PLAYBOOK §2: Delta -0.05 ±0.02
-DELTA_LONG_TARGET = -0.05     # Target for long put
-DELTA_LONG_MIN = -0.03        # Minimum (PLAYBOOK: ±0.02)
-DELTA_LONG_MAX = -0.07        # Maximum (PLAYBOOK: ±0.02)
+DELTA_LONG_TARGET = SPREAD_LONG_DELTA_TARGET
+DELTA_LONG_MIN = SPREAD_LONG_DELTA_MIN
+DELTA_LONG_MAX = SPREAD_LONG_DELTA_MAX
 
 
 # =============================================================================

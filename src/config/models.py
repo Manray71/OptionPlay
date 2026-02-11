@@ -12,11 +12,15 @@ try:
     from ..constants.trading_rules import (
         ENTRY_EARNINGS_MIN_DAYS,
         ENTRY_STABILITY_MIN,
+        SPREAD_SHORT_DELTA_TARGET, SPREAD_SHORT_DELTA_MIN, SPREAD_SHORT_DELTA_MAX,
+        SPREAD_LONG_DELTA_TARGET, SPREAD_LONG_DELTA_MIN, SPREAD_LONG_DELTA_MAX,
     )
 except ImportError:
     from constants.trading_rules import (
         ENTRY_EARNINGS_MIN_DAYS,
         ENTRY_STABILITY_MIN,
+        SPREAD_SHORT_DELTA_TARGET, SPREAD_SHORT_DELTA_MIN, SPREAD_SHORT_DELTA_MAX,
+        SPREAD_LONG_DELTA_TARGET, SPREAD_LONG_DELTA_MIN, SPREAD_LONG_DELTA_MAX,
     )
 
 
@@ -512,13 +516,13 @@ class OptionsConfig:
     # Short Put (verkauft) - Delta ±0.20 (PLAYBOOK §2: ±0.03)
     # Note: delta_minimum = less aggressive (smaller |delta|, closer to 0)
     #       delta_maximum = more aggressive (larger |delta|, further from 0)
-    delta_minimum: float = -0.17  # Less aggressive boundary (PLAYBOOK §2)
-    delta_maximum: float = -0.23  # More aggressive boundary (PLAYBOOK §2)
-    delta_target: float = -0.20
-    # Long Put (gekauft) - Delta ±0.05 (PLAYBOOK §2: ±0.02)
-    long_delta_minimum: float = -0.03  # Less aggressive boundary (PLAYBOOK §2)
-    long_delta_maximum: float = -0.07  # More aggressive boundary (PLAYBOOK §2)
-    long_delta_target: float = -0.05
+    delta_minimum: float = SPREAD_SHORT_DELTA_MIN   # Less aggressive boundary (PLAYBOOK §2)
+    delta_maximum: float = SPREAD_SHORT_DELTA_MAX   # More aggressive boundary (PLAYBOOK §2)
+    delta_target: float = SPREAD_SHORT_DELTA_TARGET
+    # Long Put (gekauft) - Delta (PLAYBOOK §2: ±0.02)
+    long_delta_minimum: float = SPREAD_LONG_DELTA_MIN   # Less aggressive boundary (PLAYBOOK §2)
+    long_delta_maximum: float = SPREAD_LONG_DELTA_MAX   # More aggressive boundary (PLAYBOOK §2)
+    long_delta_target: float = SPREAD_LONG_DELTA_TARGET
     # Spread-Breite: NICHT konfigurierbar — ergibt sich aus Delta-Differenz (PLAYBOOK §2)
     min_credit_pct: float = 10.0  # PLAYBOOK §2: ≥10% Spread-Breite
     min_open_interest: int = 100

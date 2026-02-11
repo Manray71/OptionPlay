@@ -36,9 +36,17 @@ from .models import (
 from .validation import validate_settings, ConfigValidationError
 
 try:
-    from ..constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS
+    from ..constants.trading_rules import (
+        ENTRY_EARNINGS_MIN_DAYS,
+        SPREAD_SHORT_DELTA_TARGET, SPREAD_SHORT_DELTA_MIN, SPREAD_SHORT_DELTA_MAX,
+        SPREAD_LONG_DELTA_TARGET, SPREAD_LONG_DELTA_MIN, SPREAD_LONG_DELTA_MAX,
+    )
 except ImportError:
-    from constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS
+    from constants.trading_rules import (
+        ENTRY_EARNINGS_MIN_DAYS,
+        SPREAD_SHORT_DELTA_TARGET, SPREAD_SHORT_DELTA_MIN, SPREAD_SHORT_DELTA_MAX,
+        SPREAD_LONG_DELTA_TARGET, SPREAD_LONG_DELTA_MIN, SPREAD_LONG_DELTA_MAX,
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -298,13 +306,13 @@ class ConfigLoader:
                 dte_maximum=oa.get('expiration', {}).get('dte_maximum', 90),
                 dte_target=oa.get('expiration', {}).get('dte_target', 75),
                 # Short Put Delta ±0.20 (PLAYBOOK §2: ±0.03)
-                delta_minimum=oa.get('short_put', {}).get('delta_minimum', -0.17),
-                delta_maximum=oa.get('short_put', {}).get('delta_maximum', -0.23),
-                delta_target=oa.get('short_put', {}).get('delta_target', -0.20),
-                # Long Put Delta ±0.05 (PLAYBOOK §2: ±0.02)
-                long_delta_minimum=oa.get('long_put', {}).get('delta_minimum', -0.03),
-                long_delta_maximum=oa.get('long_put', {}).get('delta_maximum', -0.07),
-                long_delta_target=oa.get('long_put', {}).get('delta_target', -0.05),
+                delta_minimum=oa.get('short_put', {}).get('delta_minimum', SPREAD_SHORT_DELTA_MIN),
+                delta_maximum=oa.get('short_put', {}).get('delta_maximum', SPREAD_SHORT_DELTA_MAX),
+                delta_target=oa.get('short_put', {}).get('delta_target', SPREAD_SHORT_DELTA_TARGET),
+                # Long Put Delta (PLAYBOOK §2: ±0.02)
+                long_delta_minimum=oa.get('long_put', {}).get('delta_minimum', SPREAD_LONG_DELTA_MIN),
+                long_delta_maximum=oa.get('long_put', {}).get('delta_maximum', SPREAD_LONG_DELTA_MAX),
+                long_delta_target=oa.get('long_put', {}).get('delta_target', SPREAD_LONG_DELTA_TARGET),
                 # Spread-Breite: dynamisch aus Delta (PLAYBOOK §2)
                 min_credit_pct=oa.get('premium', {}).get('minimum_credit_percent', 10),
                 min_open_interest=oa.get('liquidity', {}).get('min_open_interest', 100)

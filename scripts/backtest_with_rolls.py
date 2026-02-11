@@ -53,9 +53,10 @@ logger = logging.getLogger(__name__)
 # Configuration
 # =============================================================================
 
-# Delta targets from strategies.yaml
-SHORT_DELTA_TARGET = -0.20  # Short Put Delta
-LONG_DELTA_TARGET = -0.05   # Long Put Delta (protective)
+# Delta targets (from PLAYBOOK)
+from src.constants.trading_rules import SPREAD_SHORT_DELTA_TARGET, SPREAD_LONG_DELTA_TARGET
+SHORT_DELTA_TARGET = SPREAD_SHORT_DELTA_TARGET
+LONG_DELTA_TARGET = SPREAD_LONG_DELTA_TARGET
 HOLDING_DAYS = 75           # Target DTE
 RISK_FREE_RATE = 0.05       # 5% annualized
 
