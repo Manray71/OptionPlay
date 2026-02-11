@@ -286,7 +286,7 @@ options_analysis:
     
   # Liquiditäts-Anforderungen
   liquidity:
-    min_open_interest: 100        # Mindest Open Interest pro Strike
+    min_open_interest: 100        # Mindest OI pro Strike (< 100 = sehr niedrig)
     max_bid_ask_spread: 0.20      # Max. Bid-Ask-Spread ($)
     max_bid_ask_percent: 10       # Max. Bid-Ask als % des Optionspreises
 

@@ -35,7 +35,7 @@ Jeder Trade MUSS alle harten Filter bestehen. Kein Filter darf übersprungen wer
 | Filter | Schwelle | Bei Verletzung |
 |--------|----------|----------------|
 | IV Rank | 30% – 80% | WARNING — Trade möglich, Prämie prüfen |
-| Open Interest | > 100 pro Strike | WARNING — Liquiditätsrisiko |
+| Open Interest | ✅ >700 (hoch) ⚠️ 100–700 (niedrig) ❌ <100 (sehr niedrig) | WARNING/REJECT — Liquiditätsrisiko |
 | Bid-Ask Spread | < $0.20 | WARNING — Ausführungsrisiko |
 
 ---

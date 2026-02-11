@@ -5,10 +5,10 @@ Bewertet die Liquidität einzelner Strikes und kompletter Spreads
 anhand von Open Interest, Bid-Ask Spread und Volume.
 
 Quality Levels:
-- excellent: OI>500, Spread<5%, Volume>200
-- good:      OI>100, Spread<10%, Volume>50
-- fair:      OI>50,  Spread<15%
-- poor:      darunter → ausschließen
+- excellent: OI>5000, Spread<5%, Volume>200
+- good:      OI>700,  Spread<10%, Volume>50
+- fair:      OI>100,  Spread<15%
+- poor:      darunter → sehr niedrig, ausschließen
 """
 
 import logging

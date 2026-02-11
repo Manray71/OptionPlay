@@ -419,9 +419,9 @@ liquidity:
     bid_ask_spread_max: 0.20
   quality:
     open_interest:
-      excellent: 500
-      good: 100
-      fair: 50
+      excellent: 5000
+      good: 700
+      fair: 100
     spread_pct:
       excellent: 5.0
       good: 10.0

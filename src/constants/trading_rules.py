@@ -85,9 +85,9 @@ ENTRY_BID_ASK_SPREAD_MAX = _entry.get("bid_ask_spread_max", 0.20)
 
 # Options Liquidity Quality Thresholds (per strike)
 _oi = _quality.get("open_interest", {})
-LIQUIDITY_OI_EXCELLENT = _oi.get("excellent", 500)
-LIQUIDITY_OI_GOOD = _oi.get("good", 100)
-LIQUIDITY_OI_FAIR = _oi.get("fair", 50)
+LIQUIDITY_OI_EXCELLENT = _oi.get("excellent", 5000)
+LIQUIDITY_OI_GOOD = _oi.get("good", 700)
+LIQUIDITY_OI_FAIR = _oi.get("fair", 100)
 
 _spread = _quality.get("spread_pct", {})
 LIQUIDITY_SPREAD_PCT_EXCELLENT = _spread.get("excellent", 5.0)
