@@ -52,8 +52,8 @@ EDIP_EXTREME_DIP_PCT = 25.0      # Hard disqualify above this
 EDIP_LOOKBACK_DAYS = 10          # Max days since earnings to scan
 EDIP_MIN_STABILIZATION_DAYS = 1  # Must wait at least 1 day
 EDIP_MIN_STABILITY_SCORE = 60.0  # Minimum stability for qualification
-EDIP_MIN_AVG_VOLUME = 500000     # Minimum average volume
-from ..constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS as _ENTRY_EARNINGS_MIN_DAYS
+from ..constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS as _ENTRY_EARNINGS_MIN_DAYS, ENTRY_VOLUME_MIN
+EDIP_MIN_AVG_VOLUME = ENTRY_VOLUME_MIN  # Minimum average volume (from trading_rules)
 EDIP_NEXT_EARNINGS_MIN_DAYS = _ENTRY_EARNINGS_MIN_DAYS  # Min days to next earnings for BPS
 EDIP_MIN_SCORE = 3.5             # Minimum total score for signal
 EDIP_MAX_SCORE = 9.5             # Theoretical maximum

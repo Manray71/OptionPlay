@@ -124,9 +124,9 @@ class TestVIXAdjustments:
         assert regime == VIXRegime.ELEVATED
 
     def test_vix_regime_high(self):
-        """VIX 30-40 = HIGH regime"""
+        """VIX 30-35 = HIGH regime"""
         sizer = PositionSizer(account_size=100000)
-        regime = sizer.get_vix_regime(35)
+        regime = sizer.get_vix_regime(32)
         assert regime == VIXRegime.HIGH
 
     def test_vix_regime_extreme(self):

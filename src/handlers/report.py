@@ -12,7 +12,7 @@ import logging
 from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
-from ..constants.trading_rules import SPREAD_SHORT_DELTA_TARGET
+from ..constants.trading_rules import SPREAD_SHORT_DELTA_TARGET, SPREAD_DTE_MIN, SPREAD_DTE_MAX
 from ..utils.error_handler import mcp_endpoint
 from ..utils.markdown_builder import MarkdownBuilder
 from ..utils.validation import validate_symbol
@@ -120,8 +120,8 @@ class ReportHandlerMixin(BaseHandlerMixin):
                 "delta": strategy_rec.delta_target if strategy_rec else SPREAD_SHORT_DELTA_TARGET,
                 "spread_width": strategy_rec.spread_width if strategy_rec else None,
                 "min_score": min_score,
-                "min_dte": strategy_rec.dte_min if strategy_rec else 60,
-                "max_dte": strategy_rec.dte_max if strategy_rec else 90,
+                "min_dte": strategy_rec.dte_min if strategy_rec else SPREAD_DTE_MIN,
+                "max_dte": strategy_rec.dte_max if strategy_rec else SPREAD_DTE_MAX,
             }
         }
 

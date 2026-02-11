@@ -42,6 +42,8 @@ import logging
 
 from ..constants.trading_rules import (
     BLACKLIST_SYMBOLS,
+    ENTRY_STABILITY_MIN,
+    EXIT_PROFIT_PCT_NORMAL,
     get_regime_rules,
     get_vix_regime,
     VIXRegimeRules,
@@ -154,8 +156,8 @@ class PortfolioConstraintChecker:
             "max_per_sector": self.constraints.max_per_sector,
             "risk_per_trade_pct": 2.0,
             "new_trades_allowed": True,
-            "stability_min": 70.0,
-            "profit_exit_pct": 50.0,
+            "stability_min": ENTRY_STABILITY_MIN,
+            "profit_exit_pct": EXIT_PROFIT_PCT_NORMAL,
             "regime": "UNKNOWN",
             "notes": "Keine VIX-Daten, verwende statische Defaults",
         }

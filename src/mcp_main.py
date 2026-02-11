@@ -158,7 +158,7 @@ Dies hilft bei der Planung der nächsten Trades."""
 1. Aktueller Kurs und VIX-Strategie
 2. Earnings-Check (muss >45 Tage sein)
 3. Technische Analyse (Support, Fibonacci)
-4. Strike-Empfehlungen mit {dte} DTE (falls angegeben, sonst 30-60)
+4. Strike-Empfehlungen mit {dte} DTE (falls angegeben, sonst 60-90)
 5. Options-Chain mit Bid/Ask
 6. Zusammenfassung: Empfohlener Spread, Credit, Max Risk, P(Profit)"""
     }

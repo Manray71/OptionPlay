@@ -38,7 +38,7 @@ from ...constants.trading_rules import (
     SPREAD_SHORT_DELTA_TARGET, SPREAD_SHORT_DELTA_MIN, SPREAD_SHORT_DELTA_MAX,
     SPREAD_LONG_DELTA_TARGET, SPREAD_LONG_DELTA_MIN, SPREAD_LONG_DELTA_MAX,
     SPREAD_DTE_MIN, SPREAD_DTE_MAX,
-    EXIT_PROFIT_PCT_NORMAL,
+    EXIT_PROFIT_PCT_NORMAL, SPREAD_MIN_CREDIT_PCT,
 )
 from ..simulation import OptionsSimulator, SpreadEntry, SpreadSnapshot, OptionsSimulatorConfig as SimulatorConfig
 from .entry_exit import EntryExitMixin
@@ -114,7 +114,7 @@ class BacktestConfig:
     dte_exit_threshold: int = 14  # Exit wenn DTE < X
 
     # Spread-Parameter
-    min_credit_pct: float = 10.0  # Min Credit als % der Spread-Width (PLAYBOOK §2)
+    min_credit_pct: float = SPREAD_MIN_CREDIT_PCT  # Min Credit als % der Spread-Width (PLAYBOOK §2)
     spread_width_pct: float = 5.0  # Spread-Width als % des Aktienkurses
 
     # Simulation

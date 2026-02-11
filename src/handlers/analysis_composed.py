@@ -434,8 +434,8 @@ class AnalysisHandler(BaseHandler):
     async def recommend_strikes(
         self,
         symbol: str,
-        dte_min: int = 60,
-        dte_max: int = 90,
+        dte_min: int = SPREAD_DTE_MIN,
+        dte_max: int = SPREAD_DTE_MAX,
         num_alternatives: int = 3,
     ) -> str:
         """

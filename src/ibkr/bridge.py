@@ -16,6 +16,8 @@ This module re-exports everything so existing imports continue to work:
 from dataclasses import dataclass
 from typing import Optional, Dict, List, Any
 
+from ..constants.trading_rules import SPREAD_DTE_MIN, SPREAD_DTE_MAX
+
 # Re-export all public names from the ibkr package
 from . import (
     # Data classes
@@ -229,8 +231,8 @@ class IBKRBridge:
     async def get_option_chain(
         self,
         symbol: str,
-        dte_min: int = 60,
-        dte_max: int = 90,
+        dte_min: int = SPREAD_DTE_MIN,
+        dte_max: int = SPREAD_DTE_MAX,
         right: str = "P",
     ) -> list:
         return await self._market_data.get_option_chain(

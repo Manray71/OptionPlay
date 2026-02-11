@@ -20,6 +20,7 @@ from datetime import datetime, timedelta
 from typing import Optional, Dict, List, Any
 
 from ..utils.markdown_builder import MarkdownBuilder, format_price, format_volume
+from ..constants.trading_rules import SPREAD_DTE_MIN, SPREAD_DTE_MAX
 from .connection import IBKRConnection, to_ibkr_symbol, from_ibkr_symbol
 
 logger = logging.getLogger(__name__)
@@ -777,8 +778,8 @@ class IBKRMarketData:
     async def get_option_chain(
         self,
         symbol: str,
-        dte_min: int = 60,
-        dte_max: int = 90,
+        dte_min: int = SPREAD_DTE_MIN,
+        dte_max: int = SPREAD_DTE_MAX,
         right: str = "P",
     ) -> List[Any]:
         """

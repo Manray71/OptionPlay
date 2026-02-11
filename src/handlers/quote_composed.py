@@ -53,8 +53,8 @@ class QuoteHandler(BaseHandler):
     async def get_options_chain(
         self,
         symbol: str,
-        dte_min: int = 60,
-        dte_max: int = 90,
+        dte_min: int = SPREAD_DTE_MIN,
+        dte_max: int = SPREAD_DTE_MAX,
         right: str = "P",
         max_options: int = 15,
     ) -> str:

@@ -12,6 +12,11 @@
 
 from typing import List, Tuple
 
+try:
+    from ..constants.trading_rules import ENTRY_IV_RANK_MAX
+except ImportError:
+    from constants.trading_rules import ENTRY_IV_RANK_MAX
+
 # =============================================================================
 # BLACKLIST - Symbole die NIEMALS gehandelt werden sollten
 # =============================================================================
@@ -68,7 +73,7 @@ DEFAULT_MAX_BETA: float = 2.0
 # IV Rank Filter
 # Optimal: IV Rank 20-80 (ausreichend Prämie, nicht zu riskant)
 DEFAULT_IV_RANK_MIN: float = 20.0
-DEFAULT_IV_RANK_MAX: float = 80.0
+DEFAULT_IV_RANK_MAX: float = ENTRY_IV_RANK_MAX  # from trading_rules (80.0)
 
 # Market Cap Filter
 # Micro Caps ausschließen (weniger liquide, höheres Risiko)

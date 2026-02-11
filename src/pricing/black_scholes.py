@@ -1409,10 +1409,10 @@ def batch_estimate_iv(
         # VIX > 20: Elevated, +8%
         # VIX < 15: Low vol, -2%
         adjustment = np.where(
-            vix > 30, 1.25,
-            np.where(vix > 25, 1.15,
-                np.where(vix > 20, 1.08,
-                    np.where(vix < 15, 0.98, 1.0)))
+            vix > VIX_ELEVATED_MAX, 1.25,
+            np.where(vix > VIX_DANGER_ZONE_MAX, 1.15,
+                np.where(vix > VIX_NORMAL_MAX, 1.08,
+                    np.where(vix < VIX_LOW_VOL_MAX, 0.98, 1.0)))
         )
         iv = iv * adjustment
 

@@ -486,8 +486,8 @@ class ScannerConfig:
     earnings_allow_bmo_same_day: bool = False  # Konservativ: BMO-Tag nicht handeln
 
     # IV-Rank Filter (für Credit-Spreads wichtig!)
-    iv_rank_minimum: float = 30.0   # Min IV-Rank für ausreichend Prämie
-    iv_rank_maximum: float = 80.0   # Max IV-Rank (zu hohe IV = erhöhtes Risiko)
+    iv_rank_minimum: float = ENTRY_IV_RANK_MIN   # Min IV-Rank für ausreichend Prämie
+    iv_rank_maximum: float = ENTRY_IV_RANK_MAX   # Max IV-Rank (zu hohe IV = erhöhtes Risiko)
     enable_iv_filter: bool = True   # IV-Filter aktivieren/deaktivieren
 
     # Output-Limits

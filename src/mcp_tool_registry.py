@@ -33,9 +33,9 @@ from typing import Any, Callable, Dict, List, Optional, Awaitable, Union
 from mcp.types import Tool
 
 try:
-    from .constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS
+    from .constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS, SPREAD_DTE_MIN, SPREAD_DTE_MAX
 except ImportError:
-    from constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS
+    from constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS, SPREAD_DTE_MIN, SPREAD_DTE_MAX
 
 logger = logging.getLogger(__name__)
 
@@ -434,8 +434,8 @@ async def handle_quote(server: Any, arguments: ToolArguments) -> str:
 async def handle_options(server: Any, arguments: ToolArguments) -> str:
     return await server.handlers.quote.get_options_chain(
         symbol=arguments["symbol"],
-        dte_min=arguments.get("dte_min", 60),
-        dte_max=arguments.get("dte_max", 90),
+        dte_min=arguments.get("dte_min", SPREAD_DTE_MIN),
+        dte_max=arguments.get("dte_max", SPREAD_DTE_MAX),
         right=arguments.get("right", "P"),
     )
 
@@ -621,8 +621,8 @@ async def handle_ensemble_status(server: Any, arguments: ToolArguments) -> str:
 async def handle_recommend_strikes(server: Any, arguments: ToolArguments) -> str:
     return await server.handlers.analysis.recommend_strikes(
         symbol=arguments["symbol"],
-        dte_min=arguments.get("dte_min", 60),
-        dte_max=arguments.get("dte_max", 90),
+        dte_min=arguments.get("dte_min", SPREAD_DTE_MIN),
+        dte_max=arguments.get("dte_max", SPREAD_DTE_MAX),
         num_alternatives=arguments.get("num_alternatives", 3),
     )
 

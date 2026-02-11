@@ -22,7 +22,7 @@ import math
 
 from .base import BaseAnalyzer
 from .context import AnalysisContext
-from ..constants.trading_rules import VIX_LOW_VOL_MAX, VIX_NORMAL_MAX
+from ..constants.trading_rules import VIX_LOW_VOL_MAX, VIX_NORMAL_MAX, VIX_DANGER_ZONE_MAX, ENTRY_VOLUME_MIN
 
 from ..models.base import TradeSignal, SignalType, SignalStrength
 from ..models.strategy_breakdowns import TrendContinuationScoreBreakdown
@@ -57,10 +57,10 @@ TREND_MAX_CLOSES_BELOW_SMA50 = 5
 TREND_MIN_BUFFER_PCT = 3.0
 TREND_RSI_OVERBOUGHT = 80
 TREND_ADX_MIN = 15
-TREND_MIN_AVG_VOLUME = 500_000
+TREND_MIN_AVG_VOLUME = ENTRY_VOLUME_MIN  # from trading_rules
 TREND_MIN_STABILITY_SCORE = 70
 TREND_MIN_EARNINGS_DAYS = 14
-TREND_VIX_MAX = 25.0
+TREND_VIX_MAX = VIX_DANGER_ZONE_MAX  # from trading_rules (25.0)
 
 # Volume average period
 TREND_VOLUME_AVG_PERIOD = 20

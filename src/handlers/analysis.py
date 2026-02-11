@@ -20,7 +20,8 @@ from ..strike_recommender import StrikeRecommender
 from ..indicators.support_resistance import find_support_levels, calculate_fibonacci
 from ..constants.trading_rules import (
     ENTRY_EARNINGS_MIN_DAYS, ENTRY_VOLUME_MIN, BLACKLIST_SYMBOLS, ENTRY_STABILITY_MIN,
-    VIX_LOW_VOL_MAX, VIX_NORMAL_MAX, VIX_ELEVATED_MAX, is_blacklisted,
+    VIX_LOW_VOL_MAX, VIX_NORMAL_MAX, VIX_ELEVATED_MAX, SPREAD_DTE_MIN, SPREAD_DTE_MAX,
+    is_blacklisted,
 )
 from ..cache.symbol_fundamentals import get_fundamentals_manager
 from .base import BaseHandlerMixin
@@ -463,8 +464,8 @@ class AnalysisHandlerMixin(BaseHandlerMixin):
     async def recommend_strikes(
         self,
         symbol: str,
-        dte_min: int = 60,
-        dte_max: int = 90,
+        dte_min: int = SPREAD_DTE_MIN,
+        dte_max: int = SPREAD_DTE_MAX,
         num_alternatives: int = 3,
     ) -> str:
         """

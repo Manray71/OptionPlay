@@ -24,7 +24,7 @@ from ..cache import get_earnings_fetcher
 from ..utils.earnings_aggregator import (
     EarningsResult, get_earnings_aggregator, create_earnings_result
 )
-from ..constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS
+from ..constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS, SPREAD_DTE_MIN, SPREAD_DTE_MAX
 from .base import BaseHandlerMixin
 
 logger = logging.getLogger(__name__)
@@ -49,8 +49,8 @@ class QuoteHandlerMixin(BaseHandlerMixin):
     async def get_options_chain(
         self,
         symbol: str,
-        dte_min: int = 60,
-        dte_max: int = 90,
+        dte_min: int = SPREAD_DTE_MIN,
+        dte_max: int = SPREAD_DTE_MAX,
         right: str = "P",
         max_options: int = 15,
     ) -> str:

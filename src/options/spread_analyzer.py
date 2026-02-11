@@ -33,7 +33,7 @@ from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Tuple
 from enum import Enum
 
-from ..constants.trading_rules import EXIT_PROFIT_PCT_NORMAL, SPREAD_MIN_CREDIT_PCT
+from ..constants.trading_rules import EXIT_PROFIT_PCT_NORMAL, EXIT_STOP_LOSS_MULTIPLIER, SPREAD_MIN_CREDIT_PCT
 
 # Black-Scholes Integration for accurate pricing and Greeks
 try:
@@ -695,9 +695,9 @@ class SpreadAnalyzer:
         )
 
         # Stop-Loss Empfehlung
-        stop_loss_price = params.net_credit * 2  # 200% des Credits
+        stop_loss_price = params.net_credit * EXIT_STOP_LOSS_MULTIPLIER  # 200% des Credits
         recommendations.append(
-            f"Stop-Loss bei Spread-Preis: ${stop_loss_price:.2f} (2x Credit)"
+            f"Stop-Loss bei Spread-Preis: ${stop_loss_price:.2f} ({EXIT_STOP_LOSS_MULTIPLIER:.0f}x Credit)"
         )
 
         if risk_level in [SpreadRiskLevel.HIGH, SpreadRiskLevel.VERY_HIGH]:

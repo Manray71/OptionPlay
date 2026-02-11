@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Any, Dict, List, Optional, Protocol
 
-from ..constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS
+from ..constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS, SPREAD_DTE_MIN, SPREAD_DTE_MAX
 
 # Import from utils package (relative import within src package)
 from ..utils.markdown_builder import (
@@ -198,7 +198,7 @@ class ScanResultFormatter(BaseFormatter):
             if recommendation:
                 b.blank().h2("Next Steps")
                 b.numbered("Check earnings: `get_earnings <SYMBOL>`")
-                b.numbered(f"Options chain: `get_options_chain <SYMBOL>` (DTE 45-60, Delta {recommendation.delta_target})")
+                b.numbered(f"Options chain: `get_options_chain <SYMBOL>` (DTE {SPREAD_DTE_MIN}-{SPREAD_DTE_MAX}, Delta {recommendation.delta_target})")
                 b.numbered(f"Spread width: {'Dynamic (delta-based)' if recommendation.spread_width is None else f'${recommendation.spread_width:.2f}'}")
         else:
             min_score = recommendation.min_score if recommendation else 5
@@ -794,7 +794,7 @@ class SymbolAnalysisFormatter(BaseFormatter):
                 b.kv_line("Spread Width", recommendation.spread_width, fmt="$.2f")
             else:
                 b.kv_line("Spread Width", "Dynamic (delta-based)")
-            b.kv_line("DTE", "45-60 days")
+            b.kv_line("DTE", f"{SPREAD_DTE_MIN}-{SPREAD_DTE_MAX} days")
         else:
             b.status_warning("**Caution:**")
             b.bullets(warnings)

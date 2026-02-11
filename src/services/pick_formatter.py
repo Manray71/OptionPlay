@@ -14,7 +14,7 @@ import logging
 from datetime import date
 from typing import Any, Optional
 
-from ..constants.trading_rules import EXIT_PROFIT_PCT_NORMAL, EXIT_STOP_LOSS_MULTIPLIER
+from ..constants.trading_rules import EXIT_PROFIT_PCT_NORMAL, EXIT_STOP_LOSS_MULTIPLIER, SPREAD_MIN_CREDIT_PCT
 
 logger = logging.getLogger(__name__)
 
@@ -295,7 +295,7 @@ def format_single_pick_v2(b: MarkdownBuilder, pick: Any) -> None:
         )
 
         # Credit line
-        credit_check = "OK" if sv.credit_pct and sv.credit_pct >= 10 else "LOW"
+        credit_check = "OK" if sv.credit_pct and sv.credit_pct >= SPREAD_MIN_CREDIT_PCT else "LOW"
         b.text(
             f"**Credit:** ${sv.credit_bid:.2f} (Bid) -- "
             f"${sv.credit_mid:.2f} (Mid) | "
