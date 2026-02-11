@@ -7,6 +7,8 @@ import sqlite3
 import tempfile
 from datetime import date, timedelta
 from pathlib import Path
+from unittest.mock import patch
+import datetime as dt
 import sys
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -354,9 +356,12 @@ class TestIsDataStale:
         assert is_stale == True
 
     def test_data_stale_fresh_data(self, manager):
-        """Test: Daten sind frisch."""
-        # Mit 10 Tagen Toleranz sollten die Daten frisch sein
-        is_stale = manager.is_data_stale(max_age_days=10)
+        """Test: Daten sind frisch (fixture data ends 2026-01-29)."""
+        # Mock date.today() to 1 day after fixture data to avoid flakiness
+        with patch('src.cache.vix_cache.date') as mock_date:
+            mock_date.today.return_value = date(2026, 1, 30)
+            mock_date.fromisoformat.side_effect = dt.date.fromisoformat
+            is_stale = manager.is_data_stale(max_age_days=10)
 
         assert is_stale == False
 

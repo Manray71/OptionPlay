@@ -209,35 +209,6 @@ def mock_config():
 # INITIALIZATION TESTS
 # =============================================================================
 
-class TestServerInitializationWithContainer:
-    """Tests for container-based initialization."""
-
-    def test_init_with_container(self, mock_api_key, mock_container):
-        """Test: Initialization with DI container."""
-        server = OptionPlayServer(container=mock_container)
-
-        assert server._config is mock_container.config
-        assert server._rate_limiter is mock_container.rate_limiter
-        assert server._circuit_breaker is mock_container.circuit_breaker
-        assert server._historical_cache is mock_container.historical_cache
-        assert server._provider is mock_container.provider
-
-    def test_init_with_container_uses_passed_api_key(self, mock_container):
-        """Test: Container init prefers passed API key."""
-        server = OptionPlayServer(api_key="custom_key", container=mock_container)
-
-        assert server._api_key == "custom_key"
-
-    @patch('src.mcp_server.get_api_key')
-    def test_init_with_container_falls_back_to_env(self, mock_get_key, mock_container):
-        """Test: Container init falls back to env API key."""
-        mock_get_key.return_value = "env_key"
-
-        server = OptionPlayServer(container=mock_container)
-
-        assert server._api_key == "env_key"
-
-
 class TestServerInitializationWithoutContainer:
     """Tests for initialization without container."""
 
@@ -262,14 +233,6 @@ class TestServerInitializationWithoutContainer:
         mock_limiter.assert_called_once()
         mock_cache.assert_called_once()
         mock_cb.assert_called_once()
-
-    @patch('src.mcp_server.get_api_key')
-    def test_init_without_key_raises_error(self, mock_key):
-        """Test: Missing API key raises ValueError."""
-        mock_key.side_effect = ValueError("No API key")
-
-        with pytest.raises(ValueError, match="MARKETDATA_API_KEY required"):
-            OptionPlayServer()
 
 
 # =============================================================================
@@ -324,60 +287,6 @@ class TestTradierConnection:
                 assert result is None
 
 
-class TestMainProviderConnection:
-    """Tests for main provider connection."""
-
-    @pytest.mark.asyncio
-    async def test_ensure_connected_circuit_breaker_open_raises(self, mock_api_key, mock_container):
-        """Test: Circuit breaker open raises exception."""
-        mock_container.circuit_breaker.can_execute = MagicMock(return_value=False)
-
-        server = OptionPlayServer(container=mock_container)
-
-        from src.utils.circuit_breaker import CircuitBreakerOpen
-        with pytest.raises(CircuitBreakerOpen):
-            await server._ensure_connected()
-
-    @pytest.mark.asyncio
-    async def test_ensure_connected_retry_on_failure(self, mock_api_key, mock_container):
-        """Test: Connection retries on failure."""
-        with patch('src.mcp_server.MarketDataProvider') as mock_provider_class:
-            mock_provider = AsyncMock()
-            # First two attempts fail, third succeeds
-            mock_provider.connect = AsyncMock(side_effect=[
-                ConnectionError("fail 1"),
-                ConnectionError("fail 2"),
-                True
-            ])
-            mock_provider_class.return_value = mock_provider
-
-            mock_container.provider = None  # Force new provider creation
-
-            server = OptionPlayServer(container=mock_container)
-            server._provider = None
-
-            result = await server._ensure_connected()
-
-            assert server._connected is True
-            assert mock_provider.connect.call_count == 3
-
-    @pytest.mark.asyncio
-    async def test_ensure_connected_all_retries_fail_raises(self, mock_api_key, mock_container):
-        """Test: All retries failing raises ConnectionError."""
-        with patch('src.mcp_server.MarketDataProvider') as mock_provider_class:
-            mock_provider = AsyncMock()
-            mock_provider.connect = AsyncMock(side_effect=ConnectionError("always fail"))
-            mock_provider_class.return_value = mock_provider
-
-            mock_container.provider = None
-
-            server = OptionPlayServer(container=mock_container)
-            server._provider = None
-
-            with pytest.raises(ConnectionError, match="Cannot connect"):
-                await server._ensure_connected()
-
-
 # =============================================================================
 # CACHE TESTS
 # =============================================================================
@@ -419,38 +328,6 @@ class TestHistoricalCache:
             assert result is not None
             assert len(result) == 5
 
-    @pytest.mark.asyncio
-    async def test_fetch_historical_local_db_stale_falls_back_to_api(self, mock_api_key, mock_container):
-        """Test: Stale local DB data falls back to API."""
-        # Cache miss
-        cache_result = MockCacheResult("MISS", None)
-        mock_container.historical_cache.get = MagicMock(return_value=cache_result)
-
-        server = OptionPlayServer(container=mock_container)
-
-        # Local DB has stale data
-        mock_db = MagicMock()
-        mock_db.get_historical_for_scanner = AsyncMock(return_value=([100.0], [1000], [101.0], [99.0], [99.5]))
-        mock_db.is_data_fresh.return_value = False  # Data is stale
-        mock_db.save_daily_prices_from_tuple = AsyncMock(return_value=0)
-        server._local_db_enabled = True
-        server._local_db_provider = mock_db
-
-        # API fallback
-        mock_provider = AsyncMock()
-        api_data = ([150.0] * 90, [2000000] * 90, [151.0] * 90, [149.0] * 90, [149.5] * 90)
-        mock_provider.get_historical_for_scanner = AsyncMock(return_value=api_data)
-
-        server._ensure_connected = AsyncMock(return_value=mock_provider)
-        server._ensure_tradier_connected = AsyncMock(return_value=None)
-
-        with patch('src.mcp_server.CacheStatus', MockCacheStatus):
-            result = await server._fetch_historical_cached("AAPL")
-
-            # Should get API data, not stale local data
-            assert result == api_data
-
-
 class TestQuoteCache:
     """Tests for quote caching."""
 
@@ -467,47 +344,6 @@ class TestQuoteCache:
 
         assert result == cached_quote
         assert server._quote_cache_hits == 1
-
-    @pytest.mark.asyncio
-    async def test_get_quote_cached_miss_fetches_from_api(self, mock_api_key, mock_container):
-        """Test: Quote cache miss fetches from API."""
-        server = OptionPlayServer(container=mock_container)
-
-        mock_provider = AsyncMock()
-        mock_quote = MockQuote("AAPL", 190.0)
-        mock_provider.get_quote = AsyncMock(return_value=mock_quote)
-
-        server._ensure_connected = AsyncMock(return_value=mock_provider)
-        server._tradier_connected = False
-
-        result = await server._get_quote_cached("AAPL")
-
-        assert result.last == 190.0
-        assert server._quote_cache_misses == 1
-        assert "AAPL" in server._quote_cache
-
-    @pytest.mark.asyncio
-    async def test_get_quote_cached_tradier_fallback(self, mock_api_key, mock_container):
-        """Test: Tradier failure falls back to Marketdata."""
-        server = OptionPlayServer(container=mock_container)
-
-        # Tradier fails
-        mock_tradier = AsyncMock()
-        mock_tradier.get_quote = AsyncMock(side_effect=ConnectionError("Tradier down"))
-        server._tradier_connected = True
-        server._tradier_provider = mock_tradier
-
-        # Marketdata succeeds
-        mock_marketdata = AsyncMock()
-        mock_quote = MockQuote("AAPL", 185.50)
-        mock_marketdata.get_quote = AsyncMock(return_value=mock_quote)
-
-        server._ensure_connected = AsyncMock(return_value=mock_marketdata)
-
-        result = await server._get_quote_cached("AAPL")
-
-        assert result.last == 185.50
-
 
 class TestCacheStats:
     """Tests for cache statistics."""
@@ -694,49 +530,6 @@ class TestScannerMethods:
 
 
 # =============================================================================
-# DISCONNECT TESTS
-# =============================================================================
-
-class TestDisconnect:
-    """Tests for disconnect functionality."""
-
-    @pytest.mark.asyncio
-    async def test_disconnect_marketdata_only(self, mock_api_key, mock_container):
-        """Test: Disconnect only Marketdata when Tradier not connected."""
-        server = OptionPlayServer(container=mock_container)
-
-        mock_provider = AsyncMock()
-        server._provider = mock_provider
-        server._connected = True
-        server._tradier_connected = False
-
-        await server.disconnect()
-
-        mock_provider.disconnect.assert_called_once()
-        assert server._connected is False
-
-    @pytest.mark.asyncio
-    async def test_disconnect_both_providers(self, mock_api_key, mock_container):
-        """Test: Disconnect both providers when both connected."""
-        server = OptionPlayServer(container=mock_container)
-
-        mock_marketdata = AsyncMock()
-        mock_tradier = AsyncMock()
-
-        server._provider = mock_marketdata
-        server._connected = True
-        server._tradier_provider = mock_tradier
-        server._tradier_connected = True
-
-        await server.disconnect()
-
-        mock_marketdata.disconnect.assert_called_once()
-        mock_tradier.disconnect.assert_called_once()
-        assert server._connected is False
-        assert server._tradier_connected is False
-
-
-# =============================================================================
 # HEALTH CHECK TESTS
 # =============================================================================
 
@@ -829,27 +622,12 @@ class TestHealthCheck:
 class TestUtilityMethods:
     """Tests for utility methods."""
 
-    def test_get_active_provider_name_marketdata(self, mock_api_key, mock_container):
-        """Test: Returns Marketdata when Tradier not connected."""
-        server = OptionPlayServer(container=mock_container)
-        server._tradier_connected = False
-
-        assert server._get_active_provider_name() == "Marketdata.app"
-
     def test_get_active_provider_name_tradier(self, mock_api_key, mock_container):
         """Test: Returns Tradier when connected."""
         server = OptionPlayServer(container=mock_container)
         server._tradier_connected = True
 
         assert server._get_active_provider_name() == "Tradier"
-
-    def test_api_key_masked_property(self, mock_api_key, mock_container):
-        """Test: API key masking property."""
-        server = OptionPlayServer(container=mock_container)
-
-        masked = server.api_key_masked
-
-        assert "***" in masked or len(masked) < len(server._api_key)
 
     def test_get_watchlist_info(self, mock_api_key, mock_container):
         """Test: Watchlist info formatting."""

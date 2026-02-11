@@ -8,6 +8,7 @@ from datetime import date, datetime
 
 # Import server
 from src.mcp_server import OptionPlayServer
+from src.utils.validation import ValidationError
 
 
 class MockQuote:
@@ -197,10 +198,9 @@ class TestQuoteOperations:
     
     @pytest.mark.asyncio
     async def test_get_quote_invalid_symbol(self, server):
-        """Test quote with invalid symbol."""
-        result = await server.handlers.quote.get_quote("123INVALID")
-        
-        assert "Validation Error" in result
+        """Test quote with invalid symbol raises ValidationError."""
+        with pytest.raises(ValidationError):
+            await server.handlers.quote.get_quote("123INVALID")
     
     @pytest.mark.asyncio
     async def test_get_quote_no_data(self, server, mock_provider):
@@ -396,10 +396,9 @@ class TestStrikeRecommendation:
     
     @pytest.mark.asyncio
     async def test_recommend_strikes_invalid_symbol(self, server):
-        """Test strike recommendation with invalid symbol."""
-        result = await server.handlers.analysis.recommend_strikes("!!!INVALID")
-        
-        assert "Validation Error" in result or "Error" in result
+        """Test strike recommendation with invalid symbol raises ValidationError."""
+        with pytest.raises(ValidationError):
+            await server.handlers.analysis.recommend_strikes("!!!INVALID")
 
 
 class TestUtilityOperations:
@@ -435,21 +434,19 @@ class TestErrorHandling:
     
     @pytest.mark.asyncio
     async def test_invalid_symbol_handled(self, server):
-        """Test that invalid symbols are handled gracefully."""
-        result = await server.handlers.quote.get_quote("!!!INVALID!!!")
-        
-        # Should return error message, not raise exception
-        assert "Validation Error" in result or "Error" in result
-    
+        """Test that invalid symbols raise ValidationError (composed handlers)."""
+        with pytest.raises(ValidationError):
+            await server.handlers.quote.get_quote("!!!INVALID!!!")
+
     @pytest.mark.asyncio
     async def test_connection_error_handled(self, server, mock_provider):
-        """Test that connection errors are handled."""
+        """Test that connection errors are caught and return no-data result."""
         mock_provider.get_quote = AsyncMock(side_effect=ConnectionError("Network error"))
-        
+
         result = await server.handlers.quote.get_quote("AAPL")
-        
-        # Should return error message, not crash
-        assert "Error" in result
+
+        # ConnectionError is caught in _get_quote_cached; returns no-data message
+        assert "No quote data available" in result
 
 
 class TestDisconnect:
