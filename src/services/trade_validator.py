@@ -493,7 +493,7 @@ class TradeValidator:
                 if timestamp:
                     earnings_date = dt.fromtimestamp(timestamp).date()
                     days_to = (earnings_date - date.today()).days
-                    is_safe = days_to >= ENTRY_EARNINGS_MIN_DAYS
+                    is_safe = days_to < 0 or days_to >= ENTRY_EARNINGS_MIN_DAYS
 
                     self._save_earnings_to_db(symbol, earnings_date.isoformat(), days_to)
 

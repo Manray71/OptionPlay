@@ -49,6 +49,8 @@ class EarningsInfo:
         """Prüft ob genug Abstand zu Earnings"""
         if self.days_to_earnings is None:
             return True  # Unbekannt = akzeptieren (mit Warnung)
+        if self.days_to_earnings < 0:
+            return True  # Past earnings — irrelevant for entry decision
         return self.days_to_earnings >= min_days
 
     def to_dict(self) -> dict[str, Any]:

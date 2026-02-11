@@ -560,7 +560,7 @@ class QuoteHandlerMixin(BaseHandlerMixin):
         b = MarkdownBuilder()
         b.h1(f"Trading Validation: {symbol}").blank()
 
-        if days_to_earnings is not None:
+        if days_to_earnings is not None and days_to_earnings >= 0:
             is_safe = days_to_earnings >= ENTRY_EARNINGS_MIN_DAYS
             status = "SAFE" if is_safe else "CAUTION"
             icon = "[OK]" if is_safe else "[!]"

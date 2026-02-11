@@ -615,7 +615,7 @@ class PDFReportGenerator:
         pe_display = f"{fd.pe_ratio:.1f}" if fd.pe_ratio else "N/A"
         earnings_class = (
             "green"
-            if fd.earnings_in_days and fd.earnings_in_days >= ENTRY_EARNINGS_MIN_DAYS
+            if fd.earnings_in_days and (fd.earnings_in_days < 0 or fd.earnings_in_days >= ENTRY_EARNINGS_MIN_DAYS)
             else "orange"
         )
         earnings_display = f"{fd.earnings_in_days} Tage" if fd.earnings_in_days else "N/A"

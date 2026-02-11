@@ -534,6 +534,10 @@ class EarningsFetcher:
                     today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
                     days_until = (next_earnings - today).days
 
+                    if days_until < 0:
+                        # Past earnings date — not a valid answer for "next earnings"
+                        return None, None
+
                     return next_earnings.strftime("%Y-%m-%d"), days_until
 
         return None, None

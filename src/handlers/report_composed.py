@@ -123,7 +123,7 @@ class ReportHandler(BaseHandler):
                 earnings_data[sym] = {
                     "days_to_earnings": days,
                     "next_date": earnings_info.get("next_date"),
-                    "safe": days is None or days >= ENTRY_EARNINGS_MIN_DAYS,
+                    "safe": days is None or days < 0 or days >= ENTRY_EARNINGS_MIN_DAYS,
                 }
                 if earnings_data[sym]["safe"]:
                     safe_symbols.append(sym)

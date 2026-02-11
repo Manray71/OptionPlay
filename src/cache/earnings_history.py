@@ -23,9 +23,9 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 try:
-    from ..constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS
+    from ..constants.trading_rules import EARNINGS_QUARTERLY_MAX_GAP_DAYS, ENTRY_EARNINGS_MIN_DAYS
 except ImportError:
-    from constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS
+    from constants.trading_rules import EARNINGS_QUARTERLY_MAX_GAP_DAYS, ENTRY_EARNINGS_MIN_DAYS
 
 logger = logging.getLogger(__name__)
 
@@ -445,7 +445,7 @@ class EarningsHistoryManager:
         if all_earnings:
             last_date = all_earnings[0].earnings_date
             days_since = (target_date - last_date).days
-            if days_since <= 30:
+            if days_since <= EARNINGS_QUARTERLY_MAX_GAP_DAYS:
                 return (True, None, "recently_reported")
 
         return (False, None, "no_earnings_data")
@@ -598,9 +598,9 @@ class EarningsHistoryManager:
                 last_date = last_earnings_by_symbol.get(symbol)
                 if last_date:
                     days_since = (target_date - last_date).days
-                    if days_since <= 30:
-                        # Recently reported (< 30 days ago) — next earnings
-                        # typically ~90 days away, safe to trade
+                    if days_since <= EARNINGS_QUARTERLY_MAX_GAP_DAYS:
+                        # Recently reported — quarterly earnings are ~90 days
+                        # apart, so next is likely far enough away
                         results[symbol] = (True, None, "recently_reported")
                     else:
                         # Has earnings history but no future date

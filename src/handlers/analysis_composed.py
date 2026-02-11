@@ -267,7 +267,11 @@ class AnalysisHandler(BaseHandler):
         earnings = await self._fetch_earnings_cached(symbol)
 
         if earnings and earnings.earnings_date:
-            if earnings.days_to_earnings < ENTRY_EARNINGS_MIN_DAYS:
+            if (
+                earnings.days_to_earnings is not None
+                and earnings.days_to_earnings >= 0
+                and earnings.days_to_earnings < ENTRY_EARNINGS_MIN_DAYS
+            ):
                 b.kv_line(
                     "Earnings",
                     f"[X] {earnings.days_to_earnings}d - DO NOT TRADE (min: {ENTRY_EARNINGS_MIN_DAYS}d)",

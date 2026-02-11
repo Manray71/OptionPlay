@@ -402,7 +402,9 @@ class EarningsFormatter(BaseFormatter):
             return b.build()
 
         if earnings_date:
-            is_safe = days_to_earnings >= min_days if days_to_earnings is not None else True
+            is_safe = (
+                days_to_earnings >= min_days if days_to_earnings is not None and days_to_earnings >= 0 else True
+            )
 
             b.kv("Next Earnings", earnings_date)
             b.kv("Days to Earnings", days_to_earnings)
@@ -790,7 +792,11 @@ class SymbolAnalysisFormatter(BaseFormatter):
         # Earnings
         b.h2("Earnings Check")
         if earnings and earnings.earnings_date:
-            is_safe = earnings.days_to_earnings >= recommendation.earnings_buffer_days
+            is_safe = (
+                earnings.days_to_earnings >= recommendation.earnings_buffer_days
+                if earnings.days_to_earnings is not None and earnings.days_to_earnings >= 0
+                else True
+            )
             b.kv_line("Date", earnings.earnings_date)
             b.kv_line(
                 "Days", f"{earnings.days_to_earnings} (Min: {recommendation.earnings_buffer_days})"

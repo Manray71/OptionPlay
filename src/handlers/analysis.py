@@ -180,7 +180,11 @@ class AnalysisHandlerMixin(BaseHandlerMixin):
 
         if earnings:
             b.h2("Earnings Check")
-            if earnings.days_to_earnings and earnings.days_to_earnings < ENTRY_EARNINGS_MIN_DAYS:
+            if (
+                earnings.days_to_earnings
+                and earnings.days_to_earnings > 0
+                and earnings.days_to_earnings < ENTRY_EARNINGS_MIN_DAYS
+            ):
                 b.status_error(f"Earnings in {earnings.days_to_earnings} days - NOT SAFE")
             elif earnings.days_to_earnings:
                 b.status_ok(f"Earnings in {earnings.days_to_earnings} days - SAFE")
