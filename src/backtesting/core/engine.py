@@ -34,6 +34,10 @@ from enum import Enum
 from typing import List, Dict, Optional, Tuple, Callable
 import statistics
 
+from ...constants.trading_rules import (
+    SPREAD_SHORT_DELTA_TARGET, SPREAD_SHORT_DELTA_MIN, SPREAD_SHORT_DELTA_MAX,
+    SPREAD_LONG_DELTA_TARGET, SPREAD_LONG_DELTA_MIN, SPREAD_LONG_DELTA_MAX,
+)
 from ..simulation import OptionsSimulator, SpreadEntry, SpreadSnapshot, OptionsSimulatorConfig as SimulatorConfig
 from .entry_exit import EntryExitMixin
 from .metrics_calc import MetricsCalcMixin
@@ -91,15 +95,13 @@ class BacktestConfig:
     dte_min: int = 60
     dte_max: int = 90
 
-    # Delta-basierte Strike-Auswahl (gemäß strategies.yaml Basisstrategie)
-    # Short Put: verkauft, Delta um -0.20
-    short_delta_target: float = -0.20
-    short_delta_min: float = -0.25
-    short_delta_max: float = -0.15
-    # Long Put: gekauft, Delta um -0.05
-    long_delta_target: float = -0.05
-    long_delta_min: float = -0.08
-    long_delta_max: float = -0.03
+    # Delta-basierte Strike-Auswahl (Targets aus PLAYBOOK, Range breiter für Backtesting)
+    short_delta_target: float = SPREAD_SHORT_DELTA_TARGET
+    short_delta_min: float = SPREAD_SHORT_DELTA_MIN
+    short_delta_max: float = SPREAD_SHORT_DELTA_MAX
+    long_delta_target: float = SPREAD_LONG_DELTA_TARGET
+    long_delta_min: float = SPREAD_LONG_DELTA_MIN
+    long_delta_max: float = SPREAD_LONG_DELTA_MAX
 
     # Strike-Auswahl Methode
     use_delta_based_strikes: bool = True  # True = Delta-basiert, False = OTM%-basiert

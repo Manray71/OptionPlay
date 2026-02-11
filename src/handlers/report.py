@@ -12,6 +12,7 @@ import logging
 from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
+from ..constants.trading_rules import SPREAD_SHORT_DELTA_TARGET
 from ..utils.error_handler import mcp_endpoint
 from ..utils.markdown_builder import MarkdownBuilder
 from ..utils.validation import validate_symbol
@@ -116,7 +117,7 @@ class ReportHandlerMixin(BaseHandlerMixin):
             "regime": regime.name if regime else "Unknown",
             "recommended_strategy": strategy_rec.profile_name.title() if strategy_rec else 'Standard',
             "parameters": {
-                "delta": strategy_rec.delta_target if strategy_rec else -0.20,
+                "delta": strategy_rec.delta_target if strategy_rec else SPREAD_SHORT_DELTA_TARGET,
                 "spread_width": strategy_rec.spread_width if strategy_rec else None,
                 "min_score": min_score,
                 "min_dte": strategy_rec.dte_min if strategy_rec else 60,

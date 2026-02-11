@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 from typing import Any, Dict, List, Optional, Tuple
 
+from ...constants.trading_rules import SPREAD_SHORT_DELTA_TARGET, SPREAD_LONG_DELTA_TARGET
 from .regime_config import (
     RegimeConfig,
     RegimeBoundaryMethod,
@@ -63,8 +64,8 @@ class RegimeTrainingConfig:
 
     # Delta-basierte Strike-Auswahl (gemäß strategies.yaml Basisstrategie)
     use_delta_based_strikes: bool = True
-    short_delta_target: float = -0.20       # Short Put Delta
-    long_delta_target: float = -0.05        # Long Put Delta
+    short_delta_target: float = SPREAD_SHORT_DELTA_TARGET
+    long_delta_target: float = SPREAD_LONG_DELTA_TARGET
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary"""

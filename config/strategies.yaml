@@ -1,8 +1,8 @@
 # OptionPlay - Strategy Profiles
 # ==============================
 # Basisstrategie: Bull-Put-Spread
-#   Short Put: Delta ±0.20 (Range: 0.15-0.25)
-#   Long Put:  Delta ±0.05 (Range: 0.03-0.07)
+#   Short Put: Delta -0.20 ±0.03 (Range: 0.17-0.23)
+#   Long Put:  Delta -0.05 ±0.02 (Range: 0.03-0.07)
 #   DTE: 60-90 Tage
 #   Earnings-Buffer: mindestens 45 Tage
 
@@ -12,12 +12,12 @@
 spread_defaults:
   short_put:
     delta_target: -0.20
-    delta_minimum: -0.25
-    delta_maximum: -0.15
+    delta_minimum: -0.17           # PLAYBOOK: ±0.03
+    delta_maximum: -0.23
   long_put:
     delta_target: -0.05
-    delta_minimum: -0.07
-    delta_maximum: -0.03
+    delta_minimum: -0.03           # PLAYBOOK: ±0.02
+    delta_maximum: -0.07
 
 profiles:
   # =========================================================================
@@ -32,7 +32,7 @@ profiles:
 
     filters:
       earnings:
-        exclude_days_before: 60       # Minimum 60 Tage
+        exclude_days_before: 45       # PLAYBOOK: ENTRY_EARNINGS_MIN_DAYS
       implied_volatility:
         iv_rank_minimum: 20
         iv_rank_maximum: 50
@@ -42,13 +42,13 @@ profiles:
         dte_minimum: 60               # Basisstrategie: 60-90 Tage
         dte_maximum: 90
       short_put:
-        delta_minimum: -0.25
-        delta_maximum: -0.15
-        delta_target: -0.20           # Short Delta ±0.20
+        delta_minimum: -0.17
+        delta_maximum: -0.23
+        delta_target: -0.20           # PLAYBOOK: ±0.03
       long_put:
-        delta_minimum: -0.07
-        delta_maximum: -0.03
-        delta_target: -0.05           # Long Delta ±0.05
+        delta_minimum: -0.03
+        delta_maximum: -0.07
+        delta_target: -0.05           # PLAYBOOK: ±0.02
       spread:
         preferred_width: 5.0
       premium:
@@ -69,7 +69,7 @@ profiles:
 
     filters:
       earnings:
-        exclude_days_before: 60       # Minimum 60 Tage
+        exclude_days_before: 45       # PLAYBOOK: ENTRY_EARNINGS_MIN_DAYS
       implied_volatility:
         iv_rank_minimum: 30
         iv_rank_maximum: 70
@@ -79,13 +79,13 @@ profiles:
         dte_minimum: 60               # Basisstrategie: 60-90 Tage
         dte_maximum: 90
       short_put:
-        delta_minimum: -0.25
-        delta_maximum: -0.15
-        delta_target: -0.20           # Short Delta ±0.20
+        delta_minimum: -0.17
+        delta_maximum: -0.23
+        delta_target: -0.20           # PLAYBOOK: ±0.03
       long_put:
-        delta_minimum: -0.07
-        delta_maximum: -0.03
-        delta_target: -0.05           # Long Delta ±0.05
+        delta_minimum: -0.03
+        delta_maximum: -0.07
+        delta_target: -0.05           # PLAYBOOK: ±0.02
       spread:
         preferred_width: 5.0
       premium:
@@ -106,7 +106,7 @@ profiles:
 
     filters:
       earnings:
-        exclude_days_before: 60       # Minimum 60 Tage
+        exclude_days_before: 45       # PLAYBOOK: ENTRY_EARNINGS_MIN_DAYS
       implied_volatility:
         iv_rank_minimum: 40
         iv_rank_maximum: 80
@@ -116,13 +116,13 @@ profiles:
         dte_minimum: 60               # Basisstrategie: 60-90 Tage
         dte_maximum: 90
       short_put:
-        delta_minimum: -0.25
-        delta_maximum: -0.15
-        delta_target: -0.20           # Short Delta ±0.20
+        delta_minimum: -0.17
+        delta_maximum: -0.23
+        delta_target: -0.20           # PLAYBOOK: ±0.03
       long_put:
-        delta_minimum: -0.07
-        delta_maximum: -0.03
-        delta_target: -0.05           # Long Delta ±0.05
+        delta_minimum: -0.03
+        delta_maximum: -0.07
+        delta_target: -0.05           # PLAYBOOK: ±0.02
       spread:
         preferred_width: 7.5          # Breiterer Spread für Gap-Schutz
       premium:
@@ -147,7 +147,7 @@ profiles:
 
     filters:
       earnings:
-        exclude_days_before: 60       # Minimum 60 Tage
+        exclude_days_before: 45       # PLAYBOOK: ENTRY_EARNINGS_MIN_DAYS
       price:
         minimum: 50
         maximum: 300
@@ -160,13 +160,13 @@ profiles:
         dte_minimum: 60               # Basisstrategie: 60-90 Tage
         dte_maximum: 90
       short_put:
-        delta_minimum: -0.25
-        delta_maximum: -0.15
-        delta_target: -0.20           # Short Delta ±0.20
+        delta_minimum: -0.17
+        delta_maximum: -0.23
+        delta_target: -0.20           # PLAYBOOK: ±0.03
       long_put:
-        delta_minimum: -0.07
-        delta_maximum: -0.03
-        delta_target: -0.05           # Long Delta ±0.05
+        delta_minimum: -0.03
+        delta_maximum: -0.07
+        delta_target: -0.05           # PLAYBOOK: ±0.02
       spread:
         preferred_width: 10.0         # Breiterer Spread für Schutz
       premium:
@@ -393,11 +393,11 @@ roll_strategy:
 # Alle Profile verwenden dieselbe Basisstrategie (Bull-Put-Spread):
 #
 # SHORT PUT (verkauft):
-# - Delta-Target:    -0.20 (±0.20)
-# - Delta-Range:     [-0.25, -0.15]
+# - Delta-Target:    -0.20 (±0.03)
+# - Delta-Range:     [-0.23, -0.17]
 #
 # LONG PUT (gekauft):
-# - Delta-Target:    -0.05 (±0.05)
+# - Delta-Target:    -0.05 (±0.02)
 # - Delta-Range:     [-0.07, -0.03]
 #
 # TIMING:

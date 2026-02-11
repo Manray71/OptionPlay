@@ -9,6 +9,8 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass, field
 
+from ..constants.trading_rules import SPREAD_SHORT_DELTA_MIN, SPREAD_SHORT_DELTA_MAX
+
 logger = logging.getLogger(__name__)
 
 # Template directory
@@ -31,7 +33,7 @@ class CoverPageData:
 
     # Parameters
     dte_range: str = "60-90 DTE"
-    delta_short: str = "0.15-0.25"
+    delta_short: str = f"{abs(SPREAD_SHORT_DELTA_MAX):.2f}-{abs(SPREAD_SHORT_DELTA_MIN):.2f}"
     spread_width: str = "$5-$10"
     min_roi: str = ">30%"
 
