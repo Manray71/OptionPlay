@@ -291,7 +291,7 @@ async def step_ohlcv(logger, status, dry_run=False):
         logger.info(f"  {len(symbols)} Symbole x {backfill_days} Tage")
 
         local_db = LocalDBProvider()
-        provider = TradierProvider(api_key=api_key, environment="production")
+        provider = TradierProvider(api_key=api_key)
 
         try:
             connected = await provider.connect()
