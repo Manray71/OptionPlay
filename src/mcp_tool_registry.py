@@ -33,9 +33,9 @@ from typing import Any, Callable, Dict, List, Optional, Awaitable, Union
 from mcp.types import Tool
 
 try:
-    from .constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS, SPREAD_DTE_MIN, SPREAD_DTE_MAX
+    from .constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS, SPREAD_DTE_MIN, SPREAD_DTE_MAX, SPREAD_DTE_TARGET
 except ImportError:
-    from constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS, SPREAD_DTE_MIN, SPREAD_DTE_MAX
+    from constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS, SPREAD_DTE_MIN, SPREAD_DTE_MAX, SPREAD_DTE_TARGET
 
 logger = logging.getLogger(__name__)
 
@@ -1050,7 +1050,7 @@ async def handle_spread_analysis(server: Any, arguments: ToolArguments) -> str:
             "short_strike": {"type": "number"},
             "long_strike": {"type": "number"},
             "net_credit": {"type": "number"},
-            "dte": {"type": "number", "description": "Days to expiration (default: 45)"},
+            "dte": {"type": "number", "description": "Days to expiration (default: 75)"},
             "num_simulations": {"type": "number", "description": "Number of simulations (default: 500)"},
             "volatility": {"type": "number", "description": "Override volatility (optional)"},
         },
@@ -1064,7 +1064,7 @@ async def handle_monte_carlo(server: Any, arguments: ToolArguments) -> str:
         short_strike=arguments["short_strike"],
         long_strike=arguments["long_strike"],
         net_credit=arguments["net_credit"],
-        dte=arguments.get("dte", 45),
+        dte=arguments.get("dte", SPREAD_DTE_TARGET),
         num_simulations=arguments.get("num_simulations", 500),
         volatility=arguments.get("volatility"),
     )

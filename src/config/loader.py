@@ -284,7 +284,7 @@ class ConfigLoader:
                     max_historical_volatility=fund.get('max_historical_volatility') or 70.0,
                     max_beta=fund.get('max_beta') or 2.0,
                     iv_rank_min=fund.get('iv_rank_min') or 20.0,
-                    iv_rank_max=fund.get('iv_rank_max') or 80.0,
+                    iv_rank_max=fund.get('iv_rank_max') or ENTRY_IV_RANK_MAX,
                     use_iv_percentile=fund.get('use_iv_percentile', False),
                     max_spy_correlation=fund.get('max_spy_correlation'),  # None ist hier erlaubt
                     min_spy_correlation=fund.get('min_spy_correlation'),  # None ist hier erlaubt

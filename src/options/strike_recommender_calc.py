@@ -16,6 +16,7 @@ from typing import Dict, Optional, Any
 
 from ..constants.trading_rules import (
     LIQUIDITY_SPREAD_PCT_GOOD,
+    ENTRY_IV_RANK_MIN,
 )
 
 # Black-Scholes for accurate delta calculation
@@ -296,7 +297,7 @@ class StrikeMetricsMixin:
         if iv_rank is not None:
             if iv_rank > 50:
                 score += 10  # Credit spreads benefit from high IV
-            elif iv_rank < 30:
+            elif iv_rank < ENTRY_IV_RANK_MIN:
                 score -= 5
                 warnings.append(f"Low IV rank ({iv_rank:.0f}%) - less premium")
 

@@ -39,6 +39,7 @@ from ..constants.trading_rules import (
     SPREAD_LONG_DELTA_MIN,
     SPREAD_LONG_DELTA_MAX,
     SPREAD_MIN_CREDIT_PCT,
+    SPREAD_DTE_TARGET,
     ENTRY_OPEN_INTEREST_MIN,
     LIQUIDITY_OI_EXCELLENT,
 )
@@ -256,7 +257,7 @@ class StrikeRecommender(StrikeMetricsMixin):
         iv_rank: Optional[float] = None,
         options_data: Optional[List[Dict]] = None,
         fib_levels: Optional[List[Dict]] = None,
-        dte: int = 45,
+        dte: int = SPREAD_DTE_TARGET,
         regime: Optional["MarketRegime"] = None
     ) -> StrikeRecommendation:
         """
@@ -469,7 +470,7 @@ class StrikeRecommender(StrikeMetricsMixin):
 
                 metrics = self._calculate_metrics(
                     short_strike, long_strike, actual_width,
-                    current_price, options_data, None, 45
+                    current_price, options_data, None, SPREAD_DTE_TARGET
                 )
                 metrics["long_delta"] = long_delta
 
@@ -513,7 +514,7 @@ class StrikeRecommender(StrikeMetricsMixin):
 
                 metrics = self._calculate_metrics(
                     short_strike, long_strike, width,
-                    current_price, options_data, None, 45
+                    current_price, options_data, None, SPREAD_DTE_TARGET
                 )
 
                 quality, confidence, warnings = self._evaluate_quality(
