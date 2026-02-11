@@ -31,6 +31,8 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import Optional, Dict, Any
 
+from ..constants.trading_rules import VIX_LOW_VOL_MAX, VIX_NORMAL_MAX, VIX_ELEVATED_MAX
+
 # Import MarketRegime for VIX state
 # Use fallback if vix_strategy can't be imported (e.g., missing dependencies)
 try:
@@ -246,11 +248,11 @@ class VIXState:
 
     def _detect_regime(self, vix: float) -> MarketRegime:
         """Erkennt Market Regime basierend auf VIX-Level."""
-        if vix < 15:
+        if vix < VIX_LOW_VOL_MAX:
             return MarketRegime.LOW_VOL
-        elif vix < 20:
+        elif vix < VIX_NORMAL_MAX:
             return MarketRegime.NORMAL
-        elif vix < 30:
+        elif vix < VIX_ELEVATED_MAX:
             return MarketRegime.ELEVATED
         else:
             return MarketRegime.HIGH_VOL

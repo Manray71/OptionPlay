@@ -16,6 +16,11 @@ import math
 import logging
 from typing import List, Optional
 
+try:
+    from ..constants.trading_rules import VIX_DANGER_ZONE_MAX, VIX_NO_TRADING_THRESHOLD
+except ImportError:
+    from constants.trading_rules import VIX_DANGER_ZONE_MAX, VIX_NO_TRADING_THRESHOLD
+
 logger = logging.getLogger(__name__)
 
 
@@ -137,9 +142,9 @@ def estimate_iv_from_hv(
 
         if vix_history and i < len(vix_history):
             vix = vix_history[i]
-            if vix > 25:
+            if vix > VIX_DANGER_ZONE_MAX:
                 iv *= 1.1
-            elif vix > 35:
+            elif vix > VIX_NO_TRADING_THRESHOLD:
                 iv *= 1.2
 
         estimated_iv.append(round(iv, 4))

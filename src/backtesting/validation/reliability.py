@@ -38,6 +38,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any
 
+from ...constants.trading_rules import VIX_LOW_VOL_MAX, VIX_NORMAL_MAX, VIX_ELEVATED_MAX
 from .signal_validation import (
     SignalValidator,
     SignalValidationResult,
@@ -610,11 +611,11 @@ class ReliabilityScorer:
 
     def _get_regime(self, vix: float) -> str:
         """Ermittelt VIX-Regime"""
-        if vix < 15:
+        if vix < VIX_LOW_VOL_MAX:
             return "low_vol"
-        elif vix < 20:
+        elif vix < VIX_NORMAL_MAX:
             return "normal"
-        elif vix < 30:
+        elif vix < VIX_ELEVATED_MAX:
             return "elevated"
         else:
             return "high_vol"

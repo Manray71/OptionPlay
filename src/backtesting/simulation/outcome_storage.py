@@ -16,6 +16,8 @@ from typing import List, Dict, Optional, Tuple
 
 import numpy as np
 
+from ...constants.trading_rules import VIX_LOW_VOL_MAX, VIX_NORMAL_MAX, VIX_ELEVATED_MAX
+
 from ..models.outcomes import SpreadOutcomeResult
 
 logger = logging.getLogger(__name__)
@@ -235,11 +237,11 @@ def save_outcomes_to_db(
         vix = vix_data.get(entry.entry_date) if vix_data else None
         vix_regime = None
         if vix is not None:
-            if vix < 15:
+            if vix < VIX_LOW_VOL_MAX:
                 vix_regime = "low"
-            elif vix < 20:
+            elif vix < VIX_NORMAL_MAX:
                 vix_regime = "medium"
-            elif vix < 30:
+            elif vix < VIX_ELEVATED_MAX:
                 vix_regime = "high"
             else:
                 vix_regime = "extreme"

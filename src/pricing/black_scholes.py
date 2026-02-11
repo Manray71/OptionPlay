@@ -47,6 +47,10 @@ from datetime import date
 import logging
 
 import numpy as np
+
+from ..constants.trading_rules import (
+    VIX_LOW_VOL_MAX, VIX_NORMAL_MAX, VIX_DANGER_ZONE_MAX, VIX_ELEVATED_MAX,
+)
 from numpy.typing import NDArray
 
 logger = logging.getLogger(__name__)
@@ -820,14 +824,14 @@ class OptionPricer:
 
         # Adjust based on VIX regime
         if vix is not None:
-            if vix > 30:
+            if vix > VIX_ELEVATED_MAX:
                 # High vol environment: IV premium increases significantly
                 base_iv *= 1.25
-            elif vix > 25:
+            elif vix > VIX_DANGER_ZONE_MAX:
                 base_iv *= 1.15
-            elif vix > 20:
+            elif vix > VIX_NORMAL_MAX:
                 base_iv *= 1.08
-            elif vix < 15:
+            elif vix < VIX_LOW_VOL_MAX:
                 # Low vol environment: IV premium decreases slightly
                 base_iv *= 0.98
 
@@ -1176,13 +1180,13 @@ def estimate_iv_calibrated(
 
     # VIX Regime (leicht moderater)
     if vix is not None:
-        if vix > 30:
+        if vix > VIX_ELEVATED_MAX:
             iv *= 1.15
-        elif vix > 25:
+        elif vix > VIX_DANGER_ZONE_MAX:
             iv *= 1.10
-        elif vix > 20:
+        elif vix > VIX_NORMAL_MAX:
             iv *= 1.04
-        elif vix < 15:
+        elif vix < VIX_LOW_VOL_MAX:
             iv *= 0.98
 
     # Volatility Skew für OTM Puts

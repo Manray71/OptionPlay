@@ -22,6 +22,7 @@ import math
 
 from .base import BaseAnalyzer
 from .context import AnalysisContext
+from ..constants.trading_rules import VIX_LOW_VOL_MAX, VIX_NORMAL_MAX
 
 from ..models.base import TradeSignal, SignalType, SignalStrength
 from ..models.strategy_breakdowns import TrendContinuationScoreBreakdown
@@ -695,9 +696,9 @@ class TrendContinuationAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             return 'normal'
         if vix > self.config.vix_max:
             return 'high'
-        elif vix > 20.0:
+        elif vix > VIX_NORMAL_MAX:
             return 'elevated'
-        elif vix < 15.0:
+        elif vix < VIX_LOW_VOL_MAX:
             return 'low'
         return 'normal'
 

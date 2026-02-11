@@ -36,6 +36,7 @@ from dateutil.relativedelta import relativedelta
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple, Any
 
+from ...constants.trading_rules import VIX_LOW_VOL_MAX, VIX_NORMAL_MAX, VIX_ELEVATED_MAX
 from ..core import BacktestEngine, BacktestConfig, BacktestResult, TradeResult
 from ..validation import (
     SignalValidator,
@@ -608,11 +609,11 @@ class WalkForwardTrainer(WFResultAggregatorMixin, WFEpochRunnerMixin):
         return True, f"Trade empfohlen (Grade: {reliability.reliability_grade})"
 
     def _get_regime_for_vix(self, vix: float) -> str:
-        if vix < 15:
+        if vix < VIX_LOW_VOL_MAX:
             return "low_vol"
-        elif vix < 20:
+        elif vix < VIX_NORMAL_MAX:
             return "normal"
-        elif vix < 30:
+        elif vix < VIX_ELEVATED_MAX:
             return "elevated"
         else:
             return "high_vol"

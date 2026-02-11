@@ -18,7 +18,10 @@ from ..vix_strategy import get_strategy_for_vix
 from ..cache import get_earnings_fetcher
 from ..strike_recommender import StrikeRecommender
 from ..indicators.support_resistance import find_support_levels, calculate_fibonacci
-from ..constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS, ENTRY_VOLUME_MIN, BLACKLIST_SYMBOLS, ENTRY_STABILITY_MIN, is_blacklisted
+from ..constants.trading_rules import (
+    ENTRY_EARNINGS_MIN_DAYS, ENTRY_VOLUME_MIN, BLACKLIST_SYMBOLS, ENTRY_STABILITY_MIN,
+    VIX_LOW_VOL_MAX, VIX_NORMAL_MAX, VIX_ELEVATED_MAX, is_blacklisted,
+)
 from ..cache.symbol_fundamentals import get_fundamentals_manager
 from .base import BaseHandlerMixin
 
@@ -421,7 +424,7 @@ class AnalysisHandlerMixin(BaseHandlerMixin):
 
         # Current regime
         if vix:
-            regime = "low_vol" if vix < 15 else "normal" if vix < 20 else "elevated" if vix < 30 else "high_vol"
+            regime = "low_vol" if vix < VIX_LOW_VOL_MAX else "normal" if vix < VIX_NORMAL_MAX else "elevated" if vix < VIX_ELEVATED_MAX else "high_vol"
             b.h2("Current Context")
             b.kv_line("VIX", f"{vix:.2f}")
             b.kv_line("Regime", regime.upper())

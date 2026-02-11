@@ -9,6 +9,8 @@ Contains: WeightedScorer class
 import logging
 from typing import Any, Dict, Optional
 
+from ...constants.trading_rules import VIX_LOW_VOL_MAX, VIX_NORMAL_MAX, VIX_ELEVATED_MAX
+
 logger = logging.getLogger(__name__)
 
 
@@ -53,11 +55,11 @@ class WeightedScorer:
         """
         # Determine regime from VIX if not specified
         if regime is None and vix is not None:
-            if vix < 15:
+            if vix < VIX_LOW_VOL_MAX:
                 regime = "low_vol"
-            elif vix < 20:
+            elif vix < VIX_NORMAL_MAX:
                 regime = "normal"
-            elif vix < 30:
+            elif vix < VIX_ELEVATED_MAX:
                 regime = "elevated"
             else:
                 regime = "high_vol"

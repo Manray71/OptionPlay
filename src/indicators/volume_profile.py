@@ -6,6 +6,11 @@ import numpy as np
 from typing import List, Optional, Dict
 from dataclasses import dataclass
 
+try:
+    from ..constants.trading_rules import VIX_LOW_VOL_MAX, VIX_NORMAL_MAX, VIX_DANGER_ZONE_MAX
+except ImportError:
+    from constants.trading_rules import VIX_LOW_VOL_MAX, VIX_NORMAL_MAX, VIX_DANGER_ZONE_MAX
+
 
 @dataclass
 class VWAPResult:
@@ -371,12 +376,12 @@ def get_sector_adjustment(symbol: str, vix: float = None) -> float:
     if vix is not None and sector in VIX_SECTOR_MODIFIERS:
         modifiers = VIX_SECTOR_MODIFIERS[sector]
 
-        if vix >= 15.0:
+        if vix >= VIX_LOW_VOL_MAX:
             # Basis-Modifier bei VIX > 15
             vix_mod = modifiers.get('vix_15_plus', 0.0)
             base_adjustment += vix_mod
 
-        if 20.0 <= vix < 25.0:
+        if VIX_NORMAL_MAX <= vix < VIX_DANGER_ZONE_MAX:
             # Zusätzlicher Modifier in der Danger Zone (VIX 20-25)
             danger_mod = modifiers.get('vix_danger_zone', 0.0)
             base_adjustment += danger_mod
@@ -408,14 +413,14 @@ def get_sector_adjustment_with_reason(symbol: str, vix: float = None) -> tuple:
     if vix is not None and sector in VIX_SECTOR_MODIFIERS:
         modifiers = VIX_SECTOR_MODIFIERS[sector]
 
-        if vix >= 15.0:
+        if vix >= VIX_LOW_VOL_MAX:
             vix_mod = modifiers.get('vix_15_plus', 0.0)
             if vix_mod != 0:
                 total_adjustment += vix_mod
                 direction = "+" if vix_mod > 0 else ""
-                reasons.append(f"VIX>{15}: {direction}{vix_mod*10:.0f}%")
+                reasons.append(f"VIX>{VIX_LOW_VOL_MAX:.0f}: {direction}{vix_mod*10:.0f}%")
 
-        if 20.0 <= vix < 25.0:
+        if VIX_NORMAL_MAX <= vix < VIX_DANGER_ZONE_MAX:
             danger_mod = modifiers.get('vix_danger_zone', 0.0)
             if danger_mod != 0:
                 total_adjustment += danger_mod

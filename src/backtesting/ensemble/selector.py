@@ -20,6 +20,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
+from ...constants.trading_rules import VIX_LOW_VOL_MAX, VIX_NORMAL_MAX, VIX_ELEVATED_MAX
 from ..models.ensemble_models import (
     STRATEGIES,
     DEFAULT_REGIME_PREFERENCES,
@@ -202,11 +203,11 @@ class EnsembleSelector:
 
     def _get_regime_from_vix(self, vix: float) -> str:
         """Determine regime from VIX value"""
-        if vix < 15:
+        if vix < VIX_LOW_VOL_MAX:
             return "low_vol"
-        elif vix < 20:
+        elif vix < VIX_NORMAL_MAX:
             return "normal"
-        elif vix < 30:
+        elif vix < VIX_ELEVATED_MAX:
             return "elevated"
         else:
             return "high_vol"

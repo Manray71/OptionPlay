@@ -15,7 +15,10 @@ from datetime import date
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from .handler_container import BaseHandler, ServerContext
-from ..constants.trading_rules import SPREAD_DTE_MIN, SPREAD_DTE_MAX
+from ..constants.trading_rules import (
+    SPREAD_DTE_MIN, SPREAD_DTE_MAX,
+    VIX_LOW_VOL_MAX, VIX_NORMAL_MAX, VIX_ELEVATED_MAX,
+)
 
 if TYPE_CHECKING:
     pass
@@ -399,7 +402,7 @@ class AnalysisHandler(BaseHandler):
         b.h1("Ensemble Strategy Status").blank()
 
         if vix:
-            regime = "low_vol" if vix < 15 else "normal" if vix < 20 else "elevated" if vix < 30 else "high_vol"
+            regime = "low_vol" if vix < VIX_LOW_VOL_MAX else "normal" if vix < VIX_NORMAL_MAX else "elevated" if vix < VIX_ELEVATED_MAX else "high_vol"
             b.h2("Current Context")
             b.kv_line("VIX", f"{vix:.2f}")
             b.kv_line("Regime", regime.upper())
