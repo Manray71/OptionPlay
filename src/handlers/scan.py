@@ -13,7 +13,10 @@ import logging
 from datetime import date, datetime
 from typing import Any, Dict, List, Optional, Callable
 
-from ..constants.trading_rules import ENTRY_STABILITY_MIN, SPREAD_DTE_MIN, SPREAD_DTE_MAX
+from ..constants.trading_rules import (
+    ENTRY_STABILITY_MIN, SPREAD_DTE_MIN, SPREAD_DTE_MAX,
+    EXIT_PROFIT_PCT_NORMAL, EXIT_STOP_LOSS_MULTIPLIER,
+)
 from ..scanner.multi_strategy_scanner import ScanMode
 from ..services.recommendation_engine import (
     DailyRecommendationEngine,
@@ -934,8 +937,8 @@ class ScanHandlerMixin(BaseHandlerMixin):
 
             # Risk targets
             max_loss = sv.max_loss_per_contract if sv.max_loss_per_contract else 0
-            profit_target_50 = sv.credit_bid * 0.5 if sv.credit_bid else 0
-            stop_loss_200 = sv.credit_bid * 2.0 if sv.credit_bid else 0
+            profit_target_50 = sv.credit_bid * (EXIT_PROFIT_PCT_NORMAL / 100) if sv.credit_bid else 0
+            stop_loss_200 = sv.credit_bid * EXIT_STOP_LOSS_MULTIPLIER if sv.credit_bid else 0
             b.text(
                 f"**Max Loss:** ${max_loss:.0f}/Kontrakt | "
                 f"**50% Target:** ${profit_target_50:.2f} | "

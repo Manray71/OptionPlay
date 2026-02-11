@@ -38,6 +38,7 @@ from ...constants.trading_rules import (
     SPREAD_SHORT_DELTA_TARGET, SPREAD_SHORT_DELTA_MIN, SPREAD_SHORT_DELTA_MAX,
     SPREAD_LONG_DELTA_TARGET, SPREAD_LONG_DELTA_MIN, SPREAD_LONG_DELTA_MAX,
     SPREAD_DTE_MIN, SPREAD_DTE_MAX,
+    EXIT_PROFIT_PCT_NORMAL,
 )
 from ..simulation import OptionsSimulator, SpreadEntry, SpreadSnapshot, OptionsSimulatorConfig as SimulatorConfig
 from .entry_exit import EntryExitMixin
@@ -107,9 +108,9 @@ class BacktestConfig:
     # Strike-Auswahl Methode
     use_delta_based_strikes: bool = True  # True = Delta-basiert, False = OTM%-basiert
 
-    # Exit-Kriterien (KORRIGIERT)
-    profit_target_pct: float = 50.0  # % des Max Profits
-    stop_loss_pct: float = 100.0  # KORRIGIERT: 100% = 1:1 Risk/Reward (war 200%)
+    # Exit-Kriterien
+    profit_target_pct: float = EXIT_PROFIT_PCT_NORMAL  # % des Max Profits (PLAYBOOK: 50%)
+    stop_loss_pct: float = 100.0  # Backtesting-Override: 100% = 1:1 Risk/Reward (PLAYBOOK: 200%)
     dte_exit_threshold: int = 14  # Exit wenn DTE < X
 
     # Spread-Parameter

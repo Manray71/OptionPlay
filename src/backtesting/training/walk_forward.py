@@ -36,7 +36,10 @@ from dateutil.relativedelta import relativedelta
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple, Any
 
-from ...constants.trading_rules import VIX_LOW_VOL_MAX, VIX_NORMAL_MAX, VIX_ELEVATED_MAX
+from ...constants.trading_rules import (
+    VIX_LOW_VOL_MAX, VIX_NORMAL_MAX, VIX_ELEVATED_MAX,
+    EXIT_PROFIT_PCT_NORMAL, EXIT_STOP_LOSS_MULTIPLIER,
+)
 from ..core import BacktestEngine, BacktestConfig, BacktestResult, TradeResult
 from ..validation import (
     SignalValidator,
@@ -72,8 +75,8 @@ class TrainingConfig:
 
     # Backtest-Parameter (für interne BacktestEngine)
     min_pullback_score: float = 5.0
-    profit_target_pct: float = 50.0
-    stop_loss_pct: float = 200.0
+    profit_target_pct: float = EXIT_PROFIT_PCT_NORMAL
+    stop_loss_pct: float = EXIT_STOP_LOSS_MULTIPLIER * 100  # 200% (PLAYBOOK: 2x credit)
     dte_min: int = 45
     dte_max: int = 75
 
@@ -486,8 +489,8 @@ class WalkForwardTrainer(WFResultAggregatorMixin, WFEpochRunnerMixin):
             min_valid_epochs=config_data.get("min_valid_epochs", 3),
             symbols=config_data.get("symbols"),
             min_pullback_score=config_data.get("min_pullback_score", 5.0),
-            profit_target_pct=config_data.get("profit_target_pct", 50.0),
-            stop_loss_pct=config_data.get("stop_loss_pct", 200.0),
+            profit_target_pct=config_data.get("profit_target_pct", EXIT_PROFIT_PCT_NORMAL),
+            stop_loss_pct=config_data.get("stop_loss_pct", EXIT_STOP_LOSS_MULTIPLIER * 100),
             dte_min=config_data.get("dte_min", 45),
             dte_max=config_data.get("dte_max", 75),
         )

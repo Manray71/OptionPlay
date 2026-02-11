@@ -30,6 +30,8 @@ from datetime import date, timedelta
 from typing import List, Dict, Optional, Tuple
 from enum import Enum
 
+from ...constants.trading_rules import EXIT_PROFIT_PCT_NORMAL
+
 # Black-Scholes Integration für akkurates Spread-Pricing
 try:
     from ..options.black_scholes import (
@@ -193,8 +195,8 @@ class TradeSimulator:
 
     DEFAULT_CONFIG = {
         # Exit-Kriterien
-        "profit_target_pct": 50.0,  # Exit bei 50% des Max Profits
-        "stop_loss_pct": 100.0,  # Stop bei 1x Credit (KORRIGIERT von 200%)
+        "profit_target_pct": EXIT_PROFIT_PCT_NORMAL,  # Exit bei 50% des Max Profits (PLAYBOOK)
+        "stop_loss_pct": 100.0,  # Backtesting-Override: 1x Credit (PLAYBOOK: 200%)
 
         # Pricing
         "theta_decay_factor": 0.7,  # Theta beschleunigt sich

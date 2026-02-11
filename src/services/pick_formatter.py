@@ -14,6 +14,8 @@ import logging
 from datetime import date
 from typing import Any, Optional
 
+from ..constants.trading_rules import EXIT_PROFIT_PCT_NORMAL, EXIT_STOP_LOSS_MULTIPLIER
+
 logger = logging.getLogger(__name__)
 
 try:
@@ -302,8 +304,8 @@ def format_single_pick_v2(b: MarkdownBuilder, pick: Any) -> None:
 
         # Risk targets
         max_loss = sv.max_loss_per_contract if sv.max_loss_per_contract else 0
-        profit_target_50 = sv.credit_bid * 0.5 if sv.credit_bid else 0
-        stop_loss_200 = sv.credit_bid * 2.0 if sv.credit_bid else 0
+        profit_target_50 = sv.credit_bid * (EXIT_PROFIT_PCT_NORMAL / 100) if sv.credit_bid else 0
+        stop_loss_200 = sv.credit_bid * EXIT_STOP_LOSS_MULTIPLIER if sv.credit_bid else 0
         b.text(
             f"**Max Loss:** ${max_loss:.0f}/Kontrakt | "
             f"**50% Target:** ${profit_target_50:.2f} | "

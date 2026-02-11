@@ -18,6 +18,8 @@ from .trading_rules import (
     SPREAD_LONG_DELTA_TARGET,
     SPREAD_LONG_DELTA_MIN,
     SPREAD_LONG_DELTA_MAX,
+    EXIT_STOP_LOSS_MULTIPLIER,
+    EXIT_PROFIT_PCT_NORMAL,
 )
 
 
@@ -81,8 +83,8 @@ RISK_REWARD_TARGET = 0.35     # Target 35% RoR
 RISK_REWARD_OPTIMAL = 0.40    # Optimal 40% RoR
 
 # Stop Loss / Target Price Multipliers
-STOP_LOSS_MULTIPLIER = 2.0    # Stop at 2x credit
-TARGET_MULTIPLIER = 0.5       # Target at 50% credit (early exit)
+STOP_LOSS_MULTIPLIER = EXIT_STOP_LOSS_MULTIPLIER    # Delegiert an trading_rules (PLAYBOOK: 2x credit)
+TARGET_MULTIPLIER = EXIT_PROFIT_PCT_NORMAL / 100    # Delegiert an trading_rules (PLAYBOOK: 50% credit)
 
 
 # =============================================================================

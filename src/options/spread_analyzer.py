@@ -33,6 +33,8 @@ from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Tuple
 from enum import Enum
 
+from ..constants.trading_rules import EXIT_PROFIT_PCT_NORMAL
+
 # Black-Scholes Integration for accurate pricing and Greeks
 try:
     from .black_scholes import (
@@ -278,7 +280,7 @@ class SpreadAnalyzer:
         "max_dte_for_theta": 60,  # Theta most effective under 60 DTE
 
         # Profit target recommendations
-        "profit_target_conservative": 50,  # 50% of max profit
+        "profit_target_conservative": EXIT_PROFIT_PCT_NORMAL,  # 50% of max profit (PLAYBOOK)
         "profit_target_standard": 65,
         "profit_target_aggressive": 80,
     }
@@ -679,12 +681,12 @@ class SpreadAnalyzer:
         if params.dte > 45:
             target = self.config["profit_target_conservative"]
             recommendations.append(
-                f"Profit-Target: {target}% ({params.net_credit * target / 100:.2f}$)"
+                f"Profit-Target: {target:.0f}% ({params.net_credit * target / 100:.2f}$)"
             )
         else:
             target = self.config["profit_target_standard"]
             recommendations.append(
-                f"Profit-Target: {target}% ({params.net_credit * target / 100:.2f}$)"
+                f"Profit-Target: {target:.0f}% ({params.net_credit * target / 100:.2f}$)"
             )
 
         exit_price = self.calculate_exit_price(params, target)

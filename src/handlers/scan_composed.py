@@ -16,7 +16,10 @@ import logging
 from datetime import date, datetime
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
-from ..constants.trading_rules import ENTRY_STABILITY_MIN, SPREAD_DTE_MIN, SPREAD_DTE_MAX
+from ..constants.trading_rules import (
+    ENTRY_STABILITY_MIN, SPREAD_DTE_MIN, SPREAD_DTE_MAX,
+    EXIT_PROFIT_PCT_NORMAL, EXIT_STOP_LOSS_MULTIPLIER,
+)
 from .handler_container import BaseHandler, ServerContext
 
 if TYPE_CHECKING:
@@ -747,8 +750,8 @@ class ScanHandler(BaseHandler):
             b.text(f"**Credit:** ${sv.credit_bid:.2f} (Bid) -- ${sv.credit_mid:.2f} (Mid) | **Credit/Breite:** {sv.credit_pct:.1f}% {credit_check}")
 
             max_loss = sv.max_loss_per_contract if sv.max_loss_per_contract else 0
-            profit_target_50 = sv.credit_bid * 0.5 if sv.credit_bid else 0
-            stop_loss_200 = sv.credit_bid * 2.0 if sv.credit_bid else 0
+            profit_target_50 = sv.credit_bid * (EXIT_PROFIT_PCT_NORMAL / 100) if sv.credit_bid else 0
+            stop_loss_200 = sv.credit_bid * EXIT_STOP_LOSS_MULTIPLIER if sv.credit_bid else 0
             b.text(f"**Max Loss:** ${max_loss:.0f}/Kontrakt | **50% Target:** ${profit_target_50:.2f} | **200% Stop:** ${stop_loss_200:.2f}")
             b.blank()
         elif pick.suggested_strikes:

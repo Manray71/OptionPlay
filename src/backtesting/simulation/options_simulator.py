@@ -45,6 +45,7 @@ import math
 import numpy as np
 from numpy.typing import NDArray
 
+from ...constants.trading_rules import EXIT_PROFIT_PCT_NORMAL
 from ...pricing import (
     OptionPricer,
     PricingResult,
@@ -401,7 +402,7 @@ class OptionsSimulator:
         self,
         snapshot: SpreadSnapshot,
         entry: SpreadEntry,
-        profit_target_pct: float = 50.0,
+        profit_target_pct: float = EXIT_PROFIT_PCT_NORMAL,
         stop_loss_pct: float = 100.0,
         dte_exit_threshold: int = 7
     ) -> Optional[str]:
@@ -670,7 +671,7 @@ def batch_check_exit_signals(
     max_losses: NDArray[np.float64],
     pnl_totals: NDArray[np.float64],
     dtes_remaining: NDArray[np.float64],
-    profit_target_pct: float = 50.0,
+    profit_target_pct: float = EXIT_PROFIT_PCT_NORMAL,
     stop_loss_pct: float = 100.0,
     dte_exit_threshold: int = 7
 ) -> NDArray[np.int32]:

@@ -26,6 +26,11 @@ from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any
 
+from ...constants.trading_rules import (
+    VIX_LOW_VOL_MAX, VIX_NORMAL_MAX, VIX_ELEVATED_MAX,
+    EXIT_PROFIT_PCT_NORMAL,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -310,11 +315,11 @@ FIXED_REGIMES: Dict[str, RegimeConfig] = {
         name="low_vol",
         regime_type=RegimeType.LOW_VOL,
         vix_lower=0,
-        vix_upper=15,
+        vix_upper=VIX_LOW_VOL_MAX,
         description="Low volatility environment - aggressive positioning allowed",
         min_score=4.0,
-        profit_target_pct=40.0,
-        stop_loss_pct=200.0,
+        profit_target_pct=40.0,     # Regime-specific (trained)
+        stop_loss_pct=200.0,        # Regime-specific (trained)
         position_size_pct=6.0,
         max_concurrent_positions=15,
         strategies_enabled=["pullback", "bounce", "ath_breakout", "earnings_dip", "trend_continuation"],
@@ -322,12 +327,12 @@ FIXED_REGIMES: Dict[str, RegimeConfig] = {
     RegimeType.NORMAL.value: RegimeConfig(
         name="normal",
         regime_type=RegimeType.NORMAL,
-        vix_lower=15,
-        vix_upper=20,
+        vix_lower=VIX_LOW_VOL_MAX,
+        vix_upper=VIX_NORMAL_MAX,
         description="Normal volatility - standard trading parameters",
         min_score=5.0,
-        profit_target_pct=50.0,
-        stop_loss_pct=150.0,
+        profit_target_pct=EXIT_PROFIT_PCT_NORMAL,  # PLAYBOOK: 50%
+        stop_loss_pct=150.0,        # Regime-specific (trained)
         position_size_pct=5.0,
         max_concurrent_positions=10,
         strategies_enabled=["pullback", "bounce", "ath_breakout", "earnings_dip", "trend_continuation"],
@@ -335,12 +340,12 @@ FIXED_REGIMES: Dict[str, RegimeConfig] = {
     RegimeType.ELEVATED.value: RegimeConfig(
         name="elevated",
         regime_type=RegimeType.ELEVATED,
-        vix_lower=20,
-        vix_upper=30,
+        vix_lower=VIX_NORMAL_MAX,
+        vix_upper=VIX_ELEVATED_MAX,
         description="Elevated volatility - conservative approach",
         min_score=6.0,
-        profit_target_pct=60.0,
-        stop_loss_pct=100.0,
+        profit_target_pct=60.0,     # Regime-specific (trained)
+        stop_loss_pct=100.0,        # Regime-specific (trained)
         position_size_pct=4.0,
         max_concurrent_positions=7,
         strategies_enabled=["pullback", "bounce"],  # No breakout/dip
@@ -348,12 +353,12 @@ FIXED_REGIMES: Dict[str, RegimeConfig] = {
     RegimeType.HIGH_VOL.value: RegimeConfig(
         name="high_vol",
         regime_type=RegimeType.HIGH_VOL,
-        vix_lower=30,
+        vix_lower=VIX_ELEVATED_MAX,
         vix_upper=100,
         description="High volatility - defensive or pause trading",
         min_score=8.0,
-        profit_target_pct=75.0,
-        stop_loss_pct=75.0,
+        profit_target_pct=75.0,     # Regime-specific (trained)
+        stop_loss_pct=75.0,         # Regime-specific (trained)
         position_size_pct=2.0,
         max_concurrent_positions=3,
         strategies_enabled=["pullback"],  # Only highest conviction plays
