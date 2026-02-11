@@ -286,8 +286,8 @@ class OptionsChainFormatter(BaseFormatter):
         options: List[OptionProtocol],
         underlying_price: Optional[float] = None,
         right: str = "P",
-        dte_min: int = 60,
-        dte_max: int = 90,
+        dte_min: int = SPREAD_DTE_MIN,
+        dte_max: int = SPREAD_DTE_MAX,
         max_options: int = 15
     ) -> str:
         b = self._builder()

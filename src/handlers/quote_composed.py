@@ -293,7 +293,7 @@ class QuoteHandler(BaseHandler):
 
     async def earnings_prefilter(
         self,
-        min_days: int = 45,
+        min_days: int = ENTRY_EARNINGS_MIN_DAYS,
         symbols: Optional[List[str]] = None,
         show_excluded: bool = False,
     ) -> str:

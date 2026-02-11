@@ -14,6 +14,7 @@ from ..utils.error_handler import mcp_endpoint
 from ..utils.markdown_builder import MarkdownBuilder
 from ..utils.validation import validate_symbol
 from ..spread_analyzer import SpreadAnalyzer, BullPutSpreadParams
+from ..constants.trading_rules import VIX_NORMAL_MAX
 from .base import BaseHandlerMixin
 
 logger = logging.getLogger(__name__)
@@ -65,7 +66,7 @@ class RiskHandlerMixin(BaseHandlerMixin):
         )
 
         # Get current VIX for adjustment
-        vix = await self.get_vix() or 20.0
+        vix = await self.get_vix() or VIX_NORMAL_MAX
 
         # Create position sizer with Half-Kelly (conservative)
         config = PositionSizerConfig(kelly_mode=KellyMode.HALF)
@@ -170,7 +171,7 @@ class RiskHandlerMixin(BaseHandlerMixin):
         """
         from ..risk.position_sizing import PositionSizer
 
-        vix = await self.get_vix() or 20.0
+        vix = await self.get_vix() or VIX_NORMAL_MAX
         sizer = PositionSizer(account_size=100000)
 
         result = sizer.calculate_stop_loss(

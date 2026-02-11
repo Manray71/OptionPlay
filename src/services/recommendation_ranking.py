@@ -21,6 +21,7 @@ from ..models.base import TradeSignal
 from ..constants.trading_rules import (
     SPREAD_DTE_MIN,
     SPREAD_DTE_MAX,
+    SPREAD_DTE_TARGET,
     LIQUIDITY_MIN_QUALITY_DAILY_PICKS,
 )
 
@@ -212,7 +213,7 @@ class RecommendationRankingMixin:
             base = (1 - weight) * signal_score + weight * (stability / 10)
 
             # Speed Score berechnen
-            dte = signal.details.get('dte', 75) if signal.details else 75
+            dte = signal.details.get('dte', SPREAD_DTE_TARGET) if signal.details else SPREAD_DTE_TARGET
             speed = self.compute_speed_score(
                 dte=dte,
                 stability_score=stability,
@@ -480,7 +481,7 @@ class RecommendationRankingMixin:
             )
 
         # Speed Score berechnen
-        dte = signal.details.get('dte', 75) if signal.details else 75
+        dte = signal.details.get('dte', SPREAD_DTE_TARGET) if signal.details else SPREAD_DTE_TARGET
         pullback_score = None
         market_context_score = None
         if signal.details:

@@ -45,6 +45,7 @@ from ..utils.validation import validate_symbols
 from ..utils.markdown_builder import MarkdownBuilder, truncate
 from ..cache import CacheStatus
 from ..formatters import formatters
+from ..constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS
 
 logger = logging.getLogger(__name__)
 
@@ -354,7 +355,7 @@ class ScannerService(BaseService):
         earnings_days = (
             recommendation.earnings_buffer_days
             if recommendation
-            else 60
+            else ENTRY_EARNINGS_MIN_DAYS
         )
         
         config = get_scan_config(

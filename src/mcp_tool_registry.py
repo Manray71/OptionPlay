@@ -387,7 +387,7 @@ async def handle_daily_picks(server: Any, arguments: ToolArguments) -> str:
     input_schema={
         "type": "object",
         "properties": {
-            "min_days": {"type": "number", "description": "Minimum days to earnings (default: 60)"},
+            "min_days": {"type": "number", "description": "Minimum days to earnings (default: 45)"},
             "symbols": {"type": "array", "items": {"type": "string"}},
             "show_excluded": {"type": "boolean", "description": "Show excluded symbols (default: false)"},
         },
@@ -447,7 +447,7 @@ async def handle_options(server: Any, arguments: ToolArguments) -> str:
         "type": "object",
         "properties": {
             "symbol": {"type": "string"},
-            "min_days": {"type": "number", "description": "Min days buffer (default: 60)"},
+            "min_days": {"type": "number", "description": "Min days buffer (default: 45)"},
         },
         "required": ["symbol"],
     },
@@ -456,7 +456,7 @@ async def handle_options(server: Any, arguments: ToolArguments) -> str:
 async def handle_earnings(server: Any, arguments: ToolArguments) -> str:
     return await server.handlers.quote.get_earnings_aggregated(
         arguments["symbol"],
-        arguments.get("min_days", 60),
+        arguments.get("min_days", ENTRY_EARNINGS_MIN_DAYS),
     )
 
 

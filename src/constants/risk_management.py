@@ -93,7 +93,7 @@ TARGET_MULTIPLIER = EXIT_PROFIT_PCT_NORMAL / 100    # Delegiert an trading_rules
 
 # Minimum distance to earnings
 # PLAYBOOK §1: Earnings > 45 Tage (hart, keine Ausnahme)
-EARNINGS_MIN_DAYS = ENTRY_EARNINGS_MIN_DAYS        # Minimum days until earnings (PLAYBOOK: 60)
+EARNINGS_MIN_DAYS = ENTRY_EARNINGS_MIN_DAYS        # Minimum days until earnings (PLAYBOOK: 45)
 EARNINGS_MIN_DAYS_STRICT = ENTRY_EARNINGS_MIN_DAYS # Strict variant (same as default per PLAYBOOK)
 EARNINGS_SAFE_DAYS = 90       # Classified as "safe"
 

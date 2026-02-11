@@ -147,7 +147,7 @@ class VIXStrategySelector:
     """
 
     # Profile definitions
-    # BASE STRATEGY: Short Put with Delta -0.20, Long Put Delta -0.05, DTE 60-90 days
+    # BASE STRATEGY: Short Put with Delta -0.20, Long Put Delta -0.05, DTE {DTE_MIN}-{DTE_MAX} days
     # Spread width is DYNAMIC — derived from delta-selected strikes (not fixed)
     # Earnings buffer: at least EARNINGS_MIN_DAYS
     PROFILES = {
@@ -268,7 +268,7 @@ class VIXStrategySelector:
 
         if len(history) < 3:
             # Not enough history - no trend detectable
-            fallback_vix = current_vix if current_vix is not None else 20.0
+            fallback_vix = current_vix if current_vix is not None else VIX_NORMAL
             return VixTrendInfo(
                 trend=VixTrend.STABLE,
                 z_score=0.0,
@@ -561,11 +561,11 @@ class VIXStrategySelector:
         warnings = []
 
         # Reasoning based on regime (5-tier system)
-        # Base strategy: Short Put Delta DELTA_TARGET, DTE 60-90 days
+        # Base strategy: Short Put Delta DELTA_TARGET, DTE {DTE_MIN}-{DTE_MAX} days
         if regime == MarketRegime.LOW_VOL:
             reasoning = (
                 f"VIX at {vix:.1f} shows low volatility. "
-                f"Short Put with Delta {DELTA_TARGET}, DTE 60-90 days. "
+                f"Short Put with Delta {DELTA_TARGET}, DTE {DTE_MIN}-{DTE_MAX} days. "
                 "Premiums are lower - focus on quality."
             )
             warnings.append("Low premiums - focus on quality over quantity")
@@ -573,7 +573,7 @@ class VIXStrategySelector:
         elif regime == MarketRegime.NORMAL:
             reasoning = (
                 f"VIX at {vix:.1f} - Sweet Spot! Best conditions. "
-                f"Short Put with Delta {DELTA_TARGET}, DTE 60-90 days. "
+                f"Short Put with Delta {DELTA_TARGET}, DTE {DTE_MIN}-{DTE_MAX} days. "
                 "84% Win Rate in this range."
             )
 
@@ -601,7 +601,7 @@ class VIXStrategySelector:
         elif regime == MarketRegime.HIGH_VOL:
             reasoning = (
                 f"VIX at {vix:.1f} shows extreme volatility (crash mode). "
-                f"Short Put with Delta {DELTA_TARGET}, DTE 60-90 days. "
+                f"Short Put with Delta {DELTA_TARGET}, DTE {DTE_MIN}-{DTE_MAX} days. "
                 "Spread width dynamic (delta-based)."
             )
             warnings.append("CRASH MODE: Reduce position sizes to 50%")
@@ -611,7 +611,7 @@ class VIXStrategySelector:
         else:  # UNKNOWN
             reasoning = (
                 "No VIX data available. "
-                f"Using standard profile: Delta {DELTA_TARGET}, DTE 60-90 days."
+                f"Using standard profile: Delta {DELTA_TARGET}, DTE {DTE_MIN}-{DTE_MAX} days."
             )
             warnings.append("VIX not available - manual market check recommended")
 
@@ -634,8 +634,8 @@ class VIXStrategySelector:
             spread_width=None,  # Dynamic: determined by delta-based strike selection
             min_score=profile['min_score'],
             earnings_buffer_days=profile['earnings_buffer_days'],
-            dte_min=profile.get('dte_min', 60),
-            dte_max=profile.get('dte_max', 90),
+            dte_min=profile.get('dte_min', DTE_MIN),
+            dte_max=profile.get('dte_max', DTE_MAX),
             reasoning=reasoning,
             warnings=warnings
         )

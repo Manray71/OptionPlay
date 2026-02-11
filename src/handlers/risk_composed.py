@@ -16,6 +16,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
 from .handler_container import BaseHandler, ServerContext
+from ..constants.trading_rules import VIX_NORMAL_MAX
 
 if TYPE_CHECKING:
     pass
@@ -64,7 +65,7 @@ class RiskHandler(BaseHandler):
         from ..risk.position_sizing import PositionSizer, PositionSizerConfig, KellyMode, VIXRegime
         from ..utils.markdown_builder import MarkdownBuilder
 
-        vix = await self._get_vix() or 20.0
+        vix = await self._get_vix() or VIX_NORMAL_MAX
 
         config = PositionSizerConfig(kelly_mode=KellyMode.HALF)
         sizer = PositionSizer(
@@ -155,7 +156,7 @@ class RiskHandler(BaseHandler):
         from ..risk.position_sizing import PositionSizer
         from ..utils.markdown_builder import MarkdownBuilder
 
-        vix = await self._get_vix() or 20.0
+        vix = await self._get_vix() or VIX_NORMAL_MAX
         sizer = PositionSizer(account_size=100000)
 
         result = sizer.calculate_stop_loss(

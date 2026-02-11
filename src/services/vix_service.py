@@ -36,6 +36,7 @@ from ..vix_strategy import (
     StrategyRecommendation,
 )
 from ..formatters import formatters
+from ..constants.trading_rules import VIX_NORMAL_MAX
 
 logger = logging.getLogger(__name__)
 
@@ -274,11 +275,11 @@ class VIXService(BaseService):
         
         if not vix_result.success:
             # Use default VIX if fetch failed
-            vix = 20.0  # Assume normal conditions
+            vix = VIX_NORMAL_MAX  # Assume normal conditions
             recommendation = get_strategy_for_vix(vix)
             return ServiceResult.ok(
                 data=recommendation,
-                warnings=["VIX fetch failed, using default (20.0)"]
+                warnings=[f"VIX fetch failed, using default ({VIX_NORMAL_MAX})"]
             )
         
         vix = vix_result.data
@@ -298,7 +299,7 @@ class VIXService(BaseService):
             Markdown-formatierter String
         """
         vix_result = await self.get_vix()
-        vix = vix_result.or_else(20.0)
+        vix = vix_result.or_else(VIX_NORMAL_MAX)
         recommendation = get_strategy_for_vix(vix)
         return formatters.strategy.format(recommendation, vix)
     

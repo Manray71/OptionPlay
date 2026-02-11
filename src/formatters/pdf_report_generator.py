@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass, field
 
-from ..constants.trading_rules import SPREAD_SHORT_DELTA_MIN, SPREAD_SHORT_DELTA_MAX
+from ..constants.trading_rules import SPREAD_SHORT_DELTA_MIN, SPREAD_SHORT_DELTA_MAX, ENTRY_EARNINGS_MIN_DAYS, SPREAD_DTE_MIN, SPREAD_DTE_MAX
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +32,7 @@ class CoverPageData:
     market_sentiment: str = "Neutral"
 
     # Parameters
-    dte_range: str = "60-90 DTE"
+    dte_range: str = f"{SPREAD_DTE_MIN}-{SPREAD_DTE_MAX} DTE"
     delta_short: str = f"{abs(SPREAD_SHORT_DELTA_MAX):.2f}-{abs(SPREAD_SHORT_DELTA_MIN):.2f}"
     spread_width: str = "$5-$10"
     min_roi: str = ">30%"
@@ -592,7 +592,7 @@ class PDFReportGenerator:
         # Fundamentals
         fd = card.fundamentals
         pe_display = f"{fd.pe_ratio:.1f}" if fd.pe_ratio else "N/A"
-        earnings_class = "green" if fd.earnings_in_days and fd.earnings_in_days > 45 else "orange"
+        earnings_class = "green" if fd.earnings_in_days and fd.earnings_in_days >= ENTRY_EARNINGS_MIN_DAYS else "orange"
         earnings_display = f"{fd.earnings_in_days} Tage" if fd.earnings_in_days else "N/A"
 
         # News

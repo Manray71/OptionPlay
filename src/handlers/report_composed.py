@@ -16,6 +16,7 @@ from datetime import date, datetime
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from .handler_container import BaseHandler, ServerContext
+from ..constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS
 
 if TYPE_CHECKING:
     pass
@@ -120,7 +121,7 @@ class ReportHandler(BaseHandler):
                 earnings_data[sym] = {
                     'days_to_earnings': days,
                     'next_date': earnings_info.get('next_date'),
-                    'safe': days is None or days > 45,
+                    'safe': days is None or days >= ENTRY_EARNINGS_MIN_DAYS,
                 }
                 if earnings_data[sym]['safe']:
                     safe_symbols.append(sym)

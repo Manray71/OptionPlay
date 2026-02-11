@@ -38,6 +38,7 @@ from ..constants.trading_rules import (
     EXIT_FORCE_CLOSE_DTE,
     EXIT_PROFIT_PCT_NORMAL,
     EXIT_STOP_LOSS_MULTIPLIER,
+    SPREAD_DTE_TARGET,
     EXIT_ROLL_DTE,
     ROLL_NEW_DTE_MIN,
     ROLL_NEW_DTE_MAX,
@@ -53,7 +54,7 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 
 # Estimated original DTE for theta/P&L calculation (typical BPS entry at 60-90 DTE)
-THETA_ESTIMATE_ORIGINAL_DTE = 75
+THETA_ESTIMATE_ORIGINAL_DTE = SPREAD_DTE_TARGET
 
 
 # =============================================================================

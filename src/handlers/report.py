@@ -12,7 +12,7 @@ import logging
 from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
-from ..constants.trading_rules import SPREAD_SHORT_DELTA_TARGET, SPREAD_DTE_MIN, SPREAD_DTE_MAX
+from ..constants.trading_rules import SPREAD_SHORT_DELTA_TARGET, SPREAD_DTE_MIN, SPREAD_DTE_MAX, ENTRY_EARNINGS_MIN_DAYS
 from ..utils.error_handler import mcp_endpoint
 from ..utils.markdown_builder import MarkdownBuilder
 from ..utils.validation import validate_symbol
@@ -144,7 +144,7 @@ class ReportHandlerMixin(BaseHandlerMixin):
                 earnings_data[symbol] = {
                     'days_to_earnings': days,
                     'next_date': earnings_info.get('next_date'),
-                    'safe': days is None or days > 45,
+                    'safe': days is None or days >= ENTRY_EARNINGS_MIN_DAYS,
                 }
                 if earnings_data[symbol]['safe']:
                     safe_symbols.append(symbol)
