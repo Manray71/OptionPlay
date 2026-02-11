@@ -37,6 +37,7 @@ import statistics
 from ...constants.trading_rules import (
     SPREAD_SHORT_DELTA_TARGET, SPREAD_SHORT_DELTA_MIN, SPREAD_SHORT_DELTA_MAX,
     SPREAD_LONG_DELTA_TARGET, SPREAD_LONG_DELTA_MIN, SPREAD_LONG_DELTA_MAX,
+    SPREAD_DTE_MIN, SPREAD_DTE_MAX,
 )
 from ..simulation import OptionsSimulator, SpreadEntry, SpreadSnapshot, OptionsSimulatorConfig as SimulatorConfig
 from .entry_exit import EntryExitMixin
@@ -92,8 +93,8 @@ class BacktestConfig:
     # Entry-Kriterien
     min_pullback_score: float = 5.0
     min_otm_pct: float = 8.0  # Minimum OTM% für Short Strike (Fallback wenn kein Delta)
-    dte_min: int = 60
-    dte_max: int = 90
+    dte_min: int = SPREAD_DTE_MIN
+    dte_max: int = SPREAD_DTE_MAX
 
     # Delta-basierte Strike-Auswahl (Targets aus PLAYBOOK, Range breiter für Backtesting)
     short_delta_target: float = SPREAD_SHORT_DELTA_TARGET

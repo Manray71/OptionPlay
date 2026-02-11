@@ -13,7 +13,7 @@ import logging
 from datetime import date, datetime
 from typing import Any, Dict, List, Optional, Callable
 
-from ..constants.trading_rules import ENTRY_STABILITY_MIN
+from ..constants.trading_rules import ENTRY_STABILITY_MIN, SPREAD_DTE_MIN, SPREAD_DTE_MAX
 from ..scanner.multi_strategy_scanner import ScanMode
 from ..services.recommendation_engine import (
     DailyRecommendationEngine,
@@ -693,7 +693,7 @@ class ScanHandlerMixin(BaseHandlerMixin):
             """Fetch options chain for liquidity check."""
             try:
                 return await self._get_options_chain_with_fallback(
-                    symbol, dte_min=60, dte_max=90, right="P"
+                    symbol, dte_min=SPREAD_DTE_MIN, dte_max=SPREAD_DTE_MAX, right="P"
                 )
             except Exception as e:
                 logger.warning(f"Could not fetch options for {symbol}: {e}")

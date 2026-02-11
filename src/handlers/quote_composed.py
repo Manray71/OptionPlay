@@ -18,7 +18,7 @@ from datetime import date, datetime
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from .handler_container import BaseHandler, ServerContext
-from ..constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS
+from ..constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS, SPREAD_DTE_MIN, SPREAD_DTE_MAX
 
 if TYPE_CHECKING:
     pass
@@ -547,7 +547,7 @@ class QuoteHandler(BaseHandler):
 
     # --- Shared helper methods ---
 
-    async def _get_options_chain_with_fallback(self, symbol, dte_min=60, dte_max=90, right="P"):
+    async def _get_options_chain_with_fallback(self, symbol, dte_min=SPREAD_DTE_MIN, dte_max=SPREAD_DTE_MAX, right="P"):
         """Fetch options chain with Tradier-first, IBKR-fallback."""
         options = None
         right_upper = right.upper()

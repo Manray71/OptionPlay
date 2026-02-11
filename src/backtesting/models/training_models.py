@@ -16,7 +16,10 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 from typing import Any, Dict, List, Optional, Tuple
 
-from ...constants.trading_rules import SPREAD_SHORT_DELTA_TARGET, SPREAD_LONG_DELTA_TARGET
+from ...constants.trading_rules import (
+    SPREAD_SHORT_DELTA_TARGET, SPREAD_LONG_DELTA_TARGET,
+    SPREAD_DTE_MIN, SPREAD_DTE_MAX,
+)
 from .regime_config import (
     RegimeConfig,
     RegimeBoundaryMethod,
@@ -59,8 +62,8 @@ class RegimeTrainingConfig:
 
     # Backtest Defaults (gemäß strategies.yaml Basisstrategie)
     initial_capital: float = 100000.0
-    dte_min: int = 60                       # Basisstrategie: 60-90 DTE
-    dte_max: int = 90
+    dte_min: int = SPREAD_DTE_MIN            # Basisstrategie: 60-90 DTE
+    dte_max: int = SPREAD_DTE_MAX
 
     # Delta-basierte Strike-Auswahl (gemäß strategies.yaml Basisstrategie)
     use_delta_based_strikes: bool = True

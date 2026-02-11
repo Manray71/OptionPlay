@@ -15,6 +15,7 @@ from datetime import date
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from .handler_container import BaseHandler, ServerContext
+from ..constants.trading_rules import SPREAD_DTE_MIN, SPREAD_DTE_MAX
 
 if TYPE_CHECKING:
     pass
@@ -644,7 +645,7 @@ class AnalysisHandler(BaseHandler):
             config.exclude_earnings_within_days = exclude_earnings_within_days
         return MultiStrategyScanner(config=config)
 
-    async def _get_options_chain_with_fallback(self, symbol, dte_min=60, dte_max=90, right="P"):
+    async def _get_options_chain_with_fallback(self, symbol, dte_min=SPREAD_DTE_MIN, dte_max=SPREAD_DTE_MAX, right="P"):
         options = None
         right_upper = right.upper()
 

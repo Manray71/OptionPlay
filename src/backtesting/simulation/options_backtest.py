@@ -42,6 +42,7 @@ from ..models.outcomes import (
     BacktestTradeRecord,
 )
 from ..core.database import OptionsDatabase, DB_PATH
+from ...constants.trading_rules import SPREAD_DTE_MIN, SPREAD_DTE_MAX
 from ..core.spread_engine import SpreadFinder, OutcomeCalculator
 
 # Re-export from sub-modules for backward compatibility
@@ -161,8 +162,8 @@ class RealOptionsBacktester:
         entry_date: date,
         target_otm_pct: float = 10.0,
         spread_width_pct: float = 5.0,
-        dte_min: int = 60,
-        dte_max: int = 90,
+        dte_min: int = SPREAD_DTE_MIN,
+        dte_max: int = SPREAD_DTE_MAX,
     ) -> Optional[SpreadOutcomeResult]:
         """
         Findet automatisch einen passenden Spread und backtestet ihn.
@@ -201,8 +202,8 @@ class RealOptionsBacktester:
         entry_interval_days: int = 5,  # Alle 5 Tage neuer Entry
         target_otm_pct: float = 10.0,
         spread_width_pct: float = 5.0,
-        dte_min: int = 60,
-        dte_max: int = 90,
+        dte_min: int = SPREAD_DTE_MIN,
+        dte_max: int = SPREAD_DTE_MAX,
         progress_callback: callable = None,
     ) -> List[SpreadOutcomeResult]:
         """

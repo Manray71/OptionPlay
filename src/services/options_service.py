@@ -33,6 +33,7 @@ from datetime import datetime
 from typing import Dict, List, Optional, Any
 
 from .base import BaseService, ServiceContext
+from ..constants.trading_rules import SPREAD_DTE_MIN, SPREAD_DTE_MAX
 from ..models.result import ServiceResult
 from ..utils.validation import validate_symbol, validate_dte_range, validate_right, ValidationError
 from ..utils.markdown_builder import MarkdownBuilder, format_price
@@ -74,8 +75,8 @@ class OptionsService(BaseService):
     async def get_options_chain(
         self,
         symbol: str,
-        dte_min: int = 60,
-        dte_max: int = 90,
+        dte_min: int = SPREAD_DTE_MIN,
+        dte_max: int = SPREAD_DTE_MAX,
         right: str = "P"
     ) -> ServiceResult[dict[str, Any]]:
         """
@@ -142,8 +143,8 @@ class OptionsService(BaseService):
     async def get_strike_recommendation(
         self,
         symbol: str,
-        dte_min: int = 60,
-        dte_max: int = 90,
+        dte_min: int = SPREAD_DTE_MIN,
+        dte_max: int = SPREAD_DTE_MAX,
         num_alternatives: int = 3,
         regime: Optional[MarketRegime] = None
     ) -> ServiceResult[dict[str, Any]]:
@@ -270,8 +271,8 @@ class OptionsService(BaseService):
     async def get_options_chain_formatted(
         self,
         symbol: str,
-        dte_min: int = 60,
-        dte_max: int = 90,
+        dte_min: int = SPREAD_DTE_MIN,
+        dte_max: int = SPREAD_DTE_MAX,
         right: str = "P"
     ) -> str:
         """
@@ -296,8 +297,8 @@ class OptionsService(BaseService):
     async def get_strike_recommendation_formatted(
         self,
         symbol: str,
-        dte_min: int = 60,
-        dte_max: int = 90,
+        dte_min: int = SPREAD_DTE_MIN,
+        dte_max: int = SPREAD_DTE_MAX,
         num_alternatives: int = 3
     ) -> str:
         """

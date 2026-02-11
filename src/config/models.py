@@ -14,6 +14,7 @@ try:
         ENTRY_STABILITY_MIN,
         SPREAD_SHORT_DELTA_TARGET, SPREAD_SHORT_DELTA_MIN, SPREAD_SHORT_DELTA_MAX,
         SPREAD_LONG_DELTA_TARGET, SPREAD_LONG_DELTA_MIN, SPREAD_LONG_DELTA_MAX,
+        SPREAD_DTE_MIN, SPREAD_DTE_MAX, SPREAD_DTE_TARGET,
     )
 except ImportError:
     from constants.trading_rules import (
@@ -21,6 +22,7 @@ except ImportError:
         ENTRY_STABILITY_MIN,
         SPREAD_SHORT_DELTA_TARGET, SPREAD_SHORT_DELTA_MIN, SPREAD_SHORT_DELTA_MAX,
         SPREAD_LONG_DELTA_TARGET, SPREAD_LONG_DELTA_MIN, SPREAD_LONG_DELTA_MAX,
+        SPREAD_DTE_MIN, SPREAD_DTE_MAX, SPREAD_DTE_TARGET,
     )
 
 
@@ -510,9 +512,9 @@ class ScannerConfig:
 @dataclass
 class OptionsConfig:
     """Options Analyse Parameter"""
-    dte_minimum: int = 60
-    dte_maximum: int = 90
-    dte_target: int = 75
+    dte_minimum: int = SPREAD_DTE_MIN
+    dte_maximum: int = SPREAD_DTE_MAX
+    dte_target: int = SPREAD_DTE_TARGET
     # Short Put (verkauft) - Delta ±0.20 (PLAYBOOK §2: ±0.03)
     # Note: delta_minimum = less aggressive (smaller |delta|, closer to 0)
     #       delta_maximum = more aggressive (larger |delta|, further from 0)

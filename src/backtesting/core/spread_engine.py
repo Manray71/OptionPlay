@@ -15,6 +15,7 @@ from ..models.outcomes import (
     SpreadOutcomeResult,
 )
 from .database import OptionsDatabase
+from ...constants.trading_rules import SPREAD_DTE_MIN, SPREAD_DTE_MAX
 
 logger = logging.getLogger(__name__)
 
@@ -31,8 +32,8 @@ class SpreadFinder:
         quote_date: date,
         target_short_otm_pct: float = 10.0,  # 10% OTM
         spread_width_pct: float = 5.0,       # 5% des Aktienkurses
-        dte_min: int = 60,
-        dte_max: int = 90,
+        dte_min: int = SPREAD_DTE_MIN,
+        dte_max: int = SPREAD_DTE_MAX,
     ) -> Optional[SpreadEntry]:
         """
         Findet einen Bull-Put-Spread basierend auf Kriterien.

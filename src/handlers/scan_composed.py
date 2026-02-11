@@ -16,7 +16,7 @@ import logging
 from datetime import date, datetime
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
-from ..constants.trading_rules import ENTRY_STABILITY_MIN
+from ..constants.trading_rules import ENTRY_STABILITY_MIN, SPREAD_DTE_MIN, SPREAD_DTE_MAX
 from .handler_container import BaseHandler, ServerContext
 
 if TYPE_CHECKING:
@@ -655,7 +655,7 @@ class ScanHandler(BaseHandler):
         async def options_fetcher(symbol: str) -> list[Any]:
             try:
                 return await self._get_options_chain_with_fallback(
-                    symbol, dte_min=60, dte_max=90, right="P"
+                    symbol, dte_min=SPREAD_DTE_MIN, dte_max=SPREAD_DTE_MAX, right="P"
                 )
             except Exception as e:
                 self._logger.warning(f"Could not fetch options for {symbol}: {e}")
@@ -907,7 +907,7 @@ class ScanHandler(BaseHandler):
 
     # _get_vix() inherited from BaseHandler
 
-    async def _get_options_chain_with_fallback(self, symbol, dte_min=60, dte_max=90, right="P"):
+    async def _get_options_chain_with_fallback(self, symbol, dte_min=SPREAD_DTE_MIN, dte_max=SPREAD_DTE_MAX, right="P"):
         """Fetch options chain with Tradier-first, IBKR-fallback."""
         options = None
         right_upper = right.upper()

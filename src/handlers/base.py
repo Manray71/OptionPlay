@@ -12,6 +12,8 @@ import logging
 from datetime import date, datetime
 from typing import TYPE_CHECKING, Any, Optional
 
+from ..constants.trading_rules import SPREAD_DTE_MIN, SPREAD_DTE_MAX
+
 if TYPE_CHECKING:
     from ..data_providers.marketdata import MarketDataProvider
     from ..data_providers.tradier import TradierProvider
@@ -132,8 +134,8 @@ class BaseHandlerMixin:
     async def _get_options_chain_with_fallback(
         self,
         symbol: str,
-        dte_min: int = 60,
-        dte_max: int = 90,
+        dte_min: int = SPREAD_DTE_MIN,
+        dte_max: int = SPREAD_DTE_MAX,
         right: str = "P",
     ) -> list[Any]:
         """
