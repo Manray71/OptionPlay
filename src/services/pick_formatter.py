@@ -115,15 +115,25 @@ def format_single_pick(pick: Any) -> list[str]:
         grade_colors = {"A": "🟢", "B": "🟢", "C": "🟡", "D": "🟠", "F": "🔴"}
         grade_badge = f" {grade_colors.get(pick.reliability_grade, '')}[{pick.reliability_grade}]"
 
+    # Enhanced score display
+    score_str = f"{pick.score:.1f}/10"
+    if getattr(pick, "enhanced_score", None) is not None:
+        score_str = f"{pick.enhanced_score:.1f} (base {pick.score:.1f})"
+
     lines = [
         f"### {pick.rank}. **{pick.symbol}** - {pick.strategy.replace('_', ' ').title()}{grade_badge}",
         "",
         f"| Metrik | Wert |",
         f"|--------|------|",
         f"| **Preis** | ${pick.current_price:.2f} |",
-        f"| **Score** | {pick.score:.1f}/10 |",
+        f"| **Score** | {score_str} |",
         f"| **Stability** | {pick.stability_score:.0f}/100 |",
     ]
+
+    # Bonus breakdown
+    esr = getattr(pick, "enhanced_score_result", None)
+    if esr is not None and esr.total_bonus > 0:
+        lines.append(f"| **Bonus** | {esr.bonus_breakdown_str()} |")
 
     if pick.historical_win_rate:
         lines.append(f"| **Hist. Win Rate** | {pick.historical_win_rate:.0f}% |")
@@ -268,8 +278,19 @@ def format_single_pick_v2(b: MarkdownBuilder, pick: Any) -> None:
     if pick.entry_quality and hasattr(pick.entry_quality, "eqs_total"):
         eqs_str = f" | EQS {pick.entry_quality.eqs_total:.0f}"
 
+    # Enhanced score display
+    score_display = f"Score {pick.score:.1f}"
+    if getattr(pick, "enhanced_score", None) is not None:
+        score_display = f"Enhanced {pick.enhanced_score:.1f} (base {pick.score:.1f})"
+
     # Header
-    b.h2(f"#{pick.rank} -- {pick.symbol} | {strategy_str} | Score {pick.score:.1f}{eqs_str}")
+    b.h2(f"#{pick.rank} -- {pick.symbol} | {strategy_str} | {score_display}{eqs_str}")
+
+    # Bonus breakdown line
+    esr = getattr(pick, "enhanced_score_result", None)
+    if esr is not None and esr.total_bonus > 0:
+        b.text(f"**Bonus:** {esr.bonus_breakdown_str()}")
+
     b.blank()
 
     # Chain-validated spread data (if available from SpreadValidation)

@@ -430,7 +430,7 @@ liquidity:
       excellent: 200
       good: 50
       fair: 10
-  min_quality_daily_picks: "good"
+  min_quality_daily_picks: "fair"
 training:
   strategy_configs:
     pullback:

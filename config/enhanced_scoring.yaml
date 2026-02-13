@@ -1,0 +1,47 @@
+# Enhanced Scoring Configuration
+# ================================
+# Bonus components (0-6 total) added to base signal score for daily_picks re-ranking.
+# Only applies to daily_picks() — regular scans are unaffected.
+
+liquidity_bonus:
+  # Maps liquidity_quality → bonus points
+  excellent: 2.0
+  good: 2.0
+  fair: 1.0
+  poor: 0.0
+
+credit_bonus:
+  # return_pct = (estimated_credit / spread_width) * 100
+  # Tiered brackets: higher return → higher bonus
+  brackets:
+    - min_pct: 10.0
+      bonus: 1.5
+    - min_pct: 7.0
+      bonus: 1.0
+    - min_pct: 4.0
+      bonus: 0.5
+  # Fallback when credit or spread_width unavailable
+  default: 0.0
+
+pullback_bonus:
+  # Bonus when price is above SMA20 AND SMA200 (healthy trend pullback)
+  both_above: 1.0
+  # Partial: above SMA200 only (long-term trend intact)
+  sma200_above_only: 0.5
+  # Default when no pullback data available
+  default: 0.0
+
+stability_bonus:
+  # High-stability symbols get a small bonus
+  brackets:
+    - min_score: 85
+      bonus: 1.0
+    - min_score: 75
+      bonus: 0.5
+  default: 0.0
+
+quality_filter:
+  # Reject picks with this liquidity quality or worse
+  reject_quality: "poor"
+
+overfetch_factor: 5

@@ -154,11 +154,15 @@ class DailyPick:
     reason: str = ""
     warnings: list[str] = field(default_factory=list)
 
+    # Enhanced scoring (daily_picks re-ranking)
+    enhanced_score: Optional[float] = None
+    enhanced_score_result: Optional[Any] = None  # EnhancedScoreResult
+
     # Metadata
     timestamp: datetime = field(default_factory=datetime.now)
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        result = {
             "rank": self.rank,
             "symbol": self.symbol,
             "strategy": self.strategy,
@@ -177,6 +181,9 @@ class DailyPick:
             "warnings": self.warnings,
             "timestamp": self.timestamp.isoformat(),
         }
+        if self.enhanced_score is not None:
+            result["enhanced_score"] = self.enhanced_score
+        return result
 
 
 @dataclass
@@ -470,16 +477,26 @@ class DailyRecommendationEngine(RecommendationRankingMixin):
         ranked_signals = self._rank_signals(diversified_signals)
 
         # 6. Top N auswählen und DailyPicks erstellen
-        # Overfetch: process more candidates to account for liquidity filtering
-        overfetch_factor = 3 if options_fetcher else 1
+        # Overfetch: process more candidates to account for quality filtering
+        try:
+            from .enhanced_scoring import (
+                calculate_enhanced_score,
+                get_enhanced_scoring_config,
+            )
+
+            es_config = get_enhanced_scoring_config()
+            overfetch_factor = es_config.overfetch_factor if options_fetcher else 1
+            reject_quality = es_config.quality_filter.get("reject_quality", "poor")
+        except Exception:
+            overfetch_factor = 3 if options_fetcher else 1
+            reject_quality = "poor"
+
         candidate_signals = ranked_signals[: max_picks * overfetch_factor]
         picks: list[DailyPick] = []
+        pick_signal_pairs: list[tuple[DailyPick, TradeSignal]] = []
         liquidity_rejected = 0
 
         for signal in candidate_signals:
-            if len(picks) >= max_picks:
-                break
-
             pick = await self._create_daily_pick(
                 rank=len(picks) + 1,
                 signal=signal,
@@ -505,21 +522,37 @@ class DailyRecommendationEngine(RecommendationRankingMixin):
                     )
                     continue
 
-                # Reject poor/fair liquidity
-                if liq_quality and liq_quality == "poor":
-                    liquidity_rejected += 1
-                    logger.info(f"Liquidity-filtered: {signal.symbol} " f"(quality={liq_quality})")
-                    continue
-                if liq_quality and liq_quality == "fair":
+                # Reject quality below threshold (default: "poor" only)
+                if liq_quality and liq_quality == reject_quality:
                     liquidity_rejected += 1
                     logger.info(
-                        f"Liquidity-filtered: {signal.symbol} " f"(quality={liq_quality}, min=good)"
+                        f"Liquidity-filtered: {signal.symbol} "
+                        f"(quality={liq_quality})"
                     )
                     continue
 
-            picks.append(pick)
+            pick_signal_pairs.append((pick, signal))
 
-        # Re-rank picks after liquidity filtering
+        # 7. Enhanced scoring and re-ranking (when options data available)
+        if options_fetcher:
+            try:
+                from .enhanced_scoring import calculate_enhanced_score
+
+                for pick, signal in pick_signal_pairs:
+                    es_result = calculate_enhanced_score(pick, signal)
+                    pick.enhanced_score = es_result.enhanced_score
+                    pick.enhanced_score_result = es_result
+
+                # Re-sort by enhanced score (descending)
+                pick_signal_pairs.sort(
+                    key=lambda ps: ps[0].enhanced_score or 0,
+                    reverse=True,
+                )
+            except Exception as e:
+                logger.warning(f"Enhanced scoring failed, using base ranking: {e}")
+
+        # Take top max_picks and re-number ranks
+        picks = [ps[0] for ps in pick_signal_pairs[:max_picks]]
         for i, pick in enumerate(picks, 1):
             pick.rank = i
 

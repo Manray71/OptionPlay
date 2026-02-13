@@ -734,7 +734,17 @@ class ScanHandler(BaseHandler):
         if pick.entry_quality and hasattr(pick.entry_quality, "eqs_total"):
             eqs_str = f" | EQS {pick.entry_quality.eqs_total:.0f}"
 
-        b.h2(f"#{pick.rank} -- {pick.symbol} | {strategy_str} | Score {pick.score:.1f}{eqs_str}")
+        # Enhanced score display
+        score_display = f"Score {pick.score:.1f}"
+        if pick.enhanced_score is not None:
+            score_display = f"Enhanced {pick.enhanced_score:.1f} (base {pick.score:.1f})"
+
+        b.h2(f"#{pick.rank} -- {pick.symbol} | {strategy_str} | {score_display}{eqs_str}")
+
+        # Bonus breakdown line
+        if hasattr(pick, "enhanced_score_result") and pick.enhanced_score_result is not None:
+            b.text(f"**Bonus:** {pick.enhanced_score_result.bonus_breakdown_str()}")
+
         b.blank()
 
         sv = pick.spread_validation
