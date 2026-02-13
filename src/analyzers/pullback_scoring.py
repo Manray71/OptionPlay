@@ -143,9 +143,7 @@ class PullbackScoringMixin:
 
         return 0, "No significant divergence"
 
-    def _score_rsi(
-        self, rsi: float, stability_score: Optional[float] = None
-    ) -> Tuple[float, str]:
+    def _score_rsi(self, rsi: float, stability_score: Optional[float] = None) -> Tuple[float, str]:
         """RSI Score (0-3 points).
 
         Uses adaptive neutral threshold based on stability score:

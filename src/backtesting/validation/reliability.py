@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
+
 """
 Reliability Scoring Module - Phase 3 des Hochverlässlichkeits-Frameworks
 
@@ -182,12 +183,15 @@ class ScorerConfig:
 
     # Grade-Schwellenwerte (CI-Untergrenze)
     grade_thresholds: Dict[str, float] = field(
-        default_factory=lambda: _rel_cfg.get("grade_thresholds", {
-            "A": 70.0,
-            "B": 60.0,
-            "C": 50.0,
-            "D": 40.0,
-        })
+        default_factory=lambda: _rel_cfg.get(
+            "grade_thresholds",
+            {
+                "A": 70.0,
+                "B": 60.0,
+                "C": 50.0,
+                "D": 40.0,
+            },
+        )
     )
 
     # Mindest-Grade für Trade-Empfehlung

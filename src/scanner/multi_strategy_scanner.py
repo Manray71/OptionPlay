@@ -1142,9 +1142,13 @@ class MultiStrategyScanner:
             # 3. Legacy Stability Boost (für rückwärts Kompatibilität)
             _sb = _stab_boost
             if stability_score >= _sb.get("premium_score", 80):
-                signal.score = signal.score + (self.config.stability_boost_amount * _sb.get("premium_multiplier", 0.5))
+                signal.score = signal.score + (
+                    self.config.stability_boost_amount * _sb.get("premium_multiplier", 0.5)
+                )
             elif stability_score >= self.config.stability_boost_threshold:
-                signal.score = signal.score + (self.config.stability_boost_amount * _sb.get("good_multiplier", 0.25))
+                signal.score = signal.score + (
+                    self.config.stability_boost_amount * _sb.get("good_multiplier", 0.25)
+                )
 
             # Round to 1 decimal
             signal.score = round(signal.score, 1)

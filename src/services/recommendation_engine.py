@@ -263,6 +263,7 @@ class DailyRecommendationEngine(RecommendationRankingMixin):
     def _get_ranking_defaults(cls) -> dict:
         if cls._ranking_cfg is None:
             from ..config.scoring_config import get_scoring_resolver
+
             cls._ranking_cfg = get_scoring_resolver().get_ranking_config()
         return cls._ranking_cfg
 

@@ -93,9 +93,7 @@ class ScannerConfig:
 
     def _parse_rsi_tiers(self) -> None:
         """Parse RSI tiers from loaded YAML data."""
-        tiers_data = (
-            self._rsi_data.get("rsi_thresholds", {}).get("tiers", [])
-        )
+        tiers_data = self._rsi_data.get("rsi_thresholds", {}).get("tiers", [])
         self._rsi_tiers = []
         for tier in tiers_data:
             self._rsi_tiers.append(
@@ -183,75 +181,96 @@ class ScannerConfig:
 
     def get_stability_tiers(self) -> Dict[str, Any]:
         """Get stability-first filtering tier thresholds and min scores."""
-        return self._scanner_data.get("scanner", {}).get("stability_tiers", {
-            "premium": {"threshold": 80.0, "min_score": 4.0},
-            "good": {"threshold": 70.0, "min_score": 5.0},
-            "acceptable": {"threshold": 65.0, "min_score": 5.5},
-            "ok": {"threshold": 50.0, "min_score": 6.0},
-        })
+        return self._scanner_data.get("scanner", {}).get(
+            "stability_tiers",
+            {
+                "premium": {"threshold": 80.0, "min_score": 4.0},
+                "good": {"threshold": 70.0, "min_score": 5.0},
+                "acceptable": {"threshold": 65.0, "min_score": 5.5},
+                "ok": {"threshold": 50.0, "min_score": 6.0},
+            },
+        )
 
     def get_stability_boost(self) -> Dict[str, Any]:
         """Get legacy stability boost parameters."""
-        return self._scanner_data.get("scanner", {}).get("stability_boost", {
-            "threshold": 70.0,
-            "amount": 1.0,
-            "premium_multiplier": 0.5,
-            "good_multiplier": 0.25,
-            "premium_score": 80,
-        })
+        return self._scanner_data.get("scanner", {}).get(
+            "stability_boost",
+            {
+                "threshold": 70.0,
+                "amount": 1.0,
+                "premium_multiplier": 0.5,
+                "good_multiplier": 0.25,
+                "premium_score": 80,
+            },
+        )
 
     # -- Win rate integration -------------------------------------------------
 
     def get_win_rate_config(self) -> Dict[str, float]:
         """Get win rate integration parameters."""
-        return self._scanner_data.get("scanner", {}).get("win_rate", {
-            "base_multiplier": 0.7,
-            "divisor": 300.0,
-        })
+        return self._scanner_data.get("scanner", {}).get(
+            "win_rate",
+            {
+                "base_multiplier": 0.7,
+                "divisor": 300.0,
+            },
+        )
 
     # -- Drawdown penalty -----------------------------------------------------
 
     def get_drawdown_config(self) -> Dict[str, float]:
         """Get drawdown penalty parameters."""
-        return self._scanner_data.get("scanner", {}).get("drawdown", {
-            "penalty_threshold": 10.0,
-            "penalty_per_pct": 0.02,
-            "max_penalty_pct": 0.3,
-        })
+        return self._scanner_data.get("scanner", {}).get(
+            "drawdown",
+            {
+                "penalty_threshold": 10.0,
+                "penalty_per_pct": 0.02,
+                "max_penalty_pct": 0.3,
+            },
+        )
 
     # -- Fundamentals pre-filter ----------------------------------------------
 
     def get_fundamentals_prefilter(self) -> Dict[str, float]:
         """Get fundamentals pre-filter thresholds."""
-        return self._scanner_data.get("scanner", {}).get("fundamentals_prefilter", {
-            "min_stability": 50.0,
-            "min_win_rate": 65.0,
-            "max_volatility": 70.0,
-            "max_beta": 2.0,
-            "iv_rank_min": 20.0,
-        })
+        return self._scanner_data.get("scanner", {}).get(
+            "fundamentals_prefilter",
+            {
+                "min_stability": 50.0,
+                "min_win_rate": 65.0,
+                "max_volatility": 70.0,
+                "max_beta": 2.0,
+                "iv_rank_min": 20.0,
+            },
+        )
 
     # -- Adjustment labels ----------------------------------------------------
 
     def get_adjustment_labels(self) -> Dict[str, Any]:
         """Get thresholds for human-readable adjustment reason labels."""
-        return self._scanner_data.get("scanner", {}).get("adjustment_labels", {
-            "win_rate": {"excellent": 90, "very_good": 85, "low": 75},
-            "drawdown": {"high": 15, "low": 5},
-            "stability": {"very_stable": 80},
-        })
+        return self._scanner_data.get("scanner", {}).get(
+            "adjustment_labels",
+            {
+                "win_rate": {"excellent": 90, "very_good": 85, "low": 75},
+                "drawdown": {"high": 15, "low": 5},
+                "stability": {"very_stable": 80},
+            },
+        )
 
     # -- Output limits --------------------------------------------------------
 
     def get_output_config(self) -> Dict[str, int]:
         """Get scanner output limit parameters."""
-        return self._scanner_data.get("scanner", {}).get("output", {
-            "max_results_per_symbol": 3,
-            "max_total_results": 50,
-            "max_symbol_appearances": 2,
-            "min_data_points": 60,
-            "pool_size_per_strategy": 5,
-        })
+        return self._scanner_data.get("scanner", {}).get(
+            "output",
+            {
+                "max_results_per_symbol": 3,
+                "max_total_results": 50,
+                "max_symbol_appearances": 2,
+                "min_data_points": 60,
+                "pool_size_per_strategy": 5,
+            },
+        )
 
 
 # ---------------------------------------------------------------------------

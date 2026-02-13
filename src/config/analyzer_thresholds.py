@@ -43,9 +43,7 @@ class AnalyzerThresholdsConfig:
                 self._data = yaml.safe_load(f) or {}
             logger.info("Analyzer thresholds loaded from %s", path)
         else:
-            logger.warning(
-                "Analyzer thresholds config not found at %s, using defaults", path
-            )
+            logger.warning("Analyzer thresholds config not found at %s, using defaults", path)
 
     def get(self, dotpath: str, default: Any = None) -> Any:
         """

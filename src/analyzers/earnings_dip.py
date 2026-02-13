@@ -97,7 +97,9 @@ EDIP_RSI_EXTREME_OVERSOLD = _cfg.get("earnings_dip.overreaction.rsi_extreme_over
 EDIP_RSI_MODERATE_OVERSOLD = _cfg.get("earnings_dip.overreaction.rsi_moderate_oversold", 40)
 EDIP_OVERREACTION_COMPONENT = _cfg.get("earnings_dip.overreaction.component_score", 0.5)
 EDIP_PANIC_VOLUME_MULTIPLIER = _cfg.get("earnings_dip.overreaction.panic_volume_multiplier", 3.0)
-EDIP_HISTORICAL_MOVE_MULTIPLIER = _cfg.get("earnings_dip.overreaction.historical_move_multiplier", 2.0)
+EDIP_HISTORICAL_MOVE_MULTIPLIER = _cfg.get(
+    "earnings_dip.overreaction.historical_move_multiplier", 2.0
+)
 EDIP_OVERREACTION_MAX = _cfg.get("earnings_dip.overreaction.score_max", 2.0)
 
 # Scoring: BPS Suitability
@@ -115,8 +117,12 @@ EDIP_SIGNAL_STRONG = _cfg.get("earnings_dip.signal.strong", 6.5)
 EDIP_SIGNAL_MODERATE = _cfg.get("earnings_dip.signal.moderate", 5.0)
 
 # Stabilization Detection
-EDIP_STAB_VOLUME_DECLINE_RATIO = _cfg.get("earnings_dip.stabilization_detection.volume_decline_ratio", 0.7)
-EDIP_HAMMER_LOWER_WICK_RATIO = _cfg.get("earnings_dip.stabilization_detection.hammer_lower_wick_ratio", 0.6)
+EDIP_STAB_VOLUME_DECLINE_RATIO = _cfg.get(
+    "earnings_dip.stabilization_detection.volume_decline_ratio", 0.7
+)
+EDIP_HAMMER_LOWER_WICK_RATIO = _cfg.get(
+    "earnings_dip.stabilization_detection.hammer_lower_wick_ratio", 0.6
+)
 EDIP_HAMMER_BODY_RATIO = _cfg.get("earnings_dip.stabilization_detection.hammer_body_ratio", 0.3)
 EDIP_HAMMER_APPROX_RATIO = _cfg.get("earnings_dip.stabilization_detection.hammer_approx_ratio", 0.7)
 
