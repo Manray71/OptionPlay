@@ -403,7 +403,9 @@ class EarningsFormatter(BaseFormatter):
 
         if earnings_date:
             is_safe = (
-                days_to_earnings >= min_days if days_to_earnings is not None and days_to_earnings >= 0 else True
+                days_to_earnings >= min_days
+                if days_to_earnings is not None and days_to_earnings >= 0
+                else True
             )
 
             b.kv("Next Earnings", earnings_date)
