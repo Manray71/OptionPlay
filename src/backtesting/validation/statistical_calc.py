@@ -9,7 +9,27 @@ Contains: StatisticalCalculator class with Wilson CI, Pearson correlation,
 
 import math
 import statistics
-from typing import List, Tuple
+from pathlib import Path
+from typing import Any, Dict, List, Tuple
+
+import yaml
+
+
+def _load_stat_config() -> Dict[str, Any]:
+    """Load statistical config from config/validation_config.yaml."""
+    try:
+        config_path = Path(__file__).resolve().parents[3] / "config" / "validation_config.yaml"
+        if config_path.exists():
+            with open(config_path) as f:
+                data = yaml.safe_load(f) or {}
+                return data.get("statistical", {})
+    except Exception:
+        pass
+    return {}
+
+
+_stat_cfg = _load_stat_config()
+_corr_strength = _stat_cfg.get("correlation_strength", {})
 
 
 class StatisticalCalculator:
@@ -97,7 +117,9 @@ class StatisticalCalculator:
 
     @staticmethod
     def calculate_sharpe(
-        returns: List[float], risk_free_rate: float = 0.05, periods_per_year: float = 12.0
+        returns: List[float],
+        risk_free_rate: float = _stat_cfg.get("risk_free_rate", 0.05),
+        periods_per_year: float = _stat_cfg.get("periods_per_year", 12.0),
     ) -> float:
         """
         Berechnet Sharpe Ratio.
@@ -146,16 +168,17 @@ class StatisticalCalculator:
         if sample_size < min_samples:
             return "insufficient_data"
 
-        if p_value > 0.05:
+        _p_threshold = _stat_cfg.get("significance_p_value", 0.05)
+        if p_value > _p_threshold:
             return "none"  # Nicht signifikant
 
         abs_corr = abs(correlation)
 
-        if abs_corr >= 0.5:
+        if abs_corr >= _corr_strength.get("strong", 0.5):
             return "strong"
-        elif abs_corr >= 0.3:
+        elif abs_corr >= _corr_strength.get("moderate", 0.3):
             return "moderate"
-        elif abs_corr >= 0.1:
+        elif abs_corr >= _corr_strength.get("weak", 0.1):
             return "weak"
         else:
             return "none"

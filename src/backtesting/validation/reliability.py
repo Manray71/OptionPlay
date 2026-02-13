@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-
 """
 Reliability Scoring Module - Phase 3 des Hochverlässlichkeits-Frameworks
 
@@ -40,7 +39,25 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
+import yaml
+
 from ...constants.trading_rules import VIX_ELEVATED_MAX, VIX_LOW_VOL_MAX, VIX_NORMAL_MAX
+
+
+def _load_validation_config() -> dict:
+    """Load validation config from config/validation_config.yaml."""
+    try:
+        config_path = Path(__file__).resolve().parents[3] / "config" / "validation_config.yaml"
+        if config_path.exists():
+            with open(config_path) as f:
+                data = yaml.safe_load(f) or {}
+                return data.get("reliability", {})
+    except Exception:
+        pass
+    return {}
+
+
+_rel_cfg = _load_validation_config()
 
 if TYPE_CHECKING:
     from ..training import TrainingConfig, TrainingResult
@@ -161,26 +178,26 @@ class ReliabilityResult:
 
 @dataclass
 class ScorerConfig:
-    """Konfiguration für ReliabilityScorer"""
+    """Konfiguration für ReliabilityScorer (loaded from config/validation_config.yaml)"""
 
     # Grade-Schwellenwerte (CI-Untergrenze)
     grade_thresholds: Dict[str, float] = field(
-        default_factory=lambda: {
+        default_factory=lambda: _rel_cfg.get("grade_thresholds", {
             "A": 70.0,
             "B": 60.0,
             "C": 50.0,
             "D": 40.0,
-        }
+        })
     )
 
     # Mindest-Grade für Trade-Empfehlung
-    min_grade_for_trade: str = "C"
+    min_grade_for_trade: str = _rel_cfg.get("min_grade_for_trade", "C")
 
     # Mindest-Score
-    min_score: float = 5.0
+    min_score: float = _rel_cfg.get("min_score", 5.0)
 
     # Mindest-Sample-Size für Vertrauen
-    min_sample_size: int = 30
+    min_sample_size: int = _rel_cfg.get("min_sample_size", 30)
 
     # Regime-Adjustments aktivieren
     use_regime_adjustments: bool = True

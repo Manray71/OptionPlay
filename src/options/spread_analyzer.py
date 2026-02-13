@@ -31,13 +31,34 @@ import logging
 import math
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, List, Optional, Tuple
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+
+import yaml
 
 from ..constants.trading_rules import (
     EXIT_PROFIT_PCT_NORMAL,
     EXIT_STOP_LOSS_MULTIPLIER,
     SPREAD_MIN_CREDIT_PCT,
 )
+
+
+def _load_spread_config() -> Dict[str, Any]:
+    """Load spread analysis config from config/trading_rules.yaml."""
+    try:
+        config_path = Path(__file__).resolve().parents[2] / "config" / "trading_rules.yaml"
+        if config_path.exists():
+            with open(config_path) as f:
+                data = yaml.safe_load(f) or {}
+                return data.get("spread_analysis", {})
+    except Exception:
+        pass
+    return {}
+
+
+_sa_cfg = _load_spread_config()
+_sa_risk = _sa_cfg.get("risk_scoring", {})
+_sa_scenarios = _sa_cfg.get("scenario_multipliers", {})
 
 # Black-Scholes Integration for accurate pricing and Greeks
 try:
@@ -291,20 +312,20 @@ class SpreadAnalyzer:
     - Risk Assessment
     """
 
-    # Configurable thresholds
+    # Configurable thresholds (loaded from config/trading_rules.yaml → spread_analysis)
     DEFAULT_CONFIG = {
         # Risk levels
-        "low_risk_max_credit_pct": 20,  # <20% Credit/Width = Low Risk
-        "moderate_risk_max_credit_pct": 30,
-        "high_risk_max_credit_pct": 40,
+        "low_risk_max_credit_pct": _sa_cfg.get("low_risk_max_credit_pct", 20),
+        "moderate_risk_max_credit_pct": _sa_cfg.get("moderate_risk_max_credit_pct", 30),
+        "high_risk_max_credit_pct": _sa_cfg.get("high_risk_max_credit_pct", 40),
         # Warning thresholds
-        "min_buffer_pct": 5.0,  # Warning if buffer < 5%
-        "min_credit_pct": SPREAD_MIN_CREDIT_PCT,  # Warning if credit < 10% of width (PLAYBOOK §2)
-        "max_dte_for_theta": 60,  # Theta most effective under 60 DTE
+        "min_buffer_pct": _sa_cfg.get("min_buffer_pct", 5.0),
+        "min_credit_pct": SPREAD_MIN_CREDIT_PCT,  # PLAYBOOK §2 — stays in trading_rules
+        "max_dte_for_theta": _sa_cfg.get("max_dte_for_theta", 60),
         # Profit target recommendations
-        "profit_target_conservative": EXIT_PROFIT_PCT_NORMAL,  # 50% of max profit (PLAYBOOK)
-        "profit_target_standard": 65,
-        "profit_target_aggressive": 80,
+        "profit_target_conservative": EXIT_PROFIT_PCT_NORMAL,  # PLAYBOOK — stays in trading_rules
+        "profit_target_standard": _sa_cfg.get("profit_target_standard", 65),
+        "profit_target_aggressive": _sa_cfg.get("profit_target_aggressive", 80),
     }
 
     def __init__(self, config: Optional[Dict] = None) -> None:
@@ -534,23 +555,30 @@ class SpreadAnalyzer:
             score += 4
 
         # Buffer (niedriger = riskanter)
-        if buffer_pct < 5:
+        _buf_warn = _sa_risk.get("buffer_warning_pct", 5)
+        _buf_caut = _sa_risk.get("buffer_caution_pct", 10)
+        if buffer_pct < _buf_warn:
             score += 2
-        elif buffer_pct < 10:
+        elif buffer_pct < _buf_caut:
             score += 1
 
         # DTE (kürzer = riskanter wegen Gamma)
-        if dte < 14:
+        _dte_gamma = _sa_risk.get("dte_high_gamma", 14)
+        _dte_caut = _sa_risk.get("dte_caution", 30)
+        if dte < _dte_gamma:
             score += 1
-        elif dte < 30:
+        elif dte < _dte_caut:
             score += 0.5
 
         # Risiko-Level bestimmen
-        if score <= 2:
+        _low_max = _sa_risk.get("level_low_max", 2)
+        _mod_max = _sa_risk.get("level_moderate_max", 4)
+        _high_max = _sa_risk.get("level_high_max", 6)
+        if score <= _low_max:
             return SpreadRiskLevel.LOW
-        elif score <= 4:
+        elif score <= _mod_max:
             return SpreadRiskLevel.MODERATE
-        elif score <= 6:
+        elif score <= _high_max:
             return SpreadRiskLevel.HIGH
         else:
             return SpreadRiskLevel.VERY_HIGH
@@ -615,14 +643,17 @@ class SpreadAnalyzer:
         scenarios = []
 
         # Wichtige Preispunkte
+        _up = _sa_scenarios.get("up_pct", 1.05)
+        _down = _sa_scenarios.get("down_pct", 0.95)
+        _crash = _sa_scenarios.get("crash_pct", 0.85)
         prices = [
-            params.current_price * 1.05,  # +5%
+            params.current_price * _up,  # +5%
             params.current_price,  # Aktuell
-            params.current_price * 0.95,  # -5%
+            params.current_price * _down,  # -5%
             params.short_strike,  # Short Strike (Break-Even für Max Profit)
             break_even,  # Break-Even
             params.long_strike,  # Long Strike (Max Loss)
-            params.current_price * 0.85,  # -15%
+            params.current_price * _crash,  # -15%
         ]
 
         # Sortieren und Duplikate entfernen

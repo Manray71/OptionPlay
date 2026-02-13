@@ -26,7 +26,10 @@ Implementation split across:
 import logging
 from dataclasses import dataclass, field
 from datetime import date
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+
+import yaml
 
 # Import mixin with analysis methods
 from .score_analysis import ScoreAnalysisMixin
@@ -313,8 +316,21 @@ class SignalValidator(ScoreAnalysisMixin):
         (11, 16),  # Exzellent
     ]
 
-    # Minimum Trades für statistische Signifikanz
-    MIN_TRADES_PER_BUCKET = 30
+    # Minimum Trades für statistische Signifikanz (from config/validation_config.yaml)
+    @staticmethod
+    def _load_sv_config() -> dict:
+        try:
+            config_path = Path(__file__).resolve().parents[3] / "config" / "validation_config.yaml"
+            if config_path.exists():
+                with open(config_path) as f:
+                    data = yaml.safe_load(f) or {}
+                    return data.get("signal_validation", {})
+        except Exception:
+            pass
+        return {}
+
+    _sv_cfg = _load_sv_config.__func__()
+    MIN_TRADES_PER_BUCKET = _sv_cfg.get("min_trades_per_bucket", 30)
 
     # VIX Regime Grenzen
     VIX_REGIMES = {

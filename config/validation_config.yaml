@@ -1,0 +1,37 @@
+# Validation & Reliability Configuration
+# =======================================
+# Parameters for backtesting validation, reliability scoring,
+# and statistical analysis. Tunable for Walk-Forward optimization.
+
+# =============================================================================
+# RELIABILITY SCORING (from reliability.py ScorerConfig)
+# =============================================================================
+reliability:
+  grade_thresholds:
+    A: 70.0                      # CI lower bound >= this = Grade A
+    B: 60.0
+    C: 50.0
+    D: 40.0                      # Below D = Grade F
+  min_grade_for_trade: "C"       # Minimum grade to recommend trade
+  min_score: 5.0                 # Minimum signal score
+  min_sample_size: 30            # Min trades for confidence
+
+# =============================================================================
+# STATISTICAL ANALYSIS (from statistical_calc.py)
+# =============================================================================
+statistical:
+  # Sharpe ratio defaults
+  risk_free_rate: 0.05           # Annualized risk-free rate (5%)
+  periods_per_year: 12.0         # Assumed periods per year (monthly)
+  # Correlation predictive power brackets
+  significance_p_value: 0.05     # Max p-value for significance
+  correlation_strength:
+    strong: 0.5                  # |r| >= this = "strong"
+    moderate: 0.3                # |r| >= this = "moderate"
+    weak: 0.1                    # |r| >= this = "weak"
+
+# =============================================================================
+# SIGNAL VALIDATION (from signal_validation.py)
+# =============================================================================
+signal_validation:
+  min_trades_per_bucket: 30      # Min trades per score bucket for significance

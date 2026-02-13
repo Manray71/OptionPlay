@@ -181,3 +181,45 @@ iv_analysis:
 display:
   rsi_oversold: 35               # RSI < this = "(oversold)" label
   rsi_overbought: 65             # RSI > this = "(overbought)" label
+
+# =============================================================================
+# SPREAD ANALYSIS (from spread_analyzer.py)
+# =============================================================================
+spread_analysis:
+  # Risk level classification (credit as % of spread width)
+  low_risk_max_credit_pct: 20
+  moderate_risk_max_credit_pct: 30
+  high_risk_max_credit_pct: 40
+  # Warning thresholds
+  min_buffer_pct: 5.0            # Warning if buffer < 5%
+  max_dte_for_theta: 60          # Theta most effective under 60 DTE
+  # Profit target recommendations
+  profit_target_standard: 65     # Standard exit at 65% of max profit
+  profit_target_aggressive: 80   # Aggressive exit at 80%
+  # Risk scoring (inline values from _assess_risk_level)
+  risk_scoring:
+    buffer_warning_pct: 5        # Buffer < this → +2 score
+    buffer_caution_pct: 10       # Buffer < this → +1 score
+    dte_high_gamma: 14           # DTE < this → +1 score
+    dte_caution: 30              # DTE < this → +0.5 score
+    level_low_max: 2             # Score ≤ this = LOW risk
+    level_moderate_max: 4        # Score ≤ this = MODERATE
+    level_high_max: 6            # Score ≤ this = HIGH (above = VERY_HIGH)
+  # P&L scenario price multipliers
+  scenario_multipliers:
+    up_pct: 1.05                 # +5% scenario
+    down_pct: 0.95               # -5% scenario
+    crash_pct: 0.85              # -15% scenario
+
+# =============================================================================
+# VIX TREND ANALYSIS (from vix_strategy.py)
+# =============================================================================
+vix_trend:
+  z_score_thresholds:
+    rising_fast: 1.5             # Z-Score > this = RISING_FAST
+    rising: 0.75                 # Z-Score > this = RISING
+    falling: -0.75               # Z-Score < this = FALLING
+    falling_fast: -1.5           # Z-Score < this = FALLING_FAST
+  stdev_minimum: 0.5             # Floor for VIX StdDev in Z-score calc
+  current_threshold: 2.0         # VIX points: skip trend if not "current"
+  nearness_margin: 1.0           # VIX points buffer for threshold nearness

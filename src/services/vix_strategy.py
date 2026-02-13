@@ -6,7 +6,10 @@ import logging
 import warnings
 from dataclasses import dataclass
 from enum import Enum
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+
+import yaml
 
 from ..constants import (
     DELTA_AGGRESSIVE,
@@ -216,13 +219,32 @@ class VIXStrategySelector:
         },
     }
 
-    # Trend thresholds for regime adjustment
+    # Trend thresholds for regime adjustment (loaded from config/trading_rules.yaml)
+    @staticmethod
+    def _load_vix_trend_config() -> dict:
+        try:
+            config_path = Path(__file__).resolve().parents[2] / "config" / "trading_rules.yaml"
+            if config_path.exists():
+                with open(config_path) as f:
+                    data = yaml.safe_load(f) or {}
+                    return data.get("vix_trend", {})
+        except Exception:
+            pass
+        return {}
+
+    _vix_trend_cfg = _load_vix_trend_config.__func__()
+    _z_cfg = _vix_trend_cfg.get("z_score_thresholds", {})
+
     TREND_THRESHOLDS = {
-        "rising_fast": 1.5,  # Z-Score > 1.5: Rising fast
-        "rising": 0.75,  # Z-Score > 0.75: Rising
-        "falling": -0.75,  # Z-Score < -0.75: Falling
-        "falling_fast": -1.5,  # Z-Score < -1.5: Falling fast
+        "rising_fast": _z_cfg.get("rising_fast", 1.5),
+        "rising": _z_cfg.get("rising", 0.75),
+        "falling": _z_cfg.get("falling", -0.75),
+        "falling_fast": _z_cfg.get("falling_fast", -1.5),
     }
+
+    _STDEV_MIN = _vix_trend_cfg.get("stdev_minimum", 0.5)
+    _CURRENT_THRESHOLD = _vix_trend_cfg.get("current_threshold", 2.0)
+    _NEARNESS_MARGIN = _vix_trend_cfg.get("nearness_margin", 1.0)
 
     def __init__(self, thresholds: Optional[VIXThresholds] = None) -> None:
         self.thresholds = thresholds or VIXThresholds()
@@ -310,8 +332,8 @@ class VIXStrategySelector:
 
         # Minimum StdDev for Z-score calculation
         # VIX typically moves 1-3 points per day
-        if std_5d < 0.5:
-            std_5d = 0.5
+        if std_5d < self._STDEV_MIN:
+            std_5d = self._STDEV_MIN
 
         z_score = (current_vix - mean_5d) / std_5d
 
@@ -378,8 +400,8 @@ class VIXStrategySelector:
             return base_regime
 
         # Only apply trend if the given VIX is "current"
-        # (i.e., within 2 points of the last known VIX)
-        if abs(vix - trend_info.current_vix) > 2.0:
+        # (i.e., within configured threshold of the last known VIX)
+        if abs(vix - trend_info.current_vix) > self._CURRENT_THRESHOLD:
             # VIX is not "current" - probably historical or hypothetical
             logger.debug(
                 f"VIX {vix} differs from current {trend_info.current_vix}, "
@@ -512,7 +534,7 @@ class VIXStrategySelector:
         Returns:
             True if within 1 point of the threshold
         """
-        margin = 1.0  # 1 VIX point buffer
+        margin = self._NEARNESS_MARGIN
 
         thresholds = [
             self.thresholds.low_vol_max,
