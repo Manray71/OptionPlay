@@ -12,13 +12,34 @@ from __future__ import annotations
 
 import logging
 from datetime import date
+from pathlib import Path
 from typing import Any, Optional
+
+import yaml
 
 from ..constants.trading_rules import (
     EXIT_PROFIT_PCT_NORMAL,
     EXIT_STOP_LOSS_MULTIPLIER,
     SPREAD_MIN_CREDIT_PCT,
 )
+
+
+def _load_display_config() -> dict:
+    """Load display thresholds from config/trading_rules.yaml."""
+    try:
+        config_path = Path(__file__).resolve().parents[2] / "config" / "trading_rules.yaml"
+        if config_path.exists():
+            with open(config_path) as f:
+                data = yaml.safe_load(f) or {}
+                return data.get("display", {})
+    except Exception:
+        pass
+    return {}
+
+
+_disp_cfg = _load_display_config()
+_RSI_OVERSOLD = _disp_cfg.get("rsi_oversold", 35)
+_RSI_OVERBOUGHT = _disp_cfg.get("rsi_overbought", 65)
 
 logger = logging.getLogger(__name__)
 
@@ -370,9 +391,9 @@ def format_single_pick_v2(b: MarkdownBuilder, pick: Any) -> None:
             parts.append(f"IV Pctl {eq.iv_percentile:.0f}%")
         if eq.rsi is not None:
             rsi_label = ""
-            if eq.rsi < 35:
+            if eq.rsi < _RSI_OVERSOLD:
                 rsi_label = " (oversold)"
-            elif eq.rsi > 65:
+            elif eq.rsi > _RSI_OVERBOUGHT:
                 rsi_label = " (overbought)"
             parts.append(f"RSI {eq.rsi:.0f}{rsi_label}")
         if eq.pullback_pct is not None:

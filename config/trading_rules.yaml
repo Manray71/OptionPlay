@@ -1,0 +1,183 @@
+# Trading Rules Configuration
+# ===========================
+# Tunable constants from PLAYBOOK.md, externalized for Walk-Forward calibration.
+# Changes here take effect on next server restart (no code deploy needed).
+#
+# NOTE: Delta targets are deliberately excluded — "Delta ist heilig" (PLAYBOOK §2).
+# NOTE: Blacklist symbols stay in code (data, not thresholds).
+# NOTE: Liquidity thresholds are in config/scoring_weights.yaml (already config-driven).
+
+# =============================================================================
+# ENTRY RULES (PLAYBOOK §1)
+# =============================================================================
+entry:
+  stability_min: 65.0          # Minimum Stability Score (65-70 = WARNING)
+  earnings_min_days: 30        # Minimum days to earnings
+  earnings_quarterly_max_gap: 100  # Max days since last earnings for "recently reported"
+  vix_max_new_trades: 30.0     # No new trades above this VIX
+  vix_no_trading: 35.0         # No trading at all above this
+  price_min: 20.0              # Minimum stock price
+  price_max: 1500.0            # Maximum stock price
+  volume_min: 500000           # Minimum daily volume
+  iv_rank_min: 30.0            # IV Rank warning floor (soft filter)
+  iv_rank_max: 80.0            # IV Rank warning ceiling (soft filter)
+
+# =============================================================================
+# SPREAD PARAMETERS (PLAYBOOK §2)
+# =============================================================================
+# Delta targets excluded — hardcoded in trading_rules.py
+spread:
+  dte_min: 60                  # Minimum DTE
+  dte_max: 90                  # Maximum DTE
+  dte_target: 75               # Optimal DTE
+  min_credit_pct: 10.0         # Min credit as % of spread width
+  min_credit_absolute: 20.0    # Min absolute credit per contract (USD)
+  fee_warning_threshold: 40.0  # Warn when credit < this (fee erosion)
+  ibkr_round_trip_fee: 2.60    # IBKR fee per spread round-trip (USD)
+
+# =============================================================================
+# VIX REGIME RULES (PLAYBOOK §3)
+# =============================================================================
+vix_regimes:
+  boundaries:
+    low_vol_max: 15.0
+    normal_max: 20.0
+    danger_zone_max: 25.0
+    elevated_max: 30.0
+    no_trading: 35.0
+
+  rules:
+    low_vol:
+      stability_min: 65.0
+      new_trades_allowed: true
+      max_positions: 10
+      max_per_sector: 2
+      risk_per_trade_pct: 2.0
+      profit_exit_pct: 50.0
+    normal:
+      stability_min: 65.0
+      new_trades_allowed: true
+      max_positions: 10
+      max_per_sector: 2
+      risk_per_trade_pct: 2.0
+      profit_exit_pct: 50.0
+    danger_zone:
+      stability_min: 80.0
+      new_trades_allowed: true
+      max_positions: 5
+      max_per_sector: 1
+      risk_per_trade_pct: 1.5
+      profit_exit_pct: 30.0
+    elevated:
+      stability_min: 80.0
+      new_trades_allowed: true
+      max_positions: 3
+      max_per_sector: 1
+      risk_per_trade_pct: 1.0
+      profit_exit_pct: 30.0
+    high_vol:
+      stability_min: 100.0
+      new_trades_allowed: false
+      max_positions: 0
+      max_per_sector: 0
+      risk_per_trade_pct: 0.0
+      profit_exit_pct: 0.0
+    no_trading:
+      stability_min: 100.0
+      new_trades_allowed: false
+      max_positions: 0
+      max_per_sector: 0
+      risk_per_trade_pct: 0.0
+      profit_exit_pct: 0.0
+
+# =============================================================================
+# EXIT RULES (PLAYBOOK §4)
+# =============================================================================
+exit:
+  profit_pct_normal: 50.0      # Close at 50% profit (VIX < 20)
+  profit_pct_high_vix: 30.0    # Close at 30% profit (VIX >= 20)
+  stop_loss_multiplier: 2.0    # 200% of credit = stop loss
+  roll_dte: 21                 # Decision point: roll or close
+  force_close_dte: 7           # Force close, no exceptions
+
+# =============================================================================
+# ROLL RULES (PLAYBOOK §4)
+# =============================================================================
+roll:
+  allowed_max_loss_pct: 0.0    # Max: break-even (0% loss)
+  new_dte_min: 60              # New expiration: 60-90 DTE
+  new_dte_max: 90
+  min_credit_pct: 10.0         # New credit must be >= 10% spread
+
+# =============================================================================
+# POSITION SIZING (PLAYBOOK §5)
+# =============================================================================
+sizing:
+  max_risk_per_trade_pct: 2.0  # Max 2% portfolio risk per trade
+  max_open_positions: 10       # Max open positions (VIX < 20)
+  max_per_sector: 2            # Max positions per sector
+  max_new_trades_per_day: 2    # Max new trades per day
+
+# =============================================================================
+# DISCIPLINE RULES (PLAYBOOK §6)
+# =============================================================================
+discipline:
+  max_trades_per_month: 25
+  max_trades_per_day: 2
+  max_trades_per_week: 8
+  consecutive_losses_pause: 3  # Pause after N consecutive losses
+  pause_days: 7                # Duration of pause in days
+  monthly_losses_pause: 5      # Pause after N losses in a month
+  monthly_drawdown_pause: 5.0  # Pause after N% portfolio drawdown
+
+# =============================================================================
+# BLACKLIST CRITERIA
+# =============================================================================
+blacklist_criteria:
+  stability_threshold: 40.0    # Below this = blacklist
+  win_rate_threshold: 70.0     # Below this = blacklist
+  volatility_threshold: 100.0  # Above this (annualized %) = blacklist
+
+# =============================================================================
+# WATCHLIST
+# =============================================================================
+watchlist:
+  secondary_stability_min: 70.0  # Secondary watchlist minimum stability
+
+# =============================================================================
+# RISK MANAGEMENT (from risk_management.py)
+# =============================================================================
+risk_management:
+  otm_target_pct: 10.0          # Short strike 10% below price
+  risk_reward_min: 0.25          # Minimum 25% Return on Risk
+  risk_reward_target: 0.35       # Target 35% RoR
+  risk_reward_optimal: 0.40      # Optimal 40% RoR
+  max_position_size_pct: 5.0     # Max 5% per position
+  max_sector_exposure_pct: 20.0  # Max 20% per sector
+  max_total_risk_pct: 10.0       # Max 10% total risk
+  kelly_fraction: 0.25           # Use 25% of Kelly optimum
+  kelly_max_bet_pct: 5.0         # Maximum bet even with high Kelly
+  win_rate_base_multiplier: 0.7  # Base multiplier
+  win_rate_divisor: 300.0        # Divisor for win rate integration
+  stop_loss_pct_of_width: 150.0  # Stop at 150% of spread width risk
+  stop_loss_vix_low_mult: 1.0    # VIX < 15: Normal
+  stop_loss_vix_normal_mult: 1.2 # VIX 15-25: 20% wider
+  stop_loss_vix_high_mult: 1.5   # VIX > 25: 50% wider
+  earnings_safe_days: 90         # Classified as "safe"
+  earnings_post_buffer_days: 2   # Days after earnings before new trade
+  max_positions_per_symbol: 2    # Max positions per symbol
+
+# =============================================================================
+# IV ANALYSIS THRESHOLDS (from iv_analyzer.py)
+# =============================================================================
+iv_analysis:
+  rank_very_high: 70             # IV Rank >= this = "very high"
+  rank_elevated: 50              # IV Rank >= this = "elevated"
+  rank_normal: 30                # IV Rank >= this = "normal"
+
+# =============================================================================
+# DISPLAY THRESHOLDS (from pick_formatter.py)
+# =============================================================================
+display:
+  rsi_oversold: 35               # RSI < this = "(oversold)" label
+  rsi_overbought: 65             # RSI > this = "(overbought)" label

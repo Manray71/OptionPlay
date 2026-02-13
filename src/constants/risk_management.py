@@ -6,6 +6,10 @@
 # See CLAUDE.md for details.
 
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Dict
+
+import yaml
 
 from .trading_rules import (
     ENTRY_EARNINGS_MIN_DAYS,
@@ -21,6 +25,27 @@ from .trading_rules import (
     SPREAD_SHORT_DELTA_MIN,
     SPREAD_SHORT_DELTA_TARGET,
 )
+
+# =============================================================================
+# CONFIG LOADER
+# =============================================================================
+
+
+def _load_rm_config() -> Dict[str, Any]:
+    """Load risk management config from config/trading_rules.yaml."""
+    try:
+        config_path = Path(__file__).resolve().parents[2] / "config" / "trading_rules.yaml"
+        if config_path.exists():
+            with open(config_path) as f:
+                data = yaml.safe_load(f) or {}
+                return data.get("risk_management", {})
+    except Exception:
+        pass
+    return {}
+
+
+_rm_cfg = _load_rm_config()
+
 
 # =============================================================================
 # DTE (DAYS TO EXPIRATION)
@@ -67,7 +92,7 @@ DELTA_LONG_MAX = SPREAD_LONG_DELTA_MAX
 # Short Put Delta -0.20, Long Put Delta -0.05 → Width ist dynamisch
 
 # OTM (Out of the Money) Target
-OTM_TARGET_PCT = 10.0  # Short strike 10% below price
+OTM_TARGET_PCT = _rm_cfg.get("otm_target_pct", 10.0)
 
 
 # =============================================================================
@@ -75,11 +100,11 @@ OTM_TARGET_PCT = 10.0  # Short strike 10% below price
 # =============================================================================
 
 # Minimum acceptable risk/reward
-RISK_REWARD_MIN = 0.25  # Minimum 25% Return on Risk
+RISK_REWARD_MIN = _rm_cfg.get("risk_reward_min", 0.25)
 
 # Targets
-RISK_REWARD_TARGET = 0.35  # Target 35% RoR
-RISK_REWARD_OPTIMAL = 0.40  # Optimal 40% RoR
+RISK_REWARD_TARGET = _rm_cfg.get("risk_reward_target", 0.35)
+RISK_REWARD_OPTIMAL = _rm_cfg.get("risk_reward_optimal", 0.40)
 
 # Stop Loss / Target Price Multipliers
 STOP_LOSS_MULTIPLIER = EXIT_STOP_LOSS_MULTIPLIER  # Delegiert an trading_rules (PLAYBOOK: 2x credit)
@@ -96,10 +121,10 @@ TARGET_MULTIPLIER = (
 # PLAYBOOK §1: Earnings buffer (was 45d, now 30d via scanner_config.yaml)
 EARNINGS_MIN_DAYS = ENTRY_EARNINGS_MIN_DAYS  # Minimum days until earnings
 EARNINGS_MIN_DAYS_STRICT = ENTRY_EARNINGS_MIN_DAYS  # Strict variant (same as default)
-EARNINGS_SAFE_DAYS = 90  # Classified as "safe"
+EARNINGS_SAFE_DAYS = _rm_cfg.get("earnings_safe_days", 90)
 
 # Post-Earnings Buffer
-EARNINGS_POST_BUFFER_DAYS = 2  # Days after earnings before new trade
+EARNINGS_POST_BUFFER_DAYS = _rm_cfg.get("earnings_post_buffer_days", 2)
 
 
 # =============================================================================
@@ -107,15 +132,15 @@ EARNINGS_POST_BUFFER_DAYS = 2  # Days after earnings before new trade
 # =============================================================================
 
 # Maximum Exposure
-MAX_POSITION_SIZE_PCT = 5.0  # Max 5% per position
-MAX_SECTOR_EXPOSURE_PCT = 20.0  # Max 20% per sector
-MAX_TOTAL_RISK_PCT = 10.0  # Max 10% total risk
+MAX_POSITION_SIZE_PCT = _rm_cfg.get("max_position_size_pct", 5.0)
+MAX_SECTOR_EXPOSURE_PCT = _rm_cfg.get("max_sector_exposure_pct", 20.0)
+MAX_TOTAL_RISK_PCT = _rm_cfg.get("max_total_risk_pct", 10.0)
 
 # Trade Limits
 # PLAYBOOK §5+§6: Max 2 neue Trades pro Tag, Max 10 Positionen
-MAX_DAILY_TRADES = 2  # Max new trades per day (PLAYBOOK: 2)
-MAX_OPEN_POSITIONS = 10  # Max open positions (PLAYBOOK: 10 at VIX < 20)
-MAX_POSITIONS_PER_SYMBOL = 2  # Max positions per symbol
+MAX_DAILY_TRADES = 2  # Delegated to trading_rules.py SIZING_MAX_NEW_TRADES_PER_DAY
+MAX_OPEN_POSITIONS = 10  # Delegated to trading_rules.py SIZING_MAX_OPEN_POSITIONS
+MAX_POSITIONS_PER_SYMBOL = _rm_cfg.get("max_positions_per_symbol", 2)
 
 
 # =============================================================================
@@ -123,12 +148,12 @@ MAX_POSITIONS_PER_SYMBOL = 2  # Max positions per symbol
 # =============================================================================
 
 # Kelly Fraction Scaling
-KELLY_FRACTION = 0.25  # Use 25% of Kelly optimum (conservative)
-KELLY_MAX_BET_PCT = 5.0  # Maximum bet even with high Kelly
+KELLY_FRACTION = _rm_cfg.get("kelly_fraction", 0.25)
+KELLY_MAX_BET_PCT = _rm_cfg.get("kelly_max_bet_pct", 5.0)
 
 # Win Rate Scaling
-WIN_RATE_BASE_MULTIPLIER = 0.7  # Base multiplier
-WIN_RATE_DIVISOR = 300.0  # Divisor for win rate integration
+WIN_RATE_BASE_MULTIPLIER = _rm_cfg.get("win_rate_base_multiplier", 0.7)
+WIN_RATE_DIVISOR = _rm_cfg.get("win_rate_divisor", 300.0)
 
 
 # =============================================================================
@@ -136,12 +161,12 @@ WIN_RATE_DIVISOR = 300.0  # Divisor for win rate integration
 # =============================================================================
 
 # Standard Stop Loss (% of max loss)
-STOP_LOSS_PCT_OF_WIDTH = 150.0  # Stop at 150% of spread width risk
+STOP_LOSS_PCT_OF_WIDTH = _rm_cfg.get("stop_loss_pct_of_width", 150.0)
 
 # VIX-based adjustment
-STOP_LOSS_VIX_LOW_MULT = 1.0  # VIX < 15: Normal
-STOP_LOSS_VIX_NORMAL_MULT = 1.2  # VIX 15-25: 20% wider
-STOP_LOSS_VIX_HIGH_MULT = 1.5  # VIX > 25: 50% wider
+STOP_LOSS_VIX_LOW_MULT = _rm_cfg.get("stop_loss_vix_low_mult", 1.0)
+STOP_LOSS_VIX_NORMAL_MULT = _rm_cfg.get("stop_loss_vix_normal_mult", 1.2)
+STOP_LOSS_VIX_HIGH_MULT = _rm_cfg.get("stop_loss_vix_high_mult", 1.5)
 
 
 # =============================================================================

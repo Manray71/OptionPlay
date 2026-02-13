@@ -10,7 +10,41 @@
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, List, Optional, Tuple
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+
+import yaml
+
+# =============================================================================
+# CONFIG LOADER
+# =============================================================================
+
+
+def _load_trading_rules_config() -> Dict[str, Any]:
+    """Load tunable trading rules from config/trading_rules.yaml."""
+    try:
+        config_path = Path(__file__).resolve().parents[2] / "config" / "trading_rules.yaml"
+        if config_path.exists():
+            with open(config_path) as f:
+                return yaml.safe_load(f) or {}
+    except Exception:
+        pass
+    return {}
+
+
+_tr_cfg = _load_trading_rules_config()
+_entry_cfg = _tr_cfg.get("entry", {})
+_spread_cfg = _tr_cfg.get("spread", {})
+_exit_cfg = _tr_cfg.get("exit", {})
+_roll_cfg = _tr_cfg.get("roll", {})
+_sizing_cfg = _tr_cfg.get("sizing", {})
+_discipline_cfg = _tr_cfg.get("discipline", {})
+_bl_cfg = _tr_cfg.get("blacklist_criteria", {})
+_wl_cfg = _tr_cfg.get("watchlist", {})
+_vix_cfg = _tr_cfg.get("vix_regimes", {})
+_vix_bounds = _vix_cfg.get("boundaries", {})
+_vix_rules = _vix_cfg.get("rules", {})
+
 
 # =============================================================================
 # ENUMS
@@ -50,18 +84,18 @@ class ExitAction(Enum):
 # =============================================================================
 
 # Hard filters - NO exceptions
-ENTRY_STABILITY_MIN = 65.0  # Stability Score minimum (lowered from 70: 65-70 = WARNING)
-ENTRY_EARNINGS_MIN_DAYS = 30  # Minimum days to earnings (was 45, now config-driven via scanner_config.yaml)
-EARNINGS_QUARTERLY_MAX_GAP_DAYS = 100  # Max days since last earnings to assume "recently reported"
-ENTRY_VIX_MAX_NEW_TRADES = 30.0  # No new trades above this VIX
-ENTRY_VIX_NO_TRADING = 35.0  # No trading at all above this
-ENTRY_PRICE_MIN = 20.0  # Minimum stock price
-ENTRY_PRICE_MAX = 1500.0  # Maximum stock price (PLAYBOOK §1)
-ENTRY_VOLUME_MIN = 500_000  # Minimum daily volume
+ENTRY_STABILITY_MIN = _entry_cfg.get("stability_min", 65.0)
+ENTRY_EARNINGS_MIN_DAYS = _entry_cfg.get("earnings_min_days", 30)
+EARNINGS_QUARTERLY_MAX_GAP_DAYS = _entry_cfg.get("earnings_quarterly_max_gap", 100)
+ENTRY_VIX_MAX_NEW_TRADES = _entry_cfg.get("vix_max_new_trades", 30.0)
+ENTRY_VIX_NO_TRADING = _entry_cfg.get("vix_no_trading", 35.0)
+ENTRY_PRICE_MIN = _entry_cfg.get("price_min", 20.0)
+ENTRY_PRICE_MAX = _entry_cfg.get("price_max", 1500.0)
+ENTRY_VOLUME_MIN = _entry_cfg.get("volume_min", 500_000)
 
 # Soft filters - WARNING only
-ENTRY_IV_RANK_MIN = 30.0  # IV Rank minimum (warning)
-ENTRY_IV_RANK_MAX = 80.0  # IV Rank maximum (warning)
+ENTRY_IV_RANK_MIN = _entry_cfg.get("iv_rank_min", 30.0)
+ENTRY_IV_RANK_MAX = _entry_cfg.get("iv_rank_max", 80.0)
 
 
 # Liquidity thresholds (loaded from config/scoring_weights.yaml)
@@ -120,9 +154,9 @@ BLACKLIST_SYMBOLS: List[str] = [
 ]
 
 # Blacklist criteria
-BLACKLIST_STABILITY_THRESHOLD = 40.0  # Below this = blacklist
-BLACKLIST_WIN_RATE_THRESHOLD = 70.0  # Below this = blacklist
-BLACKLIST_VOLATILITY_THRESHOLD = 100.0  # Above this (annualized %) = blacklist
+BLACKLIST_STABILITY_THRESHOLD = _bl_cfg.get("stability_threshold", 40.0)
+BLACKLIST_WIN_RATE_THRESHOLD = _bl_cfg.get("win_rate_threshold", 70.0)
+BLACKLIST_VOLATILITY_THRESHOLD = _bl_cfg.get("volatility_threshold", 100.0)
 
 
 # =============================================================================
@@ -130,9 +164,9 @@ BLACKLIST_VOLATILITY_THRESHOLD = 100.0  # Above this (annualized %) = blacklist
 # =============================================================================
 
 # DTE
-SPREAD_DTE_MIN = 60  # Minimum DTE
-SPREAD_DTE_MAX = 90  # Maximum DTE
-SPREAD_DTE_TARGET = 75  # Optimal DTE
+SPREAD_DTE_MIN = _spread_cfg.get("dte_min", 60)
+SPREAD_DTE_MAX = _spread_cfg.get("dte_max", 90)
+SPREAD_DTE_TARGET = _spread_cfg.get("dte_target", 75)
 
 # Delta - DO NOT CHANGE (PLAYBOOK: "Delta ist heilig")
 SPREAD_SHORT_DELTA_TARGET = -0.20  # Short put delta target
@@ -144,10 +178,10 @@ SPREAD_LONG_DELTA_MIN = -0.03  # Long put delta minimum (±0.02)
 SPREAD_LONG_DELTA_MAX = -0.07  # Long put delta maximum (±0.02)
 
 # Credit
-SPREAD_MIN_CREDIT_PCT = 10.0  # Min credit as % of spread width (PLAYBOOK §2)
-SPREAD_MIN_CREDIT_ABSOLUTE = 20.0  # Min absolute credit per contract (USD)
-SPREAD_FEE_WARNING_THRESHOLD = 40.0  # Warn when credit < this (fee erosion)
-SPREAD_IBKR_ROUND_TRIP_FEE = 2.60  # IBKR fee per spread round-trip (USD)
+SPREAD_MIN_CREDIT_PCT = _spread_cfg.get("min_credit_pct", 10.0)
+SPREAD_MIN_CREDIT_ABSOLUTE = _spread_cfg.get("min_credit_absolute", 20.0)
+SPREAD_FEE_WARNING_THRESHOLD = _spread_cfg.get("fee_warning_threshold", 40.0)
+SPREAD_IBKR_ROUND_TRIP_FEE = _spread_cfg.get("ibkr_round_trip_fee", 2.60)
 
 
 # =============================================================================
@@ -155,11 +189,11 @@ SPREAD_IBKR_ROUND_TRIP_FEE = 2.60  # IBKR fee per spread round-trip (USD)
 # =============================================================================
 
 # Regime boundaries
-VIX_LOW_VOL_MAX = 15.0
-VIX_NORMAL_MAX = 20.0
-VIX_DANGER_ZONE_MAX = 25.0
-VIX_ELEVATED_MAX = 30.0
-VIX_NO_TRADING_THRESHOLD = 35.0
+VIX_LOW_VOL_MAX = _vix_bounds.get("low_vol_max", 15.0)
+VIX_NORMAL_MAX = _vix_bounds.get("normal_max", 20.0)
+VIX_DANGER_ZONE_MAX = _vix_bounds.get("danger_zone_max", 25.0)
+VIX_ELEVATED_MAX = _vix_bounds.get("elevated_max", 30.0)
+VIX_NO_TRADING_THRESHOLD = _vix_bounds.get("no_trading", 35.0)
 
 
 # Per-regime rules
@@ -177,68 +211,42 @@ class VIXRegimeRules:
     notes: str
 
 
-VIX_REGIME_RULES: Dict[VIXRegime, VIXRegimeRules] = {
-    VIXRegime.LOW_VOL: VIXRegimeRules(
-        regime=VIXRegime.LOW_VOL,
-        stability_min=65.0,
-        new_trades_allowed=True,
-        max_positions=10,
-        max_per_sector=2,
-        risk_per_trade_pct=2.0,
-        profit_exit_pct=50.0,
-        notes="Niedrigere Prämien akzeptieren",
-    ),
-    VIXRegime.NORMAL: VIXRegimeRules(
-        regime=VIXRegime.NORMAL,
-        stability_min=65.0,
-        new_trades_allowed=True,
-        max_positions=10,
-        max_per_sector=2,
-        risk_per_trade_pct=2.0,
-        profit_exit_pct=50.0,
-        notes="Standard-Parameter",
-    ),
-    VIXRegime.DANGER_ZONE: VIXRegimeRules(
-        regime=VIXRegime.DANGER_ZONE,
-        stability_min=80.0,
-        new_trades_allowed=True,
-        max_positions=5,
-        max_per_sector=1,
-        risk_per_trade_pct=1.5,
-        profit_exit_pct=30.0,
-        notes="Nur Premium-Symbole, schneller raus",
-    ),
-    VIXRegime.ELEVATED: VIXRegimeRules(
-        regime=VIXRegime.ELEVATED,
-        stability_min=80.0,
-        new_trades_allowed=True,
-        max_positions=3,
-        max_per_sector=1,
-        risk_per_trade_pct=1.0,
-        profit_exit_pct=30.0,
-        notes="Nur Top-10 Symbole, keine neuen Sektoren",
-    ),
-    VIXRegime.HIGH_VOL: VIXRegimeRules(
-        regime=VIXRegime.HIGH_VOL,
-        stability_min=100.0,  # effectively no new trades
-        new_trades_allowed=False,
-        max_positions=0,
-        max_per_sector=0,
-        risk_per_trade_pct=0.0,
-        profit_exit_pct=0.0,  # close all winners immediately
-        notes="KEINE neuen Trades, nur Bestand managen",
-    ),
-    VIXRegime.NO_TRADING: VIXRegimeRules(
-        regime=VIXRegime.NO_TRADING,
-        stability_min=100.0,
-        new_trades_allowed=False,
-        max_positions=0,
-        max_per_sector=0,
-        risk_per_trade_pct=0.0,
-        profit_exit_pct=0.0,
-        notes="KEIN TRADING - alles mit Verlust-Limit schließen",
-    ),
-}
+def _build_regime_rules() -> Dict["VIXRegime", VIXRegimeRules]:
+    """Build VIX regime rules from config (with hardcoded defaults)."""
+    _DEFAULTS = {
+        "low_vol": {"stability_min": 65.0, "new_trades_allowed": True, "max_positions": 10, "max_per_sector": 2, "risk_per_trade_pct": 2.0, "profit_exit_pct": 50.0, "notes": "Niedrigere Prämien akzeptieren"},
+        "normal": {"stability_min": 65.0, "new_trades_allowed": True, "max_positions": 10, "max_per_sector": 2, "risk_per_trade_pct": 2.0, "profit_exit_pct": 50.0, "notes": "Standard-Parameter"},
+        "danger_zone": {"stability_min": 80.0, "new_trades_allowed": True, "max_positions": 5, "max_per_sector": 1, "risk_per_trade_pct": 1.5, "profit_exit_pct": 30.0, "notes": "Nur Premium-Symbole, schneller raus"},
+        "elevated": {"stability_min": 80.0, "new_trades_allowed": True, "max_positions": 3, "max_per_sector": 1, "risk_per_trade_pct": 1.0, "profit_exit_pct": 30.0, "notes": "Nur Top-10 Symbole, keine neuen Sektoren"},
+        "high_vol": {"stability_min": 100.0, "new_trades_allowed": False, "max_positions": 0, "max_per_sector": 0, "risk_per_trade_pct": 0.0, "profit_exit_pct": 0.0, "notes": "KEINE neuen Trades, nur Bestand managen"},
+        "no_trading": {"stability_min": 100.0, "new_trades_allowed": False, "max_positions": 0, "max_per_sector": 0, "risk_per_trade_pct": 0.0, "profit_exit_pct": 0.0, "notes": "KEIN TRADING - alles mit Verlust-Limit schließen"},
+    }
+    _REGIME_MAP = {
+        "low_vol": VIXRegime.LOW_VOL,
+        "normal": VIXRegime.NORMAL,
+        "danger_zone": VIXRegime.DANGER_ZONE,
+        "elevated": VIXRegime.ELEVATED,
+        "high_vol": VIXRegime.HIGH_VOL,
+        "no_trading": VIXRegime.NO_TRADING,
+    }
+    rules = {}
+    for key, regime in _REGIME_MAP.items():
+        defaults = _DEFAULTS[key]
+        cfg = _vix_rules.get(key, {})
+        rules[regime] = VIXRegimeRules(
+            regime=regime,
+            stability_min=cfg.get("stability_min", defaults["stability_min"]),
+            new_trades_allowed=cfg.get("new_trades_allowed", defaults["new_trades_allowed"]),
+            max_positions=cfg.get("max_positions", defaults["max_positions"]),
+            max_per_sector=cfg.get("max_per_sector", defaults["max_per_sector"]),
+            risk_per_trade_pct=cfg.get("risk_per_trade_pct", defaults["risk_per_trade_pct"]),
+            profit_exit_pct=cfg.get("profit_exit_pct", defaults["profit_exit_pct"]),
+            notes=defaults["notes"],
+        )
+    return rules
+
+
+VIX_REGIME_RULES: Dict[VIXRegime, VIXRegimeRules] = _build_regime_rules()
 
 
 def get_vix_regime(vix: float) -> VIXRegime:
@@ -289,15 +297,15 @@ def get_adjusted_stability_min(vix: Optional[float] = None) -> float:
 # =============================================================================
 
 # Profit exits
-EXIT_PROFIT_PCT_NORMAL = 50.0  # Close at 50% profit (VIX < 20)
-EXIT_PROFIT_PCT_HIGH_VIX = 30.0  # Close at 30% profit (VIX >= 20)
+EXIT_PROFIT_PCT_NORMAL = _exit_cfg.get("profit_pct_normal", 50.0)
+EXIT_PROFIT_PCT_HIGH_VIX = _exit_cfg.get("profit_pct_high_vix", 30.0)
 
 # Loss exits
-EXIT_STOP_LOSS_MULTIPLIER = 2.0  # 200% of credit = stop loss
+EXIT_STOP_LOSS_MULTIPLIER = _exit_cfg.get("stop_loss_multiplier", 2.0)
 
 # Time exits
-EXIT_ROLL_DTE = 21  # Decision point: roll or close
-EXIT_FORCE_CLOSE_DTE = 7  # Force close, no exceptions
+EXIT_ROLL_DTE = _exit_cfg.get("roll_dte", 21)
+EXIT_FORCE_CLOSE_DTE = _exit_cfg.get("force_close_dte", 7)
 
 # Event exits
 # Support broken -> CLOSE (within session)
@@ -308,35 +316,35 @@ EXIT_FORCE_CLOSE_DTE = 7  # Force close, no exceptions
 # ROLL RULES (PLAYBOOK §4, Roll-Regeln)
 # =============================================================================
 
-ROLL_ALLOWED_MAX_LOSS_PCT = 0.0  # Max: break-even (0% loss)
-ROLL_NEW_DTE_MIN = 60  # New expiration: 60-90 DTE
-ROLL_NEW_DTE_MAX = 90
-ROLL_MIN_CREDIT_PCT = 10.0  # New credit must be >= 10% spread (PLAYBOOK §4)
+ROLL_ALLOWED_MAX_LOSS_PCT = _roll_cfg.get("allowed_max_loss_pct", 0.0)
+ROLL_NEW_DTE_MIN = _roll_cfg.get("new_dte_min", 60)
+ROLL_NEW_DTE_MAX = _roll_cfg.get("new_dte_max", 90)
+ROLL_MIN_CREDIT_PCT = _roll_cfg.get("min_credit_pct", 10.0)
 
 
 # =============================================================================
 # POSITION SIZING (PLAYBOOK §5)
 # =============================================================================
 
-SIZING_MAX_RISK_PER_TRADE_PCT = 2.0  # Max 2% portfolio risk per trade
-SIZING_MAX_OPEN_POSITIONS = 10  # Max open positions (VIX < 20)
-SIZING_MAX_PER_SECTOR = 2  # Max positions per sector (PLAYBOOK §5: "Max 2 bei Normal VIX")
-SIZING_MAX_NEW_TRADES_PER_DAY = 2  # Max new trades per day
+SIZING_MAX_RISK_PER_TRADE_PCT = _sizing_cfg.get("max_risk_per_trade_pct", 2.0)
+SIZING_MAX_OPEN_POSITIONS = _sizing_cfg.get("max_open_positions", 10)
+SIZING_MAX_PER_SECTOR = _sizing_cfg.get("max_per_sector", 2)
+SIZING_MAX_NEW_TRADES_PER_DAY = _sizing_cfg.get("max_new_trades_per_day", 2)
 
 
 # =============================================================================
 # DISCIPLINE RULES (PLAYBOOK §6)
 # =============================================================================
 
-DISCIPLINE_MAX_TRADES_PER_MONTH = 25
-DISCIPLINE_MAX_TRADES_PER_DAY = 2
-DISCIPLINE_MAX_TRADES_PER_WEEK = 8
+DISCIPLINE_MAX_TRADES_PER_MONTH = _discipline_cfg.get("max_trades_per_month", 25)
+DISCIPLINE_MAX_TRADES_PER_DAY = _discipline_cfg.get("max_trades_per_day", 2)
+DISCIPLINE_MAX_TRADES_PER_WEEK = _discipline_cfg.get("max_trades_per_week", 8)
 
 # Loss management
-DISCIPLINE_CONSECUTIVE_LOSSES_PAUSE = 3  # Pause after N consecutive losses
-DISCIPLINE_PAUSE_DAYS = 7  # Duration of pause in days
-DISCIPLINE_MONTHLY_LOSSES_PAUSE = 5  # Pause after N losses in a month
-DISCIPLINE_MONTHLY_DRAWDOWN_PAUSE = 5.0  # Pause after N% portfolio drawdown
+DISCIPLINE_CONSECUTIVE_LOSSES_PAUSE = _discipline_cfg.get("consecutive_losses_pause", 3)
+DISCIPLINE_PAUSE_DAYS = _discipline_cfg.get("pause_days", 7)
+DISCIPLINE_MONTHLY_LOSSES_PAUSE = _discipline_cfg.get("monthly_losses_pause", 5)
+DISCIPLINE_MONTHLY_DRAWDOWN_PAUSE = _discipline_cfg.get("monthly_drawdown_pause", 5.0)
 
 
 # =============================================================================
@@ -368,7 +376,7 @@ PRIMARY_WATCHLIST: List[str] = [
 ]
 
 # Secondary Watchlist threshold
-SECONDARY_WATCHLIST_STABILITY_MIN = 70.0
+SECONDARY_WATCHLIST_STABILITY_MIN = _wl_cfg.get("secondary_stability_min", 70.0)
 
 
 # =============================================================================

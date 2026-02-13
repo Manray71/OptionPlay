@@ -65,13 +65,35 @@ logger = logging.getLogger(__name__)
 DEFAULT_DB_PATH = Path.home() / ".optionplay" / "trades.db"
 
 # =============================================================================
-# CONSTANTS — extracted from inline magic numbers
+# CONFIG LOADER
+# =============================================================================
+
+
+def _load_iv_config() -> dict:
+    """Load IV analysis thresholds from config/trading_rules.yaml."""
+    try:
+        import yaml as _yaml
+
+        _config_path = Path(__file__).resolve().parents[2] / "config" / "trading_rules.yaml"
+        if _config_path.exists():
+            with open(_config_path) as _f:
+                _data = _yaml.safe_load(_f) or {}
+                return _data.get("iv_analysis", {})
+    except Exception:
+        pass
+    return {}
+
+
+_iv_cfg = _load_iv_config()
+
+# =============================================================================
+# CONSTANTS
 # =============================================================================
 
 # IV status thresholds (used in iv_status property)
-IV_RANK_VERY_HIGH = 70
-IV_RANK_ELEVATED = 50
-IV_RANK_NORMAL = 30
+IV_RANK_VERY_HIGH = _iv_cfg.get("rank_very_high", 70)
+IV_RANK_ELEVATED = _iv_cfg.get("rank_elevated", 50)
+IV_RANK_NORMAL = _iv_cfg.get("rank_normal", 30)
 
 # Minimum data points for cache validity
 IV_CACHE_MIN_POINTS = 20
@@ -105,8 +127,8 @@ class IVMetrics:
 
     @property
     def is_elevated(self) -> bool:
-        """IV Rank > 50% → IV ist erhöht."""
-        return self.iv_rank is not None and self.iv_rank >= 50.0
+        """IV Rank >= elevated threshold → IV ist erhöht."""
+        return self.iv_rank is not None and self.iv_rank >= IV_RANK_ELEVATED
 
     @property
     def iv_status(self) -> str:
