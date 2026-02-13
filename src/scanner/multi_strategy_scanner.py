@@ -75,6 +75,20 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+# =============================================================================
+# Load scanner config for ScanConfig defaults
+# =============================================================================
+from ..utils.scanner_config_loader import get_scanner_config as _get_scanner_cfg
+
+_scfg = _get_scanner_cfg()
+_stab_tiers = _scfg.get_stability_tiers()
+_stab_boost = _scfg.get_stability_boost()
+_wr_cfg = _scfg.get_win_rate_config()
+_dd_cfg = _scfg.get_drawdown_config()
+_fund_cfg = _scfg.get_fundamentals_prefilter()
+_out_cfg = _scfg.get_output_config()
+_adj_labels = _scfg.get_adjustment_labels()
+
 
 class ScanMode(Enum):
     """Scan-Modi für verschiedene Anwendungsfälle"""
@@ -108,18 +122,18 @@ class ScanConfig:
     enable_liquidity_filter: bool = True  # Illiquide Symbole ausschließen
 
     # Output-Limits
-    max_results_per_symbol: int = 3
-    max_total_results: int = 50
+    max_results_per_symbol: int = _out_cfg.get("max_results_per_symbol", 3)
+    max_total_results: int = _out_cfg.get("max_total_results", 50)
 
     # Portfolio Concentration (verhindert zu viel Exposure auf ein Symbol)
-    max_symbol_appearances: int = 2  # Max Anzahl ein Symbol in Multi-Strategy Results
+    max_symbol_appearances: int = _out_cfg.get("max_symbol_appearances", 2)
     warn_on_concentration: bool = True  # Warnung bei hoher Symbol-Konzentration
 
     # Parallel Processing
     max_concurrent: int = 10
 
     # Data Requirements
-    min_data_points: int = 60
+    min_data_points: int = _out_cfg.get("min_data_points", 60)
 
     # Strategies to enable
     enable_pullback: bool = True
@@ -130,7 +144,7 @@ class ScanConfig:
 
     # Analyzer Pool Settings
     use_analyzer_pool: bool = True  # Object Pooling für Performance
-    pool_size_per_strategy: int = 5  # Analyzer pro Strategie im Pool
+    pool_size_per_strategy: int = _out_cfg.get("pool_size_per_strategy", 5)
 
     # Reliability Scoring (Phase 3 - Hochverlässlichkeits-Framework)
     enable_reliability_scoring: bool = True  # Reliability-Grades berechnen
@@ -140,8 +154,8 @@ class ScanConfig:
     # Symbol Stability Filtering (Phase 4 - Outcome-basierte Filterung)
     enable_stability_scoring: bool = True  # Stability Scores aus Backtest-DB
     stability_min_score: float = ENTRY_STABILITY_MIN  # PLAYBOOK §1: ≥70
-    stability_boost_threshold: float = 70.0  # Ab diesem Score wird Score erhöht
-    stability_boost_amount: float = 1.0  # Score-Boost für stabile Symbole (LEGACY)
+    stability_boost_threshold: float = _stab_boost.get("threshold", 70.0)
+    stability_boost_amount: float = _stab_boost.get("amount", 1.0)
     warn_on_volatile_symbols: bool = True  # Warnung bei volatilen Symbolen
 
     # =========================================================================
@@ -155,14 +169,14 @@ class ScanConfig:
     enable_stability_first: bool = True  # Stability-First-Filterung aktivieren
 
     # Tiered Thresholds: Je höher Stability, desto niedriger min_score erlaubt
-    stability_premium_threshold: float = 80.0  # Premium-Symbole (94.5% WR)
-    stability_premium_min_score: float = 4.0  # Niedrigerer Score OK für Premium
-    stability_good_threshold: float = 70.0  # Gute Symbole (86.1% WR)
-    stability_good_min_score: float = 5.0  # Standard Score für gute Symbole
-    stability_acceptable_threshold: float = 65.0  # Akzeptable Symbole (65-70, WARNING)
-    stability_acceptable_min_score: float = 5.5  # Leicht höherer Score für 65-70 Range
-    stability_ok_threshold: float = 50.0  # Grenzwertige Symbole
-    stability_ok_min_score: float = 6.0  # Höherer Score für grenzwertige Symbole
+    stability_premium_threshold: float = _stab_tiers.get("premium", {}).get("threshold", 80.0)
+    stability_premium_min_score: float = _stab_tiers.get("premium", {}).get("min_score", 4.0)
+    stability_good_threshold: float = _stab_tiers.get("good", {}).get("threshold", 70.0)
+    stability_good_min_score: float = _stab_tiers.get("good", {}).get("min_score", 5.0)
+    stability_acceptable_threshold: float = _stab_tiers.get("acceptable", {}).get("threshold", 65.0)
+    stability_acceptable_min_score: float = _stab_tiers.get("acceptable", {}).get("min_score", 5.5)
+    stability_ok_threshold: float = _stab_tiers.get("ok", {}).get("threshold", 50.0)
+    stability_ok_min_score: float = _stab_tiers.get("ok", {}).get("min_score", 6.0)
     # Symbole unter stability_ok_threshold werden komplett gefiltert (Blacklist)
 
     # Win Rate Integration (Phase 5 - Proportionale Integration)
@@ -170,13 +184,13 @@ class ScanConfig:
     # Beispiel: base=0.7, divisor=300, WR=90% => Multiplier = 0.7 + 0.30 = 1.0
     # Beispiel: base=0.7, divisor=300, WR=70% => Multiplier = 0.7 + 0.23 = 0.93
     enable_win_rate_integration: bool = True
-    win_rate_base_multiplier: float = 0.7  # Basis-Multiplikator
-    win_rate_divisor: float = 300.0  # Divisor für Win Rate (WR/Divisor = Bonus)
+    win_rate_base_multiplier: float = _wr_cfg.get("base_multiplier", 0.7)
+    win_rate_divisor: float = _wr_cfg.get("divisor", 300.0)
 
     # Drawdown Risk Adjustment (Phase 5 - Risk-basierte Filterung)
     enable_drawdown_adjustment: bool = True
-    drawdown_penalty_threshold: float = 10.0  # Ab diesem Avg-Drawdown: Penalty
-    drawdown_penalty_per_pct: float = 0.02  # Score-Reduktion pro % über Threshold
+    drawdown_penalty_threshold: float = _dd_cfg.get("penalty_threshold", 10.0)
+    drawdown_penalty_per_pct: float = _dd_cfg.get("penalty_per_pct", 0.02)
 
     # =========================================================================
     # FUNDAMENTALS PRE-FILTER (Phase 6 - symbol_fundamentals Integration)
@@ -193,17 +207,15 @@ class ScanConfig:
     # - <50: blacklisted
     # This prevents double-filtering where the pre-filter kills symbols that
     # the tiered system would handle appropriately with higher score requirements.
-    fundamentals_min_stability: float = 50.0  # Aligned with stability_ok_threshold
-    fundamentals_min_win_rate: float = 65.0  # Lowered: tiered system handles quality control
+    fundamentals_min_stability: float = _fund_cfg.get("min_stability", 50.0)
+    fundamentals_min_win_rate: float = _fund_cfg.get("min_win_rate", 65.0)
 
     # Volatility-basierte Filterung
-    fundamentals_max_volatility: float = 70.0  # Max HV (annualisiert %)
-    fundamentals_max_beta: float = 2.0  # Max Beta zu SPY
+    fundamentals_max_volatility: float = _fund_cfg.get("max_volatility", 70.0)
+    fundamentals_max_beta: float = _fund_cfg.get("max_beta", 2.0)
 
     # IV Rank aus Fundamentals (symbol_fundamentals.iv_rank_252d)
-    fundamentals_iv_rank_min: float = (
-        20.0  # Intentionally looser than ENTRY_IV_RANK_MIN (pre-filter)
-    )
+    fundamentals_iv_rank_min: float = _fund_cfg.get("iv_rank_min", 20.0)
     fundamentals_iv_rank_max: float = ENTRY_IV_RANK_MAX
 
     # SPY Correlation Filter
@@ -967,6 +979,12 @@ class MultiStrategyScanner:
         if context is not None:
             self._set_dividend_context(context, symbol)
 
+        # Inject stability_score for adaptive RSI thresholds
+        if context is not None and context.stability_score is None:
+            stability_data = self._stability_cache.get(symbol)
+            if stability_data:
+                context.stability_score = stability_data.get("stability_score")
+
         for strategy_name in strategies_to_use:
             try:
                 # Earnings-Filter
@@ -1118,15 +1136,15 @@ class MultiStrategyScanner:
                 excess_drawdown = avg_drawdown - self.config.drawdown_penalty_threshold
                 drawdown_penalty = excess_drawdown * self.config.drawdown_penalty_per_pct
                 signal.score = signal.score * (
-                    1.0 - min(drawdown_penalty, 0.3)
-                )  # Max 30% Reduktion
+                    1.0 - min(drawdown_penalty, _dd_cfg.get("max_penalty_pct", 0.3))
+                )
 
             # 3. Legacy Stability Boost (für rückwärts Kompatibilität)
-            # Jetzt: Nur zusätzlich für SEHR stabile Symbole (Score >= 80)
-            if stability_score >= 80:
-                signal.score = signal.score + (self.config.stability_boost_amount * 0.5)
+            _sb = _stab_boost
+            if stability_score >= _sb.get("premium_score", 80):
+                signal.score = signal.score + (self.config.stability_boost_amount * _sb.get("premium_multiplier", 0.5))
             elif stability_score >= self.config.stability_boost_threshold:
-                signal.score = signal.score + (self.config.stability_boost_amount * 0.25)
+                signal.score = signal.score + (self.config.stability_boost_amount * _sb.get("good_multiplier", 0.25))
 
             # Round to 1 decimal
             signal.score = round(signal.score, 1)
@@ -1165,21 +1183,24 @@ class MultiStrategyScanner:
         self, win_rate: float, avg_drawdown: float, stability_score: float
     ) -> str:
         """Erklärt die Score-Anpassung für Transparenz."""
+        _wr_labels = _adj_labels.get("win_rate", {})
+        _dd_labels = _adj_labels.get("drawdown", {})
+        _st_labels = _adj_labels.get("stability", {})
         reasons = []
 
-        if win_rate >= 90:
+        if win_rate >= _wr_labels.get("excellent", 90):
             reasons.append(f"Exzellente WR ({win_rate:.0f}%)")
-        elif win_rate >= 85:
+        elif win_rate >= _wr_labels.get("very_good", 85):
             reasons.append(f"Sehr gute WR ({win_rate:.0f}%)")
-        elif win_rate < 75:
+        elif win_rate < _wr_labels.get("low", 75):
             reasons.append(f"Niedrige WR ({win_rate:.0f}%) → Score reduziert")
 
-        if avg_drawdown > 15:
+        if avg_drawdown > _dd_labels.get("high", 15):
             reasons.append(f"Hoher Drawdown ({avg_drawdown:.1f}%) → Penalty")
-        elif avg_drawdown < 5:
+        elif avg_drawdown < _dd_labels.get("low", 5):
             reasons.append(f"Niedriger Drawdown ({avg_drawdown:.1f}%)")
 
-        if stability_score >= 80:
+        if stability_score >= _st_labels.get("very_stable", 80):
             reasons.append(f"Sehr stabil (Score {stability_score:.0f})")
 
         return " | ".join(reasons) if reasons else "Standard"

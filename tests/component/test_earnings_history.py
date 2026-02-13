@@ -535,7 +535,7 @@ class TestBmoAmcHandling:
         today = date.today()
 
         is_safe, days_to, reason = manager.is_earnings_day_safe(
-            "TEST", today, min_days=45, allow_bmo_same_day=False
+            "TEST", today, min_days=ENTRY_EARNINGS_MIN_DAYS, allow_bmo_same_day=False
         )
 
         assert is_safe is False
@@ -548,7 +548,7 @@ class TestBmoAmcHandling:
         today = date.today()
 
         is_safe, days_to, reason = manager.is_earnings_day_safe(
-            "TEST", today, min_days=45, allow_bmo_same_day=False
+            "TEST", today, min_days=ENTRY_EARNINGS_MIN_DAYS, allow_bmo_same_day=False
         )
 
         assert is_safe is False
@@ -561,7 +561,7 @@ class TestBmoAmcHandling:
         today = date.today()
 
         is_safe, days_to, reason = manager.is_earnings_day_safe(
-            "TEST", today, min_days=45, allow_bmo_same_day=True  # Erlaubt
+            "TEST", today, min_days=ENTRY_EARNINGS_MIN_DAYS, allow_bmo_same_day=True  # Erlaubt
         )
 
         assert is_safe is True
@@ -574,7 +574,7 @@ class TestBmoAmcHandling:
         today = date.today()
 
         is_safe, days_to, reason = manager.is_earnings_day_safe(
-            "TEST", today, min_days=45, allow_bmo_same_day=False
+            "TEST", today, min_days=ENTRY_EARNINGS_MIN_DAYS, allow_bmo_same_day=False
         )
 
         assert is_safe is True
@@ -584,7 +584,7 @@ class TestBmoAmcHandling:
     def test_is_earnings_day_safe_too_close(self, manager):
         """Test: Zu nahe Earnings = nicht sicher"""
         today = date.today()
-        # Earnings in 20 Tagen (unter min_days=45)
+        # Earnings in 20 Tagen (unter min_days=ENTRY_EARNINGS_MIN_DAYS)
         earnings_data = [
             {
                 "earnings_date": (today + timedelta(days=20)).isoformat(),
@@ -594,7 +594,7 @@ class TestBmoAmcHandling:
         manager.save_earnings("TEST", earnings_data)
 
         is_safe, days_to, reason = manager.is_earnings_day_safe(
-            "TEST", today, min_days=45, allow_bmo_same_day=False
+            "TEST", today, min_days=ENTRY_EARNINGS_MIN_DAYS, allow_bmo_same_day=False
         )
 
         assert is_safe is False
@@ -604,7 +604,7 @@ class TestBmoAmcHandling:
     def test_is_earnings_day_safe_no_data(self, manager):
         """Test: Keine Earnings-Daten = nicht sicher (konservativ)"""
         is_safe, days_to, reason = manager.is_earnings_day_safe(
-            "UNKNOWN", date.today(), min_days=45, allow_bmo_same_day=False
+            "UNKNOWN", date.today(), min_days=ENTRY_EARNINGS_MIN_DAYS, allow_bmo_same_day=False
         )
 
         assert is_safe is False
@@ -623,7 +623,7 @@ class TestBmoAmcHandling:
         manager.save_earnings("TEST", earnings_data)
 
         is_safe, days_to, reason = manager.is_earnings_day_safe(
-            "TEST", today, min_days=45, allow_bmo_same_day=False
+            "TEST", today, min_days=ENTRY_EARNINGS_MIN_DAYS, allow_bmo_same_day=False
         )
 
         assert is_safe is False
@@ -655,10 +655,10 @@ class TestBatchMethods:
         manager.save_earnings("AAPL", earnings_data)
 
         # Individual call
-        individual = manager.is_earnings_day_safe("AAPL", today, min_days=45)
+        individual = manager.is_earnings_day_safe("AAPL", today, min_days=ENTRY_EARNINGS_MIN_DAYS)
 
         # Batch call
-        batch = manager.is_earnings_day_safe_batch(["AAPL"], today, min_days=45)
+        batch = manager.is_earnings_day_safe_batch(["AAPL"], today, min_days=ENTRY_EARNINGS_MIN_DAYS)
 
         assert batch["AAPL"] == individual
 
@@ -683,7 +683,7 @@ class TestBatchMethods:
 
         batch = manager.is_earnings_day_safe_batch(
             ["AAPL", "MSFT", "GOOGL", "TSLA"],
-            today, min_days=45, allow_bmo_same_day=False
+            today, min_days=ENTRY_EARNINGS_MIN_DAYS, allow_bmo_same_day=False
         )
 
         # AAPL: Safe
@@ -714,7 +714,7 @@ class TestBatchMethods:
         ])
 
         # Query with lowercase
-        batch = manager.is_earnings_day_safe_batch(["aapl"], today, min_days=45)
+        batch = manager.is_earnings_day_safe_batch(["aapl"], today, min_days=ENTRY_EARNINGS_MIN_DAYS)
 
         # Result should be uppercase
         assert "AAPL" in batch
@@ -729,14 +729,14 @@ class TestBatchMethods:
 
         # Without allow_bmo_same_day
         batch_conservative = manager.is_earnings_day_safe_batch(
-            ["BMO_TEST"], today, min_days=45, allow_bmo_same_day=False
+            ["BMO_TEST"], today, min_days=ENTRY_EARNINGS_MIN_DAYS, allow_bmo_same_day=False
         )
         assert batch_conservative["BMO_TEST"][0] is False
         assert batch_conservative["BMO_TEST"][2] == "earnings_bmo_today_conservative"
 
         # With allow_bmo_same_day
         batch_allowed = manager.is_earnings_day_safe_batch(
-            ["BMO_TEST"], today, min_days=45, allow_bmo_same_day=True
+            ["BMO_TEST"], today, min_days=ENTRY_EARNINGS_MIN_DAYS, allow_bmo_same_day=True
         )
         assert batch_allowed["BMO_TEST"][0] is True
         assert batch_allowed["BMO_TEST"][2] == "earnings_bmo_today_allowed"
@@ -744,16 +744,16 @@ class TestBatchMethods:
     def test_is_earnings_day_safe_batch_picks_nearest_future(self, manager):
         """Test: Batch correctly picks nearest future earnings, not past"""
         today = date.today()
-        # Two future earnings - should pick the nearest (30 days, not 90 days)
+        # Two future earnings - should pick the nearest (15 days, not 90 days)
         manager.save_earnings("TEST", [
-            {"earnings_date": (today + timedelta(days=30)).isoformat(), "time_of_day": "amc"},
+            {"earnings_date": (today + timedelta(days=15)).isoformat(), "time_of_day": "amc"},
             {"earnings_date": (today + timedelta(days=90)).isoformat(), "time_of_day": "amc"},
         ])
 
-        batch = manager.is_earnings_day_safe_batch(["TEST"], today, min_days=45)
+        batch = manager.is_earnings_day_safe_batch(["TEST"], today, min_days=ENTRY_EARNINGS_MIN_DAYS)
 
-        assert batch["TEST"][0] is False  # 30 days < 45 min_days
-        assert batch["TEST"][1] == 30  # Nearest is 30 days
+        assert batch["TEST"][0] is False  # 15 days < ENTRY_EARNINGS_MIN_DAYS
+        assert batch["TEST"][1] == 15  # Nearest is 15 days
 
     @pytest.mark.asyncio
     async def test_is_earnings_day_safe_batch_async(self, manager):
@@ -764,7 +764,7 @@ class TestBatchMethods:
         ])
 
         batch = await manager.is_earnings_day_safe_batch_async(
-            ["AAPL"], today, min_days=45
+            ["AAPL"], today, min_days=ENTRY_EARNINGS_MIN_DAYS
         )
 
         assert "AAPL" in batch

@@ -54,7 +54,7 @@ ATH_CLEAN_BREAKOUT_BONUS = 1.5
 
 # Support Detection
 BOUNCE_LOOKBACK_DAYS = 60  # Lookback for support levels
-BOUNCE_MIN_TOUCHES = 2  # Minimum support touches
+BOUNCE_MIN_TOUCHES = 3  # Minimum support touches (was 2, config-driven via scanner_config.yaml)
 BOUNCE_PROXIMITY_PCT = 2.0  # Max distance to support (%)
 
 # Bounce Confirmation

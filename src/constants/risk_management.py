@@ -93,9 +93,9 @@ TARGET_MULTIPLIER = (
 # =============================================================================
 
 # Minimum distance to earnings
-# PLAYBOOK §1: Earnings > 45 Tage (hart, keine Ausnahme)
-EARNINGS_MIN_DAYS = ENTRY_EARNINGS_MIN_DAYS  # Minimum days until earnings (PLAYBOOK: 45)
-EARNINGS_MIN_DAYS_STRICT = ENTRY_EARNINGS_MIN_DAYS  # Strict variant (same as default per PLAYBOOK)
+# PLAYBOOK §1: Earnings buffer (was 45d, now 30d via scanner_config.yaml)
+EARNINGS_MIN_DAYS = ENTRY_EARNINGS_MIN_DAYS  # Minimum days until earnings
+EARNINGS_MIN_DAYS_STRICT = ENTRY_EARNINGS_MIN_DAYS  # Strict variant (same as default)
 EARNINGS_SAFE_DAYS = 90  # Classified as "safe"
 
 # Post-Earnings Buffer

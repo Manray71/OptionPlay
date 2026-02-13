@@ -139,7 +139,7 @@ class TestScoreRsi:
     def test_not_oversold(self, scorer):
         score, reason = scorer._score_rsi(65.0)
         assert score == 0
-        assert "not oversold" in reason.lower()
+        assert "not in pullback zone" in reason.lower() or "not oversold" in reason.lower()
 
 
 # =============================================================================

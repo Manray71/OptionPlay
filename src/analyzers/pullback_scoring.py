@@ -45,37 +45,44 @@ from ..models.indicators import (
 
 logger = logging.getLogger(__name__)
 
+# =============================================================================
+# CONSTANTS (loaded from config/analyzer_thresholds.yaml)
+# =============================================================================
+from ..config.analyzer_thresholds import get_analyzer_thresholds as _get_cfg
+
+_cfg = _get_cfg()
+
 # RSI Divergence Scoring
-SCORE_DIVERGENCE_STRONG = 0.7
-SCORE_DIVERGENCE_MODERATE = 0.4
-SCORE_DIVERGENCE_STRONG_PTS = 3.0
-SCORE_DIVERGENCE_MODERATE_PTS = 2.0
-SCORE_DIVERGENCE_WEAK_PTS = 1.0
+SCORE_DIVERGENCE_STRONG = _cfg.get("pullback.divergence.strong_threshold", 0.7)
+SCORE_DIVERGENCE_MODERATE = _cfg.get("pullback.divergence.moderate_threshold", 0.4)
+SCORE_DIVERGENCE_STRONG_PTS = _cfg.get("pullback.divergence_scoring.strong_pts", 3.0)
+SCORE_DIVERGENCE_MODERATE_PTS = _cfg.get("pullback.divergence_scoring.moderate_pts", 2.0)
+SCORE_DIVERGENCE_WEAK_PTS = _cfg.get("pullback.divergence_scoring.weak_pts", 1.0)
 
 # Moving Average Scoring
-SCORE_MA_DIP_IN_UPTREND = 2
+SCORE_MA_DIP_IN_UPTREND = _cfg.get("pullback.ma_scoring.dip_in_uptrend", 2.0)
 
 # Support Strength
-SCORE_SUPPORT_STRONG_BONUS = 0.5
-SCORE_SUPPORT_STRONG_EXTRA_TOUCHES = 2
+SCORE_SUPPORT_STRONG_BONUS = _cfg.get("pullback.support.strong_bonus", 0.5)
+SCORE_SUPPORT_STRONG_EXTRA_TOUCHES = _cfg.get("pullback.support.strong_extra_touches", 2)
 
 # Keltner Channel
-SCORE_KELTNER_LOWER_THIRD_MULT = 0.5
+SCORE_KELTNER_LOWER_THIRD_MULT = _cfg.get("pullback.keltner.lower_third_mult", 0.5)
 
 # VWAP Scoring
-SCORE_VWAP_STRONG_ABOVE_PTS = 3.0
-SCORE_VWAP_ABOVE_PTS = 2.0
-SCORE_VWAP_NEAR_PTS = 1.0
+SCORE_VWAP_STRONG_ABOVE_PTS = _cfg.get("pullback.vwap.strong_above_pts", 3.0)
+SCORE_VWAP_ABOVE_PTS = _cfg.get("pullback.vwap.above_pts", 2.0)
+SCORE_VWAP_NEAR_PTS = _cfg.get("pullback.vwap.near_pts", 1.0)
 
 # Market Context Scoring
-SCORE_MARKET_STRONG_UPTREND = 2.0
-SCORE_MARKET_UPTREND = 1.0
-SCORE_MARKET_STRONG_DOWNTREND = -1.0
-SCORE_MARKET_DOWNTREND = -0.5
+SCORE_MARKET_STRONG_UPTREND = _cfg.get("pullback.market_context.strong_uptrend", 2.0)
+SCORE_MARKET_UPTREND = _cfg.get("pullback.market_context.uptrend", 1.0)
+SCORE_MARKET_STRONG_DOWNTREND = _cfg.get("pullback.market_context.strong_downtrend", -1.0)
+SCORE_MARKET_DOWNTREND = _cfg.get("pullback.market_context.downtrend", -0.5)
 
 # Sector Scoring Thresholds
-SCORE_SECTOR_STRONG_THRESHOLD = 0.5
-SCORE_SECTOR_WEAK_THRESHOLD = -0.5
+SCORE_SECTOR_STRONG_THRESHOLD = _cfg.get("pullback.sector.strong_threshold", 0.5)
+SCORE_SECTOR_WEAK_THRESHOLD = _cfg.get("pullback.sector.weak_threshold", -0.5)
 
 
 class PullbackScoringMixin:
@@ -136,18 +143,38 @@ class PullbackScoringMixin:
 
         return 0, "No significant divergence"
 
-    def _score_rsi(self, rsi: float) -> Tuple[float, str]:
-        """RSI Score (0-3 points)"""
+    def _score_rsi(
+        self, rsi: float, stability_score: Optional[float] = None
+    ) -> Tuple[float, str]:
+        """RSI Score (0-3 points).
+
+        Uses adaptive neutral threshold based on stability score:
+        - High stability (85+): neutral at 42 (was fixed 50)
+        - Medium stability (70+): neutral at 40
+        - Low stability (60+): neutral at 38
+        - Very low (<60): neutral at 35
+
+        This prevents penalizing stable stocks with normal RSI 40-50.
+        """
         cfg = self.config.rsi
+
+        # Adaptive neutral threshold from scanner config
+        if stability_score is not None:
+            from ..utils.scanner_config_loader import get_scanner_config
+
+            scanner_cfg = get_scanner_config()
+            neutral = scanner_cfg.get_rsi_neutral_threshold(stability_score)
+        else:
+            neutral = cfg.neutral  # Fallback to original fixed 50
 
         if rsi < cfg.extreme_oversold:
             return cfg.weight_extreme, f"RSI {rsi:.1f} < {cfg.extreme_oversold} (extreme oversold)"
         elif rsi < cfg.oversold:
             return cfg.weight_oversold, f"RSI {rsi:.1f} < {cfg.oversold} (oversold)"
-        elif rsi < cfg.neutral:
-            return cfg.weight_neutral, f"RSI {rsi:.1f} < {cfg.neutral} (neutral-low)"
+        elif rsi < neutral:
+            return cfg.weight_neutral, f"RSI {rsi:.1f} < {neutral} (neutral-low, adaptive)"
         else:
-            return 0, f"RSI {rsi:.1f} >= {cfg.neutral} (not oversold)"
+            return 0, f"RSI {rsi:.1f} >= {neutral} (not in pullback zone)"
 
     def _score_support(self, price: float, supports: List[float]) -> Tuple[float, str]:
         """Support proximity Score (0-2 points)"""

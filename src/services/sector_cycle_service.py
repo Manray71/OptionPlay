@@ -30,42 +30,48 @@ from ..config.scoring_config import get_scoring_resolver
 logger = logging.getLogger(__name__)
 
 # =============================================================================
-# CONSTANTS — extracted from inline magic numbers
+# CONSTANTS (loaded from config/scoring_weights.yaml → sector_cycle section)
 # =============================================================================
 
+_sc_cfg = get_scoring_resolver().get_sector_cycle_config()
+_sc_weights = _sc_cfg.get("weights", {})
+_sc_breadth = _sc_cfg.get("breadth", {})
+_sc_regime = _sc_cfg.get("regime", {})
+_sc_rs = _sc_cfg.get("rs_scale", {})
+
 # Cache TTL
-SECTOR_CACHE_TTL_HOURS = 4
+SECTOR_CACHE_TTL_HOURS = _sc_cfg.get("cache_ttl_hours", 4)
 
 # Factor range (clamping bounds)
-SECTOR_FACTOR_MAX = 1.5
-SECTOR_FACTOR_MIN = 0.6
+SECTOR_FACTOR_MAX = _sc_cfg.get("factor_max", 1.5)
+SECTOR_FACTOR_MIN = _sc_cfg.get("factor_min", 0.6)
 
 # Lookback periods (days)
-SECTOR_LOOKBACK_SHORT = 30
-SECTOR_LOOKBACK_LONG = 60
+SECTOR_LOOKBACK_SHORT = _sc_cfg.get("lookback_short", 30)
+SECTOR_LOOKBACK_LONG = _sc_cfg.get("lookback_long", 60)
 
 # Component weights for momentum factor calculation
-SECTOR_WEIGHT_RS_30D = 0.40
-SECTOR_WEIGHT_RS_60D = 0.30
-SECTOR_WEIGHT_BREADTH = 0.20
-SECTOR_WEIGHT_VOL_PREMIUM = 0.10
+SECTOR_WEIGHT_RS_30D = _sc_weights.get("rs_30d", 0.40)
+SECTOR_WEIGHT_RS_60D = _sc_weights.get("rs_60d", 0.30)
+SECTOR_WEIGHT_BREADTH = _sc_weights.get("breadth", 0.20)
+SECTOR_WEIGHT_VOL_PREMIUM = _sc_weights.get("vol_premium", 0.10)
 
 # Breadth proxy defaults
-BREADTH_PROXY_NEUTRAL = 0.5
-BREADTH_NORM_FLOOR = 0.95
-BREADTH_NORM_RANGE = 0.10
+BREADTH_PROXY_NEUTRAL = _sc_breadth.get("proxy_neutral", 0.5)
+BREADTH_NORM_FLOOR = _sc_breadth.get("norm_floor", 0.95)
+BREADTH_NORM_RANGE = _sc_breadth.get("norm_range", 0.10)
 
 # Regime classification thresholds
-SECTOR_REGIME_STRONG = 1.05
-SECTOR_REGIME_NEUTRAL = 0.90
-SECTOR_REGIME_WEAK = 0.70
+SECTOR_REGIME_STRONG = _sc_regime.get("strong", 1.05)
+SECTOR_REGIME_NEUTRAL = _sc_regime.get("neutral", 0.90)
+SECTOR_REGIME_WEAK = _sc_regime.get("weak", 0.70)
 
 # Relative strength normalization scales
-SECTOR_RS_30D_SCALE = 10.0
-SECTOR_RS_60D_SCALE = 15.0
+SECTOR_RS_30D_SCALE = _sc_rs.get("d30", 10.0)
+SECTOR_RS_60D_SCALE = _sc_rs.get("d60", 15.0)
 
 # Extra days fetched beyond lookback
-SECTOR_FETCH_BUFFER_DAYS = 10
+SECTOR_FETCH_BUFFER_DAYS = _sc_cfg.get("fetch_buffer_days", 10)
 
 
 # =============================================================================

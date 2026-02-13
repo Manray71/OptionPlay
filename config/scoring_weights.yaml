@@ -537,3 +537,182 @@ parallelization:
   training_workers: null
   enable_batch_scoring: false
   strategy_parallel: true
+
+# =============================================================================
+# RANKING & RECOMMENDATION
+# =============================================================================
+# Parameters for DailyRecommendationEngine ranking formula and speed scoring.
+
+ranking:
+  # Ranking formula: base = (1-stability_weight)*signal + stability_weight*(stability/10)
+  # combined = base * speed_normalized^speed_exponent
+  stability_weight: 0.3        # 30% stability, 70% signal
+  speed_exponent: 0.3          # Speed^0.3 multiplier (PLAYBOOK)
+  min_signal_score: 3.5        # Minimum for ranking (not filtering)
+  stability_warning: 70        # Warning threshold for stability
+
+  # Speed scoring component weights (sum → speed_score_max)
+  speed:
+    dte_optimal: 60
+    dte_range: 30
+    dte_weight: 3.0
+    stability_baseline: 70
+    stability_range: 30
+    stability_weight: 2.5
+    sector_weight: 1.5
+    pullback_weight: 1.5
+    market_context_weight: 1.5
+    score_max: 10.0
+    multiplier_min: 0.5        # Speed 0 → 0.5x multiplier
+
+  # Strike fallback support percentages
+  strike_support:
+    pct_1: 0.90
+    pct_2: 0.85
+    pct_3: 0.80
+
+  # Sector speed map (avg days_to_playbook_exit, 0.0=fastest, 1.0=slowest)
+  sector_speed:
+    Utilities: 1.0
+    Healthcare: 0.9
+    Real Estate: 0.85
+    Consumer Defensive: 0.7
+    Financial Services: 0.6
+    Industrials: 0.5
+    Consumer Cyclical: 0.4
+    Communication Services: 0.3
+    Energy: 0.2
+    Technology: 0.1
+    Basic Materials: 0.0
+
+# =============================================================================
+# SECTOR CYCLE SERVICE
+# =============================================================================
+# Parameters for sector momentum factor calculation.
+
+sector_cycle:
+  cache_ttl_hours: 4
+
+  # Factor clamping bounds
+  factor_max: 1.5
+  factor_min: 0.6
+
+  # Lookback periods (days)
+  lookback_short: 30
+  lookback_long: 60
+
+  # Component weights for momentum factor (sum = 1.0)
+  weights:
+    rs_30d: 0.40
+    rs_60d: 0.30
+    breadth: 0.20
+    vol_premium: 0.10
+
+  # Breadth proxy defaults
+  breadth:
+    proxy_neutral: 0.5
+    norm_floor: 0.95
+    norm_range: 0.10
+
+  # Regime classification thresholds
+  regime:
+    strong: 1.05
+    neutral: 0.90
+    weak: 0.70
+
+  # Relative strength normalization scales
+  rs_scale:
+    d30: 10.0
+    d60: 15.0
+
+  # Extra days fetched beyond lookback
+  fetch_buffer_days: 10
+
+# =============================================================================
+# ENTRY QUALITY SCORER (EQS)
+# =============================================================================
+# Parameters for the 7-factor Entry Quality Score.
+# EQS provides up to 30% bonus to signal score for ranking.
+
+entry_quality:
+  # General limits
+  score_max: 100.0
+  score_neutral: 50.0
+  bonus_max_pct: 0.3           # 30% max bonus to signal score
+
+  # Factor weights (must sum to 1.0)
+  weights:
+    iv_rank: 0.20
+    iv_percentile: 0.15
+    credit_ratio: 0.20
+    theta_efficiency: 0.15
+    pullback: 0.15
+    rsi: 0.10
+    trend: 0.05
+
+  # IV Rank scoring zones
+  iv_rank:
+    zone_low: 20
+    zone_mid_low: 40
+    zone_mid_high: 65
+    zone_high: 80
+    mult_low: 2.5              # 0→0, 20→50
+    mult_mid_low: 1.5          # 20→50, 40→80
+    mult_mid_high: 0.8         # 40→80, 65→100
+    mult_high: 1.333           # 65→100, 80→80
+    floor: 30.0
+
+  # IV Percentile scoring zones
+  iv_percentile:
+    zone_low: 30
+    zone_mid: 50
+    zone_high: 80
+    score_low: 30
+    score_mid: 70
+    mult_low: 1.0
+    mult_mid: 2.0
+    mult_high: 1.0
+    decay_mult: 1.5
+    floor: 50.0
+
+  # Credit Ratio scoring
+  credit:
+    mid_pct: 15
+    high_pct: 25
+    mult_low: 12
+    score_mid: 60
+    mult_high: 4
+
+  # Theta Efficiency scoring
+  theta:
+    pct_conversion: 100
+    multiplier: 25
+
+  # Pullback scoring zones
+  pullback:
+    zone_minimal: 1
+    zone_shallow: 3
+    zone_sweet: 8
+    zone_deep: 12
+    score_minimal: 20
+    mult_shallow: 20
+    mult_sweet: 8
+    mult_deep: 10
+    floor: 30.0
+
+  # RSI scoring zones
+  rsi:
+    zone_very_low: 25
+    zone_oversold: 35
+    zone_neutral: 50
+    zone_overbought: 70
+    score_oversold: 70
+    score_neutral: 40
+    score_overbought: 20
+    mult_oversold: 3
+    mult_neutral: 2
+
+  # Trend scoring
+  trend:
+    bullish: 100.0
+    bearish: 30.0

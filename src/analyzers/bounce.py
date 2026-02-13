@@ -49,92 +49,95 @@ from .feature_scoring_mixin import FeatureScoringMixin
 logger = logging.getLogger(__name__)
 
 # =============================================================================
-# CONSTANTS for Bounce Strategy v2
+# CONSTANTS for Bounce Strategy v2  (loaded from config/analyzer_thresholds.yaml)
 # =============================================================================
+from ..config.analyzer_thresholds import get_analyzer_thresholds as _get_cfg
 
-BOUNCE_SUPPORT_LOOKBACK = 120  # 120 trading days for support detection
-BOUNCE_SUPPORT_TOLERANCE = 1.0  # ±1.0% tolerance for touch detection
-BOUNCE_PROXIMITY_MAX_ABOVE = 5.0  # Max +5% above support
-BOUNCE_PROXIMITY_MAX_BELOW = -0.5  # Max -0.5% below support (wick tolerance)
-BOUNCE_DCB_THRESHOLD = 0.7  # Volume < 0.7x avg = Dead Cat Bounce risk
-BOUNCE_MIN_SCORE = 3.5  # Minimum total score for signal
-BOUNCE_MAX_SCORE = 10.0  # Theoretical maximum
+_cfg = _get_cfg()
+
+BOUNCE_SUPPORT_LOOKBACK = _cfg.get("bounce.general.support_lookback", 120)
+BOUNCE_SUPPORT_TOLERANCE = _cfg.get("bounce.general.support_tolerance_pct", 1.0)
+BOUNCE_PROXIMITY_MAX_ABOVE = _cfg.get("bounce.general.proximity_max_above_pct", 5.0)
+BOUNCE_PROXIMITY_MAX_BELOW = _cfg.get("bounce.general.proximity_max_below_pct", -0.5)
+BOUNCE_DCB_THRESHOLD = _cfg.get("bounce.general.dcb_threshold", 0.7)
+BOUNCE_MIN_SCORE = _cfg.get("bounce.general.min_score", 3.5)
+BOUNCE_MAX_SCORE = _cfg.get("bounce.general.max_score", 10.0)
 
 # Support Quality Scoring
-BOUNCE_SUPPORT_TOUCHES_STRONG = 4
-BOUNCE_SUPPORT_TOUCHES_MODERATE = 3
-BOUNCE_SUPPORT_TOUCHES_ESTABLISHED = 2
-BOUNCE_SUPPORT_SCORE_STRONG = 2.0
-BOUNCE_SUPPORT_SCORE_MODERATE = 1.5
-BOUNCE_SUPPORT_SCORE_ESTABLISHED = 1.0
-BOUNCE_SMA200_CONFLUENCE_BONUS = 0.5
-BOUNCE_SUPPORT_QUALITY_MAX = 2.5
+BOUNCE_SUPPORT_TOUCHES_STRONG = _cfg.get("bounce.support_quality.touches_strong", 5)
+BOUNCE_SUPPORT_TOUCHES_MODERATE = _cfg.get("bounce.support_quality.touches_moderate", 4)
+BOUNCE_SUPPORT_TOUCHES_ESTABLISHED = _cfg.get("bounce.support_quality.touches_established", 3)
+BOUNCE_SUPPORT_SCORE_STRONG = _cfg.get("bounce.support_quality.score_strong", 2.0)
+BOUNCE_SUPPORT_SCORE_MODERATE = _cfg.get("bounce.support_quality.score_moderate", 1.5)
+BOUNCE_SUPPORT_SCORE_ESTABLISHED = _cfg.get("bounce.support_quality.score_established", 1.0)
+BOUNCE_SMA200_CONFLUENCE_BONUS = _cfg.get("bounce.support_quality.sma200_confluence_bonus", 0.5)
+BOUNCE_SUPPORT_QUALITY_MAX = _cfg.get("bounce.support_quality.quality_max", 2.5)
 
 # Proximity Scoring
-BOUNCE_PROXIMITY_TIER1_PCT = 1.0
-BOUNCE_PROXIMITY_TIER2_PCT = 2.0
-BOUNCE_PROXIMITY_TIER3_PCT = 3.0
-BOUNCE_PROXIMITY_TIER4_PCT = 5.0
-BOUNCE_PROXIMITY_SCORE_AT = 2.0
-BOUNCE_PROXIMITY_SCORE_NEAR = 1.5
-BOUNCE_PROXIMITY_SCORE_CLOSE = 1.0
-BOUNCE_PROXIMITY_SCORE_FAR = 0.5
-BOUNCE_PROXIMITY_SCORE_BELOW = 1.0
+BOUNCE_PROXIMITY_TIER1_PCT = _cfg.get("bounce.proximity.tier1_pct", 1.0)
+BOUNCE_PROXIMITY_TIER2_PCT = _cfg.get("bounce.proximity.tier2_pct", 2.0)
+BOUNCE_PROXIMITY_TIER3_PCT = _cfg.get("bounce.proximity.tier3_pct", 3.0)
+BOUNCE_PROXIMITY_TIER4_PCT = _cfg.get("bounce.proximity.tier4_pct", 5.0)
+BOUNCE_PROXIMITY_SCORE_AT = _cfg.get("bounce.proximity.score_at", 2.0)
+BOUNCE_PROXIMITY_SCORE_NEAR = _cfg.get("bounce.proximity.score_near", 1.5)
+BOUNCE_PROXIMITY_SCORE_CLOSE = _cfg.get("bounce.proximity.score_close", 1.0)
+BOUNCE_PROXIMITY_SCORE_FAR = _cfg.get("bounce.proximity.score_far", 0.5)
+BOUNCE_PROXIMITY_SCORE_BELOW = _cfg.get("bounce.proximity.score_below", 1.0)
 
 # Volume Scoring
-BOUNCE_VOLUME_STRONG_RATIO = 2.0
-BOUNCE_VOLUME_MODERATE_RATIO = 1.5
-BOUNCE_VOLUME_ADEQUATE_RATIO = 1.0
-BOUNCE_VOLUME_SCORE_STRONG = 1.5
-BOUNCE_VOLUME_SCORE_MODERATE = 1.0
-BOUNCE_VOLUME_SCORE_ADEQUATE = 0.5
-BOUNCE_VOLUME_DCB_PENALTY = -1.0
+BOUNCE_VOLUME_STRONG_RATIO = _cfg.get("bounce.volume.strong_ratio", 2.0)
+BOUNCE_VOLUME_MODERATE_RATIO = _cfg.get("bounce.volume.moderate_ratio", 1.5)
+BOUNCE_VOLUME_ADEQUATE_RATIO = _cfg.get("bounce.volume.adequate_ratio", 1.0)
+BOUNCE_VOLUME_SCORE_STRONG = _cfg.get("bounce.volume.score_strong", 1.5)
+BOUNCE_VOLUME_SCORE_MODERATE = _cfg.get("bounce.volume.score_moderate", 1.0)
+BOUNCE_VOLUME_SCORE_ADEQUATE = _cfg.get("bounce.volume.score_adequate", 0.5)
+BOUNCE_VOLUME_DCB_PENALTY = _cfg.get("bounce.volume.dcb_penalty", -1.0)
 
 # Trend Context Scoring
-BOUNCE_SMA200_RISING_MULT = 1.001
-BOUNCE_SMA200_FALLING_MULT = 0.999
-BOUNCE_SMA200_DIRECTION_LOOKBACK = 20
-BOUNCE_SMA200_NEAR_PCT = 2.0
-BOUNCE_TREND_SCORE_UPTREND = 1.5
-BOUNCE_TREND_SCORE_ABOVE_SMA200 = 1.0
-BOUNCE_TREND_SCORE_NEAR_SMA200 = 0.5
-BOUNCE_TREND_SLOPE_STEEP = -1.0
-BOUNCE_TREND_SCORE_STEEP_DOWN = -2.0
-BOUNCE_TREND_SLOPE_MODERATE = -0.5
-BOUNCE_TREND_SCORE_MOD_DOWN = -1.5
-BOUNCE_TREND_SCORE_MILD_DOWN = -1.0
-BOUNCE_TREND_SCORE_BELOW_SMA200 = -0.5
+BOUNCE_SMA200_RISING_MULT = _cfg.get("bounce.trend.sma200_rising_mult", 1.001)
+BOUNCE_SMA200_FALLING_MULT = _cfg.get("bounce.trend.sma200_falling_mult", 0.999)
+BOUNCE_SMA200_DIRECTION_LOOKBACK = _cfg.get("bounce.trend.sma200_direction_lookback", 20)
+BOUNCE_SMA200_NEAR_PCT = _cfg.get("bounce.trend.sma200_near_pct", 2.0)
+BOUNCE_TREND_SCORE_UPTREND = _cfg.get("bounce.trend.score_uptrend", 1.5)
+BOUNCE_TREND_SCORE_ABOVE_SMA200 = _cfg.get("bounce.trend.score_above_sma200", 1.0)
+BOUNCE_TREND_SCORE_NEAR_SMA200 = _cfg.get("bounce.trend.score_near_sma200", 0.5)
+BOUNCE_TREND_SLOPE_STEEP = _cfg.get("bounce.trend.slope_steep", -1.0)
+BOUNCE_TREND_SCORE_STEEP_DOWN = _cfg.get("bounce.trend.score_steep_down", -2.0)
+BOUNCE_TREND_SLOPE_MODERATE = _cfg.get("bounce.trend.slope_moderate", -0.5)
+BOUNCE_TREND_SCORE_MOD_DOWN = _cfg.get("bounce.trend.score_mod_down", -1.5)
+BOUNCE_TREND_SCORE_MILD_DOWN = _cfg.get("bounce.trend.score_mild_down", -1.0)
+BOUNCE_TREND_SCORE_BELOW_SMA200 = _cfg.get("bounce.trend.score_below_sma200", -0.5)
 
 # Bounce Confirmation
-BOUNCE_CONFIRM_SCORE_REVERSAL = 1.0
-BOUNCE_CONFIRM_SCORE_CLOSE_UP = 0.5
-BOUNCE_CONFIRM_SCORE_GREEN_SEQ = 1.0
-BOUNCE_RSI_OVERSOLD = 40
-BOUNCE_CONFIRM_SCORE_RSI_TURN = 0.5
-BOUNCE_CONFIRM_SCORE_MACD_CROSS = 0.5
-BOUNCE_CONFIRM_SCORE_MACD_POS = 0.25
-BOUNCE_CONFIRM_PENALTY_MOMENTUM = -0.5
-BOUNCE_CONFIRM_PENALTY_MACD = -0.5
-BOUNCE_CONFIRM_MAX = 2.5
+BOUNCE_CONFIRM_SCORE_REVERSAL = _cfg.get("bounce.confirmation.score_reversal", 1.0)
+BOUNCE_CONFIRM_SCORE_CLOSE_UP = _cfg.get("bounce.confirmation.score_close_up", 0.5)
+BOUNCE_CONFIRM_SCORE_GREEN_SEQ = _cfg.get("bounce.confirmation.score_green_seq", 1.0)
+BOUNCE_RSI_OVERSOLD = _cfg.get("bounce.confirmation.rsi_oversold", 40)
+BOUNCE_CONFIRM_SCORE_RSI_TURN = _cfg.get("bounce.confirmation.score_rsi_turn", 0.5)
+BOUNCE_CONFIRM_SCORE_MACD_CROSS = _cfg.get("bounce.confirmation.score_macd_cross", 0.5)
+BOUNCE_CONFIRM_SCORE_MACD_POS = _cfg.get("bounce.confirmation.score_macd_pos", 0.25)
+BOUNCE_CONFIRM_PENALTY_MOMENTUM = _cfg.get("bounce.confirmation.penalty_momentum", -0.5)
+BOUNCE_CONFIRM_PENALTY_MACD = _cfg.get("bounce.confirmation.penalty_macd", -0.5)
+BOUNCE_CONFIRM_MAX = _cfg.get("bounce.confirmation.confirm_max", 2.5)
 
 # Candlestick Pattern Detection
-BOUNCE_HAMMER_WICK_BODY_RATIO = 2
-BOUNCE_HAMMER_UPPER_WICK_PCT = 0.5
-BOUNCE_DOJI_BODY_RANGE_PCT = 0.1
-BOUNCE_DOJI_SUPPORT_PCT = 0.02
+BOUNCE_HAMMER_WICK_BODY_RATIO = _cfg.get("bounce.candlestick.hammer_wick_body_ratio", 2)
+BOUNCE_HAMMER_UPPER_WICK_PCT = _cfg.get("bounce.candlestick.hammer_upper_wick_pct", 0.5)
+BOUNCE_DOJI_BODY_RANGE_PCT = _cfg.get("bounce.candlestick.doji_body_range_pct", 0.1)
+BOUNCE_DOJI_SUPPORT_PCT = _cfg.get("bounce.candlestick.doji_support_pct", 0.02)
 
 # SMA Confluence
-BOUNCE_SMA200_CONFLUENCE_PCT = 0.02
+BOUNCE_SMA200_CONFLUENCE_PCT = _cfg.get("bounce.sma_confluence.sma200_pct", 0.02)
 
 # Signal Strength
-BOUNCE_SIGNAL_STRONG = 7.0
-BOUNCE_SIGNAL_MODERATE = 5.0
+BOUNCE_SIGNAL_STRONG = _cfg.get("bounce.signal.strong", 7.0)
+BOUNCE_SIGNAL_MODERATE = _cfg.get("bounce.signal.moderate", 5.0)
 
 # DCB Filter
-BOUNCE_DCB_RSI_OVERBOUGHT = 70
+BOUNCE_DCB_RSI_OVERBOUGHT = _cfg.get("bounce.dcb.rsi_overbought", 70)
 
 # RSI Momentum
-BOUNCE_RSI_MOMENTUM_FADE = 50
+BOUNCE_RSI_MOMENTUM_FADE = _cfg.get("bounce.rsi.momentum_fade", 50)
 
 
 @dataclass

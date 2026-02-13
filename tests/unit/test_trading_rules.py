@@ -89,7 +89,7 @@ class TestPlaybookEntryRules:
         assert ENTRY_STABILITY_MIN == 65.0
 
     def test_earnings_minimum_days(self):
-        assert ENTRY_EARNINGS_MIN_DAYS == 45
+        assert ENTRY_EARNINGS_MIN_DAYS == 30  # Was 45, reduced via scanner_config.yaml
 
     def test_vix_max_for_new_trades(self):
         assert ENTRY_VIX_MAX_NEW_TRADES == 30.0

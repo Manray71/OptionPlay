@@ -169,6 +169,9 @@ class AnalysisContext:
     market_context_score: Optional[float] = None
     market_context_trend: Optional[str] = None
 
+    # Fundamentals: stability score (0-100, set by scanner from fundamentals cache)
+    stability_score: Optional[float] = None
+
     # Strategy context (v3: for strategy-differentiated scoring)
     strategy: str = ""  # Current strategy being evaluated (pullback, bounce, etc.)
 

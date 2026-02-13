@@ -82,34 +82,41 @@ from .score_normalization import STRATEGY_SCORE_CONFIGS, get_signal_strength, no
 
 logger = logging.getLogger(__name__)
 
+# =============================================================================
+# CONSTANTS (loaded from config/analyzer_thresholds.yaml)
+# =============================================================================
+from ..config.analyzer_thresholds import get_analyzer_thresholds as _get_cfg
+
+_cfg = _get_cfg()
+
 # Signal strength thresholds (on 0-10 normalized scale)
-PULLBACK_SIGNAL_STRONG = 7.0
-PULLBACK_SIGNAL_MODERATE = 5.0
-PULLBACK_MIN_NORMALIZED_SCORE = 3.5
+PULLBACK_SIGNAL_STRONG = _cfg.get("pullback.signal.strong", 7.0)
+PULLBACK_SIGNAL_MODERATE = _cfg.get("pullback.signal.moderate", 5.0)
+PULLBACK_MIN_NORMALIZED_SCORE = _cfg.get("pullback.signal.min_normalized_score", 3.5)
 
 # Stop loss & targets
-PULLBACK_STOP_BUFFER = 0.98
-PULLBACK_TARGET_RR_RATIO = 2.0
+PULLBACK_STOP_BUFFER = _cfg.get("pullback.risk.stop_buffer", 0.98)
+PULLBACK_TARGET_RR_RATIO = _cfg.get("pullback.risk.target_rr_ratio", 2.0)
 
 # RSI divergence detection
-PULLBACK_DIVERGENCE_LOOKBACK = 60
-PULLBACK_DIVERGENCE_SWING_WINDOW = 3
-PULLBACK_DIVERGENCE_MIN_BARS = 5
-PULLBACK_DIVERGENCE_MAX_BARS = 50
+PULLBACK_DIVERGENCE_LOOKBACK = _cfg.get("pullback.divergence.lookback", 60)
+PULLBACK_DIVERGENCE_SWING_WINDOW = _cfg.get("pullback.divergence.swing_window", 3)
+PULLBACK_DIVERGENCE_MIN_BARS = _cfg.get("pullback.divergence.min_bars", 5)
+PULLBACK_DIVERGENCE_MAX_BARS = _cfg.get("pullback.divergence.max_bars", 50)
 
 # Support/resistance detection
-PULLBACK_SUPPORT_WINDOW = 5
-PULLBACK_MAX_SUPPORT_LEVELS = 5
-PULLBACK_SUPPORT_TOLERANCE_PCT = 1.5
-PULLBACK_RESISTANCE_LOOKBACK = 60
-PULLBACK_RESISTANCE_WINDOW = 5
-PULLBACK_MAX_RESISTANCE_LEVELS = 5
-PULLBACK_RESISTANCE_TOLERANCE_PCT = 1.5
+PULLBACK_SUPPORT_WINDOW = _cfg.get("pullback.support.window", 5)
+PULLBACK_MAX_SUPPORT_LEVELS = _cfg.get("pullback.support.max_levels", 5)
+PULLBACK_SUPPORT_TOLERANCE_PCT = _cfg.get("pullback.support.tolerance_pct", 1.5)
+PULLBACK_RESISTANCE_LOOKBACK = _cfg.get("pullback.resistance.lookback", 60)
+PULLBACK_RESISTANCE_WINDOW = _cfg.get("pullback.resistance.window", 5)
+PULLBACK_MAX_RESISTANCE_LEVELS = _cfg.get("pullback.resistance.max_levels", 5)
+PULLBACK_RESISTANCE_TOLERANCE_PCT = _cfg.get("pullback.resistance.tolerance_pct", 1.5)
 
 # Gap detection thresholds
-PULLBACK_GAP_WARNING_MIN = -3.0
-PULLBACK_GAP_WARNING_MAX = -1.0
-PULLBACK_GAP_VOL_THRESHOLD = 0.8
+PULLBACK_GAP_WARNING_MIN = _cfg.get("pullback.gap.warning_min_pct", -3.0)
+PULLBACK_GAP_WARNING_MAX = _cfg.get("pullback.gap.warning_max_pct", -1.0)
+PULLBACK_GAP_VOL_THRESHOLD = 0.8  # Not in YAML — structural, not a scoring tier
 
 
 class PullbackAnalyzer(PullbackScoringMixin, BaseAnalyzer):
@@ -382,8 +389,9 @@ class PullbackAnalyzer(PullbackScoringMixin, BaseAnalyzer):
         # Scoring
         breakdown = ScoreBreakdown()
 
-        # 1. RSI Score (0-3 points)
-        breakdown.rsi_score, breakdown.rsi_reason = self._score_rsi(rsi)
+        # 1. RSI Score (0-3 points) — adaptive threshold based on stability
+        stability = context.stability_score if context else None
+        breakdown.rsi_score, breakdown.rsi_reason = self._score_rsi(rsi, stability)
         breakdown.rsi_value = rsi
 
         # 1b. RSI Divergence (0-3 points) - NEW

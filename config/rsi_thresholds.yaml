@@ -1,0 +1,49 @@
+# RSI Thresholds by Stability Score
+# Based on 35-symbol validation study (Feb 2026)
+# Median RSI: 40.4 across all stability levels
+#
+# Problem: Fixed RSI neutral threshold of 50 penalizes 34% of profitable
+# setups (88.6% Win Rate in RSI 40-50 range for stable stocks).
+# Solution: Adaptive thresholds based on stock stability score.
+
+rsi_thresholds:
+  description: "Adaptive RSI thresholds based on stock stability"
+  validation_date: "2026-02-13"
+  sample_size: 35
+
+  # Stability-based threshold tiers (checked in descending order)
+  # The threshold defines where "normal pullback" begins.
+  # RSI below threshold gets oversold penalty; RSI at/above threshold
+  # up to 50 is considered a normal pullback (no penalty).
+  tiers:
+    - name: high_stability
+      min_stability: 85
+      neutral_threshold: 42
+      rationale: "Stable stocks (85+) have median RSI ~40, threshold at 42 allows normal pullbacks"
+
+    - name: medium_stability
+      min_stability: 70
+      neutral_threshold: 40
+      rationale: "Medium stability (70-84) have median RSI ~40, threshold matches median"
+
+    - name: low_stability
+      min_stability: 60
+      neutral_threshold: 38
+      rationale: "Lower stability stocks have wider RSI ranges, tighter threshold"
+
+    - name: very_low_stability
+      min_stability: 0
+      neutral_threshold: 35
+      rationale: "Very volatile stocks need lower threshold to avoid false signals"
+
+  # RSI score adjustments applied by pullback scoring
+  scoring:
+    severe_oversold:
+      max_rsi: 30
+      penalty: -1.5
+      description: "Extremely oversold, potential falling knife"
+
+    overbought:
+      min_rsi: 70
+      penalty: -0.5
+      description: "Overbought territory, may reverse"

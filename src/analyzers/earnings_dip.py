@@ -42,80 +42,83 @@ from .feature_scoring_mixin import FeatureScoringMixin
 logger = logging.getLogger(__name__)
 
 # =============================================================================
-# CONSTANTS for Earnings Dip Strategy v2
+# CONSTANTS for Earnings Dip Strategy v2  (loaded from config/analyzer_thresholds.yaml)
 # =============================================================================
-
-EDIP_MIN_DIP_PCT = 5.0  # Minimum drop to qualify
-EDIP_MAX_DIP_PCT = 20.0  # Maximum drop (>20% = likely fundamental)
-EDIP_EXTREME_DIP_PCT = 25.0  # Hard disqualify above this
-EDIP_LOOKBACK_DAYS = 10  # Max days since earnings to scan
-EDIP_MIN_STABILIZATION_DAYS = 1  # Must wait at least 1 day
-EDIP_MIN_STABILITY_SCORE = 60.0  # Minimum stability for qualification
+from ..config.analyzer_thresholds import get_analyzer_thresholds as _get_cfg
 from ..constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS as _ENTRY_EARNINGS_MIN_DAYS
 from ..constants.trading_rules import (
     ENTRY_VOLUME_MIN,
 )
 
-EDIP_MIN_AVG_VOLUME = ENTRY_VOLUME_MIN  # Minimum average volume (from trading_rules)
-EDIP_NEXT_EARNINGS_MIN_DAYS = _ENTRY_EARNINGS_MIN_DAYS  # Min days to next earnings for BPS
-EDIP_MIN_SCORE = 3.5  # Minimum total score for signal
-EDIP_MAX_SCORE = 9.5  # Theoretical maximum
+_cfg = _get_cfg()
+
+EDIP_MIN_DIP_PCT = _cfg.get("earnings_dip.general.min_dip_pct", 5.0)
+EDIP_MAX_DIP_PCT = _cfg.get("earnings_dip.general.max_dip_pct", 20.0)
+EDIP_EXTREME_DIP_PCT = _cfg.get("earnings_dip.general.extreme_dip_pct", 25.0)
+EDIP_LOOKBACK_DAYS = _cfg.get("earnings_dip.general.lookback_days", 10)
+EDIP_MIN_STABILIZATION_DAYS = _cfg.get("earnings_dip.general.min_stabilization_days", 1)
+EDIP_MIN_STABILITY_SCORE = _cfg.get("earnings_dip.general.min_stability_score", 60.0)
+
+EDIP_MIN_AVG_VOLUME = ENTRY_VOLUME_MIN  # Stays linked to trading_rules
+EDIP_NEXT_EARNINGS_MIN_DAYS = _ENTRY_EARNINGS_MIN_DAYS  # Stays linked to trading_rules
+EDIP_MIN_SCORE = _cfg.get("earnings_dip.general.min_score", 3.5)
+EDIP_MAX_SCORE = _cfg.get("earnings_dip.general.max_score", 9.5)
 
 # Scoring: Drop Magnitude Tiers
-EDIP_DROP_MINOR_PCT = 7.0
-EDIP_DROP_MODERATE_PCT = 10.0
-EDIP_DROP_MAJOR_PCT = 15.0
-EDIP_DROP_SCORE_SMALL = 0.5
-EDIP_DROP_SCORE_MODERATE = 1.0
-EDIP_DROP_SCORE_GOOD = 1.5
-EDIP_DROP_SCORE_IDEAL = 2.0
-EDIP_DROP_SCORE_EXTREME = 1.0
+EDIP_DROP_MINOR_PCT = _cfg.get("earnings_dip.drop_magnitude.minor_pct", 7.0)
+EDIP_DROP_MODERATE_PCT = _cfg.get("earnings_dip.drop_magnitude.moderate_pct", 10.0)
+EDIP_DROP_MAJOR_PCT = _cfg.get("earnings_dip.drop_magnitude.major_pct", 15.0)
+EDIP_DROP_SCORE_SMALL = _cfg.get("earnings_dip.drop_magnitude.score_small", 0.5)
+EDIP_DROP_SCORE_MODERATE = _cfg.get("earnings_dip.drop_magnitude.score_moderate", 1.0)
+EDIP_DROP_SCORE_GOOD = _cfg.get("earnings_dip.drop_magnitude.score_good", 1.5)
+EDIP_DROP_SCORE_IDEAL = _cfg.get("earnings_dip.drop_magnitude.score_ideal", 2.0)
+EDIP_DROP_SCORE_EXTREME = _cfg.get("earnings_dip.drop_magnitude.score_extreme", 1.0)
 
 # Scoring: Stabilization
-EDIP_STAB_SCORE_GREEN_MULTI = 1.5
-EDIP_STAB_SCORE_GREEN_SINGLE = 1.0
-EDIP_STAB_SCORE_HIGHER_LOW = 1.0
-EDIP_STAB_SCORE_VOL_DECLINE = 0.5
-EDIP_STAB_SCORE_HAMMER = 0.5
-EDIP_STAB_SCORE_MAX = 2.5
+EDIP_STAB_SCORE_GREEN_MULTI = _cfg.get("earnings_dip.stabilization.score_green_multi", 1.5)
+EDIP_STAB_SCORE_GREEN_SINGLE = _cfg.get("earnings_dip.stabilization.score_green_single", 1.0)
+EDIP_STAB_SCORE_HIGHER_LOW = _cfg.get("earnings_dip.stabilization.score_higher_low", 1.0)
+EDIP_STAB_SCORE_VOL_DECLINE = _cfg.get("earnings_dip.stabilization.score_vol_decline", 0.5)
+EDIP_STAB_SCORE_HAMMER = _cfg.get("earnings_dip.stabilization.score_hammer", 0.5)
+EDIP_STAB_SCORE_MAX = _cfg.get("earnings_dip.stabilization.score_max", 2.5)
 
 # Scoring: Fundamental Strength
-EDIP_STABILITY_VERY_HIGH = 90
-EDIP_STABILITY_HIGH = 80
-EDIP_STABILITY_MODERATE = 70
-EDIP_FUND_SCORE_VERY_HIGH = 1.5
-EDIP_FUND_SCORE_HIGH = 1.0
-EDIP_FUND_SCORE_MODERATE = 0.5
-EDIP_FUND_SCORE_SMA200 = 0.5
-EDIP_FUND_SCORE_MAX = 2.0
+EDIP_STABILITY_VERY_HIGH = _cfg.get("earnings_dip.fundamentals.stability_very_high", 90)
+EDIP_STABILITY_HIGH = _cfg.get("earnings_dip.fundamentals.stability_high", 80)
+EDIP_STABILITY_MODERATE = _cfg.get("earnings_dip.fundamentals.stability_moderate", 70)
+EDIP_FUND_SCORE_VERY_HIGH = _cfg.get("earnings_dip.fundamentals.score_very_high", 1.5)
+EDIP_FUND_SCORE_HIGH = _cfg.get("earnings_dip.fundamentals.score_high", 1.0)
+EDIP_FUND_SCORE_MODERATE = _cfg.get("earnings_dip.fundamentals.score_moderate", 0.5)
+EDIP_FUND_SCORE_SMA200 = _cfg.get("earnings_dip.fundamentals.score_sma200", 0.5)
+EDIP_FUND_SCORE_MAX = _cfg.get("earnings_dip.fundamentals.score_max", 2.0)
 
 # Scoring: Overreaction Indicators
-EDIP_RSI_EXTREME_OVERSOLD = 30
-EDIP_RSI_MODERATE_OVERSOLD = 40
-EDIP_OVERREACTION_COMPONENT = 0.5
-EDIP_PANIC_VOLUME_MULTIPLIER = 3.0
-EDIP_HISTORICAL_MOVE_MULTIPLIER = 2.0
-EDIP_OVERREACTION_MAX = 2.0
+EDIP_RSI_EXTREME_OVERSOLD = _cfg.get("earnings_dip.overreaction.rsi_extreme_oversold", 30)
+EDIP_RSI_MODERATE_OVERSOLD = _cfg.get("earnings_dip.overreaction.rsi_moderate_oversold", 40)
+EDIP_OVERREACTION_COMPONENT = _cfg.get("earnings_dip.overreaction.component_score", 0.5)
+EDIP_PANIC_VOLUME_MULTIPLIER = _cfg.get("earnings_dip.overreaction.panic_volume_multiplier", 3.0)
+EDIP_HISTORICAL_MOVE_MULTIPLIER = _cfg.get("earnings_dip.overreaction.historical_move_multiplier", 2.0)
+EDIP_OVERREACTION_MAX = _cfg.get("earnings_dip.overreaction.score_max", 2.0)
 
 # Scoring: BPS Suitability
-EDIP_BPS_EARNINGS_SCORE = 0.5
+EDIP_BPS_EARNINGS_SCORE = _cfg.get("earnings_dip.bps.earnings_score", 0.5)
 
 # Penalties
-EDIP_PENALTY_UNDER_SMA200 = 1.0
-EDIP_PENALTY_CONTINUED_DECLINE = 1.5
-EDIP_PENALTY_NEW_LOWS_MIN = 2
-EDIP_PENALTY_RSI_NOT_EXTREME = 0.5
-EDIP_PENALTY_MAX = 3.0
+EDIP_PENALTY_UNDER_SMA200 = _cfg.get("earnings_dip.penalties.under_sma200", 1.0)
+EDIP_PENALTY_CONTINUED_DECLINE = _cfg.get("earnings_dip.penalties.continued_decline", 1.5)
+EDIP_PENALTY_NEW_LOWS_MIN = _cfg.get("earnings_dip.penalties.new_lows_min", 2)
+EDIP_PENALTY_RSI_NOT_EXTREME = _cfg.get("earnings_dip.penalties.rsi_not_extreme", 0.5)
+EDIP_PENALTY_MAX = _cfg.get("earnings_dip.penalties.penalty_max", 3.0)
 
 # Signal Strength
-EDIP_SIGNAL_STRONG = 6.5
-EDIP_SIGNAL_MODERATE = 5.0
+EDIP_SIGNAL_STRONG = _cfg.get("earnings_dip.signal.strong", 6.5)
+EDIP_SIGNAL_MODERATE = _cfg.get("earnings_dip.signal.moderate", 5.0)
 
 # Stabilization Detection
-EDIP_STAB_VOLUME_DECLINE_RATIO = 0.7
-EDIP_HAMMER_LOWER_WICK_RATIO = 0.6
-EDIP_HAMMER_BODY_RATIO = 0.3
-EDIP_HAMMER_APPROX_RATIO = 0.7
+EDIP_STAB_VOLUME_DECLINE_RATIO = _cfg.get("earnings_dip.stabilization_detection.volume_decline_ratio", 0.7)
+EDIP_HAMMER_LOWER_WICK_RATIO = _cfg.get("earnings_dip.stabilization_detection.hammer_lower_wick_ratio", 0.6)
+EDIP_HAMMER_BODY_RATIO = _cfg.get("earnings_dip.stabilization_detection.hammer_body_ratio", 0.3)
+EDIP_HAMMER_APPROX_RATIO = _cfg.get("earnings_dip.stabilization_detection.hammer_approx_ratio", 0.7)
 
 
 @dataclass

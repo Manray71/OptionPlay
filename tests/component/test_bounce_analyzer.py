@@ -166,7 +166,7 @@ class TestBounceAnalyzerInitialization:
         analyzer = BounceAnalyzer()
         assert analyzer.config is not None
         assert isinstance(analyzer.config, BounceConfig)
-        assert analyzer.config.support_touches_min == 2
+        assert analyzer.config.support_touches_min == 3  # Was 2, raised via scanner_config.yaml
         assert analyzer.config.support_lookback_days == 120
 
     def test_custom_config_initialization(self):
@@ -396,14 +396,14 @@ class TestBounceSpecTestCases:
 
     def test_case_2_moderate_bounce(self, analyzer):
         """
-        TC2: Price at support ($85, 2x tested), Close > prev close, Vol 1.2x
+        TC2: Price at support ($85, 3x tested), Close > prev close, Vol 1.2x
         Expected: ✅ Moderate signal (~4.5)
         """
         prices, volumes, highs, lows = make_bounce_data(
             n=150,
             support_level=85.0,
             current_price=86.0,
-            num_touches=2,
+            num_touches=3,  # Was 2, min_touches raised to 3
             bounce_volume_mult=1.2,
             make_green_candle=True,
             trend='up',
@@ -567,14 +567,14 @@ class TestBounceSpecTestCases:
 
     def test_case_9_bounce_in_downtrend_weak(self, analyzer):
         """
-        TC9: Price at support (2x tested), 2 green days, Vol 1.1x, below SMA 200
+        TC9: Price at support (3x tested), 2 green days, Vol 1.1x, below SMA 200
         Expected: ⚠️ Weak signal (~3.5) — bounce confirmed but downtrend context
         """
         prices, volumes, highs, lows = make_bounce_data(
             n=150,
             support_level=100.0,
             current_price=101.0,
-            num_touches=2,
+            num_touches=3,  # Was 2, min_touches raised to 3
             bounce_volume_mult=1.1,
             make_green_candle=True,
             trend='down',  # Below SMA 200
@@ -652,22 +652,22 @@ class TestBounceSignalText:
 class TestBounceScoringComponents:
     """Tests for individual scoring components"""
 
-    def test_support_quality_2_touches(self, analyzer):
-        """2 touches = 1.0 score"""
-        assert analyzer._score_support_quality(2, False) == 1.0
-
     def test_support_quality_3_touches(self, analyzer):
-        """3 touches = 1.5 score"""
-        assert analyzer._score_support_quality(3, False) == 1.5
+        """3 touches (established) = 1.0 score"""
+        assert analyzer._score_support_quality(3, False) == 1.0
 
     def test_support_quality_4_touches(self, analyzer):
-        """4 touches = 2.0 score"""
-        assert analyzer._score_support_quality(4, False) == 2.0
+        """4 touches (moderate) = 1.5 score"""
+        assert analyzer._score_support_quality(4, False) == 1.5
+
+    def test_support_quality_5_touches(self, analyzer):
+        """5 touches (strong) = 2.0 score"""
+        assert analyzer._score_support_quality(5, False) == 2.0
 
     def test_support_quality_sma200_confluence(self, analyzer):
         """SMA 200 confluence adds 0.5"""
-        assert analyzer._score_support_quality(3, True) == 2.0  # 1.5 + 0.5
-        assert analyzer._score_support_quality(4, True) == 2.5  # 2.0 + 0.5, capped
+        assert analyzer._score_support_quality(4, True) == 2.0  # 1.5 + 0.5
+        assert analyzer._score_support_quality(5, True) == 2.5  # 2.0 + 0.5, capped
 
     def test_proximity_at_support(self, analyzer):
         """0-1% above support = 2.0"""

@@ -256,18 +256,31 @@ class DailyRecommendationEngine(RecommendationRankingMixin):
     """
 
     # Konfiguration (aligned with PLAYBOOK via trading_rules.py)
-    DEFAULT_CONFIG = {
-        "min_stability_score": ENTRY_STABILITY_MIN,  # PLAYBOOK §1
-        "min_signal_score": 3.5,  # Lowered: score is for ranking, not filtering
-        "max_picks": 5,  # UMBAUPLAN: 3-5 fertige Setups
-        "max_per_sector": SIZING_MAX_PER_SECTOR,  # PLAYBOOK §5: 2
-        "enable_strike_recommendations": True,
-        "enable_sector_diversification": True,
-        "enable_blacklist_filter": True,
-        "enable_vix_regime_filter": True,
-        "stability_weight": 0.3,  # 30% Stability, 70% Signal-Score
-        "speed_exponent": 0.3,  # Speed^0.3 Multiplikator (PLAYBOOK)
-    }
+    # Ranking parameters loaded from config/scoring_weights.yaml → ranking section
+    _ranking_cfg = None  # Lazy-loaded to avoid circular import at class definition
+
+    @classmethod
+    def _get_ranking_defaults(cls) -> dict:
+        if cls._ranking_cfg is None:
+            from ..config.scoring_config import get_scoring_resolver
+            cls._ranking_cfg = get_scoring_resolver().get_ranking_config()
+        return cls._ranking_cfg
+
+    @property
+    def DEFAULT_CONFIG(self) -> dict:
+        rc = self._get_ranking_defaults()
+        return {
+            "min_stability_score": ENTRY_STABILITY_MIN,  # PLAYBOOK §1
+            "min_signal_score": rc.get("min_signal_score", 3.5),
+            "max_picks": 5,  # UMBAUPLAN: 3-5 fertige Setups
+            "max_per_sector": SIZING_MAX_PER_SECTOR,  # PLAYBOOK §5: 2
+            "enable_strike_recommendations": True,
+            "enable_sector_diversification": True,
+            "enable_blacklist_filter": True,
+            "enable_vix_regime_filter": True,
+            "stability_weight": rc.get("stability_weight", 0.3),
+            "speed_exponent": rc.get("speed_exponent", 0.3),
+        }
 
     def __init__(
         self,

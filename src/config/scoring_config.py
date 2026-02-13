@@ -405,6 +405,64 @@ class RecursiveConfigResolver:
             },
         )
 
+    def get_ranking_config(self) -> dict:
+        """Get ranking & speed scoring configuration."""
+        return self._raw.get(
+            "ranking",
+            {
+                "stability_weight": 0.3,
+                "speed_exponent": 0.3,
+                "min_signal_score": 3.5,
+                "stability_warning": 70,
+                "speed": {
+                    "dte_optimal": 60,
+                    "dte_range": 30,
+                    "dte_weight": 3.0,
+                    "stability_baseline": 70,
+                    "stability_range": 30,
+                    "stability_weight": 2.5,
+                    "sector_weight": 1.5,
+                    "pullback_weight": 1.5,
+                    "market_context_weight": 1.5,
+                    "score_max": 10.0,
+                    "multiplier_min": 0.5,
+                },
+                "strike_support": {"pct_1": 0.90, "pct_2": 0.85, "pct_3": 0.80},
+                "sector_speed": {},
+            },
+        )
+
+    def get_sector_cycle_config(self) -> dict:
+        """Get sector cycle service configuration."""
+        return self._raw.get(
+            "sector_cycle",
+            {
+                "cache_ttl_hours": 4,
+                "factor_max": 1.5,
+                "factor_min": 0.6,
+                "lookback_short": 30,
+                "lookback_long": 60,
+                "weights": {
+                    "rs_30d": 0.40,
+                    "rs_60d": 0.30,
+                    "breadth": 0.20,
+                    "vol_premium": 0.10,
+                },
+                "breadth": {
+                    "proxy_neutral": 0.5,
+                    "norm_floor": 0.95,
+                    "norm_range": 0.10,
+                },
+                "regime": {"strong": 1.05, "neutral": 0.90, "weak": 0.70},
+                "rs_scale": {"d30": 10.0, "d60": 15.0},
+                "fetch_buffer_days": 10,
+            },
+        )
+
+    def get_entry_quality_config(self) -> dict:
+        """Get entry quality scorer (EQS) configuration."""
+        return self._raw.get("entry_quality", {})
+
     def get_feature_engineering_config(self) -> dict:
         """Get feature-engineering thresholds (VWAP, Market Context, Gap)."""
         return self._raw.get(

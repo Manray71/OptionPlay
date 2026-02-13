@@ -37,37 +37,40 @@ from .feature_scoring_mixin import FeatureScoringMixin
 logger = logging.getLogger(__name__)
 
 # =============================================================================
-# CONSTANTS for Trend Continuation Strategy
+# CONSTANTS for Trend Continuation Strategy  (loaded from config/analyzer_thresholds.yaml)
 # =============================================================================
+from ..config.analyzer_thresholds import get_analyzer_thresholds as _get_cfg
 
-TREND_MIN_SCORE = 5.0
-TREND_MAX_SCORE = 10.5
+_cfg = _get_cfg()
+
+TREND_MIN_SCORE = _cfg.get("trend_continuation.general.min_score", 5.0)
+TREND_MAX_SCORE = _cfg.get("trend_continuation.general.max_score", 10.5)
 
 # SMA Periods
-TREND_SMA_SHORT = 20
-TREND_SMA_MED = 50
-TREND_SMA_LONG = 200
+TREND_SMA_SHORT = _cfg.get("trend_continuation.sma.short", 20)
+TREND_SMA_MED = _cfg.get("trend_continuation.sma.med", 50)
+TREND_SMA_LONG = _cfg.get("trend_continuation.sma.long", 200)
 
 # SMA Slope Lookback (in days)
-TREND_SMA20_SLOPE_DAYS = 5
-TREND_SMA50_SLOPE_DAYS = 10
-TREND_SMA200_SLOPE_DAYS = 20
+TREND_SMA20_SLOPE_DAYS = _cfg.get("trend_continuation.sma_slope.short_days", 5)
+TREND_SMA50_SLOPE_DAYS = _cfg.get("trend_continuation.sma_slope.med_days", 10)
+TREND_SMA200_SLOPE_DAYS = _cfg.get("trend_continuation.sma_slope.long_days", 20)
 
 # Trend Stability
-TREND_STABILITY_LOOKBACK = 60
-TREND_MAX_CLOSES_BELOW_SMA50 = 5
+TREND_STABILITY_LOOKBACK = _cfg.get("trend_continuation.stability.lookback", 60)
+TREND_MAX_CLOSES_BELOW_SMA50 = _cfg.get("trend_continuation.stability.max_closes_below_sma50", 5)
 
 # Disqualification Thresholds
-TREND_MIN_BUFFER_PCT = 3.0
-TREND_RSI_OVERBOUGHT = 80
-TREND_ADX_MIN = 15
-TREND_MIN_AVG_VOLUME = ENTRY_VOLUME_MIN  # from trading_rules
-TREND_MIN_STABILITY_SCORE = 70
-TREND_MIN_EARNINGS_DAYS = 14
-TREND_VIX_MAX = VIX_DANGER_ZONE_MAX  # from trading_rules (25.0)
+TREND_MIN_BUFFER_PCT = _cfg.get("trend_continuation.disqualification.min_buffer_pct", 3.0)
+TREND_RSI_OVERBOUGHT = _cfg.get("trend_continuation.disqualification.rsi_overbought", 80)
+TREND_ADX_MIN = _cfg.get("trend_continuation.disqualification.adx_min", 15)
+TREND_MIN_AVG_VOLUME = ENTRY_VOLUME_MIN  # Stays linked to trading_rules
+TREND_MIN_STABILITY_SCORE = _cfg.get("trend_continuation.disqualification.min_stability_score", 70)
+TREND_MIN_EARNINGS_DAYS = _cfg.get("trend_continuation.disqualification.min_earnings_days", 14)
+TREND_VIX_MAX = VIX_DANGER_ZONE_MAX  # Stays linked to trading_rules
 
 # Volume average period
-TREND_VOLUME_AVG_PERIOD = 20
+TREND_VOLUME_AVG_PERIOD = _cfg.get("trend_continuation.volume.avg_period", 20)
 
 
 @dataclass
@@ -591,27 +594,28 @@ class TrendContinuationAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         SMA spread bonus (>5%): +0.5
         SMA 20 not rising penalty: -0.5
         """
+        sma_cfg = _cfg.get_section("trend_continuation.sma_alignment_scoring")
         score = 0.0
 
         if sma_info.get("all_rising"):
-            score = 2.0
+            score = sma_cfg.get("all_rising", 2.0)
         elif sma_info.get("sma_50_rising") and sma_info.get("sma_200_rising"):
-            score = 1.5  # SMA 20 flat/falling but medium/long term OK
+            score = sma_cfg.get("partial_rising", 1.5)
         else:
-            score = 1.0  # Basic alignment without all rising
+            score = sma_cfg.get("basic", 1.0)
 
         # SMA spread bonus
         spread_pct = sma_info.get("spread_pct", 0)
-        if spread_pct > 5.0:
+        if spread_pct > sma_cfg.get("spread_bonus_above", 5.0):
             score += 0.5
-        elif spread_pct < 3.0:
-            score -= 0.5  # Converging SMAs — possible trend reversal
+        elif spread_pct < sma_cfg.get("spread_penalty_below", 3.0):
+            score -= 0.5
 
         # Penalty for SMA 20 not rising
         if not sma_info.get("sma_20_rising") and sma_info.get("all_rising") is False:
-            score = max(0.0, score - 0.5)
+            score = max(0.0, score - sma_cfg.get("sma20_penalty", 0.5))
 
-        return max(0.0, min(2.5, score))
+        return max(0.0, min(sma_cfg.get("max", 2.5), score))
 
     def _score_trend_stability(self, stability_info: Dict[str, Any]) -> float:
         """
@@ -622,21 +626,22 @@ class TrendContinuationAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         3-5 closes: 0.5
         Golden Cross 120+ days ago: +0.5 bonus
         """
+        ts_cfg = _cfg.get_section("trend_continuation.trend_stability_scoring")
         closes_below = stability_info.get("closes_below_sma50", 0)
 
         if closes_below == 0:
-            score = 2.0
+            score = ts_cfg.get("zero_closes_below", 2.0)
         elif closes_below <= 2:
-            score = 1.5
+            score = ts_cfg.get("few_closes_below", 1.5)
         else:
-            score = 0.5
+            score = ts_cfg.get("many_closes_below", 0.5)
 
         # Golden Cross bonus
         golden_cross_days = stability_info.get("golden_cross_days", 0)
-        if golden_cross_days >= 120:
-            score += 0.5
+        if golden_cross_days >= ts_cfg.get("golden_cross_days", 120):
+            score += ts_cfg.get("golden_cross_bonus", 0.5)
 
-        return min(2.5, score)
+        return min(ts_cfg.get("max", 2.5), score)
 
     def _score_trend_buffer(self, buffer_to_sma50_pct: float) -> float:
         """
@@ -647,14 +652,15 @@ class TrendContinuationAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         5-8%: 1.0
         3-5%: 0.5
         """
-        if buffer_to_sma50_pct > 10.0:
-            return 2.0
-        elif buffer_to_sma50_pct > 8.0:
-            return 1.5
-        elif buffer_to_sma50_pct > 5.0:
-            return 1.0
-        elif buffer_to_sma50_pct >= 3.0:
-            return 0.5
+        buf_cfg = _cfg.get_section("trend_continuation.buffer_scoring")
+        if buffer_to_sma50_pct > buf_cfg.get("tier1_pct", 10.0):
+            return buf_cfg.get("tier1_score", 2.0)
+        elif buffer_to_sma50_pct > buf_cfg.get("tier2_pct", 8.0):
+            return buf_cfg.get("tier2_score", 1.5)
+        elif buffer_to_sma50_pct > buf_cfg.get("tier3_pct", 5.0):
+            return buf_cfg.get("tier3_score", 1.0)
+        elif buffer_to_sma50_pct >= buf_cfg.get("tier4_pct", 3.0):
+            return buf_cfg.get("tier4_score", 0.5)
         return 0.0
 
     def _score_momentum_health(
@@ -676,36 +682,40 @@ class TrendContinuationAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         MACD divergence (price up, MACD down): -1.0
         Volume divergence: -0.5
         """
+        m_cfg = _cfg.get_section("trend_continuation.momentum_scoring")
         score = 0.0
 
         # RSI
         if rsi is not None:
-            if 50.0 <= rsi <= 65.0:
-                score += 0.5
-            elif 65.0 < rsi <= 75.0:
-                score += 0.5
-            if rsi > 75.0:
-                score -= 0.5
+            rsi_low = m_cfg.get("rsi_low", 50.0)
+            rsi_mid = m_cfg.get("rsi_mid", 65.0)
+            rsi_high = m_cfg.get("rsi_high", 75.0)
+            if rsi_low <= rsi <= rsi_mid:
+                score += m_cfg.get("rsi_bonus", 0.5)
+            elif rsi_mid < rsi <= rsi_high:
+                score += m_cfg.get("rsi_bonus", 0.5)
+            if rsi > rsi_high:
+                score += m_cfg.get("rsi_penalty", -0.5)
 
         # MACD
         if macd_info:
             if macd_info.get("bullish"):
-                score += 0.5
+                score += m_cfg.get("macd_bullish_bonus", 0.5)
             if macd_info.get("divergence"):
-                score -= 1.0
+                score += m_cfg.get("macd_divergence_penalty", -1.0)
 
         # ADX
         if adx is not None:
-            if adx > 35.0:
-                score += 1.0
-            elif adx > 25.0:
-                score += 0.5
+            if adx > m_cfg.get("adx_strong", 35.0):
+                score += m_cfg.get("adx_strong_bonus", 1.0)
+            elif adx > m_cfg.get("adx_moderate", 25.0):
+                score += m_cfg.get("adx_moderate_bonus", 0.5)
 
         # Volume divergence
         if volume_divergence:
-            score -= 0.5
+            score += m_cfg.get("volume_divergence_penalty", -0.5)
 
-        return max(-1.0, min(2.0, score))
+        return max(m_cfg.get("score_min", -1.0), min(m_cfg.get("score_max", 2.0), score))
 
     def _score_volatility(self, atr_pct: Optional[float]) -> float:
         """
@@ -716,15 +726,16 @@ class TrendContinuationAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         ATR% 1.5-2.0%: 0.5
         ATR% > 2.0%: 0.0
         """
+        v_cfg = _cfg.get_section("trend_continuation.volatility_scoring")
         if atr_pct is None:
-            return 0.5  # Unknown — neutral
+            return v_cfg.get("score_unknown", 0.5)
 
-        if atr_pct < 1.0:
-            return 1.5
-        elif atr_pct < 1.5:
-            return 1.0
-        elif atr_pct < 2.0:
-            return 0.5
+        if atr_pct < v_cfg.get("atr_low", 1.0):
+            return v_cfg.get("score_low", 1.5)
+        elif atr_pct < v_cfg.get("atr_mid", 1.5):
+            return v_cfg.get("score_mid", 1.0)
+        elif atr_pct < v_cfg.get("atr_high", 2.0):
+            return v_cfg.get("score_high", 0.5)
         return 0.0
 
     # =========================================================================
@@ -745,11 +756,12 @@ class TrendContinuationAnalyzer(BaseAnalyzer, FeatureScoringMixin):
 
     def _get_vix_adjustment(self, regime: str) -> float:
         """Get score multiplier for VIX regime."""
+        vix_cfg = _cfg.get_section("trend_continuation.vix_adjustment")
         adjustments = {
-            "low": 1.05,
-            "normal": 1.00,
-            "elevated": 0.90,
-            "high": 0.0,  # Should not reach here (deactivated)
+            "low": vix_cfg.get("low", 1.05),
+            "normal": vix_cfg.get("normal", 1.00),
+            "elevated": vix_cfg.get("elevated", 0.90),
+            "high": vix_cfg.get("high", 0.0),
         }
         return adjustments.get(regime, 1.0)
 

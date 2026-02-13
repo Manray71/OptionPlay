@@ -53,80 +53,81 @@ from ..indicators.support_resistance import get_nearest_sr_levels
 from .feature_scoring_mixin import FeatureScoringMixin
 
 # =============================================================================
-# CONSTANTS for ATH Breakout Strategy v2
+# CONSTANTS for ATH Breakout Strategy v2  (loaded from config/analyzer_thresholds.yaml)
 # =============================================================================
+from ..config.analyzer_thresholds import get_analyzer_thresholds as _get_cfg
 
-ATH_CONSOL_LOOKBACK = 60  # Max lookback for consolidation detection
-ATH_CONSOL_MIN_DAYS = 20  # Minimum consolidation duration
-ATH_CONSOL_MAX_RANGE_PCT = 15.0  # Max range for consolidation (%)
-ATH_CONSOL_ATH_TEST_PCT = 1.0  # ATH test = high within 1% of ATH
-ATH_VOLUME_DISQUALIFY = 1.0  # Vol < 1.0x avg = disqualify
-ATH_RSI_DISQUALIFY = 80.0  # RSI > 80 = disqualify
-ATH_MIN_SCORE = 4.0  # Minimum total score for signal
-ATH_MAX_SCORE = 9.5  # Theoretical maximum (2.5 + 2.0 + 2.5 + 1.5 + bonus)
+_cfg = _get_cfg()
+
+ATH_CONSOL_LOOKBACK = _cfg.get("ath_breakout.general.consol_lookback", 60)
+ATH_CONSOL_MIN_DAYS = _cfg.get("ath_breakout.general.consol_min_days", 20)
+ATH_CONSOL_MAX_RANGE_PCT = _cfg.get("ath_breakout.general.consol_max_range_pct", 15.0)
+ATH_CONSOL_ATH_TEST_PCT = _cfg.get("ath_breakout.general.consol_ath_test_pct", 1.0)
+ATH_VOLUME_DISQUALIFY = _cfg.get("ath_breakout.general.volume_disqualify", 1.0)
+ATH_RSI_DISQUALIFY = _cfg.get("ath_breakout.general.rsi_disqualify", 80.0)
+ATH_MIN_SCORE = _cfg.get("ath_breakout.general.min_score", 4.0)
+ATH_MAX_SCORE = _cfg.get("ath_breakout.general.max_score", 9.5)
 
 # Consolidation Range Tiers
-ATH_RANGE_TIGHT_PCT = 8.0
-ATH_RANGE_MODERATE_PCT = 12.0
-ATH_RANGE_WIDE_PCT = 15.0
-ATH_CONSOL_DURATION_MIN = 30
-ATH_CONSOL_SCORE_TIGHT_LONG = 2.5
-ATH_CONSOL_SCORE_TIGHT_SHORT = 2.0
-ATH_CONSOL_SCORE_MOD_LONG = 2.0
-ATH_CONSOL_SCORE_MOD_SHORT = 1.5
-ATH_CONSOL_SCORE_WIDE = 1.0
-ATH_CONSOL_TEST_MIN = 2
-ATH_CONSOL_TEST_BONUS = 0.5
-ATH_CONSOL_SCORE_MAX = 2.5
+ATH_RANGE_TIGHT_PCT = _cfg.get("ath_breakout.consolidation.range_tight_pct", 8.0)
+ATH_RANGE_MODERATE_PCT = _cfg.get("ath_breakout.consolidation.range_moderate_pct", 12.0)
+ATH_RANGE_WIDE_PCT = _cfg.get("ath_breakout.consolidation.range_wide_pct", 15.0)
+ATH_CONSOL_DURATION_MIN = _cfg.get("ath_breakout.consolidation.duration_min", 30)
+ATH_CONSOL_SCORE_TIGHT_LONG = _cfg.get("ath_breakout.consolidation.score_tight_long", 2.5)
+ATH_CONSOL_SCORE_TIGHT_SHORT = _cfg.get("ath_breakout.consolidation.score_tight_short", 2.0)
+ATH_CONSOL_SCORE_MOD_LONG = _cfg.get("ath_breakout.consolidation.score_mod_long", 2.0)
+ATH_CONSOL_SCORE_MOD_SHORT = _cfg.get("ath_breakout.consolidation.score_mod_short", 1.5)
+ATH_CONSOL_SCORE_WIDE = _cfg.get("ath_breakout.consolidation.score_wide", 1.0)
+ATH_CONSOL_TEST_MIN = _cfg.get("ath_breakout.consolidation.test_min", 2)
+ATH_CONSOL_TEST_BONUS = _cfg.get("ath_breakout.consolidation.test_bonus", 0.5)
+ATH_CONSOL_SCORE_MAX = _cfg.get("ath_breakout.consolidation.score_max", 2.5)
+ATH_CONSOL_WINDOW_STEP = _cfg.get("ath_breakout.consolidation.window_step", 5)
 
 # Breakout Strength Tiers
-ATH_BREAKOUT_WEAK_PCT = 1.0
-ATH_BREAKOUT_MODERATE_PCT = 3.0
-ATH_BREAKOUT_STRONG_PCT = 5.0
-ATH_BREAKOUT_SCORE_WEAK = 1.0
-ATH_BREAKOUT_SCORE_MODERATE = 1.5
-ATH_BREAKOUT_SCORE_STRONG = 2.0
-ATH_BREAKOUT_SCORE_OVEREXTENDED = 1.5
-ATH_BREAKOUT_DAYS_BONUS_MIN = 2
-ATH_BREAKOUT_CONFIRMATION_BONUS = 0.5
-ATH_BREAKOUT_SCORE_MAX = 2.0
+ATH_BREAKOUT_WEAK_PCT = _cfg.get("ath_breakout.breakout.weak_pct", 1.0)
+ATH_BREAKOUT_MODERATE_PCT = _cfg.get("ath_breakout.breakout.moderate_pct", 3.0)
+ATH_BREAKOUT_STRONG_PCT = _cfg.get("ath_breakout.breakout.strong_pct", 5.0)
+ATH_BREAKOUT_SCORE_WEAK = _cfg.get("ath_breakout.breakout.score_weak", 1.0)
+ATH_BREAKOUT_SCORE_MODERATE = _cfg.get("ath_breakout.breakout.score_moderate", 1.5)
+ATH_BREAKOUT_SCORE_STRONG = _cfg.get("ath_breakout.breakout.score_strong", 2.0)
+ATH_BREAKOUT_SCORE_OVEREXTENDED = _cfg.get("ath_breakout.breakout.score_overextended", 1.5)
+ATH_BREAKOUT_DAYS_BONUS_MIN = _cfg.get("ath_breakout.breakout.days_bonus_min", 2)
+ATH_BREAKOUT_CONFIRMATION_BONUS = _cfg.get("ath_breakout.breakout.confirmation_bonus", 0.5)
+ATH_BREAKOUT_SCORE_MAX = _cfg.get("ath_breakout.breakout.score_max", 2.0)
 
 # Volume Score Tiers
-ATH_VOLUME_EXCEPTIONAL = 2.5
-ATH_VOLUME_STRONG = 2.0
-ATH_VOLUME_GOOD = 1.5
-ATH_VOLUME_ADEQUATE = 1.0
-ATH_VOLUME_SCORE_EXCEPTIONAL = 2.5
-ATH_VOLUME_SCORE_STRONG = 2.0
-ATH_VOLUME_SCORE_GOOD = 1.5
-ATH_VOLUME_SCORE_ADEQUATE = 0.5
-ATH_VOLUME_SCORE_WEAK = -1.0
+ATH_VOLUME_EXCEPTIONAL = _cfg.get("ath_breakout.volume.exceptional_ratio", 2.5)
+ATH_VOLUME_STRONG = _cfg.get("ath_breakout.volume.strong_ratio", 2.0)
+ATH_VOLUME_GOOD = _cfg.get("ath_breakout.volume.good_ratio", 1.5)
+ATH_VOLUME_ADEQUATE = _cfg.get("ath_breakout.volume.adequate_ratio", 1.0)
+ATH_VOLUME_SCORE_EXCEPTIONAL = _cfg.get("ath_breakout.volume.score_exceptional", 2.5)
+ATH_VOLUME_SCORE_STRONG = _cfg.get("ath_breakout.volume.score_strong", 2.0)
+ATH_VOLUME_SCORE_GOOD = _cfg.get("ath_breakout.volume.score_good", 1.5)
+ATH_VOLUME_SCORE_ADEQUATE = _cfg.get("ath_breakout.volume.score_adequate", 0.5)
+ATH_VOLUME_SCORE_WEAK = _cfg.get("ath_breakout.volume.score_weak", -1.0)
 
 # Momentum/Trend Scoring
-ATH_MOMENTUM_SMA_PERFECT_BONUS = 0.5
-ATH_MOMENTUM_SMA_GOOD_BONUS = 0.25
-ATH_MOMENTUM_SMA200_DECLINE = 0.999
-ATH_MOMENTUM_SMA200_DECLINE_PENALTY = 0.5
-ATH_MOMENTUM_SMA200_LOOKBACK = 20
-ATH_MOMENTUM_MACD_BONUS = 0.5
-ATH_RSI_HEALTHY_LOW = 50
-ATH_RSI_HEALTHY_HIGH = 70
-ATH_RSI_HEALTHY_BONUS = 0.5
-ATH_RSI_OVERBOUGHT = 75
-ATH_RSI_OVERBOUGHT_PENALTY = 0.5
-ATH_MOMENTUM_SCORE_MIN = -1.0
-ATH_MOMENTUM_SCORE_MAX = 1.5
+ATH_MOMENTUM_SMA_PERFECT_BONUS = _cfg.get("ath_breakout.momentum.sma_perfect_bonus", 0.5)
+ATH_MOMENTUM_SMA_GOOD_BONUS = _cfg.get("ath_breakout.momentum.sma_good_bonus", 0.25)
+ATH_MOMENTUM_SMA200_DECLINE = _cfg.get("ath_breakout.momentum.sma200_decline_mult", 0.999)
+ATH_MOMENTUM_SMA200_DECLINE_PENALTY = _cfg.get("ath_breakout.momentum.sma200_decline_penalty", 0.5)
+ATH_MOMENTUM_SMA200_LOOKBACK = _cfg.get("ath_breakout.momentum.sma200_lookback", 20)
+ATH_MOMENTUM_MACD_BONUS = _cfg.get("ath_breakout.momentum.macd_bonus", 0.5)
+ATH_RSI_HEALTHY_LOW = _cfg.get("ath_breakout.momentum.rsi_healthy_low", 50)
+ATH_RSI_HEALTHY_HIGH = _cfg.get("ath_breakout.momentum.rsi_healthy_high", 70)
+ATH_RSI_HEALTHY_BONUS = _cfg.get("ath_breakout.momentum.rsi_healthy_bonus", 0.5)
+ATH_RSI_OVERBOUGHT = _cfg.get("ath_breakout.momentum.rsi_overbought", 75)
+ATH_RSI_OVERBOUGHT_PENALTY = _cfg.get("ath_breakout.momentum.rsi_overbought_penalty", 0.5)
+ATH_MOMENTUM_SCORE_MIN = _cfg.get("ath_breakout.momentum.score_min", -1.0)
+ATH_MOMENTUM_SCORE_MAX = _cfg.get("ath_breakout.momentum.score_max", 1.5)
 
 # Signal Strength
-ATH_SIGNAL_STRONG = 7.0
-ATH_SIGNAL_MODERATE = 5.5
+ATH_SIGNAL_STRONG = _cfg.get("ath_breakout.signal.strong", 7.0)
+ATH_SIGNAL_MODERATE = _cfg.get("ath_breakout.signal.moderate", 5.5)
 
 # Stop Loss
-ATH_STOP_RECENT_LOW_DAYS = 10
-ATH_STOP_MAX_PCT = 0.95
-
-# Consolidation Search
-ATH_CONSOL_WINDOW_STEP = 5
+ATH_STOP_RECENT_LOW_DAYS = _cfg.get("ath_breakout.stop_loss.recent_low_days", 10)
+ATH_STOP_MAX_PCT = _cfg.get("ath_breakout.stop_loss.max_pct", 0.95)
 
 
 @dataclass

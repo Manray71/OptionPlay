@@ -262,7 +262,7 @@ class TestEarningsOperations:
     async def test_get_earnings_too_close(self, server, mock_provider):
         """Test earnings check with insufficient distance."""
         mock_earnings = MockEarnings()
-        mock_earnings.days_to_earnings = 30
+        mock_earnings.days_to_earnings = 15
         mock_provider.get_earnings_date = AsyncMock(return_value=mock_earnings)
 
         from src.constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS

@@ -51,7 +51,7 @@ class ExitAction(Enum):
 
 # Hard filters - NO exceptions
 ENTRY_STABILITY_MIN = 65.0  # Stability Score minimum (lowered from 70: 65-70 = WARNING)
-ENTRY_EARNINGS_MIN_DAYS = 45  # Minimum days to earnings (strict)
+ENTRY_EARNINGS_MIN_DAYS = 30  # Minimum days to earnings (was 45, now config-driven via scanner_config.yaml)
 EARNINGS_QUARTERLY_MAX_GAP_DAYS = 100  # Max days since last earnings to assume "recently reported"
 ENTRY_VIX_MAX_NEW_TRADES = 30.0  # No new trades above this VIX
 ENTRY_VIX_NO_TRADING = 35.0  # No trading at all above this

@@ -32,40 +32,45 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # =============================================================================
-# CONSTANTS — extracted from inline magic numbers
+# CONSTANTS (loaded from config/scoring_weights.yaml → ranking section)
 # =============================================================================
+from ..config.scoring_config import get_scoring_resolver as _get_resolver
+
+_ranking_cfg = _get_resolver().get_ranking_config()
+_speed_cfg = _ranking_cfg.get("speed", {})
 
 # Speed scoring: DTE component
-SPEED_DTE_OPTIMAL = 60
-SPEED_DTE_RANGE = 30
-SPEED_DTE_WEIGHT = 3.0
+SPEED_DTE_OPTIMAL = _speed_cfg.get("dte_optimal", 60)
+SPEED_DTE_RANGE = _speed_cfg.get("dte_range", 30)
+SPEED_DTE_WEIGHT = _speed_cfg.get("dte_weight", 3.0)
 
 # Speed scoring: stability component
-SPEED_STABILITY_BASELINE = 70
-SPEED_STABILITY_RANGE = 30
-SPEED_STABILITY_WEIGHT = 2.5
+SPEED_STABILITY_BASELINE = _speed_cfg.get("stability_baseline", 70)
+SPEED_STABILITY_RANGE = _speed_cfg.get("stability_range", 30)
+SPEED_STABILITY_WEIGHT = _speed_cfg.get("stability_weight", 2.5)
 
 # Speed scoring: other component weights
-SPEED_SECTOR_WEIGHT = 1.5
-SPEED_PULLBACK_WEIGHT = 1.5
-SPEED_MARKET_CONTEXT_WEIGHT = 1.5
+SPEED_SECTOR_WEIGHT = _speed_cfg.get("sector_weight", 1.5)
+SPEED_PULLBACK_WEIGHT = _speed_cfg.get("pullback_weight", 1.5)
+SPEED_MARKET_CONTEXT_WEIGHT = _speed_cfg.get("market_context_weight", 1.5)
 
 # Speed scoring: max possible score
-SPEED_SCORE_MAX = 10.0
+SPEED_SCORE_MAX = _speed_cfg.get("score_max", 10.0)
 
 # Ranking: stability vs signal weight (30% stability, 70% signal)
-RANKING_STABILITY_WEIGHT = 0.3
+RANKING_STABILITY_WEIGHT = _ranking_cfg.get("stability_weight", 0.3)
 
 # Speed multiplier minimum (Speed 0 → 0.5x)
-SPEED_MULTIPLIER_MIN = 0.5
+SPEED_MULTIPLIER_MIN = _speed_cfg.get("multiplier_min", 0.5)
 
 # Strike support fallback percentages
-STRIKE_SUPPORT_PCT_1 = 0.90
-STRIKE_SUPPORT_PCT_2 = 0.85
-STRIKE_SUPPORT_PCT_3 = 0.80
+_strike_cfg = _ranking_cfg.get("strike_support", {})
+STRIKE_SUPPORT_PCT_1 = _strike_cfg.get("pct_1", 0.90)
+STRIKE_SUPPORT_PCT_2 = _strike_cfg.get("pct_2", 0.85)
+STRIKE_SUPPORT_PCT_3 = _strike_cfg.get("pct_3", 0.80)
 
 # Stability warning threshold
-RANKING_STABILITY_WARNING = 70
+RANKING_STABILITY_WARNING = _ranking_cfg.get("stability_warning", 70)
 
 
 class RecommendationRankingMixin:
@@ -86,7 +91,7 @@ class RecommendationRankingMixin:
     _sector_factors: Dict[str, float]
 
     # Sektor-Speed-Map aus Phase 4 Analyse (avg days_to_playbook_exit)
-    SECTOR_SPEED: Dict[str, float] = {
+    _DEFAULT_SECTOR_SPEED: Dict[str, float] = {
         "Utilities": 1.0,
         "Healthcare": 0.9,
         "Real Estate": 0.85,
@@ -98,6 +103,10 @@ class RecommendationRankingMixin:
         "Energy": 0.2,
         "Technology": 0.1,
         "Basic Materials": 0.0,
+    }
+    SECTOR_SPEED: Dict[str, float] = {
+        **_DEFAULT_SECTOR_SPEED,
+        **_ranking_cfg.get("sector_speed", {}),
     }
 
     # ------------------------------------------------------------------

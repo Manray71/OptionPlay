@@ -32,7 +32,7 @@ profiles:
 
     filters:
       earnings:
-        exclude_days_before: 45       # PLAYBOOK: ENTRY_EARNINGS_MIN_DAYS
+        exclude_days_before: 30       # PLAYBOOK: ENTRY_EARNINGS_MIN_DAYS (was 45)
       implied_volatility:
         iv_rank_minimum: 20
         iv_rank_maximum: 50
@@ -69,7 +69,7 @@ profiles:
 
     filters:
       earnings:
-        exclude_days_before: 45       # PLAYBOOK: ENTRY_EARNINGS_MIN_DAYS
+        exclude_days_before: 30       # PLAYBOOK: ENTRY_EARNINGS_MIN_DAYS (was 45)
       implied_volatility:
         iv_rank_minimum: 30
         iv_rank_maximum: 70
@@ -106,7 +106,7 @@ profiles:
 
     filters:
       earnings:
-        exclude_days_before: 45       # PLAYBOOK: ENTRY_EARNINGS_MIN_DAYS
+        exclude_days_before: 30       # PLAYBOOK: ENTRY_EARNINGS_MIN_DAYS (was 45)
       implied_volatility:
         iv_rank_minimum: 40
         iv_rank_maximum: 80
@@ -147,7 +147,7 @@ profiles:
 
     filters:
       earnings:
-        exclude_days_before: 45       # PLAYBOOK: ENTRY_EARNINGS_MIN_DAYS
+        exclude_days_before: 30       # PLAYBOOK: ENTRY_EARNINGS_MIN_DAYS (was 45)
       price:
         minimum: 50
         maximum: 300

@@ -720,7 +720,7 @@ class TestScoringComponents:
     def test_bps_close_earnings(self):
         """Next earnings < ENTRY_EARNINGS_MIN_DAYS should score 0."""
         analyzer = EarningsDipAnalyzer()
-        assert analyzer._score_bps_suitability(next_earnings_days=40) == 0.0
+        assert analyzer._score_bps_suitability(next_earnings_days=25) == 0.0  # Was 40; ENTRY_EARNINGS_MIN_DAYS now 30
 
 
 # =============================================================================
