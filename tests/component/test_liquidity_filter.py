@@ -32,20 +32,23 @@ def _make_option(strike, bid, ask, oi=0, volume=0):
 
 class TestAssessStrike:
     def test_excellent(self, assessor):
-        opt = _make_option(100, 2.00, 2.05, oi=600, volume=300)
+        # Thresholds: OI>=5000, spread<5%, volume>=200
+        opt = _make_option(100, 2.00, 2.05, oi=6000, volume=300)
         result = assessor.assess_strike(opt)
         assert result.quality == "excellent"
-        assert result.open_interest == 600
+        assert result.open_interest == 6000
         assert result.daily_volume == 300
         assert result.spread_pct < 5.0
 
     def test_good(self, assessor):
-        opt = _make_option(100, 1.00, 1.08, oi=150, volume=60)
+        # Thresholds: OI>=700, spread<10%, volume>=50
+        opt = _make_option(100, 1.00, 1.08, oi=800, volume=60)
         result = assessor.assess_strike(opt)
         assert result.quality == "good"
 
     def test_fair(self, assessor):
-        opt = _make_option(100, 1.00, 1.12, oi=60, volume=5)
+        # Thresholds: OI>=100, spread<15%
+        opt = _make_option(100, 1.00, 1.12, oi=150, volume=5)
         result = assessor.assess_strike(opt)
         assert result.quality == "fair"
 
@@ -55,20 +58,20 @@ class TestAssessStrike:
         assert result.quality == "poor"
 
     def test_poor_wide_spread(self, assessor):
-        opt = _make_option(100, 0.50, 1.00, oi=200, volume=100)
+        opt = _make_option(100, 0.50, 1.00, oi=800, volume=100)
         result = assessor.assess_strike(opt)
         # spread_pct = (1.00 - 0.50) / 0.75 * 100 = 66.7%
         assert result.quality == "poor"
 
-    def test_boundary_oi_100(self, assessor):
-        """OI=100 with acceptable spread should be 'good'."""
-        opt = _make_option(100, 2.00, 2.15, oi=100, volume=50)
+    def test_boundary_oi_700(self, assessor):
+        """OI=700 with acceptable spread and volume should be 'good'."""
+        opt = _make_option(100, 2.00, 2.15, oi=700, volume=50)
         result = assessor.assess_strike(opt)
         assert result.quality == "good"
 
-    def test_boundary_oi_99(self, assessor):
-        """OI=99 should NOT be 'good'."""
-        opt = _make_option(100, 2.00, 2.15, oi=99, volume=50)
+    def test_boundary_oi_699(self, assessor):
+        """OI=699 should NOT be 'good'."""
+        opt = _make_option(100, 2.00, 2.15, oi=699, volume=50)
         result = assessor.assess_strike(opt)
         assert result.quality in ("fair", "poor")
 
@@ -102,8 +105,8 @@ class TestAssessStrike:
 class TestAssessSpread:
     def test_both_excellent(self, assessor):
         options_data = [
-            _make_option(95, 3.00, 3.10, oi=800, volume=400),
-            _make_option(90, 1.00, 1.03, oi=600, volume=250),
+            _make_option(95, 3.00, 3.10, oi=6000, volume=400),
+            _make_option(90, 1.00, 1.03, oi=5500, volume=250),
         ]
         result = assessor.assess_spread(95, 90, options_data)
         assert result is not None
@@ -114,13 +117,13 @@ class TestAssessSpread:
     def test_mixed_quality_uses_worst(self, assessor):
         """Overall quality is min(short, long)."""
         options_data = [
-            _make_option(95, 3.00, 3.10, oi=800, volume=400),  # excellent
-            _make_option(90, 1.00, 1.12, oi=60, volume=5),     # fair
+            _make_option(95, 3.00, 3.10, oi=6000, volume=400),  # excellent
+            _make_option(90, 1.00, 1.12, oi=150, volume=5),     # fair
         ]
         result = assessor.assess_spread(95, 90, options_data)
         assert result is not None
         assert result.overall_quality == "fair"
-        assert result.is_tradeable is False
+        assert result.is_tradeable is True  # fair is now tradeable (min_quality=fair)
 
     def test_both_poor(self, assessor):
         options_data = [
@@ -167,8 +170,8 @@ class TestAssessSpread:
     def test_tradeable_good_quality(self, assessor):
         """Good quality should be tradeable."""
         options_data = [
-            _make_option(95, 3.00, 3.25, oi=150, volume=60),
-            _make_option(90, 1.00, 1.08, oi=120, volume=55),
+            _make_option(95, 3.00, 3.25, oi=800, volume=60),
+            _make_option(90, 1.00, 1.08, oi=750, volume=55),
         ]
         result = assessor.assess_spread(95, 90, options_data)
         assert result is not None
@@ -213,7 +216,7 @@ class TestEdgeCases:
     def test_large_options_chain(self, assessor):
         """Should handle large chains efficiently."""
         options_data = [
-            _make_option(50 + i, 1.00, 1.05, oi=200, volume=100)
+            _make_option(50 + i, 1.00, 1.05, oi=800, volume=100)
             for i in range(200)
         ]
         result = assessor.assess_spread(100, 95, options_data)
