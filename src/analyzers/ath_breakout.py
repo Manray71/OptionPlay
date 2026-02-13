@@ -29,6 +29,11 @@ from .context import AnalysisContext
 
 logger = logging.getLogger(__name__)
 
+# =============================================================================
+# CONSTANTS for ATH Breakout Strategy v2  (loaded from config/analyzer_thresholds.yaml)
+# =============================================================================
+from ..config.analyzer_thresholds import get_analyzer_thresholds as _get_cfg
+
 # Import central constants
 from ..constants import (
     ATH_LOOKBACK_DAYS,
@@ -51,11 +56,6 @@ from ..indicators.support_resistance import get_nearest_sr_levels
 
 # Import Feature Scoring Mixin
 from .feature_scoring_mixin import FeatureScoringMixin
-
-# =============================================================================
-# CONSTANTS for ATH Breakout Strategy v2  (loaded from config/analyzer_thresholds.yaml)
-# =============================================================================
-from ..config.analyzer_thresholds import get_analyzer_thresholds as _get_cfg
 
 _cfg = _get_cfg()
 
