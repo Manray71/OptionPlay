@@ -107,12 +107,7 @@ class EnhancedScoreResult:
 
     @property
     def total_bonus(self) -> float:
-        return (
-            self.liquidity_bonus
-            + self.credit_bonus
-            + self.pullback_bonus
-            + self.stability_bonus
-        )
+        return self.liquidity_bonus + self.credit_bonus + self.pullback_bonus + self.stability_bonus
 
     @property
     def enhanced_score(self) -> float:

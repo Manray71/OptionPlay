@@ -525,10 +525,7 @@ class DailyRecommendationEngine(RecommendationRankingMixin):
                 # Reject quality below threshold (default: "poor" only)
                 if liq_quality and liq_quality == reject_quality:
                     liquidity_rejected += 1
-                    logger.info(
-                        f"Liquidity-filtered: {signal.symbol} "
-                        f"(quality={liq_quality})"
-                    )
+                    logger.info(f"Liquidity-filtered: {signal.symbol} " f"(quality={liq_quality})")
                     continue
 
             pick_signal_pairs.append((pick, signal))

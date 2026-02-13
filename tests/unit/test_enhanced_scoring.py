@@ -34,7 +34,6 @@ from src.services.enhanced_scoring import (
     reset_enhanced_scoring_config,
 )
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -346,15 +345,21 @@ class TestCalculateEnhancedScore:
     def test_aapl_beats_mrk(self, config):
         """AAPL enhanced (11.3) should rank above MRK enhanced (9.7)."""
         aapl_pick = _make_pick(
-            score=6.3, stability_score=88.0, liquidity_quality="good",
-            estimated_credit=0.435, spread_width=5.0,
+            score=6.3,
+            stability_score=88.0,
+            liquidity_quality="good",
+            estimated_credit=0.435,
+            spread_width=5.0,
         )
         aapl_signal = _make_signal("above", "above")
         aapl = calculate_enhanced_score(aapl_pick, aapl_signal, config)
 
         mrk_pick = _make_pick(
-            score=9.2, stability_score=72.0, liquidity_quality="poor",
-            estimated_credit=None, spread_width=5.0,
+            score=9.2,
+            stability_score=72.0,
+            liquidity_quality="poor",
+            estimated_credit=None,
+            spread_width=5.0,
         )
         mrk_signal = _make_signal("below", "above")
         mrk = calculate_enhanced_score(mrk_pick, mrk_signal, config)

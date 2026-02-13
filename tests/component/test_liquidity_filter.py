@@ -118,7 +118,7 @@ class TestAssessSpread:
         """Overall quality is min(short, long)."""
         options_data = [
             _make_option(95, 3.00, 3.10, oi=6000, volume=400),  # excellent
-            _make_option(90, 1.00, 1.12, oi=150, volume=5),     # fair
+            _make_option(90, 1.00, 1.12, oi=150, volume=5),  # fair
         ]
         result = assessor.assess_spread(95, 90, options_data)
         assert result is not None
@@ -215,10 +215,7 @@ class TestEdgeCases:
 
     def test_large_options_chain(self, assessor):
         """Should handle large chains efficiently."""
-        options_data = [
-            _make_option(50 + i, 1.00, 1.05, oi=800, volume=100)
-            for i in range(200)
-        ]
+        options_data = [_make_option(50 + i, 1.00, 1.05, oi=800, volume=100) for i in range(200)]
         result = assessor.assess_spread(100, 95, options_data)
         assert result is not None
         assert result.overall_quality == "good"
