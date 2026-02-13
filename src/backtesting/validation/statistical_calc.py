@@ -30,6 +30,8 @@ def _load_stat_config() -> Dict[str, Any]:
 
 _stat_cfg = _load_stat_config()
 _corr_strength = _stat_cfg.get("correlation_strength", {})
+_DEFAULT_RISK_FREE_RATE = _stat_cfg.get("risk_free_rate", 0.05)
+_DEFAULT_PERIODS_PER_YEAR = _stat_cfg.get("periods_per_year", 12.0)
 
 
 class StatisticalCalculator:
@@ -118,8 +120,8 @@ class StatisticalCalculator:
     @staticmethod
     def calculate_sharpe(
         returns: List[float],
-        risk_free_rate: float = _stat_cfg.get("risk_free_rate", 0.05),
-        periods_per_year: float = _stat_cfg.get("periods_per_year", 12.0),
+        risk_free_rate: float = _DEFAULT_RISK_FREE_RATE,
+        periods_per_year: float = _DEFAULT_PERIODS_PER_YEAR,
     ) -> float:
         """
         Berechnet Sharpe Ratio.
