@@ -16,9 +16,9 @@ from typing import Any, Optional
 try:
     from ..utils.validation import ValidationError  # noqa: F401 — consolidated from local duplicate
 except ImportError:
-    from src.utils.validation import (
+    from src.utils.validation import (  # noqa: F401 — fallback for non-package imports
         ValidationError,
-    )  # noqa: F401 — fallback for non-package imports
+    )
 
 
 class SignalType(Enum):
