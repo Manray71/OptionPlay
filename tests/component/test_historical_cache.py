@@ -29,6 +29,16 @@ from src.utils.historical_cache import (
 )
 
 
+def _expire_all_entries(cache: HistoricalDataCache) -> None:
+    """Force-expire all cache entries by setting expires_at to the past.
+
+    Replaces time.sleep(1.5) in TTL tests — deterministic and instant.
+    """
+    past = datetime.now() - timedelta(seconds=10)
+    for entry in cache._cache.values():
+        entry.expires_at = past
+
+
 # =============================================================================
 # TEST FIXTURES
 # =============================================================================
@@ -394,7 +404,7 @@ class TestGetMethod:
         """Test get returns None for expired entry."""
         short_ttl_cache.set("AAPL", "test", days=30)
 
-        time.sleep(1.5)  # Wait for expiration
+        _expire_all_entries(short_ttl_cache)
 
         result = short_ttl_cache.get("AAPL", days=30)
         assert result is None
@@ -496,7 +506,7 @@ class TestHasMethod:
         """Test has returns False for expired entry."""
         short_ttl_cache.set("AAPL", "test", days=30)
 
-        time.sleep(1.5)
+        _expire_all_entries(short_ttl_cache)
 
         assert short_ttl_cache.has("AAPL", 30) is False
 
@@ -779,7 +789,7 @@ class TestCacheExpiration:
 
         assert short_ttl_cache.has("AAPL", 30) is True
 
-        time.sleep(1.5)
+        _expire_all_entries(short_ttl_cache)
 
         assert short_ttl_cache.has("AAPL", 30) is False
 
@@ -787,7 +797,7 @@ class TestCacheExpiration:
         """Test get returns None for expired entries."""
         short_ttl_cache.set("AAPL", "test", days=30)
 
-        time.sleep(1.5)
+        _expire_all_entries(short_ttl_cache)
 
         result = short_ttl_cache.get("AAPL", days=30)
         assert result is None
@@ -799,7 +809,7 @@ class TestCacheExpiration:
         # Set with short custom TTL
         cache.set("AAPL", "test", days=30, ttl_seconds=1)
 
-        time.sleep(1.5)
+        _expire_all_entries(cache)
 
         assert cache.has("AAPL", 30) is False
 
@@ -809,7 +819,7 @@ class TestCacheExpiration:
         for i in range(short_ttl_cache._max_entries):
             short_ttl_cache.set(f"SYM{i}", f"data{i}", days=30)
 
-        time.sleep(1.5)  # Let all entries expire
+        _expire_all_entries(short_ttl_cache)  # Expire all entries
 
         # Add new entry - should trigger cleanup of expired entries
         short_ttl_cache.set("NEW", "new_data", days=30)
@@ -820,7 +830,7 @@ class TestCacheExpiration:
         """Test _cleanup_expired removes expired entries."""
         short_ttl_cache.set("AAPL", "test", days=30)
 
-        time.sleep(1.5)
+        _expire_all_entries(short_ttl_cache)
 
         removed = short_ttl_cache._cleanup_expired()
 

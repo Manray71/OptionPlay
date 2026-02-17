@@ -36,7 +36,7 @@ from ..constants.trading_rules import VIX_ELEVATED_MAX, VIX_LOW_VOL_MAX, VIX_NOR
 # Import MarketRegime for VIX state
 # Use fallback if vix_strategy can't be imported (e.g., missing dependencies)
 try:
-    from ..vix_strategy import MarketRegime
+    from ..services.vix_strategy import MarketRegime
 except (ImportError, ModuleNotFoundError):
     # Fallback if not available (e.g., yaml not installed)
     class MarketRegime(Enum):

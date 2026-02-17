@@ -24,6 +24,7 @@ from .trading_rules import (
     SPREAD_SHORT_DELTA_MAX,
     SPREAD_SHORT_DELTA_MIN,
     SPREAD_SHORT_DELTA_TARGET,
+    get_trading_rules_config,
 )
 
 # =============================================================================
@@ -32,16 +33,8 @@ from .trading_rules import (
 
 
 def _load_rm_config() -> Dict[str, Any]:
-    """Load risk management config from config/trading_rules.yaml."""
-    try:
-        config_path = Path(__file__).resolve().parents[2] / "config" / "trading_rules.yaml"
-        if config_path.exists():
-            with open(config_path) as f:
-                data = yaml.safe_load(f) or {}
-                return data.get("risk_management", {})
-    except Exception:
-        pass
-    return {}
+    """Load risk management section from shared trading_rules config."""
+    return get_trading_rules_config().get("risk_management", {})
 
 
 _rm_cfg = _load_rm_config()

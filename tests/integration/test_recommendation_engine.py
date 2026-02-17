@@ -34,7 +34,7 @@ from src.services.recommendation_engine import (
     get_quick_picks,
 )
 from src.models.base import TradeSignal, SignalType, SignalStrength
-from src.vix_strategy import MarketRegime
+from src.services.vix_strategy import MarketRegime
 
 
 # =============================================================================

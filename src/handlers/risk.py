@@ -11,7 +11,7 @@ import logging
 from typing import Optional
 
 from ..constants.trading_rules import VIX_NORMAL_MAX
-from ..spread_analyzer import BullPutSpreadParams, SpreadAnalyzer
+from ..options.spread_analyzer import BullPutSpreadParams, SpreadAnalyzer
 from ..utils.error_handler import mcp_endpoint
 from ..utils.markdown_builder import MarkdownBuilder
 from ..utils.validation import validate_symbol

@@ -41,9 +41,9 @@ from ..scanner.multi_strategy_scanner import (
     ScanMode,
     ScanResult,
 )
+from ..services.vix_strategy import StrategyRecommendation, get_strategy_for_vix
 from ..utils.markdown_builder import MarkdownBuilder, truncate
 from ..utils.validation import validate_symbols
-from ..vix_strategy import StrategyRecommendation, get_strategy_for_vix
 from .base import BaseService, ServiceContext
 from .vix_service import VIXService
 

@@ -307,23 +307,8 @@ class AnalysisContext:
                 self.stoch_k = stoch_result.k
                 self.stoch_d = stoch_result.d
 
-        # Support/Resistance (O(n) algorithm)
-        self.support_levels = find_support_optimized(
-            lows=lows,
-            lookback=min(60, len(lows)),
-            window=5,
-            max_levels=5,
-            volumes=volumes if volumes else None,
-            tolerance_pct=1.5,
-        )
-        self.resistance_levels = find_resistance_optimized(
-            highs=highs,
-            lookback=min(60, len(highs)),
-            window=5,
-            max_levels=5,
-            volumes=volumes if volumes else None,
-            tolerance_pct=1.5,
-        )
+        # Support/Resistance (O(n) algorithm) — shared
+        self._calculate_support_resistance(lows, highs, volumes)
 
         # Fibonacci (vectorized high/low finding)
         lookback = min(60, len(highs))
@@ -345,10 +330,8 @@ class AnalysisContext:
             if self.avg_volume_20 > 0:
                 self.volume_ratio = self.current_volume / self.avg_volume_20
 
-        # ATH (vectorized)
-        self.all_time_high = float(np.max(highs_arr)) if len(highs_arr) > 0 else None
-        if self.all_time_high and self.all_time_high > 0:
-            self.pct_from_ath = (self.all_time_high - self.current_price) / self.all_time_high * 100
+        # ATH — shared
+        self._calculate_ath_metrics(highs)
 
         # Gap Analysis
         self._calculate_gap(prices, highs, lows)
@@ -397,23 +380,8 @@ class AnalysisContext:
         if len(highs) >= 14 and len(lows) >= 14:
             self._calc_stochastic(highs, lows, prices)
 
-        # Support/Resistance (using optimized O(n) algorithm)
-        self.support_levels = find_support_optimized(
-            lows=lows,
-            lookback=min(60, len(lows)),
-            window=5,
-            max_levels=5,
-            volumes=volumes if volumes else None,
-            tolerance_pct=1.5,
-        )
-        self.resistance_levels = find_resistance_optimized(
-            highs=highs,
-            lookback=min(60, len(highs)),
-            window=5,
-            max_levels=5,
-            volumes=volumes if volumes else None,
-            tolerance_pct=1.5,
-        )
+        # Support/Resistance — shared
+        self._calculate_support_resistance(lows, highs, volumes)
 
         # Fibonacci (last 60 days)
         lookback = min(60, len(highs))
@@ -436,16 +404,44 @@ class AnalysisContext:
             if self.avg_volume_20 > 0:
                 self.volume_ratio = self.current_volume / self.avg_volume_20
 
-        # ATH
-        self.all_time_high = max(highs) if highs else None
-        if self.all_time_high and self.all_time_high > 0:
-            self.pct_from_ath = (self.all_time_high - self.current_price) / self.all_time_high * 100
+        # ATH — shared
+        self._calculate_ath_metrics(highs)
 
         # Gap Analysis
         self._calculate_gap(prices, highs, lows)
 
         # Trend
         self._determine_trend()
+
+    def _calculate_support_resistance(
+        self,
+        lows: list,
+        highs: list,
+        volumes: list,
+    ) -> None:
+        """Calculate support and resistance levels (shared by NumPy and Python paths)."""
+        self.support_levels = find_support_optimized(
+            lows=lows,
+            lookback=min(60, len(lows)),
+            window=5,
+            max_levels=5,
+            volumes=volumes if volumes else None,
+            tolerance_pct=1.5,
+        )
+        self.resistance_levels = find_resistance_optimized(
+            highs=highs,
+            lookback=min(60, len(highs)),
+            window=5,
+            max_levels=5,
+            volumes=volumes if volumes else None,
+            tolerance_pct=1.5,
+        )
+
+    def _calculate_ath_metrics(self, highs: list) -> None:
+        """Calculate ATH and percentage from ATH (shared by NumPy and Python paths)."""
+        self.all_time_high = float(max(highs)) if highs else None
+        if self.all_time_high and self.all_time_high > 0:
+            self.pct_from_ath = (self.all_time_high - self.current_price) / self.all_time_high * 100
 
     def _calc_sma(self, prices: list[float], period: int) -> Optional[float]:
         """Calculate Simple Moving Average."""

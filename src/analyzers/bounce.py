@@ -45,6 +45,7 @@ from .context import AnalysisContext
 
 # Import Feature Scoring Mixin
 from .feature_scoring_mixin import FeatureScoringMixin
+from .score_normalization import clamp_score, normalize_score
 
 logger = logging.getLogger(__name__)
 
@@ -380,7 +381,7 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         total_score = (
             support_score + proximity_score + confirmation_score + volume_score + trend_score
         )
-        total_score = max(0.0, min(BOUNCE_MAX_SCORE, total_score))
+        total_score = clamp_score(total_score, BOUNCE_MAX_SCORE)
         breakdown.total_score = round(total_score, 1)
         breakdown.max_possible = BOUNCE_MAX_SCORE
 
@@ -397,7 +398,7 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             distance_pct,
         )
 
-        # Signal strength
+        # Signal strength (compared on native scale before normalization)
         if total_score >= BOUNCE_SIGNAL_STRONG:
             strength = SignalStrength.STRONG
         elif total_score >= BOUNCE_SIGNAL_MODERATE:
@@ -406,6 +407,11 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             strength = SignalStrength.WEAK
         else:
             strength = SignalStrength.NONE
+
+        is_actionable = total_score >= BOUNCE_MIN_SCORE
+
+        # Normalize to 0-10 scale for fair cross-strategy comparison
+        normalized_score = normalize_score(total_score, "bounce")
 
         # Entry/Stop/Target
         entry_price = current_price
@@ -441,9 +447,9 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         return TradeSignal(
             symbol=symbol,
             strategy=self.strategy_name,
-            signal_type=SignalType.LONG if total_score >= BOUNCE_MIN_SCORE else SignalType.NEUTRAL,
+            signal_type=SignalType.LONG if is_actionable else SignalType.NEUTRAL,
             strength=strength,
-            score=round(total_score, 1),
+            score=round(normalized_score, 1),
             current_price=current_price,
             entry_price=entry_price,
             stop_loss=stop_loss,
@@ -723,8 +729,7 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
                 score += BOUNCE_CONFIRM_PENALTY_MACD
 
         # Floor at 0.0, cap at BOUNCE_CONFIRM_MAX
-        score = max(0.0, score)
-        score = min(BOUNCE_CONFIRM_MAX, score)
+        score = clamp_score(score, BOUNCE_CONFIRM_MAX)
 
         return {
             "confirmed": len(signals) > 0,
@@ -855,7 +860,7 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         if sma_200_confluence:
             score += BOUNCE_SMA200_CONFLUENCE_BONUS
 
-        return min(BOUNCE_SUPPORT_QUALITY_MAX, score)
+        return clamp_score(score, BOUNCE_SUPPORT_QUALITY_MAX)
 
     def _score_proximity(self, distance_pct: float) -> float:
         """
@@ -1019,7 +1024,7 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         gains = [max(c, 0) for c in changes[:period]]
         losses = [max(-c, 0) for c in changes[:period]]
         avg_gain = sum(gains) / period
-        avg_loss = sum(losses) / period if sum(losses) > 0 else 0.0001
+        avg_loss = sum(losses) / period
 
         rsi_values = []
         for i in range(period, len(changes)):

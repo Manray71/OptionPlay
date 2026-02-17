@@ -82,6 +82,20 @@ STRATEGY_SCORE_CONFIGS: Dict[str, StrategyScoreConfig] = {
 }
 
 
+def clamp_score(score: float, max_val: float = 10.0, min_val: float = 0.0) -> float:
+    """Clamp a score to [min_val, max_val] range.
+
+    Args:
+        score: The score to clamp
+        max_val: Upper bound (default 10.0)
+        min_val: Lower bound (default 0.0)
+
+    Returns:
+        Clamped score
+    """
+    return max(min_val, min(max_val, score))
+
+
 def normalize_score(
     raw_score: float,
     strategy: str,
@@ -113,7 +127,7 @@ def normalize_score(
     normalized = (raw_score / max_possible) * 10.0
 
     # Clamp to 0-10 range
-    return max(0.0, min(10.0, normalized))
+    return clamp_score(normalized)
 
 
 def denormalize_score(normalized_score: float, strategy: str) -> float:
@@ -216,7 +230,7 @@ class ScoreNormalizer:
             return raw_score
 
         normalized = (raw_score / config.max_possible) * 10.0
-        return max(0.0, min(10.0, normalized))
+        return clamp_score(normalized)
 
     def get_strength(self, normalized_score: float, strategy: str) -> str:
         """Get signal strength for a normalized score."""

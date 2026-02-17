@@ -35,14 +35,14 @@ from typing import Any, Dict, List, Optional
 from ..constants.trading_rules import SPREAD_DTE_MAX, SPREAD_DTE_MIN
 from ..indicators.support_resistance import calculate_fibonacci, find_support_levels
 from ..models.result import ServiceResult
-from ..strike_recommender import (
+from ..options.strike_recommender import (
     StrikeQuality,
     StrikeRecommendation,
     StrikeRecommender,
 )
+from ..services.vix_strategy import MarketRegime
 from ..utils.markdown_builder import MarkdownBuilder, format_price
 from ..utils.validation import ValidationError, validate_dte_range, validate_right, validate_symbol
-from ..vix_strategy import MarketRegime
 from .base import BaseService, ServiceContext
 
 logger = logging.getLogger(__name__)

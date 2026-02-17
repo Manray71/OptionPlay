@@ -12,29 +12,19 @@ from __future__ import annotations
 
 import logging
 from datetime import date
-from pathlib import Path
 from typing import Any, Optional
-
-import yaml
 
 from ..constants.trading_rules import (
     EXIT_PROFIT_PCT_NORMAL,
     EXIT_STOP_LOSS_MULTIPLIER,
     SPREAD_MIN_CREDIT_PCT,
+    get_trading_rules_config,
 )
 
 
 def _load_display_config() -> dict:
-    """Load display thresholds from config/trading_rules.yaml."""
-    try:
-        config_path = Path(__file__).resolve().parents[2] / "config" / "trading_rules.yaml"
-        if config_path.exists():
-            with open(config_path) as f:
-                data = yaml.safe_load(f) or {}
-                return data.get("display", {})
-    except Exception:
-        pass
-    return {}
+    """Load display thresholds from shared trading_rules config."""
+    return get_trading_rules_config().get("display", {})
 
 
 _disp_cfg = _load_display_config()
@@ -67,7 +57,7 @@ def format_picks_markdown(result: Any) -> str:
 
     # Import here to avoid circular imports
     try:
-        from ..vix_strategy import MarketRegime
+        from ..services.vix_strategy import MarketRegime
     except ImportError:
         from vix_strategy import (
             MarketRegime,  # type: ignore[no-redef]  # fallback for non-package execution

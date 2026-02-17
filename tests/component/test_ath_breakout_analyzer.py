@@ -1016,6 +1016,68 @@ class TestConsolidationDetection:
         )
         assert result['has_consolidation'] is False
 
+    def test_longest_valid_window_selected(self):
+        """Selects longest valid consolidation window, not shortest.
+
+        With monotonically non-decreasing range as window grows, the algorithm
+        should pick the longest window still within max_range (default 15%).
+        A short window (20 bars, ~2% range) AND a long window (50 bars, ~5%)
+        are both valid — the longer one should be chosen.
+        """
+        n = 300
+        ath = 110.0
+
+        # Uptrend phase
+        prices = [80.0 + i * 0.1 for i in range(n)]
+        highs = [p + 0.5 for p in prices]
+        lows = [p - 0.5 for p in prices]
+
+        # Create tight consolidation in last 60 bars (range ~5%)
+        for i in range(n - 60, n - 1):
+            base = 103.0
+            offset = (i % 7) * 0.4 - 1.2  # oscillate within ~3 points
+            prices[i] = base + offset
+            highs[i] = prices[i] + 0.8
+            lows[i] = prices[i] - 0.8
+
+        # Breakout bar
+        prices[-1] = 111.0
+        highs[-1] = 112.0
+        lows[-1] = 110.0
+
+        result = self.analyzer._detect_consolidation(highs, lows, prices, ath)
+        assert result['has_consolidation'] is True
+        # Duration should be > min_days (20), closer to the full 59 bar window
+        assert result['duration'] > 30, (
+            f"Expected longest valid window (>30 bars), got {result['duration']}"
+        )
+
+    def test_window_stops_growing_when_range_exceeds_max(self):
+        """Window growth stops when adding older, volatile data exceeds max_range."""
+        n = 300
+        ath = 110.0
+
+        # Build volatile early data, then tight consolidation at end
+        prices = [80.0 + i * 0.3 for i in range(n)]
+        highs = [p + 3.0 for p in prices]  # Wide range early
+        lows = [p - 3.0 for p in prices]
+
+        # Tight consolidation in only the last 30 bars (~3% range)
+        for i in range(n - 30, n - 1):
+            prices[i] = 105.0 + (i % 3) * 0.5
+            highs[i] = prices[i] + 0.5
+            lows[i] = prices[i] - 0.5
+
+        # Breakout bar
+        prices[-1] = 111.0
+        highs[-1] = 112.0
+        lows[-1] = 110.0
+
+        result = self.analyzer._detect_consolidation(highs, lows, prices, ath)
+        assert result['has_consolidation'] is True
+        # Should not extend beyond the tight zone into volatile territory
+        assert result['duration'] <= 40
+
 
 # =============================================================================
 # TEST: EDGE CASES

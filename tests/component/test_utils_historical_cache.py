@@ -17,6 +17,13 @@ from src.utils.historical_cache import (
 )
 
 
+def _expire_all_entries(cache: HistoricalDataCache) -> None:
+    """Force-expire all cache entries by setting expires_at to the past."""
+    past = datetime.now() - timedelta(seconds=10)
+    for entry in cache._cache.values():
+        entry.expires_at = past
+
+
 # =============================================================================
 # CACHE ENTRY TESTS
 # =============================================================================
@@ -202,7 +209,7 @@ class TestGetMethod:
         cache = HistoricalDataCache(ttl_seconds=1, max_entries=100)
         cache.set("AAPL", "test", days=30)
 
-        time.sleep(1.5)  # Wait for expiration
+        _expire_all_entries(cache)
 
         result = cache.get("AAPL", days=30)
         assert result is None
@@ -258,7 +265,7 @@ class TestHasMethod:
         cache = HistoricalDataCache(ttl_seconds=1, max_entries=100)
         cache.set("AAPL", "test", days=30)
 
-        time.sleep(1.5)
+        _expire_all_entries(cache)
 
         assert cache.has("AAPL", 30) is False
 

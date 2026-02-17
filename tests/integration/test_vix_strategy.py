@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
-from src.vix_strategy import (
+from src.services.vix_strategy import (
     VIXStrategySelector,
     MarketRegime,
     VIXThresholds,

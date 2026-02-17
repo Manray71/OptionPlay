@@ -26,7 +26,7 @@ from src.services.vix_service import VIXService
 from src.services.base import ServiceContext, BaseService
 from src.models.result import ServiceResult
 from src.constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS
-from src.vix_strategy import StrategyRecommendation, MarketRegime, VIXStrategySelector
+from src.services.vix_strategy import StrategyRecommendation, MarketRegime, VIXStrategySelector
 
 
 # =============================================================================

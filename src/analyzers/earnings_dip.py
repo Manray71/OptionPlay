@@ -38,6 +38,7 @@ from .context import AnalysisContext
 
 # Import Feature Scoring Mixin
 from .feature_scoring_mixin import FeatureScoringMixin
+from .score_normalization import clamp_score, normalize_score
 
 logger = logging.getLogger(__name__)
 
@@ -369,7 +370,7 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         total_raw = (
             drop_score + stab_score + fund_score + overreaction_score + bps_score + penalties
         )
-        total_score = max(0.0, min(EDIP_MAX_SCORE, total_raw))
+        total_score = clamp_score(total_raw, EDIP_MAX_SCORE)
         breakdown.total_score = round(total_score, 1)
         breakdown.max_possible = EDIP_MAX_SCORE
 
@@ -382,7 +383,7 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             dip_pct, earnings_date, stab_info, stability_score, overreaction_info, fund_info
         )
 
-        # Signal strength
+        # Signal strength (compared on native scale before normalization)
         if total_score >= EDIP_SIGNAL_STRONG:
             strength = SignalStrength.STRONG
         elif total_score >= EDIP_SIGNAL_MODERATE:
@@ -391,6 +392,11 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             strength = SignalStrength.WEAK
         else:
             strength = SignalStrength.NONE
+
+        is_actionable = total_score >= EDIP_MIN_SCORE
+
+        # Normalize to 0-10 scale for fair cross-strategy comparison
+        normalized_score = normalize_score(total_score, "earnings_dip", max_possible=EDIP_MAX_SCORE)
 
         # Entry/Stop/Target
         entry_price = current_price
@@ -408,9 +414,9 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         return TradeSignal(
             symbol=symbol,
             strategy=self.strategy_name,
-            signal_type=SignalType.LONG if total_score >= EDIP_MIN_SCORE else SignalType.NEUTRAL,
+            signal_type=SignalType.LONG if is_actionable else SignalType.NEUTRAL,
             strength=strength,
-            score=round(total_score, 1),
+            score=round(normalized_score, 1),
             current_price=current_price,
             entry_price=entry_price,
             stop_loss=stop_loss,
@@ -475,6 +481,10 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
 
         current_price = prices[-1]
         info["current_price"] = current_price
+
+        if pre_price <= 0:
+            info["reason"] = "Invalid pre-earnings price (zero or negative)"
+            return info
 
         # Find the dip low in the lookback window
         recent_lows = lows[-lookback:]
@@ -768,7 +778,7 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         if stab_info.get("hammer_detected", False):
             score += EDIP_STAB_SCORE_HAMMER
 
-        return min(EDIP_STAB_SCORE_MAX, score)
+        return clamp_score(score, EDIP_STAB_SCORE_MAX)
 
     # =========================================================================
     # SCORING: 3. Fundamental Strength (0 – 2.0)
@@ -802,7 +812,7 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         if fund_info.get("was_above_sma200", False) and fund_info.get("sma200_rising", False):
             score += EDIP_FUND_SCORE_SMA200
 
-        return min(EDIP_FUND_SCORE_MAX, score)
+        return clamp_score(score, EDIP_FUND_SCORE_MAX)
 
     # =========================================================================
     # SCORING: 4. Overreaction Indicators (0 – 2.0)
@@ -889,7 +899,7 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
                 info["historical_component"] = EDIP_OVERREACTION_COMPONENT
                 info["indicators"].append(f"Drop {move_ratio:.1f}x avg earnings move")
 
-        info["score"] = min(EDIP_OVERREACTION_MAX, total)
+        info["score"] = clamp_score(total, EDIP_OVERREACTION_MAX)
         return info
 
     # =========================================================================

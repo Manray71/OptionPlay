@@ -21,20 +21,20 @@ from ..constants.trading_rules import (
     SPREAD_SHORT_DELTA_TARGET,
 )
 from ..indicators.support_resistance import calculate_fibonacci, find_support_levels
-from ..strike_recommender import StrikeRecommender
+from ..options.strike_recommender import StrikeRecommender
 from ..utils.error_handler import mcp_endpoint
 from ..utils.markdown_builder import MarkdownBuilder
 from ..utils.validation import validate_symbol
 from .base import BaseHandlerMixin
 
 if TYPE_CHECKING:
-    from ..ibkr_bridge import IBKRBridge
+    from ..ibkr.bridge import IBKRBridge
 
 logger = logging.getLogger(__name__)
 
 # IBKR availability
 try:
-    from ..ibkr_bridge import IBKRBridge
+    from ..ibkr.bridge import IBKRBridge
 
     IBKR_AVAILABLE = True
 except ImportError:

@@ -155,18 +155,51 @@ class LocalDBProvider(DataProvider):
         """
         return await self._run_sync(self._get_quote_sync, symbol.upper())
 
+    def _get_quotes_batch_sync(self, symbols: List[str]) -> Dict[str, PriceQuote]:
+        """Batch quote retrieval using a single SQL query per batch."""
+        if not symbols:
+            return {}
+
+        results = {}
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                # Use a single query with GROUP BY to get latest quote per symbol
+                placeholders = ",".join("?" for _ in symbols)
+                cursor.execute(
+                    f"""
+                    SELECT underlying, underlying_price, MAX(quote_date) as quote_date
+                    FROM options_prices
+                    WHERE underlying IN ({placeholders})
+                      AND underlying_price IS NOT NULL
+                    GROUP BY underlying
+                    """,
+                    [s.upper() for s in symbols],
+                )
+                for row in cursor.fetchall():
+                    symbol = row[0]
+                    results[symbol] = PriceQuote(
+                        symbol=symbol,
+                        last=float(row[1]),
+                        bid=None,
+                        ask=None,
+                        volume=None,
+                        timestamp=datetime.fromisoformat(row[2] + "T16:00:00"),
+                        data_quality=DataQuality.END_OF_DAY,
+                        source="local_db",
+                    )
+        except Exception as e:
+            logger.error(f"Failed to get batch quotes: {e}")
+        return results
+
     async def get_quotes(self, symbols: List[str]) -> Dict[str, PriceQuote]:
         """
         Get quotes for multiple symbols.
 
         Returns the most recent underlying_price from options_prices for each symbol.
+        Uses a single batch SQL query instead of one query per symbol.
         """
-        results = {}
-        for symbol in symbols:
-            quote = await self.get_quote(symbol)
-            if quote:
-                results[symbol] = quote
-        return results
+        return await self._run_sync(self._get_quotes_batch_sync, symbols)
 
     async def get_option_chain(
         self,

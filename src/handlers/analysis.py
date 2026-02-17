@@ -26,11 +26,11 @@ from ..constants.trading_rules import (
     is_blacklisted,
 )
 from ..indicators.support_resistance import calculate_fibonacci, find_support_levels
-from ..strike_recommender import StrikeRecommender
+from ..options.strike_recommender import StrikeRecommender
+from ..services.vix_strategy import get_strategy_for_vix
 from ..utils.error_handler import mcp_endpoint
 from ..utils.markdown_builder import MarkdownBuilder, truncate
 from ..utils.validation import validate_symbol
-from ..vix_strategy import get_strategy_for_vix
 from .base import BaseHandlerMixin
 
 logger = logging.getLogger(__name__)

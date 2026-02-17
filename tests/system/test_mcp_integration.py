@@ -5,7 +5,7 @@
 import pytest
 import asyncio
 from unittest.mock import Mock, AsyncMock, patch
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from src.constants.trading_rules import ENTRY_EARNINGS_MIN_DAYS
 
@@ -101,9 +101,9 @@ class TestCircuitBreakerIntegration:
         breaker.record_failure()
         assert breaker.is_open
         
-        # Warte auf Recovery
-        time.sleep(0.6)
-        
+        # Simulate recovery timeout elapsed
+        breaker._opened_at = datetime.now() - timedelta(seconds=1)
+
         # Sollte jetzt Half-Open sein
         assert breaker.is_half_open
         assert breaker.can_execute()

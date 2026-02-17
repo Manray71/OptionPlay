@@ -71,9 +71,9 @@ class AnalysisHandler(BaseHandler):
             ENTRY_VOLUME_MIN,
             is_blacklisted,
         )
+        from ..services.vix_strategy import get_strategy_for_vix
         from ..utils.markdown_builder import MarkdownBuilder
         from ..utils.validation import validate_symbol
-        from ..vix_strategy import get_strategy_for_vix
 
         symbol = validate_symbol(symbol)
 
@@ -499,7 +499,7 @@ class AnalysisHandler(BaseHandler):
             Formatted strike recommendations
         """
         from ..indicators.support_resistance import calculate_fibonacci, find_support_levels
-        from ..strike_recommender import StrikeRecommender
+        from ..options.strike_recommender import StrikeRecommender
         from ..utils.markdown_builder import MarkdownBuilder
         from ..utils.validation import validate_symbol
 

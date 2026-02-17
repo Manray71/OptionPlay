@@ -31,29 +31,19 @@ import logging
 import math
 from dataclasses import dataclass, field
 from enum import Enum
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
-
-import yaml
 
 from ..constants.trading_rules import (
     EXIT_PROFIT_PCT_NORMAL,
     EXIT_STOP_LOSS_MULTIPLIER,
     SPREAD_MIN_CREDIT_PCT,
+    get_trading_rules_config,
 )
 
 
 def _load_spread_config() -> Dict[str, Any]:
-    """Load spread analysis config from config/trading_rules.yaml."""
-    try:
-        config_path = Path(__file__).resolve().parents[2] / "config" / "trading_rules.yaml"
-        if config_path.exists():
-            with open(config_path) as f:
-                data = yaml.safe_load(f) or {}
-                return data.get("spread_analysis", {})
-    except Exception:
-        pass
-    return {}
+    """Load spread analysis config from shared trading_rules config."""
+    return get_trading_rules_config().get("spread_analysis", {})
 
 
 _sa_cfg = _load_spread_config()

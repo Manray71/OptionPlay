@@ -33,6 +33,7 @@ from .context import AnalysisContext
 
 # Import Feature Scoring Mixin
 from .feature_scoring_mixin import FeatureScoringMixin
+from .score_normalization import clamp_score, normalize_score
 
 logger = logging.getLogger(__name__)
 
@@ -319,7 +320,7 @@ class TrendContinuationAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         total_score = total_score * vix_adjustment
 
         # Clamp
-        total_score = max(0.0, min(self.config.max_score, total_score))
+        total_score = clamp_score(total_score, self.config.max_score)
         breakdown.total_score = round(total_score, 1)
 
         # Strike Zone Recommendation
@@ -362,7 +363,7 @@ class TrendContinuationAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             atr_pct,
         )
 
-        # Signal type and strength
+        # Signal type and strength (compared on native scale before normalization)
         if total_score >= self.config.min_score_for_signal:
             signal_type = SignalType.LONG
             if total_score >= 7.5:
@@ -374,6 +375,11 @@ class TrendContinuationAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         else:
             signal_type = SignalType.NEUTRAL
             strength = SignalStrength.NONE
+
+        # Normalize to 0-10 scale for fair cross-strategy comparison
+        normalized_score = normalize_score(
+            total_score, "trend_continuation", max_possible=self.config.max_score
+        )
 
         # Entry/Stop/Target
         entry_price = current_price
@@ -394,7 +400,7 @@ class TrendContinuationAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             strategy=self.strategy_name,
             signal_type=signal_type,
             strength=strength,
-            score=round(total_score, 1),
+            score=round(normalized_score, 1),
             current_price=current_price,
             entry_price=entry_price,
             stop_loss=round(stop_loss, 2),
@@ -615,7 +621,7 @@ class TrendContinuationAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         if not sma_info.get("sma_20_rising") and sma_info.get("all_rising") is False:
             score = max(0.0, score - sma_cfg.get("sma20_penalty", 0.5))
 
-        return max(0.0, min(sma_cfg.get("max", 2.5), score))
+        return clamp_score(score, sma_cfg.get("max", 2.5))
 
     def _score_trend_stability(self, stability_info: Dict[str, Any]) -> float:
         """
@@ -715,7 +721,7 @@ class TrendContinuationAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         if volume_divergence:
             score += m_cfg.get("volume_divergence_penalty", -0.5)
 
-        return max(m_cfg.get("score_min", -1.0), min(m_cfg.get("score_max", 2.0), score))
+        return clamp_score(score, m_cfg.get("score_max", 2.0), m_cfg.get("score_min", -1.0))
 
     def _score_volatility(self, atr_pct: Optional[float]) -> float:
         """

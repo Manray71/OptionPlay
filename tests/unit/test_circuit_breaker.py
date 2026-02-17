@@ -4,6 +4,7 @@
 import pytest
 import time
 import asyncio
+from datetime import datetime, timedelta
 
 from src.utils.circuit_breaker import (
     CircuitBreaker,
@@ -69,9 +70,10 @@ class TestCircuitBreaker:
         breaker.record_failure()
         breaker.record_failure()
         assert breaker.is_open
-        
-        time.sleep(0.6)
-        
+
+        # Simulate recovery timeout elapsed
+        breaker._opened_at = datetime.now() - timedelta(seconds=1)
+
         # State-Abfrage triggered auto-transition
         assert breaker.is_half_open
     

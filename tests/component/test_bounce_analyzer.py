@@ -813,6 +813,14 @@ class TestBounceEdgeCases:
         signal = analyzer.analyze("TEST", prices, volumes, highs, lows)
         assert isinstance(signal, TradeSignal)
 
+    def test_rsi_all_gains_no_division_error(self, analyzer):
+        """RSI with only gains (avg_loss=0) should return 100.0, not crash."""
+        # Monotonically increasing prices — no losses at all
+        prices = [100.0 + i * 0.5 for i in range(50)]
+        rsi_values = analyzer._calculate_rsi(prices)
+        assert len(rsi_values) > 0
+        assert all(v == 100.0 for v in rsi_values)
+
 
 # =============================================================================
 # TEST CLASS: BACKWARD COMPATIBILITY

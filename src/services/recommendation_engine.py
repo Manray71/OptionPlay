@@ -36,14 +36,14 @@ from ..constants.trading_rules import (
     get_regime_rules,
 )
 from ..models.base import TradeSignal
+from ..options.strike_recommender import StrikeRecommender
 from ..scanner.multi_strategy_scanner import (
     MultiStrategyScanner,
     ScanConfig,
     ScanMode,
     ScanResult,
 )
-from ..strike_recommender import StrikeRecommender
-from ..vix_strategy import (
+from ..services.vix_strategy import (
     MarketRegime,
     StrategyRecommendation,
     VIXStrategySelector,

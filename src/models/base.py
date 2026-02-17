@@ -13,6 +13,11 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Optional
 
+try:
+    from ..utils.validation import ValidationError  # noqa: F401 — consolidated from local duplicate
+except ImportError:
+    from src.utils.validation import ValidationError  # noqa: F401 — fallback for non-package imports
+
 
 class SignalType(Enum):
     """Art des Trading-Signals"""
@@ -29,12 +34,6 @@ class SignalStrength(Enum):
     MODERATE = "moderate"
     WEAK = "weak"
     NONE = "none"
-
-
-class ValidationError(ValueError):
-    """Fehler bei der Validierung von Model-Daten"""
-
-    pass
 
 
 # Gültige Reliability Grades

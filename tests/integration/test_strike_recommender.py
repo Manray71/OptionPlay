@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
-from src.strike_recommender import (
+from src.options.strike_recommender import (
     StrikeRecommender,
     StrikeRecommendation,
     StrikeQuality,

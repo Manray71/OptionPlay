@@ -20,10 +20,10 @@ if TYPE_CHECKING:
     from ..data_providers.marketdata import MarketDataProvider
     from ..data_providers.tradier import TradierProvider
     from ..scanner.multi_strategy_scanner import MultiStrategyScanner, ScanConfig
+    from ..services.vix_strategy import VIXStrategySelector
     from ..utils.circuit_breaker import CircuitBreaker
     from ..utils.rate_limiter import AdaptiveRateLimiter
     from ..utils.request_dedup import RequestDeduplicator
-    from ..vix_strategy import VIXStrategySelector
 
 logger = logging.getLogger(__name__)
 

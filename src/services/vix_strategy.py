@@ -6,10 +6,7 @@ import logging
 import warnings
 from dataclasses import dataclass
 from enum import Enum
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
-
-import yaml
 
 from ..constants import (
     DELTA_AGGRESSIVE,
@@ -219,18 +216,15 @@ class VIXStrategySelector:
         },
     }
 
-    # Trend thresholds for regime adjustment (loaded from config/trading_rules.yaml)
+    # Trend thresholds for regime adjustment (loaded from shared trading_rules config)
     @staticmethod
     def _load_vix_trend_config() -> dict:
         try:
-            config_path = Path(__file__).resolve().parents[2] / "config" / "trading_rules.yaml"
-            if config_path.exists():
-                with open(config_path) as f:
-                    data = yaml.safe_load(f) or {}
-                    return data.get("vix_trend", {})
+            from ..constants.trading_rules import get_trading_rules_config
+
+            return get_trading_rules_config().get("vix_trend", {})
         except Exception:
-            pass
-        return {}
+            return {}
 
     _vix_trend_cfg = _load_vix_trend_config.__func__()
     _z_cfg = _vix_trend_cfg.get("z_score_thresholds", {})

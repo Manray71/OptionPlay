@@ -11,7 +11,7 @@ from datetime import datetime, date
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.handlers.vix import VixHandlerMixin
-from src.vix_strategy import MarketRegime
+from src.services.vix_strategy import MarketRegime
 
 
 # =============================================================================

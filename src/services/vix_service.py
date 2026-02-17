@@ -31,7 +31,7 @@ from typing import Any, Optional
 from ..constants.trading_rules import VIX_NORMAL_MAX
 from ..formatters import formatters
 from ..models.result import ServiceResult
-from ..vix_strategy import (
+from ..services.vix_strategy import (
     StrategyRecommendation,
     VIXStrategySelector,
     get_strategy_for_vix,

@@ -18,13 +18,13 @@ from typing import Optional
 from ..constants import DELTA_LONG_TARGET, DELTA_TARGET
 from ..formatters import formatters
 from ..indicators.events import EventCalendar, EventType
-from ..utils.error_handler import mcp_endpoint
-from ..utils.markdown_builder import MarkdownBuilder
-from ..utils.validation import validate_symbol
-from ..vix_strategy import (
+from ..services.vix_strategy import (
     get_strategy_for_stock,
     get_strategy_for_vix,
 )
+from ..utils.error_handler import mcp_endpoint
+from ..utils.markdown_builder import MarkdownBuilder
+from ..utils.validation import validate_symbol
 from .base import BaseHandlerMixin
 
 logger = logging.getLogger(__name__)

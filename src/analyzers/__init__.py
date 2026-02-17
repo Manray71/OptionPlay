@@ -26,6 +26,7 @@ from .score_normalization import (
     STRATEGY_SCORE_CONFIGS,
     ScoreNormalizer,
     StrategyScoreConfig,
+    clamp_score,
     compare_scores,
     denormalize_score,
     get_max_possible,

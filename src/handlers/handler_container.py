@@ -33,11 +33,11 @@ if TYPE_CHECKING:
     from ..container import ServiceContainer
     from ..data_providers.tradier import TradierProvider
     from ..scanner.multi_strategy_scanner import MultiStrategyScanner
+    from ..services.vix_strategy import VIXStrategySelector
     from ..state.server_state import ServerState
     from ..utils.circuit_breaker import CircuitBreaker
     from ..utils.rate_limiter import AdaptiveRateLimiter
     from ..utils.request_dedup import RequestDeduplicator
-    from ..vix_strategy import VIXStrategySelector
 
 logger = logging.getLogger(__name__)
 

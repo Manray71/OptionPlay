@@ -9,7 +9,7 @@ from unittest.mock import patch, mock_open, MagicMock
 from pathlib import Path
 import yaml
 
-from src.watchlist_loader import WatchlistLoader, get_watchlist_loader
+from src.config.watchlist_loader import WatchlistLoader, get_watchlist_loader
 
 
 # =============================================================================
@@ -340,7 +340,7 @@ class TestSingleton:
     def test_get_watchlist_loader_returns_instance(self):
         """Test get_watchlist_loader returns a WatchlistLoader instance."""
         # Reset singleton
-        import src.watchlist_loader as module
+        import src.config.watchlist_loader as module
         module._loader_instance = None
 
         loader = get_watchlist_loader()
@@ -350,7 +350,7 @@ class TestSingleton:
     def test_get_watchlist_loader_returns_same_instance(self):
         """Test get_watchlist_loader returns the same instance."""
         # Reset singleton
-        import src.watchlist_loader as module
+        import src.config.watchlist_loader as module
         module._loader_instance = None
 
         loader1 = get_watchlist_loader()

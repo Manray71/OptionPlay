@@ -32,6 +32,15 @@ def _load_trading_rules_config() -> Dict[str, Any]:
     return {}
 
 
+def get_trading_rules_config() -> Dict[str, Any]:
+    """Return the cached parsed trading_rules.yaml config.
+
+    Other modules that need sections from trading_rules.yaml should call this
+    instead of re-parsing the file independently.
+    """
+    return _tr_cfg
+
+
 _tr_cfg = _load_trading_rules_config()
 _entry_cfg = _tr_cfg.get("entry", {})
 _spread_cfg = _tr_cfg.get("spread", {})

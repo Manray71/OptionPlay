@@ -216,7 +216,7 @@ class RiskHandler(BaseHandler):
         Returns:
             Formatted spread analysis
         """
-        from ..spread_analyzer import BullPutSpreadParams, SpreadAnalyzer
+        from ..options.spread_analyzer import BullPutSpreadParams, SpreadAnalyzer
         from ..utils.markdown_builder import MarkdownBuilder
         from ..utils.validation import validate_symbol
 

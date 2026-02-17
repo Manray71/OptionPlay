@@ -23,11 +23,11 @@ from ..constants.trading_rules import (
     SPREAD_DTE_TARGET,
 )
 from ..models.base import TradeSignal
-from ..vix_strategy import MarketRegime
+from ..services.vix_strategy import MarketRegime
 
 if TYPE_CHECKING:
     from ..cache.symbol_fundamentals import SymbolFundamentalsManager
-    from ..strike_recommender import StrikeRecommender
+    from ..options.strike_recommender import StrikeRecommender
 
 logger = logging.getLogger(__name__)
 
@@ -315,7 +315,7 @@ class RecommendationRankingMixin:
                 fib_levels = signal.details["fib_levels"]
 
             # MarketRegime für VIX-basierte Spread-Berechnung
-            from ..vix_strategy import MarketRegime as VixRegime
+            from ..services.vix_strategy import MarketRegime as VixRegime
 
             vix_regime = VixRegime(regime.value) if regime != MarketRegime.UNKNOWN else None
 

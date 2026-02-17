@@ -874,6 +874,24 @@ class TestEdgeCases:
         )
         assert signal is not None
 
+    def test_zero_pre_earnings_price(self):
+        """Should handle zero pre-earnings price without division-by-zero."""
+        analyzer = EarningsDipAnalyzer(EarningsDipConfig(
+            require_above_sma200=False,
+            min_avg_volume=0,
+        ))
+        # Valid prices but explicitly pass pre_earnings_price=0
+        prices, volumes, highs, lows, _ = make_dip_data(
+            pre_price=50.0, dip_pct=10.0
+        )
+        signal = analyzer.analyze(
+            "TEST", prices, volumes, highs, lows,
+            pre_earnings_price=0.0,
+        )
+        # Should return neutral signal, not crash
+        assert signal is not None
+        assert signal.signal_type.value in ("neutral", "long")
+
 
 # =============================================================================
 # 9. BACKWARD COMPATIBILITY TESTS

@@ -142,10 +142,10 @@ def estimate_iv_from_hv(
 
         if vix_history and i < len(vix_history):
             vix = vix_history[i]
-            if vix > VIX_DANGER_ZONE_MAX:
-                iv *= 1.1
-            elif vix > VIX_NO_TRADING_THRESHOLD:
+            if vix > VIX_NO_TRADING_THRESHOLD:
                 iv *= 1.2
+            elif vix > VIX_DANGER_ZONE_MAX:
+                iv *= 1.1
 
         estimated_iv.append(round(iv, 4))
 

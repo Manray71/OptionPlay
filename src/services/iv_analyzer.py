@@ -70,18 +70,13 @@ DEFAULT_DB_PATH = Path.home() / ".optionplay" / "trades.db"
 
 
 def _load_iv_config() -> dict:
-    """Load IV analysis thresholds from config/trading_rules.yaml."""
+    """Load IV analysis thresholds from shared trading_rules config."""
     try:
-        import yaml as _yaml
+        from ..constants.trading_rules import get_trading_rules_config
 
-        _config_path = Path(__file__).resolve().parents[2] / "config" / "trading_rules.yaml"
-        if _config_path.exists():
-            with open(_config_path) as _f:
-                _data = _yaml.safe_load(_f) or {}
-                return _data.get("iv_analysis", {})
+        return get_trading_rules_config().get("iv_analysis", {})
     except Exception:
-        pass
-    return {}
+        return {}
 
 
 _iv_cfg = _load_iv_config()

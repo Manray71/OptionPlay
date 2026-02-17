@@ -307,11 +307,10 @@ class TestIVEstimation:
         
         iv_values = fetcher.estimate_iv_from_hv(hv_values, vix_history, iv_premium=1.0)
         
-        # Bei VIX > 25 wird *1.1 multipliziert
-        # 0.20 * 1.1 = 0.22
+        # VIX > 25 -> *1.1, VIX > 35 -> *1.2
         assert iv_values[0] == pytest.approx(0.22, rel=0.01)  # VIX 30 -> *1.1
-        assert iv_values[1] == pytest.approx(0.22, rel=0.01)  # VIX 35 -> *1.1 (not 1.2 due to elif bug)
-        assert iv_values[2] == pytest.approx(0.22, rel=0.01)  # VIX 40 -> *1.1 (not 1.2 due to elif bug)
+        assert iv_values[1] == pytest.approx(0.22, rel=0.01)  # VIX 35 (not >) -> *1.1
+        assert iv_values[2] == pytest.approx(0.24, rel=0.01)  # VIX 40 -> *1.2
         
     def test_empty_hv_returns_empty(self, fetcher):
         """Leere HV sollte leere IV geben"""

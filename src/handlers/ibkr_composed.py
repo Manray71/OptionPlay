@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 # IBKR availability flag
 try:
-    from ..ibkr_bridge import IBKRBridge, get_ibkr_bridge
+    from ..ibkr.bridge import IBKRBridge, get_ibkr_bridge
 
     IBKR_AVAILABLE = True
 except ImportError:

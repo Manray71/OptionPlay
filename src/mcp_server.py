@@ -51,6 +51,7 @@ from .handlers.handler_container import (
     create_handler_container_from_server,
 )
 from .scanner.multi_strategy_scanner import MultiStrategyScanner, ScanConfig, ScanMode
+from .services.vix_strategy import VIXStrategySelector
 from .state.server_state import ServerState
 from .utils.circuit_breaker import CircuitBreaker, CircuitBreakerOpen, get_circuit_breaker
 from .utils.metrics import metrics
@@ -59,14 +60,13 @@ from .utils.rate_limiter import get_marketdata_limiter
 from .utils.request_dedup import get_request_deduplicator
 from .utils.secure_config import get_api_key, mask_api_key
 from .utils.validation import is_etf
-from .vix_strategy import VIXStrategySelector
 
 # Handler Mixins removed — now using Composition pattern via HandlerContainer
 
 
 # IBKR Bridge (optional)
 try:
-    from .ibkr_bridge import IBKRBridge, get_ibkr_bridge
+    from .ibkr.bridge import IBKRBridge, get_ibkr_bridge
 
     IBKR_AVAILABLE = True
 except ImportError:

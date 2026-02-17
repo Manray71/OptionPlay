@@ -17,13 +17,13 @@ from ..utils.validation import validate_symbols
 from .base import BaseHandlerMixin
 
 if TYPE_CHECKING:
-    from ..ibkr_bridge import IBKRBridge
+    from ..ibkr.bridge import IBKRBridge
 
 logger = logging.getLogger(__name__)
 
 # IBKR availability flag (set during import)
 try:
-    from ..ibkr_bridge import IBKRBridge, get_ibkr_bridge
+    from ..ibkr.bridge import IBKRBridge, get_ibkr_bridge
 
     IBKR_AVAILABLE = True
 except ImportError:

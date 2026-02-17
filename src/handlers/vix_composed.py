@@ -102,7 +102,7 @@ class VixHandler(BaseHandler):
             Formatted Markdown recommendation
         """
         from ..formatters import formatters
-        from ..vix_strategy import get_strategy_for_vix
+        from ..services.vix_strategy import get_strategy_for_vix
 
         vix = await self.get_vix()
         recommendation = get_strategy_for_vix(vix)
@@ -255,9 +255,9 @@ class VixHandler(BaseHandler):
         Returns:
             Formatted Markdown recommendation
         """
+        from ..services.vix_strategy import get_strategy_for_stock
         from ..utils.markdown_builder import MarkdownBuilder
         from ..utils.validation import validate_symbol
-        from ..vix_strategy import get_strategy_for_stock
 
         symbol = validate_symbol(symbol)
 

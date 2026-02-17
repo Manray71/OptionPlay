@@ -26,6 +26,7 @@ from ..models.base import SignalStrength, SignalType, TradeSignal
 from ..models.strategy_breakdowns import ATHBreakoutScoreBreakdown
 from .base import BaseAnalyzer
 from .context import AnalysisContext
+from .score_normalization import clamp_score, normalize_score
 
 logger = logging.getLogger(__name__)
 
@@ -361,7 +362,7 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
 
         # Total score
         total_score = consol_score + breakout_score + volume_score + momentum_score
-        total_score = max(0.0, min(10.0, total_score))
+        total_score = clamp_score(total_score, 10.0)
         breakdown.total_score = round(total_score, 1)
         breakdown.max_possible = 10.0
 
@@ -378,7 +379,7 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             rsi_value,
         )
 
-        # Signal strength
+        # Signal strength (compared on native scale before normalization)
         if total_score >= ATH_SIGNAL_STRONG:
             strength = SignalStrength.STRONG
         elif total_score >= ATH_SIGNAL_MODERATE:
@@ -387,6 +388,11 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             strength = SignalStrength.WEAK
         else:
             strength = SignalStrength.NONE
+
+        is_actionable = total_score >= ATH_MIN_SCORE
+
+        # Normalize to 0-10 scale for fair cross-strategy comparison
+        normalized_score = normalize_score(total_score, "ath_breakout")
 
         # Entry/Stop/Target
         entry_price = current_price
@@ -417,9 +423,9 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         return TradeSignal(
             symbol=symbol,
             strategy=self.strategy_name,
-            signal_type=SignalType.LONG if total_score >= ATH_MIN_SCORE else SignalType.NEUTRAL,
+            signal_type=SignalType.LONG if is_actionable else SignalType.NEUTRAL,
             strength=strength,
-            score=round(total_score, 1),
+            score=round(normalized_score, 1),
             current_price=current_price,
             entry_price=entry_price,
             stop_loss=stop_loss,
@@ -563,7 +569,10 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         best_range = range_pct
         best_duration = len(consol_highs)
 
-        # Try progressively larger windows starting from min_days
+        # Try progressively larger windows starting from min_days.
+        # Range is monotonically non-decreasing with window size, so once
+        # a window exceeds max_range, all larger windows will too.
+        # We want the LONGEST valid window (strongest consolidation signal).
         for window_size in range(min_days, len(consol_highs) + 1, ATH_CONSOL_WINDOW_STEP):
             window_start = len(consol_highs) - window_size
             w_highs = consol_highs[window_start:]
@@ -575,7 +584,8 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             if w_range <= max_range:
                 best_range = w_range
                 best_duration = window_size
-                break  # Take the longest valid window
+            else:
+                break  # Range only grows with window size, stop here
 
         # If even the shortest window exceeds max_range, check if there's
         # any valid window
@@ -768,7 +778,7 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         if ath_tests >= ATH_CONSOL_TEST_MIN:
             score += ATH_CONSOL_TEST_BONUS
 
-        return min(ATH_CONSOL_SCORE_MAX, score)
+        return clamp_score(score, ATH_CONSOL_SCORE_MAX)
 
     def _score_breakout_strength(self, close_info: Dict[str, Any]) -> float:
         """
@@ -800,7 +810,7 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         if days_above >= ATH_BREAKOUT_DAYS_BONUS_MIN:
             score += ATH_BREAKOUT_CONFIRMATION_BONUS
 
-        return min(ATH_BREAKOUT_SCORE_MAX, score)
+        return clamp_score(score, ATH_BREAKOUT_SCORE_MAX)
 
     def _score_volume(self, ratio: float) -> float:
         """
@@ -903,7 +913,7 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             signals.append(f"RSI overbought ({rsi_value:.0f})")
 
         # Clamp
-        score = max(ATH_MOMENTUM_SCORE_MIN, min(ATH_MOMENTUM_SCORE_MAX, score))
+        score = clamp_score(score, ATH_MOMENTUM_SCORE_MAX, ATH_MOMENTUM_SCORE_MIN)
 
         reason = ", ".join(signals) if signals else "Neutral momentum"
 
