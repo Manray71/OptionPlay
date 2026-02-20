@@ -450,8 +450,18 @@ class PullbackAnalyzer(PullbackScoringMixin, BaseAnalyzer):
         breakdown = ScoreBreakdown()
 
         # 1. RSI Score (0-3 points) — adaptive threshold based on stability
+        # Compute short RSI series for hook detection (last 3 days)
         stability = context.stability_score if context else None
-        breakdown.rsi_score, breakdown.rsi_reason = self._score_rsi(rsi, stability)
+        rsi_series = None
+        if len(prices) >= self.config.rsi.period + 4:
+            rsi_series = [
+                self._calculate_rsi(prices[: -2], self.config.rsi.period),
+                self._calculate_rsi(prices[: -1], self.config.rsi.period),
+                rsi,
+            ]
+        breakdown.rsi_score, breakdown.rsi_reason = self._score_rsi(
+            rsi, stability, rsi_series=rsi_series
+        )
         breakdown.rsi_value = rsi
 
         # 1b. RSI Divergence (0-3 points) - NEW
@@ -574,13 +584,25 @@ class PullbackAnalyzer(PullbackScoringMixin, BaseAnalyzer):
         breakdown.sector = sector_result[1]
         breakdown.sector_reason = sector_result[2]
 
-        # 13. Gap Score (0-1 für down-gaps, -0.5 bis 0 für up-gaps) - Validated with 174k+ events
+        # 13. Candlestick Reversal Score (0-2 points) — Literature alignment
+        # Only fires when Support or Fibonacci provides contextual anchor
+        candle_result = self._score_candlestick_reversal(
+            prices, highs, lows,
+            support_score=breakdown.support_score,
+            fibonacci_score=breakdown.fibonacci_score,
+        )
+        breakdown.candlestick_score = candle_result[0]
+        breakdown.candlestick_pattern = candle_result[1]
+        breakdown.candlestick_reason = candle_result[2]
+
+        # Gap Score — removed from pullback scoring (Lücke 4: konzeptionell deplatziert)
+        # Gap-fill is tracked for display but no longer contributes to score.
         gap_result = self._score_gap(prices, highs, lows, context)
-        breakdown.gap_score = gap_result[0]
+        breakdown.gap_score = 0  # Neutralized — gap doesn't belong in pullback
         breakdown.gap_type = gap_result[1]
         breakdown.gap_size_pct = gap_result[2]
         breakdown.gap_filled = gap_result[3]
-        breakdown.gap_reason = gap_result[4]
+        breakdown.gap_reason = f"{gap_result[4]} (not scored in pullback)"
 
         # E.5: Dividend-Gap-Handling — data-driven when available, heuristic fallback
         # Must run AFTER gap_score is calculated (step 13) so neutralization works
@@ -625,22 +647,26 @@ class PullbackAnalyzer(PullbackScoringMixin, BaseAnalyzer):
         except (KeyError, AttributeError, ImportError):
             w = {}
 
-        # Default max weights per component (used when YAML weight matches original)
+        # Default max weights per component
+        # Lücke 2: VWAP 3.0→1.5 (intraday indicator, less relevant for swing trades)
+        #          Support 2.5→3.0, Fibonacci 2.0→2.5 (literature alignment)
+        # Lücke 1: Candlestick added (max 2.0)
+        # Lücke 4: Gap removed from scoring
         _DEFAULTS = {
             "rsi": 3.0,
             "rsi_divergence": 3.0,
-            "support": 2.5,
-            "fibonacci": 2.0,
+            "support": 3.0,
+            "fibonacci": 2.5,
             "ma": 2.0,
             "trend_strength": 2.0,
             "volume": 1.0,
             "macd": 2.0,
             "stoch": 2.0,
             "keltner": 2.0,
-            "vwap": 3.0,
+            "vwap": 1.5,
             "market_context": 2.0,
             "sector": 1.0,
-            "gap": 1.0,
+            "candlestick": 2.0,
         }
 
         def _scale(component: str, raw: float) -> float:
@@ -658,6 +684,7 @@ class PullbackAnalyzer(PullbackScoringMixin, BaseAnalyzer):
             return w.get(component, _DEFAULTS.get(component, 1.0))
 
         # Score each component and track which ones contributed positively
+        # Note: gap removed from scoring (Lücke 4), candlestick added (Lücke 1)
         _components = {
             "rsi": breakdown.rsi_score,
             "rsi_divergence": breakdown.rsi_divergence_score,
@@ -672,7 +699,7 @@ class PullbackAnalyzer(PullbackScoringMixin, BaseAnalyzer):
             "vwap": breakdown.vwap_score,
             "market_context": breakdown.market_context_score,
             "sector": breakdown.sector_score,
-            "gap": breakdown.gap_score,
+            "candlestick": breakdown.candlestick_score,
         }
 
         # Total Score with config-based weight scaling

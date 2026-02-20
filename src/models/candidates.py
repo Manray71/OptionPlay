@@ -107,6 +107,12 @@ class ScoreBreakdown:
     sector: str = ""
     sector_reason: str = ""
 
+    # Candlestick Reversal Score (NEW - literature alignment)
+    # Hammer, Bullish Engulfing, Doji at support/fibonacci levels
+    candlestick_score: float = 0
+    candlestick_pattern: str = ""  # 'hammer', 'bullish_engulfing', 'doji', 'none'
+    candlestick_reason: str = ""
+
     # Gap Score (NEW - validated with 174k+ events)
     # Down-gaps: +0.43% better 30d returns, +1.9pp win rate
     # Large down-gaps (>3%): +1.21% outperformance
@@ -203,6 +209,11 @@ class ScoreBreakdown:
                     "score": self.sector_score,
                     "name": self.sector,
                     "reason": self.sector_reason,
+                },
+                "candlestick": {
+                    "score": self.candlestick_score,
+                    "pattern": self.candlestick_pattern,
+                    "reason": self.candlestick_reason,
                 },
                 "gap": {
                     "score": self.gap_score,

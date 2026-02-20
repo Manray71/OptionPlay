@@ -143,16 +143,22 @@ class PullbackScoringMixin:
 
         return 0, "No significant divergence"
 
-    def _score_rsi(self, rsi: float, stability_score: Optional[float] = None) -> Tuple[float, str]:
+    def _score_rsi(
+        self,
+        rsi: float,
+        stability_score: Optional[float] = None,
+        rsi_series: Optional[List[float]] = None,
+    ) -> Tuple[float, str]:
         """RSI Score (0-3 points).
 
         Uses adaptive neutral threshold based on stability score:
-        - High stability (85+): neutral at 42 (was fixed 50)
-        - Medium stability (70+): neutral at 40
-        - Low stability (60+): neutral at 38
+        - High stability (85+): neutral at 50
+        - Medium stability (70+): neutral at 45
+        - Low stability (60+): neutral at 40
         - Very low (<60): neutral at 35
 
-        This prevents penalizing stable stocks with normal RSI 40-50.
+        RSI-Hook bonus (+0.5): If RSI turned upward from oversold in last 2 days,
+        this signals the pullback is ending (literature: "enter when RSI turns up").
         """
         cfg = self.config.rsi
 
@@ -166,13 +172,26 @@ class PullbackScoringMixin:
             neutral = cfg.neutral  # Fallback to original fixed 50
 
         if rsi < cfg.extreme_oversold:
-            return cfg.weight_extreme, f"RSI {rsi:.1f} < {cfg.extreme_oversold} (extreme oversold)"
+            score = cfg.weight_extreme
+            reason = f"RSI {rsi:.1f} < {cfg.extreme_oversold} (extreme oversold)"
         elif rsi < cfg.oversold:
-            return cfg.weight_oversold, f"RSI {rsi:.1f} < {cfg.oversold} (oversold)"
+            score = cfg.weight_oversold
+            reason = f"RSI {rsi:.1f} < {cfg.oversold} (oversold)"
         elif rsi < neutral:
-            return cfg.weight_neutral, f"RSI {rsi:.1f} < {neutral} (neutral-low, adaptive)"
+            score = cfg.weight_neutral
+            reason = f"RSI {rsi:.1f} < {neutral} (neutral-low, adaptive)"
         else:
             return 0, f"RSI {rsi:.1f} >= {neutral} (not in pullback zone)"
+
+        # RSI-Hook bonus: RSI turning up from oversold in last 2 days
+        # Literature: "enter when RSI turns up from this area"
+        if rsi_series is not None and len(rsi_series) >= 3:
+            rsi_delta = rsi_series[-1] - rsi_series[-3]
+            if rsi_delta >= 2.0 and rsi_series[-1] < neutral + 10:
+                score = min(score + 0.5, cfg.weight_extreme)  # Cap at component max
+                reason += f" | Hook +0.5 (RSI turning up {rsi_delta:+.1f})"
+
+        return score, reason
 
     def _score_support(self, price: float, supports: List[float]) -> Tuple[float, str]:
         """Support proximity Score (0-2 points)"""
@@ -466,6 +485,80 @@ class PullbackScoringMixin:
             f"Within {distance_pct:.1f}% of {strength} support ${nearest:.2f} ({touches} touches)"
         )
         return base_score, reason, strength, touches
+
+    # =========================================================================
+    # CANDLESTICK REVERSAL SCORING (Component #15)
+    # =========================================================================
+
+    def _score_candlestick_reversal(
+        self,
+        prices: List[float],
+        highs: List[float],
+        lows: List[float],
+        support_score: float = 0,
+        fibonacci_score: float = 0,
+    ) -> Tuple[float, str, str]:
+        """
+        Candlestick Reversal Score (0-2 points).
+
+        Detects reversal candlestick patterns at relevant levels.
+        Only fires when Support or Fibonacci is also active (contextual anchor).
+
+        Patterns:
+        - Hammer: lower shadow > 2x body, small upper shadow → 2.0
+        - Bullish Engulfing: today's green body engulfs yesterday's red body → 1.5
+        - Doji with lower shadow: body < 0.3% of price → 1.0
+
+        Returns:
+            (score, pattern_name, reason)
+        """
+        if len(prices) < 2 or len(highs) < 2 or len(lows) < 2:
+            return 0, "none", "Insufficient data for candlestick analysis"
+
+        # Only score if Support or Fibonacci provides context
+        has_context = support_score > 0 or fibonacci_score > 0
+        if not has_context:
+            return 0, "none", "No support/fibonacci context for candlestick"
+
+        # Today's candle
+        open_today = prices[-2]  # Approximate open as previous close
+        close_today = prices[-1]
+        high_today = highs[-1]
+        low_today = lows[-1]
+        body = abs(close_today - open_today)
+        full_range = high_today - low_today
+
+        if full_range <= 0:
+            return 0, "none", "No price range"
+
+        # Yesterday's candle
+        open_yest = prices[-3] if len(prices) >= 3 else prices[-2]
+        close_yest = prices[-2]
+
+        # --- Hammer Detection ---
+        # Lower shadow > 2x body, upper shadow < 30% of full range
+        lower_shadow = min(open_today, close_today) - low_today
+        upper_shadow = high_today - max(open_today, close_today)
+
+        if body > 0 and lower_shadow >= 2 * body and upper_shadow <= 0.3 * full_range:
+            return 2.0, "hammer", f"Hammer at support (shadow {lower_shadow/body:.1f}x body)"
+
+        # --- Bullish Engulfing Detection ---
+        # Yesterday red (close < open), today green (close > open),
+        # today's body engulfs yesterday's body
+        yest_red = close_yest < open_yest
+        today_green = close_today > open_today
+        if yest_red and today_green:
+            if close_today > open_yest and open_today <= close_yest:
+                return 1.5, "bullish_engulfing", "Bullish Engulfing at support"
+
+        # --- Doji with Lower Shadow ---
+        # Body < 0.3% of price, meaningful lower shadow
+        body_pct = body / close_today * 100
+        if body_pct < 0.3 and lower_shadow > body * 1.5:
+            return 1.0, "doji", f"Doji with lower shadow at support (body {body_pct:.2f}%)"
+
+        return 0, "none", "No reversal candlestick pattern"
 
     # =========================================================================
     # SIGNAL HELPER (Legacy - for backward compatibility)

@@ -34,11 +34,12 @@ class StrategyScoreConfig:
 
 STRATEGY_SCORE_CONFIGS: Dict[str, StrategyScoreConfig] = {
     "pullback": StrategyScoreConfig(
-        max_possible=26.0,
-        # Component breakdown:
-        # RSI: 3, RSI Divergence: 3, Support: 2.5, Fibonacci: 2,
-        # MA: 2, Trend: 2, Volume: 2, MACD: 2, Stoch: 2, Keltner: 2,
-        # VWAP: 3, Market Context: 2, Sector: 1, Gap: 1
+        max_possible=27.0,
+        # Component breakdown (v3 — literature aligned):
+        # RSI: 3, RSI Divergence: 3, Support: 3, Fibonacci: 2.5,
+        # MA: 2, Trend: 2, Volume: 1, MACD: 2, Stoch: 2, Keltner: 2,
+        # VWAP: 1.5, Market Context: 2, Sector: 1, Candlestick: 2
+        # (Gap removed from pullback scoring)
         strong_threshold=7.0,
         moderate_threshold=5.0,
         weak_threshold=3.0,

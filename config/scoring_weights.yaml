@@ -8,19 +8,19 @@ strategies:
     weights:
       rsi: 3.7
       rsi_divergence: 3.6
-      support: 2.46
-      fibonacci: 1.99
+      support: 3.0        # was 2.46 — literature: support is primary pullback signal
+      fibonacci: 2.5      # was 1.99 — literature: key retracement levels
       ma: 1.06
       trend_strength: 2.05
       volume: 1.0
       macd: 2.4
       stoch: 1.2
       keltner: 2.0
-      vwap: 3.06
+      vwap: 1.5           # was 3.06 — intraday indicator, less relevant for swing trades
       market_context: 1.7
       sector: 1.0
-      gap: 1.0
-    max_possible: 27.32
+      candlestick: 2.0    # NEW — reversal patterns at support/fibonacci
+    max_possible: 27.65
     regimes:
       low:
         weights:
