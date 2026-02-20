@@ -17,9 +17,28 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
+from datetime import datetime, timezone, timedelta
 from typing import Any, Optional
 
 import numpy as np
+
+
+def _intraday_volume_scale() -> float:
+    """Scale factor to normalize intraday partial volume to full-day estimate.
+
+    US market: 9:30-16:00 ET (390 min). At 11:00 ET (90 min in),
+    returns 390/90 ≈ 4.3. Outside market hours returns 1.0.
+    """
+    et = timezone(timedelta(hours=-5))
+    now = datetime.now(et)
+    market_open = now.replace(hour=9, minute=30, second=0, microsecond=0)
+    market_close = now.replace(hour=16, minute=0, second=0, microsecond=0)
+    if now >= market_close or now <= market_open:
+        return 1.0
+    elapsed_min = (now - market_open).total_seconds() / 60.0
+    if elapsed_min < 1:
+        return 1.0
+    return min(390.0 / elapsed_min, 10.0)
 
 # Import optimized support/resistance functions
 # NOTE: Fallback import chains use type: ignore for no-redef (re-importing same names),
@@ -328,7 +347,7 @@ class AnalysisContext:
             else:
                 self.avg_volume_20 = float(np.mean(recent_vols))
             if self.avg_volume_20 > 0:
-                self.volume_ratio = self.current_volume / self.avg_volume_20
+                self.volume_ratio = (self.current_volume * _intraday_volume_scale()) / self.avg_volume_20
 
         # ATH — shared
         self._calculate_ath_metrics(highs)
@@ -402,7 +421,7 @@ class AnalysisContext:
             else:
                 self.avg_volume_20 = sum(recent_vols) / 20
             if self.avg_volume_20 > 0:
-                self.volume_ratio = self.current_volume / self.avg_volume_20
+                self.volume_ratio = (self.current_volume * _intraday_volume_scale()) / self.avg_volume_20
 
         # ATH — shared
         self._calculate_ath_metrics(highs)

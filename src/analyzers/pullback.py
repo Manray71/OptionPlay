@@ -386,6 +386,66 @@ class PullbackAnalyzer(PullbackScoringMixin, BaseAnalyzer):
         lookback = self.config.fibonacci.lookback_days
         fib_levels = self._calculate_fibonacci(max(highs[-lookback:]), min(lows[-lookback:]))
 
+        # === PULLBACK GATES ===
+        # Helper to build a disqualified candidate with score 0
+        def _disqualified(reason: str, rsi_reason: str = "") -> PullbackCandidate:
+            bd = ScoreBreakdown()
+            bd.rsi_value = rsi
+            bd.rsi_reason = rsi_reason or reason
+            bd.total_score = 0
+            bd.max_possible = STRATEGY_SCORE_CONFIGS["pullback"].max_possible
+            return PullbackCandidate(
+                symbol=symbol,
+                current_price=current_price,
+                score=0,
+                score_breakdown=bd,
+                technicals=TechnicalIndicators(
+                    rsi_14=rsi,
+                    sma_20=sma_20,
+                    sma_50=sma_50,
+                    sma_200=sma_200,
+                    macd=macd_result,
+                    stochastic=stoch_result,
+                    above_sma20=current_price > sma_20 if sma_20 else False,
+                    above_sma50=current_price > sma_50 if sma_50 else None,
+                    above_sma200=current_price > sma_200 if sma_200 else False,
+                    trend=trend,
+                ),
+                support_levels=[],
+                resistance_levels=[],
+                fib_levels={},
+                avg_volume=int(np.mean(volumes[-20:])) if len(volumes) >= 20 else 0,
+                current_volume=current_volume,
+            )
+
+        # Gate 1: RSI overbought — not a pullback, likely reversal
+        if rsi is not None and rsi > RSI_OVERBOUGHT:
+            return _disqualified(
+                f"RSI {rsi:.1f} overbought — not a pullback",
+                f"RSI {rsi:.1f} > {RSI_OVERBOUGHT} (overbought, not a pullback)",
+            )
+
+        # Gate 2: Must be in uptrend (price above SMA200)
+        # A pullback requires a prior uptrend to pull back from.
+        # Stocks below SMA200 are in downtrends — those are bounce candidates.
+        above_200 = current_price > sma_200 if sma_200 else True
+        if not above_200:
+            return _disqualified(
+                f"Below SMA200 — downtrend, not a pullback",
+                f"Price below SMA200 (downtrend, use bounce strategy)",
+            )
+
+        # Gate 3: Pullback evidence required when RSI > 50
+        # If RSI is not even mildly oversold, we need some sign of a dip
+        # (price below SMA20 or near fibonacci). Otherwise it's pure momentum.
+        if rsi is not None and rsi > 50:
+            has_dip = sma_20 is not None and current_price < sma_20
+            if not has_dip:
+                return _disqualified(
+                    f"RSI {rsi:.1f} with no dip below SMA20 — momentum, not pullback",
+                    f"RSI {rsi:.1f} > 50, price above SMA20 (no pullback evidence)",
+                )
+
         # Scoring
         breakdown = ScoreBreakdown()
 
@@ -455,7 +515,8 @@ class PullbackAnalyzer(PullbackScoringMixin, BaseAnalyzer):
         breakdown.volume_score = vol_result[0]
         breakdown.volume_reason = vol_result[1]
         breakdown.volume_trend = vol_result[2]
-        breakdown.volume_ratio = current_volume / avg_volume if avg_volume > 0 else 0
+        intraday_scale = self._intraday_volume_scale()
+        breakdown.volume_ratio = (current_volume * intraday_scale) / avg_volume if avg_volume > 0 else 0
 
         warnings = []
 
@@ -592,33 +653,48 @@ class PullbackAnalyzer(PullbackScoringMixin, BaseAnalyzer):
                 return raw
             return raw * (yaml_max / default_max)
 
+        def _max_weight(component: str) -> float:
+            """Get the max weight for a component (YAML or default)."""
+            return w.get(component, _DEFAULTS.get(component, 1.0))
+
+        # Score each component and track which ones contributed positively
+        _components = {
+            "rsi": breakdown.rsi_score,
+            "rsi_divergence": breakdown.rsi_divergence_score,
+            "support": breakdown.support_score,
+            "fibonacci": breakdown.fibonacci_score,
+            "ma": breakdown.ma_score,
+            "trend_strength": breakdown.trend_strength_score,
+            "volume": breakdown.volume_score,
+            "macd": breakdown.macd_score,
+            "stoch": breakdown.stoch_score,
+            "keltner": breakdown.keltner_score,
+            "vwap": breakdown.vwap_score,
+            "market_context": breakdown.market_context_score,
+            "sector": breakdown.sector_score,
+            "gap": breakdown.gap_score,
+        }
+
         # Total Score with config-based weight scaling
-        breakdown.total_score = (
-            _scale("rsi", breakdown.rsi_score)
-            + _scale("rsi_divergence", breakdown.rsi_divergence_score)
-            + _scale("support", breakdown.support_score)
-            + _scale("fibonacci", breakdown.fibonacci_score)
-            + _scale("ma", breakdown.ma_score)
-            + _scale("trend_strength", breakdown.trend_strength_score)
-            + _scale("volume", breakdown.volume_score)
-            + _scale("macd", breakdown.macd_score)
-            + _scale("stoch", breakdown.stoch_score)
-            + _scale("keltner", breakdown.keltner_score)
-            + _scale("vwap", breakdown.vwap_score)
-            + _scale("market_context", breakdown.market_context_score)
-            + _scale("sector", breakdown.sector_score)
-            + _scale("gap", breakdown.gap_score)
-        )
+        breakdown.total_score = sum(_scale(k, v) for k, v in _components.items())
 
         # Apply sector_factor as multiplicative adjustment (Iter 4 trained)
         if w and resolved.sector_factor != 1.0:
             breakdown.total_score *= resolved.sector_factor
 
-        # Use resolved max_possible from config, fallback to hardcoded
-        if w:
-            breakdown.max_possible = resolved.max_possible
+        # Dynamic max_possible: sum of max weights for components that scored > 0.
+        # This prevents components that are structurally impossible during a pullback
+        # (e.g., MACD bullish cross, VWAP strong above) from diluting the score.
+        # A minimum of 3 active components is required to avoid inflated scores
+        # from a single lucky indicator.
+        # Floor at 50% of full max to prevent score inflation with few components.
+        full_max = resolved.max_possible if w else STRATEGY_SCORE_CONFIGS["pullback"].max_possible
+        active_maxes = [_max_weight(k) for k, v in _components.items() if v > 0]
+        if len(active_maxes) >= 3:
+            dynamic_max = sum(active_maxes)
+            breakdown.max_possible = max(dynamic_max, full_max * 0.5)
         else:
-            breakdown.max_possible = STRATEGY_SCORE_CONFIGS["pullback"].max_possible
+            breakdown.max_possible = full_max
 
         return PullbackCandidate(
             symbol=symbol,

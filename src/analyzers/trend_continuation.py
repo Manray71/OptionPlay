@@ -309,10 +309,45 @@ class TrendContinuationAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         breakdown.volatility_score = volatility_score
         breakdown.atr_pct = atr_pct if atr_pct is not None else 0
 
-        # Total Score
-        total_score = (
-            sma_alignment_score + stability_score + buffer_score + momentum_score + volatility_score
-        )
+        # === Apply YAML weights (trained but previously not integrated) ===
+        # Default max per component (matches hardcoded scoring ranges above)
+        _DEFAULTS = {
+            "sma_alignment": 2.5,
+            "trend_stability": 2.5,
+            "trend_buffer": 2.0,
+            "momentum_health": 2.0,
+            "volatility": 1.5,
+        }
+
+        # Load trained weights from scoring_weights.yaml
+        regime = getattr(context, "regime", "normal") if context else "normal"
+        sector = getattr(context, "sector", None) if context else None
+        try:
+            resolved = self.get_weights(regime=regime, sector=sector)
+            w = resolved.weights
+        except (KeyError, AttributeError, ImportError):
+            w = {}
+
+        def _scale(component: str, raw: float) -> float:
+            """Scale a component score by the ratio of YAML weight to hardcoded default."""
+            yaml_max = w.get(component)
+            if yaml_max is None:
+                return raw
+            default_max = _DEFAULTS.get(component, 1.0)
+            if default_max <= 0:
+                return raw
+            return raw * (yaml_max / default_max)
+
+        _components = {
+            "sma_alignment": sma_alignment_score,
+            "trend_stability": stability_score,
+            "trend_buffer": buffer_score,
+            "momentum_health": momentum_score,
+            "volatility": volatility_score,
+        }
+
+        # Total Score with weight scaling
+        total_score = sum(_scale(k, v) for k, v in _components.items())
 
         # VIX Regime Adjustment
         vix_adjustment = self._get_vix_adjustment(vix_regime)

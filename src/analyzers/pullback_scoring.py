@@ -224,16 +224,46 @@ class PullbackScoringMixin:
 
         return 0, "MA config doesn't indicate pullback"
 
+    @staticmethod
+    def _intraday_volume_scale() -> float:
+        """
+        Returns a scaling factor to normalize intraday partial volume
+        to a full-day estimate.
+
+        US market hours: 9:30-16:00 ET (390 minutes).
+        If called at 11:00 ET (90 min elapsed), returns 390/90 = 4.33.
+        Outside market hours or after close, returns 1.0 (no adjustment).
+        """
+        from datetime import datetime, timezone, timedelta
+
+        et = timezone(timedelta(hours=-5))
+        now = datetime.now(et)
+        market_open = now.replace(hour=9, minute=30, second=0, microsecond=0)
+        market_close = now.replace(hour=16, minute=0, second=0, microsecond=0)
+
+        if now >= market_close or now <= market_open:
+            return 1.0  # After hours or pre-market: no adjustment
+
+        elapsed_min = (now - market_open).total_seconds() / 60.0
+        if elapsed_min < 1:
+            return 1.0
+
+        return min(390.0 / elapsed_min, 10.0)  # Cap at 10x to avoid extremes at open
+
     def _score_volume(self, current: int, average: int) -> Tuple[float, str, str]:
         """
         Volume Score (0-1 point)
 
         NEW: Decreasing volume during pullback = healthy (no panic selling)
+        Intraday adjustment: scales partial-day volume to full-day estimate.
         """
         if average == 0:
             return 0, "No average volume data", "unknown"
 
-        ratio = current / average
+        # Adjust for intraday partial volume
+        scale = self._intraday_volume_scale()
+        adjusted_current = current * scale
+        ratio = adjusted_current / average
         cfg = self.config.volume
 
         # E.3: Very low volume = weak conviction penalty
