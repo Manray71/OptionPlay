@@ -286,17 +286,17 @@ class TestBounceDisqualifications:
         assert signal.signal_type == SignalType.NEUTRAL
 
     def test_price_far_above_support_disqualified(self, analyzer):
-        """Price > 5% above support → disqualified"""
+        """Price > 7% above support → disqualified (proximity_max_above_pct = 7.0)"""
         prices, volumes, highs, lows = make_bounce_data(
             support_level=100.0,
-            current_price=106.0,  # 6% above support
+            current_price=108.0,  # 8% above support — beyond 7% threshold
             num_touches=3,
             trend='up',
         )
         # Use context to force the support level at 100
         context = AnalysisContext(
             symbol="TEST",
-            current_price=106.0,
+            current_price=108.0,
             support_levels=[100.0],
         )
         signal = analyzer.analyze("TEST", prices, volumes, highs, lows, context=context)
@@ -322,12 +322,12 @@ class TestBounceDisqualifications:
         assert signal.signal_type in (SignalType.NEUTRAL, SignalType.LONG)
 
     def test_dead_cat_bounce_disqualified(self, analyzer):
-        """Volume < 0.7x avg → Dead Cat Bounce → disqualified"""
+        """Volume < 0.5x avg → Dead Cat Bounce → disqualified (dcb_threshold = 0.5)"""
         prices, volumes, highs, lows = make_bounce_data(
             support_level=100.0,
             current_price=101.0,
             num_touches=3,
-            bounce_volume_mult=0.5,  # Very low volume
+            bounce_volume_mult=0.3,  # Below 0.5 DCB threshold
             make_green_candle=True,
             trend='up',
         )
@@ -515,7 +515,7 @@ class TestBounceSpecTestCases:
             support_level=100.0,
             current_price=101.0,
             num_touches=3,
-            bounce_volume_mult=0.5,  # Dead Cat Bounce volume
+            bounce_volume_mult=0.3,  # Below 0.5 DCB threshold
             make_green_candle=True,
             trend='up',
         )
@@ -702,8 +702,8 @@ class TestBounceScoringComponents:
         assert analyzer._score_volume(0.8) == 0.0
 
     def test_volume_score_dcb_penalty(self, analyzer):
-        """< 0.7x volume = -1.0 (Dead Cat Bounce)"""
-        assert analyzer._score_volume(0.5) == -1.0
+        """< 0.5x volume = -1.0 (Dead Cat Bounce, dcb_threshold = 0.5)"""
+        assert analyzer._score_volume(0.4) == -1.0
 
     def test_trend_context_uptrend(self, analyzer):
         """Price above rising SMA 200 = 1.5"""
@@ -1122,13 +1122,13 @@ class TestBounceE4EnhancedDCBFilter:
             assert "2 consecutive red" not in signal.reason
 
     def test_dcb_volume_filter_still_works(self, analyzer):
-        """Original volume DCB filter still works"""
+        """Original volume DCB filter still works (dcb_threshold = 0.5)"""
         prices, volumes, highs, lows = make_bounce_data(
             n=150,
             support_level=100.0,
             current_price=101.0,
             num_touches=3,
-            bounce_volume_mult=0.5,  # Very low volume
+            bounce_volume_mult=0.3,  # Below 0.5 DCB threshold
             make_green_candle=True,
             trend='up',
         )

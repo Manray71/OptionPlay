@@ -742,13 +742,15 @@ class TestATHBreakoutSpecTestCases:
 
     def test_case_10_borderline_volume(self):
         """
-        Spec Case 10: New ATH, base 35 days, Vol 1.3x
+        Spec Case 10: New ATH, base 60 days (very long), Vol 1.3x
         Expected: Weak signal (~4.5) — volume borderline
+        Note: With 120-day lookback, consolidation must be long enough
+              to dominate the window and keep range tight.
         """
         analyzer = ATHBreakoutAnalyzer()
         data = make_ath_data(
             n=300,
-            consolidation_days=35,
+            consolidation_days=60,
             consolidation_range_pct=7.0,
             breakout_pct=1.5,
             volume_ratio=1.3,

@@ -74,6 +74,7 @@ ATH_RANGE_TIGHT_PCT = _cfg.get("ath_breakout.consolidation.range_tight_pct", 8.0
 ATH_RANGE_MODERATE_PCT = _cfg.get("ath_breakout.consolidation.range_moderate_pct", 12.0)
 ATH_RANGE_WIDE_PCT = _cfg.get("ath_breakout.consolidation.range_wide_pct", 15.0)
 ATH_CONSOL_DURATION_MIN = _cfg.get("ath_breakout.consolidation.duration_min", 30)
+ATH_CONSOL_DURATION_VERY_LONG = _cfg.get("ath_breakout.consolidation.duration_very_long", 60)
 ATH_CONSOL_SCORE_TIGHT_LONG = _cfg.get("ath_breakout.consolidation.score_tight_long", 2.5)
 ATH_CONSOL_SCORE_TIGHT_SHORT = _cfg.get("ath_breakout.consolidation.score_tight_short", 2.0)
 ATH_CONSOL_SCORE_MOD_LONG = _cfg.get("ath_breakout.consolidation.score_mod_long", 2.0)
@@ -94,7 +95,19 @@ ATH_BREAKOUT_SCORE_STRONG = _cfg.get("ath_breakout.breakout.score_strong", 2.0)
 ATH_BREAKOUT_SCORE_OVEREXTENDED = _cfg.get("ath_breakout.breakout.score_overextended", 1.5)
 ATH_BREAKOUT_DAYS_BONUS_MIN = _cfg.get("ath_breakout.breakout.days_bonus_min", 2)
 ATH_BREAKOUT_CONFIRMATION_BONUS = _cfg.get("ath_breakout.breakout.confirmation_bonus", 0.5)
-ATH_BREAKOUT_SCORE_MAX = _cfg.get("ath_breakout.breakout.score_max", 2.0)
+ATH_BREAKOUT_SCORE_MAX = _cfg.get("ath_breakout.breakout.score_max", 2.5)
+
+# Candle Analysis
+ATH_CANDLE_MARUBOZU_WICK_MAX = _cfg.get("ath_breakout.candle_analysis.marubozu_wick_max_pct", 5.0)
+ATH_CANDLE_WIDE_RANGE_ATR_MULT = _cfg.get("ath_breakout.candle_analysis.wide_range_atr_mult", 1.5)
+ATH_CANDLE_CLOSE_HIGH_THRESHOLD = _cfg.get(
+    "ath_breakout.candle_analysis.close_near_high_threshold", 0.8
+)
+ATH_CANDLE_LONG_WICK_THRESHOLD = _cfg.get("ath_breakout.candle_analysis.long_wick_threshold", 0.5)
+ATH_CANDLE_MARUBOZU_BONUS = _cfg.get("ath_breakout.candle_analysis.marubozu_bonus", 0.5)
+ATH_CANDLE_WIDE_RANGE_BONUS = _cfg.get("ath_breakout.candle_analysis.wide_range_bonus", 0.25)
+ATH_CANDLE_CLOSE_HIGH_BONUS = _cfg.get("ath_breakout.candle_analysis.close_high_bonus", 0.25)
+ATH_CANDLE_LONG_WICK_PENALTY = _cfg.get("ath_breakout.candle_analysis.long_wick_penalty", -0.5)
 
 # Volume Score Tiers
 ATH_VOLUME_EXCEPTIONAL = _cfg.get("ath_breakout.volume.exceptional_ratio", 2.5)
@@ -342,8 +355,8 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             + (f", {consol_info['ath_tests']}x tested" if consol_info["ath_tests"] >= 2 else "")
         )
 
-        # 2. Breakout Strength (0 – 2.0)
-        breakout_score = self._score_breakout_strength(close_info)
+        # 2. Breakout Strength (0 – 2.5)
+        breakout_score = self._score_breakout_strength(close_info, prices, highs, lows)
 
         # 3. Volume Confirmation (-1.0 – 2.5)
         volume_score = self._score_volume(volume_info["ratio"])
@@ -765,7 +778,9 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             else:
                 score = ATH_CONSOL_SCORE_TIGHT_SHORT
         elif range_pct <= ATH_RANGE_MODERATE_PCT:
-            if duration >= ATH_CONSOL_DURATION_MIN:
+            if duration >= ATH_CONSOL_DURATION_VERY_LONG:
+                score = ATH_CONSOL_SCORE_TIGHT_LONG  # Very long moderate = same as tight long (2.5)
+            elif duration >= ATH_CONSOL_DURATION_MIN:
                 score = ATH_CONSOL_SCORE_MOD_LONG
             else:
                 score = ATH_CONSOL_SCORE_MOD_SHORT
@@ -780,18 +795,29 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
 
         return clamp_score(score, ATH_CONSOL_SCORE_MAX)
 
-    def _score_breakout_strength(self, close_info: Dict[str, Any]) -> float:
+    def _score_breakout_strength(
+        self,
+        close_info: Dict[str, Any],
+        prices: Optional[List[float]] = None,
+        highs: Optional[List[float]] = None,
+        lows: Optional[List[float]] = None,
+    ) -> float:
         """
-        Score breakout strength (0 – 2.0).
+        Score breakout strength (0 – 2.5).
 
-        Based on how far close is above ATH and days confirmed.
+        Based on how far close is above ATH, days confirmed, and candle quality.
 
         Scoring table:
           Close 0-1% above ATH           → 1.0
           Close 1-3% above ATH           → 1.5
           Close 3-5% above ATH           → 2.0
           Close > 5% above ATH           → 1.5 (potentially overextended)
-          2+ days close above ATH         → +0.5 bonus (max 2.0)
+          2+ days close above ATH         → +0.5 bonus
+          Marubozu (close = high)         → +0.5
+          Wide range bar (> 1.5x ATR)     → +0.25
+          Close near high (> 80%)         → +0.25
+          Long upper wick (> 50% range)   → -0.5
+          Cap: 2.5
         """
         pct_above = close_info["pct_above"]
         days_above = close_info["days_above"]
@@ -810,7 +836,66 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         if days_above >= ATH_BREAKOUT_DAYS_BONUS_MIN:
             score += ATH_BREAKOUT_CONFIRMATION_BONUS
 
+        # Candle quality analysis (A4)
+        if prices is not None and highs is not None and lows is not None and len(prices) >= 2:
+            score += self._score_candle_quality(prices, highs, lows)
+
         return clamp_score(score, ATH_BREAKOUT_SCORE_MAX)
+
+    def _score_candle_quality(
+        self,
+        prices: List[float],
+        highs: List[float],
+        lows: List[float],
+    ) -> float:
+        """
+        Score breakout candle quality.
+
+        Evaluates the form of the breakout bar:
+          - Marubozu (close near high, minimal upper wick): +0.5
+          - Wide Range Bar (range > 1.5x ATR): +0.25
+          - Close near high (close position > 80%): +0.25
+          - Long upper wick (> 50% of range): -0.5
+        """
+        close = prices[-1]
+        high = highs[-1]
+        low = lows[-1]
+        open_approx = prices[-2]  # Previous close as open approximation
+
+        total_range = high - low
+        if total_range <= 0:
+            return 0.0
+
+        upper_wick = high - max(close, open_approx)
+        close_position = (close - low) / total_range  # 0 = low, 1 = high
+
+        candle_score = 0.0
+
+        # Marubozu: minimal upper wick + bullish
+        upper_wick_pct = (upper_wick / total_range) * 100
+        if upper_wick_pct < ATH_CANDLE_MARUBOZU_WICK_MAX and close > open_approx:
+            candle_score += ATH_CANDLE_MARUBOZU_BONUS
+        elif close_position > ATH_CANDLE_CLOSE_HIGH_THRESHOLD:
+            # Close near high (only if not already marubozu)
+            candle_score += ATH_CANDLE_CLOSE_HIGH_BONUS
+
+        # Wide Range Bar: range > 1.5x ATR(14)
+        if len(highs) >= 15 and len(lows) >= 15:
+            true_ranges = []
+            for i in range(-15, -1):
+                tr = highs[i] - lows[i]
+                if i > -15:
+                    tr = max(tr, abs(highs[i] - prices[i - 1]), abs(lows[i] - prices[i - 1]))
+                true_ranges.append(tr)
+            atr = sum(true_ranges) / len(true_ranges)
+            if atr > 0 and total_range > atr * ATH_CANDLE_WIDE_RANGE_ATR_MULT:
+                candle_score += ATH_CANDLE_WIDE_RANGE_BONUS
+
+        # Long upper wick penalty: selling into breakout
+        if upper_wick / total_range > ATH_CANDLE_LONG_WICK_THRESHOLD:
+            candle_score += ATH_CANDLE_LONG_WICK_PENALTY
+
+        return candle_score
 
     def _score_volume(self, ratio: float) -> float:
         """

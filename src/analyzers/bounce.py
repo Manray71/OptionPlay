@@ -30,6 +30,8 @@ from ..constants import (
     MACD_SLOW,
     RSI_PERIOD,
     SMA_LONG,
+    SMA_MEDIUM,
+    SMA_SHORT,
     SR_LOOKBACK_DAYS_EXTENDED,
     VOLUME_AVG_PERIOD,
 )
@@ -120,6 +122,20 @@ BOUNCE_CONFIRM_SCORE_MACD_POS = _cfg.get("bounce.confirmation.score_macd_pos", 0
 BOUNCE_CONFIRM_PENALTY_MOMENTUM = _cfg.get("bounce.confirmation.penalty_momentum", -0.5)
 BOUNCE_CONFIRM_PENALTY_MACD = _cfg.get("bounce.confirmation.penalty_macd", -0.5)
 BOUNCE_CONFIRM_MAX = _cfg.get("bounce.confirmation.confirm_max", 2.5)
+
+# Fibonacci DCB Filter (B1)
+BOUNCE_FIB_DCB_WARNING = _cfg.get("bounce.fibonacci.dcb_warning", 38.2)
+BOUNCE_FIB_STRONG_THRESHOLD = _cfg.get("bounce.fibonacci.strong_threshold", 50.0)
+BOUNCE_FIB_WEAK_THRESHOLD = _cfg.get("bounce.fibonacci.weak_threshold", 23.6)
+BOUNCE_FIB_LOOKBACK_HIGH = _cfg.get("bounce.fibonacci.lookback_high", 30)
+BOUNCE_FIB_LOOKBACK_LOW = _cfg.get("bounce.fibonacci.lookback_low", 10)
+BOUNCE_FIB_STRONG_BONUS = _cfg.get("bounce.fibonacci.strong_bonus", 0.5)
+BOUNCE_FIB_WEAK_PENALTY = _cfg.get("bounce.fibonacci.weak_penalty", -0.5)
+
+# SMA Reclaim (B2)
+BOUNCE_SMA_RECLAIM_20_BONUS = _cfg.get("bounce.sma_reclaim.sma20_bonus", 0.5)
+BOUNCE_SMA_RECLAIM_50_BONUS = _cfg.get("bounce.sma_reclaim.sma50_bonus", 0.25)
+BOUNCE_SMA_BELOW_BOTH_PENALTY = _cfg.get("bounce.sma_reclaim.below_both_penalty", -0.25)
 
 # Candlestick Pattern Detection
 BOUNCE_HAMMER_WICK_BODY_RATIO = _cfg.get("bounce.candlestick.hammer_wick_body_ratio", 2)
@@ -710,6 +726,38 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             elif macd_result.histogram > 0:
                 signals.append("MACD positive")
                 score += BOUNCE_CONFIRM_SCORE_MACD_POS
+
+        # --- B1: Fibonacci Retracement DCB filter ---
+        if len(prices) >= BOUNCE_FIB_LOOKBACK_HIGH + 5:
+            # Find swing high (before the pullback) and swing low (recent)
+            swing_high = max(prices[-(BOUNCE_FIB_LOOKBACK_HIGH + 5) : -5])
+            swing_low = min(prices[-BOUNCE_FIB_LOOKBACK_LOW:])
+            decline = swing_high - swing_low
+
+            if decline > 0:
+                retracement_pct = (prices[-1] - swing_low) / decline * 100
+                if retracement_pct > BOUNCE_FIB_STRONG_THRESHOLD:
+                    signals.append(f"Fib retracement {retracement_pct:.0f}% (strong)")
+                    score += BOUNCE_FIB_STRONG_BONUS
+                elif retracement_pct < BOUNCE_FIB_WEAK_THRESHOLD:
+                    signals.append(f"Fib retracement {retracement_pct:.0f}% (weak — DCB risk)")
+                    score += BOUNCE_FIB_WEAK_PENALTY
+
+        # --- B2: SMA 20/50 Reclaim check ---
+        if len(prices) >= SMA_MEDIUM:
+            sma_20 = sum(prices[-SMA_SHORT:]) / SMA_SHORT if len(prices) >= SMA_SHORT else None
+            sma_50 = sum(prices[-SMA_MEDIUM:]) / SMA_MEDIUM
+
+            current = prices[-1]
+            if sma_20 is not None and current > sma_20:
+                signals.append("Close > SMA 20")
+                score += BOUNCE_SMA_RECLAIM_20_BONUS
+                if current > sma_50:
+                    signals.append("Close > SMA 50")
+                    score += BOUNCE_SMA_RECLAIM_50_BONUS
+            elif sma_20 is not None and current < sma_20 and current < sma_50:
+                signals.append("Below SMA 20 & 50")
+                score += BOUNCE_SMA_BELOW_BOTH_PENALTY
 
         # --- E.1: Momentum penalty (bearish momentum reduces score) ---
         # RSI falling above BOUNCE_RSI_MOMENTUM_FADE = momentum fading, not oversold
