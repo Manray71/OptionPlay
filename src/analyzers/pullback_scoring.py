@@ -253,7 +253,7 @@ class PullbackScoringMixin:
         If called at 11:00 ET (90 min elapsed), returns 390/90 = 4.33.
         Outside market hours or after close, returns 1.0 (no adjustment).
         """
-        from datetime import datetime, timezone, timedelta
+        from datetime import datetime, timedelta, timezone
 
         et = timezone(timedelta(hours=-5))
         now = datetime.now(et)
