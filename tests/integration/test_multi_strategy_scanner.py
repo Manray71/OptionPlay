@@ -175,11 +175,11 @@ class TestScanConfig:
 
         assert config.enable_stability_first is True
         assert config.stability_premium_threshold == 80.0
-        assert config.stability_premium_min_score == 4.0
+        assert config.stability_premium_min_score == 2.5
         assert config.stability_good_threshold == 70.0
-        assert config.stability_good_min_score == 5.0
+        assert config.stability_good_min_score == 3.5
         assert config.stability_ok_threshold == 50.0
-        assert config.stability_ok_min_score == 6.0
+        assert config.stability_ok_min_score == 5.0
 
     def test_win_rate_integration_config(self):
         """Win rate integration configuration"""

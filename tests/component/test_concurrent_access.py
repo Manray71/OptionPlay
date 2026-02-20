@@ -303,9 +303,9 @@ class TestScoreNormalizationConcurrent:
         def normalize_many(thread_id):
             try:
                 for i in range(100):
-                    raw = (thread_id * 100 + i) % 26
+                    raw = (thread_id * 100 + i) % 27
                     result = normalize_score(raw, "pullback")
-                    expected = (raw / 26.0) * 10.0
+                    expected = (raw / 27.0) * 10.0
                     expected = max(0.0, min(10.0, expected))
                     assert abs(result - expected) < 1e-10, \
                         f"Expected {expected}, got {result}"

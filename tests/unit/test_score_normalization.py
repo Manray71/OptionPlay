@@ -72,7 +72,7 @@ class TestStrategyScoreConfigs:
     def test_pullback_config(self):
         """Test pullback configuration."""
         config = STRATEGY_SCORE_CONFIGS['pullback']
-        assert config.max_possible == 26.0
+        assert config.max_possible == 27.0
         assert config.strong_threshold == 7.0
 
     def test_bounce_config(self):
@@ -108,14 +108,14 @@ class TestNormalizeScore:
 
     def test_normalize_pullback_half(self):
         """Test normalizing pullback score at 50%."""
-        # Pullback max is 26, so 13 should be 5.0
-        result = normalize_score(13.0, 'pullback')
+        # Pullback max is 27, so 13.5 should be 5.0
+        result = normalize_score(13.5, 'pullback')
         assert result == 5.0
 
     def test_normalize_pullback_full(self):
         """Test normalizing pullback at max."""
-        # Pullback max is 26
-        result = normalize_score(26.0, 'pullback')
+        # Pullback max is 27
+        result = normalize_score(27.0, 'pullback')
         assert result == 10.0
 
     def test_normalize_bounce(self):
@@ -181,14 +181,14 @@ class TestDenormalizeScore:
 
     def test_denormalize_pullback(self):
         """Test denormalizing pullback score."""
-        # 5.0 on 0-10 scale should be 13.0 raw (half of 26)
+        # 5.0 on 0-10 scale should be 13.5 raw (half of 27)
         result = denormalize_score(5.0, 'pullback')
-        assert result == 13.0
+        assert result == 13.5
 
     def test_denormalize_max(self):
         """Test denormalizing max score."""
         result = denormalize_score(10.0, 'pullback')
-        assert result == 26.0
+        assert result == 27.0
 
     def test_denormalize_zero(self):
         """Test denormalizing zero score."""
@@ -269,7 +269,7 @@ class TestGetMaxPossible:
     def test_pullback_max(self):
         """Test pullback max."""
         result = get_max_possible('pullback')
-        assert result == 26.0
+        assert result == 27.0
 
     def test_bounce_max(self):
         """Test bounce max."""
@@ -307,7 +307,7 @@ class TestCompareScores:
     def test_normalize_scores(self):
         """Test comparing and normalizing scores."""
         scores = {
-            'pullback': 13.0,  # 50% of 26 = 5.0
+            'pullback': 13.5,  # 50% of 27 = 5.0
             'bounce': 5.0,     # 50% of 10 = 5.0
         }
 
@@ -335,7 +335,7 @@ class TestCompareScores:
     def test_mixed_strategies(self):
         """Test comparing multiple strategies."""
         scores = {
-            'pullback': 26.0,    # Max = 10.0
+            'pullback': 27.0,    # Max = 10.0
             'bounce': 10.0,      # Max = 10.0
             'ath_breakout': 10.0,  # Max = 10.0 (v2)
             'earnings_dip': 9.5,  # Max = 10.0 (v2)
@@ -388,7 +388,7 @@ class TestScoreNormalizer:
         """Test normalize method."""
         normalizer = ScoreNormalizer()
 
-        result = normalizer.normalize(13.0, 'pullback')
+        result = normalizer.normalize(13.5, 'pullback')
         assert result == 5.0
 
     def test_normalize_unknown_strategy(self):
@@ -464,7 +464,7 @@ class TestScoreNormalizer:
                 self.strategy = strategy
 
         candidates = [
-            Candidate(13.0, 'pullback'),   # 50% = 5.0
+            Candidate(13.5, 'pullback'),   # 50% = 5.0
             Candidate(7.5, 'bounce'),      # 75% = 7.5
             Candidate(5.0, 'ath_breakout'),  # 50% = 5.0 (v2: max=10)
         ]
@@ -484,7 +484,7 @@ class TestScoreNormalizer:
                 self.strategy = strategy
 
         candidates = [
-            Candidate(13.0, 'pullback'),
+            Candidate(13.5, 'pullback'),
             Candidate(10.0, 'bounce'),  # Max score
         ]
 
@@ -527,8 +527,8 @@ class TestEdgeCases:
 
     def test_float_precision(self):
         """Test float precision in normalization."""
-        # 19.5 / 26.0 * 10.0 = 7.5
-        result = normalize_score(19.5, 'pullback')
+        # 20.25 / 27.0 * 10.0 = 7.5
+        result = normalize_score(20.25, 'pullback')
         assert result == 7.5
 
     def test_denormalize_inverse(self):

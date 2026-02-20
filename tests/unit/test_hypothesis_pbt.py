@@ -32,7 +32,7 @@ PBT_SETTINGS = settings(deadline=None, suppress_health_check=[HealthCheck.too_sl
 STRATEGIES = ["pullback", "bounce", "ath_breakout", "earnings_dip", "trend_continuation"]
 
 MAX_POSSIBLE = {
-    "pullback": 26.0,
+    "pullback": 27.0,
     "bounce": 10.0,
     "ath_breakout": 10.0,
     "earnings_dip": 9.5,

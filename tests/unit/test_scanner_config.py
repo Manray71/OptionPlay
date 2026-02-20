@@ -291,8 +291,8 @@ class TestProductionConfig:
         cfg = ScannerConfig(rsi_config_path=prod_path)
         # Should have 4 tiers
         assert len(cfg._rsi_tiers) == 4
-        # High stability threshold should be 42
-        assert cfg.get_rsi_neutral_threshold(90) == 42
+        # High stability threshold should be 50 (adaptive thresholds)
+        assert cfg.get_rsi_neutral_threshold(90) == 50
 
     def test_production_scanner_config_loads(self):
         """Production scanner_config.yaml loads correctly."""
@@ -302,7 +302,7 @@ class TestProductionConfig:
 
         cfg = ScannerConfig(scanner_config_path=prod_path)
         assert cfg.get_earnings_buffer_days() == 30
-        assert cfg.get_support_min_touches() == 3
+        assert cfg.get_support_min_touches() == 2
 
     def test_production_rsi_thresholds_are_descending(self):
         """Production RSI thresholds must be descending with stability."""

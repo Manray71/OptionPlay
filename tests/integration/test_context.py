@@ -1093,6 +1093,8 @@ class TestVolumeEdgeCases:
 
     def test_volume_all_same(self):
         """Test volume ratio when all volumes are identical."""
+        from src.analyzers.context import _intraday_volume_scale
+
         n = 30
         prices = [100.0 + i * 0.1 for i in range(n)]
         volumes = [1000000] * n  # All same
@@ -1101,9 +1103,12 @@ class TestVolumeEdgeCases:
 
         ctx = AnalysisContext.from_data("TEST", prices, volumes, highs, lows)
 
-        # Volume ratio should be 1.0
+        # Volume ratio = (current_volume * intraday_scale) / avg_volume_20
+        # When all volumes are the same, ratio equals the intraday scale factor.
+        # Outside market hours scale=1.0; during hours scale>1.0.
+        expected_ratio = _intraday_volume_scale()
         assert ctx.volume_ratio is not None
-        assert abs(ctx.volume_ratio - 1.0) < 0.01
+        assert abs(ctx.volume_ratio - expected_ratio) < 0.01
 
 
 # =============================================================================
