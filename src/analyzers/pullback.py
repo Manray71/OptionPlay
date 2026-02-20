@@ -455,8 +455,8 @@ class PullbackAnalyzer(PullbackScoringMixin, BaseAnalyzer):
         rsi_series = None
         if len(prices) >= self.config.rsi.period + 4:
             rsi_series = [
-                self._calculate_rsi(prices[: -2], self.config.rsi.period),
-                self._calculate_rsi(prices[: -1], self.config.rsi.period),
+                self._calculate_rsi(prices[:-2], self.config.rsi.period),
+                self._calculate_rsi(prices[:-1], self.config.rsi.period),
                 rsi,
             ]
         breakdown.rsi_score, breakdown.rsi_reason = self._score_rsi(
@@ -526,7 +526,9 @@ class PullbackAnalyzer(PullbackScoringMixin, BaseAnalyzer):
         breakdown.volume_reason = vol_result[1]
         breakdown.volume_trend = vol_result[2]
         intraday_scale = self._intraday_volume_scale()
-        breakdown.volume_ratio = (current_volume * intraday_scale) / avg_volume if avg_volume > 0 else 0
+        breakdown.volume_ratio = (
+            (current_volume * intraday_scale) / avg_volume if avg_volume > 0 else 0
+        )
 
         warnings = []
 
@@ -587,7 +589,9 @@ class PullbackAnalyzer(PullbackScoringMixin, BaseAnalyzer):
         # 13. Candlestick Reversal Score (0-2 points) — Literature alignment
         # Only fires when Support or Fibonacci provides contextual anchor
         candle_result = self._score_candlestick_reversal(
-            prices, highs, lows,
+            prices,
+            highs,
+            lows,
             support_score=breakdown.support_score,
             fibonacci_score=breakdown.fibonacci_score,
         )

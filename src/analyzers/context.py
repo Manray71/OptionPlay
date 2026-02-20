@@ -40,6 +40,7 @@ def _intraday_volume_scale() -> float:
         return 1.0
     return min(390.0 / elapsed_min, 10.0)
 
+
 # Import optimized support/resistance functions
 # NOTE: Fallback import chains use type: ignore for no-redef (re-importing same names),
 # import-untyped (non-package imports), and assignment (None fallbacks for optional deps).
@@ -347,7 +348,9 @@ class AnalysisContext:
             else:
                 self.avg_volume_20 = float(np.mean(recent_vols))
             if self.avg_volume_20 > 0:
-                self.volume_ratio = (self.current_volume * _intraday_volume_scale()) / self.avg_volume_20
+                self.volume_ratio = (
+                    self.current_volume * _intraday_volume_scale()
+                ) / self.avg_volume_20
 
         # ATH — shared
         self._calculate_ath_metrics(highs)
@@ -421,7 +424,9 @@ class AnalysisContext:
             else:
                 self.avg_volume_20 = sum(recent_vols) / 20
             if self.avg_volume_20 > 0:
-                self.volume_ratio = (self.current_volume * _intraday_volume_scale()) / self.avg_volume_20
+                self.volume_ratio = (
+                    self.current_volume * _intraday_volume_scale()
+                ) / self.avg_volume_20
 
         # ATH — shared
         self._calculate_ath_metrics(highs)
