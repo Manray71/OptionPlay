@@ -150,7 +150,7 @@ profiles:
         exclude_days_before: 30       # PLAYBOOK: ENTRY_EARNINGS_MIN_DAYS (was 45)
       price:
         minimum: 50
-        maximum: 300
+        maximum: 1500
       implied_volatility:
         iv_rank_minimum: 60
         iv_rank_maximum: 95
