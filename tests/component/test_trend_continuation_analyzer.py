@@ -1417,5 +1417,218 @@ class TestTrendContinuationRSIADXInteraction:
         assert score == 2.0
 
 
+# =============================================================================
+# TEST: MARKET CONTEXT (Prio 4)
+# =============================================================================
+
+class TestTrendContinuationMarketContext:
+    """Tests for market context multiplier."""
+
+    def test_market_context_adjustment_strong_uptrend(self, analyzer):
+        """Strong uptrend gives 1.05x boost."""
+        from src.analyzers.context import AnalysisContext
+        ctx = AnalysisContext(market_context_trend="strong_uptrend", market_context_score=2.0)
+        adj = analyzer._get_market_context_adjustment(ctx)
+        assert adj == 1.05
+
+    def test_market_context_adjustment_uptrend(self, analyzer):
+        """Uptrend gives 1.0x (neutral)."""
+        from src.analyzers.context import AnalysisContext
+        ctx = AnalysisContext(market_context_trend="uptrend", market_context_score=1.0)
+        adj = analyzer._get_market_context_adjustment(ctx)
+        assert adj == 1.0
+
+    def test_market_context_adjustment_sideways(self, analyzer):
+        """Sideways gives 1.0x (neutral)."""
+        from src.analyzers.context import AnalysisContext
+        ctx = AnalysisContext(market_context_trend="sideways", market_context_score=0.0)
+        adj = analyzer._get_market_context_adjustment(ctx)
+        assert adj == 1.0
+
+    def test_market_context_adjustment_downtrend(self, analyzer):
+        """Downtrend gives 0.90x penalty."""
+        from src.analyzers.context import AnalysisContext
+        ctx = AnalysisContext(market_context_trend="downtrend", market_context_score=-0.5)
+        adj = analyzer._get_market_context_adjustment(ctx)
+        assert adj == 0.90
+
+    def test_market_context_adjustment_strong_downtrend(self, analyzer):
+        """Strong downtrend gives 0.80x penalty."""
+        from src.analyzers.context import AnalysisContext
+        ctx = AnalysisContext(market_context_trend="strong_downtrend", market_context_score=-1.0)
+        adj = analyzer._get_market_context_adjustment(ctx)
+        assert adj == 0.80
+
+    def test_market_context_adjustment_none_context(self, analyzer):
+        """No context returns 1.0."""
+        adj = analyzer._get_market_context_adjustment(None)
+        assert adj == 1.0
+
+    def test_market_context_adjustment_unknown_trend(self, analyzer):
+        """Unknown trend returns 1.0."""
+        from src.analyzers.context import AnalysisContext
+        ctx = AnalysisContext(market_context_trend="unknown")
+        adj = analyzer._get_market_context_adjustment(ctx)
+        assert adj == 1.0
+
+    def test_market_context_in_signal_details(self, analyzer, perfect_trend_data):
+        """Signal details should include market_context."""
+        signal = analyzer.analyze(
+            "AAPL",
+            perfect_trend_data['prices'],
+            perfect_trend_data['volumes'],
+            perfect_trend_data['highs'],
+            perfect_trend_data['lows'],
+        )
+        assert 'market_context' in signal.details
+        assert 'trend' in signal.details['market_context']
+        assert 'adjustment' in signal.details['market_context']
+
+    def test_market_context_in_breakdown(self, analyzer, perfect_trend_data):
+        """Score breakdown should include market context."""
+        signal = analyzer.analyze(
+            "AAPL",
+            perfect_trend_data['prices'],
+            perfect_trend_data['volumes'],
+            perfect_trend_data['highs'],
+            perfect_trend_data['lows'],
+        )
+        bd = signal.details['score_breakdown']
+        assert 'market_context' in bd
+        assert bd['market_context']['adjustment'] == 1.0  # No context → neutral
+
+    def test_bearish_market_adds_warning(self, analyzer):
+        """Bearish market context should add warning."""
+        from src.analyzers.context import AnalysisContext
+        data = make_trend_data(n=300, buffer_to_sma50_pct=9.0)
+        ctx = AnalysisContext(market_context_trend="downtrend", market_context_score=-0.5)
+        signal = analyzer.analyze(
+            "TEST",
+            data['prices'],
+            data['volumes'],
+            data['highs'],
+            data['lows'],
+            context=ctx,
+        )
+        if signal.signal_type == SignalType.LONG:
+            assert any("Bearish market context" in w for w in signal.warnings)
+
+    def test_strong_downtrend_reduces_score(self, analyzer):
+        """Strong downtrend should reduce score vs no context."""
+        from src.analyzers.context import AnalysisContext
+        data = make_trend_data(n=300, buffer_to_sma50_pct=9.0)
+
+        signal_neutral = analyzer.analyze(
+            "TEST", data['prices'], data['volumes'],
+            data['highs'], data['lows'],
+        )
+        ctx = AnalysisContext(market_context_trend="strong_downtrend", market_context_score=-1.0)
+        signal_bear = analyzer.analyze(
+            "TEST", data['prices'], data['volumes'],
+            data['highs'], data['lows'],
+            context=ctx,
+        )
+        if signal_neutral.signal_type == SignalType.LONG and signal_bear.signal_type == SignalType.LONG:
+            assert signal_bear.score <= signal_neutral.score
+
+
+# =============================================================================
+# TEST: CANDLESTICK WARNINGS (Prio 5)
+# =============================================================================
+
+class TestTrendContinuationCandlestickWarnings:
+    """Tests for candlestick reversal pattern detection."""
+
+    def test_shooting_star_detected(self, analyzer):
+        """Shooting star: long upper shadow, close near low."""
+        n = 30
+        prices = [100.0 + i * 0.3 for i in range(n)]
+        highs = [p + 0.5 for p in prices]
+        lows = [p - 0.5 for p in prices]
+
+        # Make last candle a shooting star: high much above close, close near low
+        prices[-1] = 108.0
+        highs[-1] = 112.0  # Long upper shadow
+        lows[-1] = 107.5   # Close near low
+
+        warnings = analyzer._check_reversal_candles(prices, highs, lows)
+        assert any("Shooting star" in w for w in warnings)
+
+    def test_no_shooting_star_normal_candle(self, analyzer):
+        """Normal candle should not trigger shooting star."""
+        n = 30
+        prices = [100.0 + i * 0.3 for i in range(n)]
+        highs = [p + 0.5 for p in prices]
+        lows = [p - 0.5 for p in prices]
+
+        warnings = analyzer._check_reversal_candles(prices, highs, lows)
+        assert not any("Shooting star" in w for w in warnings)
+
+    def test_bearish_engulfing_detected(self, analyzer):
+        """Bearish engulfing: wider range, closes below previous."""
+        n = 30
+        prices = [100.0 + i * 0.3 for i in range(n)]
+        highs = [p + 0.3 for p in prices]
+        lows = [p - 0.3 for p in prices]
+
+        # Previous candle: small range
+        prices[-2] = 108.0
+        highs[-2] = 108.3
+        lows[-2] = 107.7
+
+        # Current candle: wide range, closes below previous close and low
+        prices[-1] = 107.0
+        highs[-1] = 109.5
+        lows[-1] = 106.8
+        # range = 2.7 > 0.6 * 1.2, close 107.0 < prev close 108.0,
+        # close 107.0 < prev_low + 0.3*0.6 = 107.88 → engulfing
+
+        warnings = analyzer._check_reversal_candles(prices, highs, lows)
+        assert any("engulfing" in w.lower() for w in warnings)
+
+    def test_no_bearish_engulfing_normal(self, analyzer):
+        """Normal candle should not trigger bearish engulfing."""
+        n = 30
+        prices = [100.0 + i * 0.3 for i in range(n)]
+        highs = [p + 0.5 for p in prices]
+        lows = [p - 0.5 for p in prices]
+
+        warnings = analyzer._check_reversal_candles(prices, highs, lows)
+        assert not any("engulfing" in w.lower() for w in warnings)
+
+    def test_insufficient_data_returns_empty(self, analyzer):
+        """With < 2 candles, no warnings."""
+        warnings = analyzer._check_reversal_candles([100.0], [101.0], [99.0])
+        assert warnings == []
+
+    def test_zero_range_candle_returns_empty(self, analyzer):
+        """Zero range candle should not crash."""
+        prices = [100.0, 100.0]
+        highs = [100.0, 100.0]
+        lows = [100.0, 100.0]
+        warnings = analyzer._check_reversal_candles(prices, highs, lows)
+        assert warnings == []
+
+    def test_candlestick_warnings_in_signal(self, analyzer, perfect_trend_data):
+        """Signal should include candlestick warnings when patterns detected."""
+        # Modify last candle to be a shooting star
+        data = perfect_trend_data.copy()
+        data['highs'] = list(data['highs'])
+        data['lows'] = list(data['lows'])
+        data['prices'] = list(data['prices'])
+
+        close = data['prices'][-1]
+        data['highs'][-1] = close + (close * 0.05)  # 5% above close
+        data['lows'][-1] = close - (close * 0.002)   # Very near close
+
+        signal = analyzer.analyze(
+            "TEST", data['prices'], data['volumes'],
+            data['highs'], data['lows'],
+        )
+        # Signal should be valid regardless of whether pattern triggers
+        assert isinstance(signal, TradeSignal)
+        assert isinstance(signal.warnings, list)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

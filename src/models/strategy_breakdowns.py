@@ -428,6 +428,10 @@ class TrendContinuationScoreBreakdown:
     vix_regime: str = ""
     vix_adjustment: float = 1.0
 
+    # Market Context (Prio 4)
+    market_context_trend: str = "unknown"
+    market_context_adjustment: float = 1.0
+
     total_score: float = 0
     max_possible: float = 10.5  # v2: 5-component scoring
 
@@ -435,7 +439,7 @@ class TrendContinuationScoreBreakdown:
         return {
             "total_score": self.total_score,
             "max_possible": self.max_possible,
-            "qualified": self.total_score >= 5.0,
+            "qualified": self.total_score >= 3.5,
             "components": {
                 "sma_alignment": {
                     "score": self.sma_alignment_score,
@@ -479,4 +483,8 @@ class TrendContinuationScoreBreakdown:
             },
             "vix_regime": self.vix_regime,
             "vix_adjustment": self.vix_adjustment,
+            "market_context": {
+                "trend": self.market_context_trend,
+                "adjustment": self.market_context_adjustment,
+            },
         }

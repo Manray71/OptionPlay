@@ -362,6 +362,14 @@ class TrendContinuationAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         breakdown.vix_adjustment = vix_adjustment
         total_score = total_score * vix_adjustment
 
+        # Market Context Adjustment (Prio 4)
+        market_adjustment = self._get_market_context_adjustment(context)
+        breakdown.market_context_adjustment = market_adjustment
+        breakdown.market_context_trend = (
+            getattr(context, "market_context_trend", "unknown") if context else "unknown"
+        )
+        total_score = total_score * market_adjustment
+
         # Dynamic effective_max: sum of YAML weights (or defaults if no YAML)
         effective_max = sum(w.get(k, _DEFAULTS[k]) for k in _DEFAULTS)
 
@@ -436,11 +444,21 @@ class TrendContinuationAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         # Warnings
         warnings = []
         if vix_regime == "elevated":
-            warnings.append(f"Elevated VIX regime — conservative strikes recommended")
+            warnings.append("Elevated VIX regime — conservative strikes recommended")
         if volume_divergence:
             warnings.append("Volume divergence detected — possible trend weakening")
         if rsi is not None and rsi > 70:
             warnings.append(f"RSI {rsi:.0f} approaching overbought territory")
+
+        # Market context warnings (Prio 4)
+        if breakdown.market_context_trend in ("downtrend", "strong_downtrend"):
+            warnings.append(
+                f"Bearish market context ({breakdown.market_context_trend}) — reduced confidence"
+            )
+
+        # Candlestick reversal warnings (Prio 5)
+        candle_warnings = self._check_reversal_candles(prices, highs, lows)
+        warnings.extend(candle_warnings)
 
         return TradeSignal(
             symbol=symbol,
@@ -469,6 +487,10 @@ class TrendContinuationAnalyzer(BaseAnalyzer, FeatureScoringMixin):
                     "trend_buffer": buffer_score,
                     "momentum_health": momentum_score,
                     "volatility": volatility_score,
+                },
+                "market_context": {
+                    "trend": breakdown.market_context_trend,
+                    "adjustment": market_adjustment,
                 },
             },
             warnings=warnings,
@@ -817,6 +839,96 @@ class TrendContinuationAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             "high": vix_cfg.get("high", 0.0),
         }
         return adjustments.get(regime, 1.0)
+
+    # =========================================================================
+    # MARKET CONTEXT (Prio 4)
+    # =========================================================================
+
+    def _get_market_context_adjustment(self, context: Optional[AnalysisContext]) -> float:
+        """
+        Get score multiplier based on SPY market context.
+
+        Uses pre-computed market_context_trend from AnalysisContext (set by scanner).
+        In bear markets, trend continuation signals are less reliable.
+
+        Returns:
+            Multiplier: 0.80 (strong_downtrend) to 1.05 (strong_uptrend)
+        """
+        if context is None:
+            return 1.0
+
+        trend = getattr(context, "market_context_trend", None)
+        if trend is None:
+            return 1.0
+
+        adjustments = {
+            "strong_uptrend": 1.05,
+            "uptrend": 1.0,
+            "sideways": 1.0,
+            "downtrend": 0.90,
+            "strong_downtrend": 0.80,
+        }
+        return adjustments.get(trend, 1.0)
+
+    # =========================================================================
+    # CANDLESTICK WARNINGS (Prio 5)
+    # =========================================================================
+
+    def _check_reversal_candles(
+        self,
+        prices: List[float],
+        highs: List[float],
+        lows: List[float],
+    ) -> List[str]:
+        """
+        Detect bearish reversal candle patterns as warnings.
+
+        Checks last candle for:
+        1. Shooting Star: Long upper shadow, small body near low
+        2. Bearish Engulfing: Current range engulfs previous, closes lower
+
+        Returns:
+            List of warning strings (empty if no patterns detected)
+        """
+        warnings = []
+        if len(prices) < 2 or len(highs) < 2 or len(lows) < 2:
+            return warnings
+
+        # Last candle metrics (simplified without open — use close as proxy)
+        close = prices[-1]
+        high = highs[-1]
+        low = lows[-1]
+        total_range = high - low
+
+        if total_range <= 0:
+            return warnings
+
+        # Shooting Star: upper shadow > 60% of range, close near low (lower 30%)
+        upper_shadow = high - close
+        close_position = (close - low) / total_range  # 0.0 = at low, 1.0 = at high
+
+        if upper_shadow / total_range > 0.6 and close_position < 0.3:
+            warnings.append(
+                "Shooting star candle detected — potential reversal signal"
+            )
+
+        # Bearish Engulfing: current range wider than previous, close below previous close
+        prev_close = prices[-2]
+        prev_high = highs[-2]
+        prev_low = lows[-2]
+        prev_range = prev_high - prev_low
+
+        if (
+            prev_range > 0
+            and total_range > prev_range * 1.2  # Current range > 120% of previous
+            and close < prev_close  # Closed lower
+            and close < prev_low + prev_range * 0.3  # Close in lower 30% of prev range
+        ):
+            warnings.append(
+                "Bearish engulfing pattern detected — potential trend reversal"
+            )
+
+        return warnings
 
     # =========================================================================
     # SIGNAL TEXT
