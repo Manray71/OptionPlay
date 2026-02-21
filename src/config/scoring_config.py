@@ -134,7 +134,7 @@ class RecursiveConfigResolver:
                 "sector": 1.0,
                 "gap": 1.0,
             },
-            "max_possible": 26.0,
+            "max_possible": 14.0,
         },
         "bounce": {
             "weights": {
@@ -152,7 +152,7 @@ class RecursiveConfigResolver:
                 "sector": 1.0,
                 "gap": 1.0,
             },
-            "max_possible": 27.0,
+            "max_possible": 10.0,
         },
         "ath_breakout": {
             "weights": {
@@ -169,7 +169,7 @@ class RecursiveConfigResolver:
                 "sector": 1.0,
                 "gap": 1.0,
             },
-            "max_possible": 23.0,
+            "max_possible": 10.0,
         },
         "earnings_dip": {
             "weights": {
@@ -186,7 +186,7 @@ class RecursiveConfigResolver:
                 "market_context": 2.0,
                 "sector": 1.0,
             },
-            "max_possible": 21.0,
+            "max_possible": 9.5,
         },
     }
 

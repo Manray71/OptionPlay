@@ -723,7 +723,9 @@ class PullbackAnalyzer(PullbackScoringMixin, BaseAnalyzer):
         active_maxes = [_max_weight(k) for k, v in _components.items() if v > 0]
         if len(active_maxes) >= 3:
             dynamic_max = sum(active_maxes)
-            breakdown.max_possible = max(dynamic_max, full_max * 0.5)
+            # Cap at effective_max to prevent score compression from many weak components
+            effective_max = _cfg.get("pullback.effective_max", 14.0)
+            breakdown.max_possible = min(max(dynamic_max, full_max * 0.5), effective_max)
         else:
             breakdown.max_possible = full_max
 

@@ -35,7 +35,7 @@ def sample_yaml(tmp_path):
                     "macd": 2.0,
                     "vwap": 3.0,
                 },
-                "max_possible": 26.0,
+                "max_possible": 14.0,
                 "regimes": {
                     "low": {},
                     "normal": {},
@@ -61,7 +61,7 @@ def sample_yaml(tmp_path):
                     "rsi": 2.0,
                     "vwap": 3.0,
                 },
-                "max_possible": 27.0,
+                "max_possible": 14.0,
                 "regimes": {
                     "danger": {"min_stability": 85},
                 },
@@ -107,7 +107,7 @@ class TestBasicResolution:
         w = r.resolve("pullback", "normal")
         assert w.weights["rsi"] == 3.0
         assert w.weights["support"] == 2.5
-        assert w.max_possible == 26.0
+        assert w.max_possible == 14.0
 
     def test_default_stability(self, sample_yaml):
         r = RecursiveConfigResolver(sample_yaml)
@@ -299,7 +299,7 @@ class TestFallback:
         w = r.resolve("pullback", "normal")
         # Should use hardcoded fallback
         assert w.weights["rsi"] == 3.0
-        assert w.max_possible == 26.0
+        assert w.max_possible == 14.0
 
     def test_fallback_strategies_have_weights(self, tmp_path):
         fake_path = str(tmp_path / "nonexistent.yaml")
@@ -394,7 +394,7 @@ def v3_yaml(tmp_path):
         "strategies": {
             "pullback": {
                 "weights": {"rsi": 3.0, "support": 2.5},
-                "max_possible": 26.0,
+                "max_possible": 14.0,
                 "regimes": {},
                 "sectors": {},
             },
@@ -586,7 +586,7 @@ def sector_factor_yaml(tmp_path):
         "strategies": {
             "pullback": {
                 "weights": {"rsi": 3.0, "support": 2.5},
-                "max_possible": 26.0,
+                "max_possible": 14.0,
                 "regimes": {
                     "normal": {},
                     "danger": {"min_stability": 80},
@@ -661,7 +661,7 @@ class TestSectorFactor:
             "strategies": {
                 "pullback": {
                     "weights": {"rsi": 3.0},
-                    "max_possible": 26.0,
+                    "max_possible": 14.0,
                     "regimes": {},
                     "sectors": {"Extreme": {"sector_factor": 2.0}},
                 }
@@ -680,7 +680,7 @@ class TestSectorFactor:
             "strategies": {
                 "pullback": {
                     "weights": {"rsi": 3.0},
-                    "max_possible": 26.0,
+                    "max_possible": 14.0,
                     "regimes": {},
                     "sectors": {"Terrible": {"sector_factor": 0.1}},
                 }

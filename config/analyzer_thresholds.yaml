@@ -13,6 +13,9 @@
 # PULLBACK STRATEGY
 # -----------------------------------------------------------------------------
 pullback:
+  # Dynamic max cap for normalization (P95 empirical max)
+  effective_max: 14.0
+
   # Signal strength thresholds (on 0-10 normalized scale)
   signal:
     strong: 7.0

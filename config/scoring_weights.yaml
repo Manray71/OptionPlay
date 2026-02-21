@@ -20,7 +20,8 @@ strategies:
       market_context: 1.7
       sector: 1.0
       candlestick: 2.0    # NEW — reversal patterns at support/fibonacci
-    max_possible: 27.65
+    max_possible: 14.0
+    effective_max: 14.0
     regimes:
       low:
         weights:
@@ -88,7 +89,7 @@ strategies:
       market_context: 1.58
       sector: 1.0
       gap: 1.0
-    max_possible: 28.57
+    max_possible: 10.0
     regimes:
       low:
         weights:
@@ -152,7 +153,7 @@ strategies:
       market_context: 1.9
       sector: 1.0
       gap: 1.0
-    max_possible: 23.0
+    max_possible: 10.0
     regimes:
       low: {}
       normal: {}
@@ -211,7 +212,7 @@ strategies:
       vwap: 3.0
       market_context: 2.0
       sector: 1.0
-    max_possible: 21.0
+    max_possible: 9.5
     regimes:
       low: {}
       normal: {}

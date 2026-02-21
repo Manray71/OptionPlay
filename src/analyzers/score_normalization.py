@@ -3,7 +3,7 @@
 # Central normalization for all strategy scores
 #
 # Problem: Different strategies have different max scores
-# - Pullback: max 26 points
+# - Pullback: max ~14 points (P95 empirical; theoretical ~27)
 # - Bounce: max 10 points (v2: 5-component scoring)
 # - ATH Breakout: max 10 points (v2: 4-component scoring)
 # - Earnings Dip: max 9.5 points (v2: 5-component + penalties)
@@ -34,11 +34,13 @@ class StrategyScoreConfig:
 
 STRATEGY_SCORE_CONFIGS: Dict[str, StrategyScoreConfig] = {
     "pullback": StrategyScoreConfig(
-        max_possible=27.0,
+        max_possible=14.0,
         # Component breakdown (v3 — literature aligned):
         # RSI: 3, RSI Divergence: 3, Support: 3, Fibonacci: 2.5,
         # MA: 2, Trend: 2, Volume: 1, MACD: 2, Stoch: 2, Keltner: 2,
         # VWAP: 1.5, Market Context: 2, Sector: 1, Candlestick: 2
+        # Theoretical max ~27 but P95 empirical max ~14 (most components
+        # don't fire simultaneously during a pullback)
         # (Gap removed from pullback scoring)
         strong_threshold=7.0,
         moderate_threshold=5.0,
