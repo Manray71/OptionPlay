@@ -33,7 +33,7 @@ from .context import AnalysisContext
 
 # Import Feature Scoring Mixin
 from .feature_scoring_mixin import FeatureScoringMixin
-from .score_normalization import clamp_score, normalize_score
+from .score_normalization import STRATEGY_SCORE_CONFIGS, clamp_score, normalize_score
 
 logger = logging.getLogger(__name__)
 
@@ -230,8 +230,12 @@ class TrendContinuationAnalyzer(BaseAnalyzer, FeatureScoringMixin):
                 f"Insufficient buffer: {buffer_to_sma50:.1f}% to SMA 50 (min {self.config.min_buffer_pct}%)",
             )
 
-        # RSI check
-        rsi = self._calculate_rsi(prices, 14)
+        # RSI check (prefer context if available)
+        rsi = None
+        if context is not None and context.rsi_14 is not None:
+            rsi = context.rsi_14
+        else:
+            rsi = self._calculate_rsi(prices, 14)
         breakdown.rsi_value = rsi if rsi is not None else 0
 
         if rsi is not None and rsi > self.config.rsi_overbought:
@@ -296,7 +300,7 @@ class TrendContinuationAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         breakdown.buffer_score = buffer_score
 
         # 4. Momentum Health
-        macd_info = self._calculate_macd_info(prices)
+        macd_info = self._calculate_macd_info(prices, context)
         volume_divergence = self._check_volume_divergence(prices, volumes)
         momentum_score = self._score_momentum_health(rsi, adx, macd_info, volume_divergence)
         breakdown.momentum_score = momentum_score
@@ -309,7 +313,7 @@ class TrendContinuationAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         breakdown.volatility_score = volatility_score
         breakdown.atr_pct = atr_pct if atr_pct is not None else 0
 
-        # === Apply YAML weights (trained but previously not integrated) ===
+        # === Apply YAML weights (trained) ===
         # Default max per component (matches hardcoded scoring ranges above)
         _DEFAULTS = {
             "sma_alignment": 2.5,
@@ -354,8 +358,11 @@ class TrendContinuationAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         breakdown.vix_adjustment = vix_adjustment
         total_score = total_score * vix_adjustment
 
-        # Clamp
-        total_score = clamp_score(total_score, self.config.max_score)
+        # Dynamic effective_max: sum of YAML weights (or defaults if no YAML)
+        effective_max = sum(w.get(k, _DEFAULTS[k]) for k in _DEFAULTS)
+
+        # Clamp on scaled range
+        total_score = clamp_score(total_score, effective_max)
         breakdown.total_score = round(total_score, 1)
 
         # Strike Zone Recommendation
@@ -398,23 +405,24 @@ class TrendContinuationAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             atr_pct,
         )
 
-        # Signal type and strength (compared on native scale before normalization)
-        if total_score >= self.config.min_score_for_signal:
+        # Normalize to 0-10 scale using dynamic effective_max
+        normalized_score = normalize_score(
+            total_score, "trend_continuation", max_possible=effective_max
+        )
+
+        # Signal type and strength on normalized 0-10 scale
+        tc_config = STRATEGY_SCORE_CONFIGS["trend_continuation"]
+        if normalized_score >= tc_config.weak_threshold:
             signal_type = SignalType.LONG
-            if total_score >= 7.5:
+            if normalized_score >= tc_config.strong_threshold:
                 strength = SignalStrength.STRONG
-            elif total_score >= 6.0:
+            elif normalized_score >= tc_config.moderate_threshold:
                 strength = SignalStrength.MODERATE
             else:
                 strength = SignalStrength.WEAK
         else:
             signal_type = SignalType.NEUTRAL
             strength = SignalStrength.NONE
-
-        # Normalize to 0-10 scale for fair cross-strategy comparison
-        normalized_score = normalize_score(
-            total_score, "trend_continuation", max_possible=self.config.max_score
-        )
 
         # Entry/Stop/Target
         entry_price = current_price
@@ -444,7 +452,7 @@ class TrendContinuationAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             details={
                 "score_breakdown": breakdown.to_dict(),
                 "raw_score": round(total_score, 1),
-                "max_possible": self.config.max_score,
+                "max_possible": effective_max,
                 "strike_zone": {
                     "conservative_short": conservative_short,
                     "aggressive_short": aggressive_short,
@@ -982,7 +990,10 @@ class TrendContinuationAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         if len(true_ranges) < period:
             return None
 
-        atr = sum(true_ranges[-period:]) / period
+        # Wilder smoothing (matches ADX calculation)
+        atr = sum(true_ranges[:period]) / period
+        for tr in true_ranges[period:]:
+            atr = (atr * (period - 1) + tr) / period
         current_price = prices[-1]
 
         if current_price <= 0:
@@ -990,51 +1001,50 @@ class TrendContinuationAnalyzer(BaseAnalyzer, FeatureScoringMixin):
 
         return (atr / current_price) * 100
 
-    def _calculate_macd_info(self, prices: List[float]) -> Optional[Dict[str, Any]]:
+    def _calculate_macd_info(
+        self, prices: List[float], context: Optional[AnalysisContext] = None
+    ) -> Optional[Dict[str, Any]]:
         """Calculate MACD and determine status."""
         if len(prices) < 35:  # Need at least 26 + 9
             return None
 
-        ema_12 = self._calculate_ema(prices, 12)
-        ema_26 = self._calculate_ema(prices, 26)
+        # Build full EMA-12 and EMA-26 arrays efficiently (once)
+        ema_12_series = self._calculate_ema_series(prices, 12)
+        ema_26_series = self._calculate_ema_series(prices, 26)
 
-        if ema_12 is None or ema_26 is None:
+        if ema_12_series is None or ema_26_series is None:
             return None
 
-        macd_line = ema_12 - ema_26
+        # MACD line = EMA(12) - EMA(26), aligned to EMA-26 start
+        offset = 26 - 12  # EMA-26 starts later
+        macd_values = [
+            ema_12_series[i + offset] - ema_26_series[i]
+            for i in range(len(ema_26_series))
+        ]
 
-        # For signal line we'd need MACD history, simplified: use last few values
-        # Calculate MACD line for recent periods
-        macd_values = []
-        for i in range(min(30, len(prices))):
-            idx = len(prices) - 1 - i
-            if idx < 26:
-                break
-            e12 = self._calculate_ema(prices[: idx + 1], 12)
-            e26 = self._calculate_ema(prices[: idx + 1], 26)
-            if e12 is not None and e26 is not None:
-                macd_values.insert(0, e12 - e26)
+        macd_line = macd_values[-1]
 
         if len(macd_values) < 9:
             return {"bullish": macd_line > 0, "divergence": False}
 
-        # Signal line = EMA(9) of MACD
-        signal = macd_values[0]
-        for val in macd_values[1:9]:
-            signal = signal * (8 / 9) + val * (1 / 9)
+        # Signal line = EMA(9) of MACD values
+        multiplier = 2.0 / (9 + 1)
+        signal = sum(macd_values[:9]) / 9
         for val in macd_values[9:]:
-            signal = signal * (8 / 10) + val * (2 / 10)
+            signal = (val - signal) * multiplier + signal
+        signal_line = signal
 
-        # Simple signal: last value
-        signal_line = sum(macd_values[-9:]) / 9 if len(macd_values) >= 9 else macd_values[-1]
-
-        bullish = macd_line > signal_line
+        # Use context MACD for bullish check if available (more accurate)
+        if context is not None and context.macd_line is not None and context.macd_signal is not None:
+            bullish = context.macd_line > context.macd_signal
+        else:
+            bullish = macd_line > signal_line
 
         # Check divergence: price up but MACD down over last 20 days
         divergence = False
         if len(macd_values) >= 20 and len(prices) >= 20:
             price_up = prices[-1] > prices[-20]
-            macd_down = macd_values[-1] < macd_values[-20] if len(macd_values) >= 20 else False
+            macd_down = macd_values[-1] < macd_values[-20]
             divergence = price_up and macd_down
 
         return {
@@ -1043,6 +1053,21 @@ class TrendContinuationAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             "signal_line": signal_line,
             "divergence": divergence,
         }
+
+    def _calculate_ema_series(self, prices: List[float], period: int) -> Optional[List[float]]:
+        """Calculate full EMA series (all values from period onward)."""
+        if len(prices) < period:
+            return None
+
+        multiplier = 2.0 / (period + 1)
+        ema = sum(prices[:period]) / period
+        result = [ema]
+
+        for price in prices[period:]:
+            ema = (price - ema) * multiplier + ema
+            result.append(ema)
+
+        return result
 
     def _calculate_ema(self, prices: List[float], period: int) -> Optional[float]:
         """Calculate Exponential Moving Average (final value)."""

@@ -776,11 +776,8 @@ class TestTrendContinuationSpecCases:
         """
         Case 1: Perfect alignment, 60d stable, Buffer 9%, RSI 58, ADX 32, ATR 1.1%
 
-        Note: Since v3, trend_continuation uses YAML-trained weights that scale
-        component scores significantly (many weights < 1.0 for normal regime).
-        A "perfect" scenario may score below the LONG threshold (5.0) due to
-        weight scaling.  We therefore only assert the signal is valid and the
-        raw_score in details is reasonable.
+        With dynamic effective_max normalization, a perfect trend should produce
+        a LONG signal on the normalized 0-10 scale (threshold 5.0).
         """
         analyzer = TrendContinuationAnalyzer()
         data = make_trend_data(
@@ -794,17 +791,15 @@ class TestTrendContinuationSpecCases:
             data['highs'], data['lows'],
             vix=17.0,
         )
-        # With YAML weights the total may be below min_score_for_signal (5.0),
-        # producing NEUTRAL instead of LONG.  Accept either outcome.
-        assert signal.signal_type in (SignalType.LONG, SignalType.NEUTRAL)
-        assert signal.score >= 0.0
-        if signal.signal_type == SignalType.LONG:
-            assert signal.strength in (SignalStrength.STRONG, SignalStrength.MODERATE, SignalStrength.WEAK)
+        # With normalized scoring, perfect trend should generate LONG signal
+        assert signal.signal_type == SignalType.LONG
+        assert signal.score >= 5.0
+        assert signal.strength in (SignalStrength.STRONG, SignalStrength.MODERATE, SignalStrength.WEAK)
 
     def test_case_02_good_with_minor_wicks(self):
         """
         Case 2: SMA aligned, 55d stable (2 wicks), Buffer 6%, RSI 62, ADX 27, ATR 1.4%
-        Expected: LONG signal with moderate score (~6.5)
+        Expected: LONG signal with score on normalized 0-10 scale
         """
         analyzer = TrendContinuationAnalyzer()
         data = make_trend_data(
@@ -818,9 +813,9 @@ class TestTrendContinuationSpecCases:
             data['highs'], data['lows'],
             vix=17.0,
         )
-        # Should be a signal (LONG or at least score > 0)
+        # With normalized scoring, a good trend should produce LONG signal
         if signal.signal_type == SignalType.LONG:
-            assert signal.score >= TREND_MIN_SCORE
+            assert signal.score >= 5.0  # weak_threshold on normalized scale
 
     def test_case_03_close_below_sma20(self):
         """
@@ -1015,8 +1010,8 @@ class TestTrendContinuationSpecCases:
             vix=12.0,  # Low VIX = 1.05x boost
         )
         if signal.signal_type == SignalType.LONG:
-            # Score should be boosted by 1.05x
-            assert signal.score >= TREND_MIN_SCORE
+            # Score should be boosted by 1.05x, above normalized weak threshold
+            assert signal.score >= 5.0
 
     def test_case_13_weak_sector_factor(self):
         """
@@ -1082,14 +1077,14 @@ class TestTrendContinuationEdgeCases:
         assert isinstance(signal, TradeSignal)
 
     def test_score_clamped_at_max(self, analyzer):
-        """Score should never exceed TREND_MAX_SCORE."""
+        """Score should never exceed 10.0 (normalized scale)."""
         data = make_trend_data(n=300, buffer_to_sma50_pct=15.0)
         signal = analyzer.analyze(
             "TEST", data['prices'], data['volumes'],
             data['highs'], data['lows'],
             vix=12.0,  # low VIX boost
         )
-        assert signal.score <= TREND_MAX_SCORE
+        assert signal.score <= 10.0
 
     def test_score_not_negative(self, analyzer):
         """Score should never be negative."""
@@ -1117,14 +1112,16 @@ class TestTrendContinuationEdgeCases:
         assert 6.0 < 7.5  # trivial but documents the thresholds
 
     def test_signal_strength_weak(self, analyzer):
-        """Score 5.0-6.0 should be WEAK."""
-        # The analyzer sets WEAK for 5.0 <= score < 6.0
-        assert TREND_MIN_SCORE == 5.0
+        """Score 5.0-6.0 should be WEAK (on normalized 0-10 scale)."""
+        from src.analyzers.score_normalization import STRATEGY_SCORE_CONFIGS
+        tc_config = STRATEGY_SCORE_CONFIGS["trend_continuation"]
+        assert tc_config.weak_threshold == 5.0
 
     def test_neutral_below_min_score(self, analyzer):
-        """Score below min_score should produce NEUTRAL signal."""
-        # Config min_score_for_signal is 5.0
-        assert analyzer.config.min_score_for_signal == 5.0
+        """Score below weak_threshold (5.0 normalized) should produce NEUTRAL signal."""
+        from src.analyzers.score_normalization import STRATEGY_SCORE_CONFIGS
+        tc_config = STRATEGY_SCORE_CONFIGS["trend_continuation"]
+        assert tc_config.weak_threshold == 5.0
 
     def test_strike_zone_conservative_below_sma50(self, analyzer, perfect_trend_data):
         """Conservative strike should be below SMA 50, rounded to $5."""
