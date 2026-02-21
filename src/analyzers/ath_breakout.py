@@ -82,7 +82,14 @@ ATH_CONSOL_SCORE_MOD_SHORT = _cfg.get("ath_breakout.consolidation.score_mod_shor
 ATH_CONSOL_SCORE_WIDE = _cfg.get("ath_breakout.consolidation.score_wide", 1.0)
 ATH_CONSOL_TEST_MIN = _cfg.get("ath_breakout.consolidation.test_min", 2)
 ATH_CONSOL_TEST_BONUS = _cfg.get("ath_breakout.consolidation.test_bonus", 0.5)
-ATH_CONSOL_SCORE_MAX = _cfg.get("ath_breakout.consolidation.score_max", 2.5)
+ATH_CONSOL_SCORE_MAX = _cfg.get("ath_breakout.consolidation.score_max", 3.0)
+
+# VCP Volatility Contraction (A1)
+ATH_VCP_CONTRACTION_STRONG = _cfg.get("ath_breakout.vcp.contraction_strong", 2.0)
+ATH_VCP_CONTRACTION_MODERATE = _cfg.get("ath_breakout.vcp.contraction_moderate", 1.5)
+ATH_VCP_CONTRACTION_BONUS_STRONG = _cfg.get("ath_breakout.vcp.contraction_bonus_strong", 0.5)
+ATH_VCP_CONTRACTION_BONUS_MODERATE = _cfg.get("ath_breakout.vcp.contraction_bonus_moderate", 0.25)
+ATH_VCP_EXPANDING_PENALTY = _cfg.get("ath_breakout.vcp.expanding_penalty", -0.25)
 ATH_CONSOL_WINDOW_STEP = _cfg.get("ath_breakout.consolidation.window_step", 5)
 
 # Breakout Strength Tiers
@@ -109,6 +116,27 @@ ATH_CANDLE_WIDE_RANGE_BONUS = _cfg.get("ath_breakout.candle_analysis.wide_range_
 ATH_CANDLE_CLOSE_HIGH_BONUS = _cfg.get("ath_breakout.candle_analysis.close_high_bonus", 0.25)
 ATH_CANDLE_LONG_WICK_PENALTY = _cfg.get("ath_breakout.candle_analysis.long_wick_penalty", -0.5)
 
+# Consolidation Volume Profile (A2)
+ATH_CONSOL_VOL_DRYUP_STRONG = _cfg.get("ath_breakout.consol_volume.dryup_strong", 1.5)
+ATH_CONSOL_VOL_DRYUP_MODERATE = _cfg.get("ath_breakout.consol_volume.dryup_moderate", 1.2)
+ATH_CONSOL_VOL_DISTRIBUTION = _cfg.get("ath_breakout.consol_volume.distribution_threshold", 0.8)
+ATH_CONSOL_VOL_DRYUP_STRONG_BONUS = _cfg.get("ath_breakout.consol_volume.dryup_strong_bonus", 0.5)
+ATH_CONSOL_VOL_DRYUP_MOD_BONUS = _cfg.get("ath_breakout.consol_volume.dryup_moderate_bonus", 0.25)
+ATH_CONSOL_VOL_DISTRIBUTION_PENALTY = _cfg.get(
+    "ath_breakout.consol_volume.distribution_penalty", -0.25
+)
+
+# Relative Strength vs SPY (A3)
+ATH_RS_LOOKBACK = _cfg.get("ath_breakout.relative_strength.lookback_days", 60)
+ATH_RS_STRONG = _cfg.get("ath_breakout.relative_strength.strong_outperformance", 20.0)
+ATH_RS_MODERATE = _cfg.get("ath_breakout.relative_strength.moderate_outperformance", 10.0)
+ATH_RS_UNDERPERFORMANCE = _cfg.get("ath_breakout.relative_strength.underperformance", -10.0)
+ATH_RS_STRONG_BONUS = _cfg.get("ath_breakout.relative_strength.strong_bonus", 0.5)
+ATH_RS_MODERATE_BONUS = _cfg.get("ath_breakout.relative_strength.moderate_bonus", 0.25)
+ATH_RS_UNDERPERFORMANCE_PENALTY = _cfg.get(
+    "ath_breakout.relative_strength.underperformance_penalty", -0.5
+)
+
 # Volume Score Tiers
 ATH_VOLUME_EXCEPTIONAL = _cfg.get("ath_breakout.volume.exceptional_ratio", 2.5)
 ATH_VOLUME_STRONG = _cfg.get("ath_breakout.volume.strong_ratio", 2.0)
@@ -132,8 +160,8 @@ ATH_RSI_HEALTHY_HIGH = _cfg.get("ath_breakout.momentum.rsi_healthy_high", 70)
 ATH_RSI_HEALTHY_BONUS = _cfg.get("ath_breakout.momentum.rsi_healthy_bonus", 0.5)
 ATH_RSI_OVERBOUGHT = _cfg.get("ath_breakout.momentum.rsi_overbought", 75)
 ATH_RSI_OVERBOUGHT_PENALTY = _cfg.get("ath_breakout.momentum.rsi_overbought_penalty", 0.5)
-ATH_MOMENTUM_SCORE_MIN = _cfg.get("ath_breakout.momentum.score_min", -1.0)
-ATH_MOMENTUM_SCORE_MAX = _cfg.get("ath_breakout.momentum.score_max", 1.5)
+ATH_MOMENTUM_SCORE_MIN = _cfg.get("ath_breakout.momentum.score_min", -1.5)
+ATH_MOMENTUM_SCORE_MAX = _cfg.get("ath_breakout.momentum.score_max", 2.0)
 
 # Signal Strength
 ATH_SIGNAL_STRONG = _cfg.get("ath_breakout.signal.strong", 7.0)
@@ -260,7 +288,7 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             volumes: Daily volume
             highs: Daily highs
             lows: Daily lows
-            spy_prices: Optional SPY prices (unused in v2, kept for compat)
+            spy_prices: Optional SPY prices for relative strength (A3)
             context: Optional pre-calculated AnalysisContext
 
         Returns:
@@ -346,8 +374,8 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         # SCORING: 4 Components
         # =====================================================================
 
-        # 1. Consolidation Quality (0 – 2.5)
-        consol_score = self._score_consolidation_quality(consol_info)
+        # 1. Consolidation Quality (0 – 3.0) — includes VCP contraction (A1)
+        consol_score = self._score_consolidation_quality(consol_info, highs, lows)
         breakdown.ath_score = consol_score
         breakdown.ath_reason = (
             f"Base {consol_info['duration']} days, "
@@ -358,14 +386,16 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         # 2. Breakout Strength (0 – 2.5)
         breakout_score = self._score_breakout_strength(close_info, prices, highs, lows)
 
-        # 3. Volume Confirmation (-1.0 – 2.5)
+        # 3. Volume Confirmation (-1.0 – 3.0) — includes consol volume profile (A2)
         volume_score = self._score_volume(volume_info["ratio"])
+        consol_vol_score = self._score_consol_volume_profile(volumes, consol_info)
+        volume_score = volume_score + consol_vol_score
         breakdown.volume_score = volume_score
         breakdown.volume_ratio = volume_info["ratio"]
         breakdown.volume_reason = volume_info.get("reason", "")
 
-        # 4. Momentum / Trend Context (-1.0 – 1.5)
-        momentum_info = self._score_momentum_trend(prices, rsi_value)
+        # 4. Momentum / Trend Context (-1.5 – 2.0) — includes RS vs SPY (A3)
+        momentum_info = self._score_momentum_trend(prices, rsi_value, spy_prices=spy_prices)
         momentum_score = momentum_info["score"]
         breakdown.trend_score = momentum_score
         breakdown.trend_status = momentum_info.get("status", "")
@@ -635,8 +665,14 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             else:
                 in_test = False
 
+        # Store window indices for VCP/volume profile analysis (A1, A2)
+        consol_end = end_idx
+        consol_start = end_idx - best_duration
+
         return {
             "has_consolidation": True,
+            "consol_start": consol_start,
+            "consol_end": consol_end,
             "range_pct": round(best_range, 1),
             "duration": best_duration,
             "ath_tests": ath_tests,
@@ -752,20 +788,29 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
     # SCORING COMPONENTS
     # =========================================================================
 
-    def _score_consolidation_quality(self, consol_info: Dict[str, Any]) -> float:
+    def _score_consolidation_quality(
+        self,
+        consol_info: Dict[str, Any],
+        highs: Optional[List[float]] = None,
+        lows: Optional[List[float]] = None,
+    ) -> float:
         """
-        Score consolidation quality (0 – 2.5).
+        Score consolidation quality (0 – 3.0).
 
         Tighter and longer base = higher score.
         ATH tests (2+) = +0.5 bonus.
+        VCP contraction (A1) = +0.5/+0.25/-0.25.
 
         Scoring table:
           Range ≤ 8%, Duration 30+ days  → 2.5
           Range ≤ 8%, Duration 20-30     → 2.0
+          Range 8-12%, Duration 60+      → 2.5
           Range 8-12%, Duration 30+      → 2.0
           Range 8-12%, Duration 20-30    → 1.5
           Range 12-15%, Duration 20+     → 1.0
-          ATH tested 2+ times            → +0.5 bonus (max 2.5)
+          ATH tested 2+ times            → +0.5 bonus
+          VCP contraction                → +0.5/+0.25/-0.25
+          Cap: 3.0
         """
         range_pct = consol_info["range_pct"]
         duration = consol_info["duration"]
@@ -793,7 +838,112 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         if ath_tests >= ATH_CONSOL_TEST_MIN:
             score += ATH_CONSOL_TEST_BONUS
 
+        # VCP volatility contraction bonus (A1)
+        if highs is not None and lows is not None and duration >= ATH_CONSOL_MIN_DAYS:
+            vcp_score = self._score_vcp_contraction(consol_info, highs, lows)
+            score += vcp_score
+
         return clamp_score(score, ATH_CONSOL_SCORE_MAX)
+
+    def _score_vcp_contraction(
+        self,
+        consol_info: Dict[str, Any],
+        highs: List[float],
+        lows: List[float],
+    ) -> float:
+        """
+        Score VCP-style volatility contraction within the consolidation (A1).
+
+        Splits the consolidation window into two halves and compares
+        the range (or ATR proxy) of each half. Decreasing volatility
+        indicates institutional accumulation (supply drying up).
+
+        Returns:
+          contraction > 2.0x  → +0.5
+          contraction > 1.5x  → +0.25
+          contraction ≤ 1.0x  → -0.25 (expanding = bearish)
+        """
+        start = consol_info.get("consol_start")
+        end = consol_info.get("consol_end")
+        if start is None or end is None:
+            return 0.0
+
+        duration = end - start
+        if duration < 10:
+            return 0.0
+
+        mid = start + duration // 2
+        # First half range
+        first_highs = highs[start:mid]
+        first_lows = lows[start:mid]
+        # Second half range (closer to breakout)
+        second_highs = highs[mid:end]
+        second_lows = lows[mid:end]
+
+        if not first_highs or not second_highs:
+            return 0.0
+
+        first_range = max(first_highs) - min(first_lows)
+        second_range = max(second_highs) - min(second_lows)
+
+        if second_range <= 0:
+            return ATH_VCP_CONTRACTION_BONUS_STRONG  # Perfect contraction
+
+        contraction_ratio = first_range / second_range
+
+        if contraction_ratio >= ATH_VCP_CONTRACTION_STRONG:
+            return ATH_VCP_CONTRACTION_BONUS_STRONG
+        elif contraction_ratio >= ATH_VCP_CONTRACTION_MODERATE:
+            return ATH_VCP_CONTRACTION_BONUS_MODERATE
+        elif contraction_ratio <= 1.0:
+            return ATH_VCP_EXPANDING_PENALTY
+        return 0.0
+
+    def _score_consol_volume_profile(
+        self,
+        volumes: List[int],
+        consol_info: Dict[str, Any],
+    ) -> float:
+        """
+        Score consolidation volume profile (A2).
+
+        Compares pre-consolidation average volume with consolidation volume.
+        Decreasing volume during the base = supply drying up (bullish).
+        Increasing volume during the base = distribution (bearish).
+
+        Returns:
+          dryup ratio > 1.5x  → +0.5
+          dryup ratio > 1.2x  → +0.25
+          dryup ratio < 0.8x  → -0.25 (distribution)
+        """
+        start = consol_info.get("consol_start")
+        end = consol_info.get("consol_end")
+        if start is None or end is None or start < 20:
+            return 0.0
+
+        # Pre-consolidation volume (20 days before consolidation)
+        pre_start = max(0, start - 20)
+        pre_volumes = volumes[pre_start:start]
+        consol_volumes = volumes[start:end]
+
+        if not pre_volumes or not consol_volumes:
+            return 0.0
+
+        pre_avg = sum(pre_volumes) / len(pre_volumes)
+        consol_avg = sum(consol_volumes) / len(consol_volumes)
+
+        if consol_avg <= 0:
+            return 0.0
+
+        dryup_ratio = pre_avg / consol_avg
+
+        if dryup_ratio >= ATH_CONSOL_VOL_DRYUP_STRONG:
+            return ATH_CONSOL_VOL_DRYUP_STRONG_BONUS
+        elif dryup_ratio >= ATH_CONSOL_VOL_DRYUP_MODERATE:
+            return ATH_CONSOL_VOL_DRYUP_MOD_BONUS
+        elif dryup_ratio < ATH_CONSOL_VOL_DISTRIBUTION:
+            return ATH_CONSOL_VOL_DISTRIBUTION_PENALTY
+        return 0.0
 
     def _score_breakout_strength(
         self,
@@ -923,14 +1073,16 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         self,
         prices: List[float],
         rsi_value: float,
+        spy_prices: Optional[List[float]] = None,
     ) -> Dict[str, Any]:
         """
-        Score momentum and trend context (-1.0 – 1.5).
+        Score momentum and trend context (-1.5 – 2.0).
 
         Components:
           SMA 20 > SMA 50 > SMA 200 (perfect alignment) → +0.5
           MACD bullish (line > signal)                    → +0.5
           RSI 50-70 (healthy momentum)                    → +0.5
+          Relative Strength vs SPY (A3)                   → +0.5/+0.25/-0.5
 
         Penalties:
           RSI > 75 (overbought)   → -0.5
@@ -997,6 +1149,23 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             score -= ATH_RSI_OVERBOUGHT_PENALTY
             signals.append(f"RSI overbought ({rsi_value:.0f})")
 
+        # A3: Relative Strength vs SPY
+        rs_vs_spy = None
+        if spy_prices is not None and len(spy_prices) >= ATH_RS_LOOKBACK and len(prices) >= ATH_RS_LOOKBACK:
+            stock_perf = (prices[-1] / prices[-ATH_RS_LOOKBACK] - 1) * 100
+            spy_perf = (spy_prices[-1] / spy_prices[-ATH_RS_LOOKBACK] - 1) * 100
+            rs_vs_spy = stock_perf - spy_perf
+
+            if rs_vs_spy > ATH_RS_STRONG:
+                score += ATH_RS_STRONG_BONUS
+                signals.append(f"Strong RS vs SPY (+{rs_vs_spy:.1f}%)")
+            elif rs_vs_spy > ATH_RS_MODERATE:
+                score += ATH_RS_MODERATE_BONUS
+                signals.append(f"Moderate RS vs SPY (+{rs_vs_spy:.1f}%)")
+            elif rs_vs_spy < ATH_RS_UNDERPERFORMANCE:
+                score -= ATH_RS_UNDERPERFORMANCE_PENALTY
+                signals.append(f"Laggard breakout (RS {rs_vs_spy:.1f}%)")
+
         # Clamp
         score = clamp_score(score, ATH_MOMENTUM_SCORE_MAX, ATH_MOMENTUM_SCORE_MIN)
 
@@ -1010,6 +1179,7 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             "sma_50": sma_50,
             "sma_200": sma_200,
             "rsi": rsi_value,
+            "rs_vs_spy": rs_vs_spy,
             "signals": signals,
         }
 
