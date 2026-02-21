@@ -4,6 +4,7 @@
 import pytest
 import sys
 from pathlib import Path
+from unittest.mock import patch
 
 # Add project root to path (not src!)
 project_root = Path(__file__).parent.parent
@@ -519,6 +520,12 @@ class TestTrendStrengthScoring:
 
 class TestVolumeScoring:
     """Tests for improved Volume scoring (NEW)"""
+
+    @pytest.fixture(autouse=True)
+    def _mock_intraday_scale(self):
+        """Ensure deterministic volume scoring regardless of time of day."""
+        with patch.object(PullbackAnalyzer, "_intraday_volume_scale", return_value=1.0):
+            yield
 
     @pytest.fixture
     def analyzer(self):
