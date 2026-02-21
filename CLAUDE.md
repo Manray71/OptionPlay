@@ -253,7 +253,7 @@ python scripts/train_stability_thresholds.py # Stability-Cutoffs per Strategy ×
 
 | Strategie | Datei | Max Score | Min Score | WF Threshold | OOS WR |
 |-----------|-------|-----------|-----------|-------------|--------|
-| **Pullback** | `analyzers/pullback.py` | 27.0 (raw) | 3.5 | 4.5 | 88.3% |
+| **Pullback** | `analyzers/pullback.py` | 14.0 (P95) | 3.5 | 4.5 | 88.3% |
 | **Bounce** | `analyzers/bounce.py` | 10.0 | 3.5 | 6.0 | 91.6% |
 | **ATH Breakout** | `analyzers/ath_breakout.py` | 10.0 | 4.0 | 6.0 | 88.9% |
 | **Earnings Dip** | `analyzers/earnings_dip.py` | 9.5 | 3.5 | 5.0 | 86.7% |
