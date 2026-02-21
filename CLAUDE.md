@@ -4,9 +4,9 @@ Session-Kontext für Claude Code. Enthält DB-Schema, API-Beispiele und Code-Kon
 Für alle Trading-Regeln → siehe `docs/PLAYBOOK.md`
 
 **Version:** 4.0.0
-**Zuletzt aktualisiert:** 2026-02-09
-**Test-Coverage:** 80%+ (6,917 Tests)
-**Codebase:** 223 Module | 89,574 LOC (src/) | 138 Testdateien
+**Zuletzt aktualisiert:** 2026-02-21
+**Test-Coverage:** 80%+ (7,573 Tests)
+**Codebase:** 220 Module | 94,080 LOC (src/) | 151 Testdateien
 
 ---
 
@@ -253,9 +253,9 @@ python scripts/train_stability_thresholds.py # Stability-Cutoffs per Strategy ×
 
 | Strategie | Datei | Max Score | Min Score | WF Threshold | OOS WR |
 |-----------|-------|-----------|-----------|-------------|--------|
-| **Pullback** | `analyzers/pullback.py` | 26.0 (raw) | 4.0 | 4.5 | 88.3% |
+| **Pullback** | `analyzers/pullback.py` | 27.0 (raw) | 3.5 | 4.5 | 88.3% |
 | **Bounce** | `analyzers/bounce.py` | 10.0 | 3.5 | 6.0 | 91.6% |
-| **ATH Breakout** | `analyzers/ath_breakout.py` | 9.0 | 4.0 | 6.0 | 88.9% |
+| **ATH Breakout** | `analyzers/ath_breakout.py` | 10.0 | 4.0 | 6.0 | 88.9% |
 | **Earnings Dip** | `analyzers/earnings_dip.py` | 9.5 | 3.5 | 5.0 | 86.7% |
 | **Trend Continuation** | `analyzers/trend_continuation.py` | 10.5 | 3.5 | 5.5 | 87.7% |
 
