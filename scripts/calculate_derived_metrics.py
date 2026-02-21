@@ -320,16 +320,16 @@ def calculate_earnings_move_stats(symbol: str) -> Optional[Dict]:
         # Hole close T-1 (letzter Handelstag vor Earnings)
         cursor.execute("""
             SELECT close FROM daily_prices
-            WHERE symbol = ? AND date < ?
-            ORDER BY date DESC LIMIT 1
+            WHERE symbol = ? AND quote_date < ?
+            ORDER BY quote_date DESC LIMIT 1
         """, (symbol.upper(), ed))
         row_before = cursor.fetchone()
 
         # Hole close T+1 (erster Handelstag nach Earnings)
         cursor.execute("""
             SELECT close FROM daily_prices
-            WHERE symbol = ? AND date > ?
-            ORDER BY date ASC LIMIT 1
+            WHERE symbol = ? AND quote_date > ?
+            ORDER BY quote_date ASC LIMIT 1
         """, (symbol.upper(), ed))
         row_after = cursor.fetchone()
 
