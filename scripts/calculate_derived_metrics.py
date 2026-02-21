@@ -283,13 +283,105 @@ def calculate_historical_volatility(symbol: str, days: int = 30) -> Optional[Dic
 
 
 # =============================================================================
+# EARNINGS MOVE STATS
+# =============================================================================
+
+def calculate_earnings_move_stats(symbol: str) -> Optional[Dict]:
+    """
+    Berechnet durchschnittliche und Standardabweichung der absoluten
+    Kursreaktion auf Earnings-Events.
+
+    Kreuzt earnings_history.earnings_date mit daily_prices,
+    berechnet abs(close[T+1]/close[T-1] - 1) * 100 für jeden Event.
+
+    Args:
+        symbol: Ticker-Symbol
+
+    Returns:
+        Dict mit avg_earnings_move_pct, std_earnings_move_pct oder None
+    """
+    conn = sqlite3.connect(str(DB_PATH))
+    cursor = conn.cursor()
+
+    # Hole alle Earnings-Dates für dieses Symbol
+    cursor.execute("""
+        SELECT earnings_date FROM earnings_history
+        WHERE symbol = ? AND earnings_date IS NOT NULL
+        ORDER BY earnings_date
+    """, (symbol.upper(),))
+    earnings_dates = [row[0] for row in cursor.fetchall()]
+
+    if len(earnings_dates) < 2:
+        conn.close()
+        return None
+
+    moves = []
+    for ed in earnings_dates:
+        # Hole close T-1 (letzter Handelstag vor Earnings)
+        cursor.execute("""
+            SELECT close FROM daily_prices
+            WHERE symbol = ? AND date < ?
+            ORDER BY date DESC LIMIT 1
+        """, (symbol.upper(), ed))
+        row_before = cursor.fetchone()
+
+        # Hole close T+1 (erster Handelstag nach Earnings)
+        cursor.execute("""
+            SELECT close FROM daily_prices
+            WHERE symbol = ? AND date > ?
+            ORDER BY date ASC LIMIT 1
+        """, (symbol.upper(), ed))
+        row_after = cursor.fetchone()
+
+        if row_before and row_after and row_before[0] > 0:
+            move = abs(row_after[0] / row_before[0] - 1) * 100
+            moves.append(move)
+
+    conn.close()
+
+    if len(moves) < 2:
+        return None
+
+    avg_move = sum(moves) / len(moves)
+
+    # Std dev (min 4 events for meaningful std)
+    std_move = None
+    if len(moves) >= 4:
+        variance = sum((m - avg_move) ** 2 for m in moves) / (len(moves) - 1)
+        std_move = math.sqrt(variance)
+
+    result = {"avg_earnings_move_pct": round(avg_move, 2)}
+    if std_move is not None:
+        result["std_earnings_move_pct"] = round(std_move, 2)
+
+    return result
+
+
+# =============================================================================
 # UPDATE DATABASE
 # =============================================================================
+
+def _ensure_earnings_columns(cursor) -> None:
+    """Adds avg_earnings_move_pct and std_earnings_move_pct columns if missing."""
+    for col in ("avg_earnings_move_pct", "std_earnings_move_pct"):
+        try:
+            cursor.execute(f"SELECT {col} FROM symbol_fundamentals LIMIT 1")
+        except sqlite3.OperationalError:
+            cursor.execute(
+                f"ALTER TABLE symbol_fundamentals ADD COLUMN {col} REAL"
+            )
+            logger.info(f"Added column {col} to symbol_fundamentals")
+
 
 def update_fundamentals(symbol: str, metrics: Dict) -> bool:
     """Aktualisiert symbol_fundamentals mit berechneten Metriken"""
     conn = sqlite3.connect(str(DB_PATH))
     cursor = conn.cursor()
+
+    # Ensure new columns exist
+    if 'avg_earnings_move_pct' in metrics or 'std_earnings_move_pct' in metrics:
+        _ensure_earnings_columns(cursor)
+        conn.commit()
 
     try:
         # Check ob Symbol existiert
@@ -317,6 +409,12 @@ def update_fundamentals(symbol: str, metrics: Dict) -> bool:
         if 'hv_30d' in metrics:
             updates.append("historical_volatility_30d = ?")
             values.append(metrics['hv_30d'])
+        if 'avg_earnings_move_pct' in metrics:
+            updates.append("avg_earnings_move_pct = ?")
+            values.append(metrics['avg_earnings_move_pct'])
+        if 'std_earnings_move_pct' in metrics:
+            updates.append("std_earnings_move_pct = ?")
+            values.append(metrics['std_earnings_move_pct'])
 
         if updates:
             updates.append("updated_at = datetime('now')")
@@ -334,7 +432,7 @@ def update_fundamentals(symbol: str, metrics: Dict) -> bool:
         conn.close()
 
 
-def process_symbol(symbol: str, calc_iv: bool = True, calc_corr: bool = True, calc_hv: bool = True) -> Dict:
+def process_symbol(symbol: str, calc_iv: bool = True, calc_corr: bool = True, calc_hv: bool = True, calc_earnings: bool = True) -> Dict:
     """Berechnet alle Metriken für ein Symbol"""
     result = {"symbol": symbol}
 
@@ -355,6 +453,11 @@ def process_symbol(symbol: str, calc_iv: bool = True, calc_corr: bool = True, ca
         hv_metrics = calculate_historical_volatility(symbol)
         if hv_metrics:
             result["hv_30d"] = hv_metrics["hv_30d"]
+
+    if calc_earnings:
+        em_metrics = calculate_earnings_move_stats(symbol)
+        if em_metrics:
+            result.update(em_metrics)
 
     return result
 
@@ -383,6 +486,11 @@ def main():
         help='Nur Historical Volatility berechnen'
     )
     parser.add_argument(
+        '--earnings-move-only',
+        action='store_true',
+        help='Nur Earnings Move Stats berechnen'
+    )
+    parser.add_argument(
         '--dry-run',
         action='store_true',
         help='Nur berechnen, nicht speichern'
@@ -392,13 +500,15 @@ def main():
 
     # Bestimme was berechnet werden soll
     if args.iv_only:
-        calc_iv, calc_corr, calc_hv = True, False, False
+        calc_iv, calc_corr, calc_hv, calc_earnings = True, False, False, False
     elif args.correlation_only:
-        calc_iv, calc_corr, calc_hv = False, True, False
+        calc_iv, calc_corr, calc_hv, calc_earnings = False, True, False, False
     elif args.hv_only:
-        calc_iv, calc_corr, calc_hv = False, False, True
+        calc_iv, calc_corr, calc_hv, calc_earnings = False, False, True, False
+    elif args.earnings_move_only:
+        calc_iv, calc_corr, calc_hv, calc_earnings = False, False, False, True
     else:
-        calc_iv, calc_corr, calc_hv = True, True, True
+        calc_iv, calc_corr, calc_hv, calc_earnings = True, True, True, True
 
     # Symbole bestimmen
     if args.symbols:
@@ -410,7 +520,7 @@ def main():
         symbols = sorted(fund_symbols & opt_symbols)
 
     logger.info(f"Verarbeite {len(symbols)} Symbole")
-    logger.info(f"Berechne: IV={'✓' if calc_iv else '✗'}, Corr={'✓' if calc_corr else '✗'}, HV={'✓' if calc_hv else '✗'}")
+    logger.info(f"Berechne: IV={'✓' if calc_iv else '✗'}, Corr={'✓' if calc_corr else '✗'}, HV={'✓' if calc_hv else '✗'}, EM={'✓' if calc_earnings else '✗'}")
 
     if args.dry_run:
         logger.info("DRY RUN - keine Änderungen werden gespeichert")
@@ -420,11 +530,12 @@ def main():
         "iv_success": 0,
         "corr_success": 0,
         "hv_success": 0,
+        "em_success": 0,
         "total": len(symbols)
     }
 
     for i, symbol in enumerate(symbols, 1):
-        metrics = process_symbol(symbol, calc_iv, calc_corr, calc_hv)
+        metrics = process_symbol(symbol, calc_iv, calc_corr, calc_hv, calc_earnings)
 
         # Logging
         parts = []
@@ -437,6 +548,9 @@ def main():
         if 'hv_30d' in metrics:
             parts.append(f"HV={metrics['hv_30d']:.0f}%")
             results["hv_success"] += 1
+        if 'avg_earnings_move_pct' in metrics:
+            parts.append(f"EM={metrics['avg_earnings_move_pct']:.1f}%")
+            results["em_success"] += 1
 
         if parts:
             logger.info(f"[{i}/{len(symbols)}] {symbol}: {', '.join(parts)}")
@@ -456,6 +570,8 @@ def main():
         logger.info(f"SPY Correlation: {results['corr_success']}/{results['total']}")
     if calc_hv:
         logger.info(f"Historical Volatility: {results['hv_success']}/{results['total']}")
+    if calc_earnings:
+        logger.info(f"Earnings Move Stats: {results['em_success']}/{results['total']}")
 
 
 if __name__ == "__main__":

@@ -305,6 +305,53 @@ earnings_dip:
     hammer_body_ratio: 0.3
     hammer_approx_ratio: 0.7
 
+  # B1: Relative dip scoring via Z-Score
+  relative_scoring:
+    zscore_extreme: 3.0       # Z >= 3.0 → likely fundamental, score 1.0
+    zscore_ideal: 2.0         # Z >= 2.0 → ideal overreaction, score 2.0
+    zscore_good: 1.5          # Z >= 1.5 → good, score 1.5
+    zscore_moderate: 1.0      # Z >= 1.0 → moderate, score 1.0
+    zscore_small: 0.5         # Z < 1.0 → small, score 0.5
+    score_extreme: 1.0
+    score_ideal: 2.0
+    score_good: 1.5
+    score_moderate: 1.0
+    score_small: 0.5
+
+  # B2: Sector context for overreaction scoring
+  sector_context:
+    defensive_threshold: 1.05   # Sector factor above this = defensive
+    volatile_threshold: 0.95    # Sector factor below this = volatile
+    defensive_bonus: 0.5
+    neutral_bonus: 0.25
+    volatile_bonus: 0.0
+    earnings_beat_rate_threshold: 75  # Beat rate >= 75% → +0.25 bonus
+    earnings_beat_rate_bonus: 0.25
+
+  # B3: Dynamic stabilization timing
+  stabilization_timing:
+    min_days_small: 2          # Default for drops < large_dip_threshold
+    min_days_large: 3          # For drops >= large_dip_threshold
+    large_dip_threshold: 15.0  # Dip % threshold for longer stabilization
+
+  # B4: Graduated continued-decline penalty
+  continued_decline:
+    mild_threshold_pct: 2.0    # Max decline <= 2% → mild penalty
+    moderate_threshold_pct: 5.0  # Max decline <= 5% → moderate penalty
+    mild_penalty: 0.5
+    moderate_penalty: 1.0
+    severe_penalty: 1.5        # 3+ new lows or > 5% decline
+
+  # B5: Contextual RSI penalty
+  rsi_penalty:
+    recovery_threshold: 55     # RSI <= 55 in uptrend → no penalty
+
+  # B7: Dynamic recovery target
+  recovery_target:
+    strong_pct: 60             # Recovery % for STRONG signals
+    default_pct: 50            # Default recovery %
+    weak_pct: 40               # Recovery % for WEAK signals
+
 
 # -----------------------------------------------------------------------------
 # ATH BREAKOUT STRATEGY

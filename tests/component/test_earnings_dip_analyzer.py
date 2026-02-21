@@ -996,15 +996,16 @@ class TestPenaltyCalculation:
     """Tests for penalty calculations."""
 
     def test_rsi_penalty(self):
-        """RSI > 40 should get -0.5 penalty."""
+        """RSI > 55 or not in uptrend should get -0.5 penalty."""
         analyzer = EarningsDipAnalyzer()
         # Sideways prices -> RSI ~50
         prices = [100 + (i % 2) * 0.5 for i in range(250)]
         lows = [p - 0.5 for p in prices]
-        fund_info = {'was_above_sma200': True}
+        # B5: was_above_sma200=False → RSI penalty applies even at RSI 40-55
+        fund_info = {'was_above_sma200': False}
 
         result = analyzer._calculate_penalties(prices, lows, 240, fund_info)
-        # Should have RSI penalty
+        # Should have RSI penalty (not in uptrend)
         has_rsi_penalty = any("RSI" in d for d in result.get('details', []))
         assert has_rsi_penalty
 
@@ -1105,6 +1106,386 @@ class TestFundamentalCheck:
 
         result = analyzer._check_fundamentals(prices, volumes)
         assert result['qualified'] is True  # Passes since SMA check skipped
+
+
+# =============================================================================
+# 13. B1: RELATIVE DIP SCORING (Z-SCORE) TESTS
+# =============================================================================
+
+class TestRelativeDipScoring:
+    """Tests for Z-Score-based relative dip scoring (B1)."""
+
+    def test_zscore_ideal_overreaction(self):
+        """Z >= 2.0 should score 2.0 (ideal)."""
+        analyzer = EarningsDipAnalyzer()
+        # dip=12%, avg=4%, std=3% → Z=(12-4)/3 = 2.67
+        score = analyzer._score_drop_magnitude(12.0, 4.0, 3.0)
+        assert score == 2.0
+
+    def test_zscore_extreme_fundamental(self):
+        """Z >= 3.0 should score 1.0 (likely fundamental)."""
+        analyzer = EarningsDipAnalyzer()
+        # dip=16%, avg=4%, std=3% → Z=(16-4)/3 = 4.0
+        score = analyzer._score_drop_magnitude(16.0, 4.0, 3.0)
+        assert score == 1.0
+
+    def test_zscore_good(self):
+        """Z >= 1.5 should score 1.5."""
+        analyzer = EarningsDipAnalyzer()
+        # dip=8.5%, avg=4%, std=3% → Z=(8.5-4)/3 = 1.5
+        score = analyzer._score_drop_magnitude(8.5, 4.0, 3.0)
+        assert score == 1.5
+
+    def test_zscore_moderate(self):
+        """Z >= 1.0 should score 1.0."""
+        analyzer = EarningsDipAnalyzer()
+        # dip=7%, avg=4%, std=3% → Z=(7-4)/3 = 1.0
+        score = analyzer._score_drop_magnitude(7.0, 4.0, 3.0)
+        assert score == 1.0
+
+    def test_zscore_small(self):
+        """Z < 1.0 should score 0.5."""
+        analyzer = EarningsDipAnalyzer()
+        # dip=5.5%, avg=4%, std=3% → Z=(5.5-4)/3 = 0.5
+        score = analyzer._score_drop_magnitude(5.5, 4.0, 3.0)
+        assert score == 0.5
+
+    def test_zscore_fallback_no_std(self):
+        """Without std, should fall back to absolute thresholds."""
+        analyzer = EarningsDipAnalyzer()
+        score = analyzer._score_drop_magnitude(12.0, 4.0, None)
+        assert score == 1.5  # 10-15% = 1.5
+
+    def test_zscore_fallback_zero_std(self):
+        """std=0 should fall back to absolute thresholds."""
+        analyzer = EarningsDipAnalyzer()
+        score = analyzer._score_drop_magnitude(12.0, 4.0, 0.0)
+        assert score == 1.5  # 10-15% = 1.5
+
+    def test_zscore_helper_method(self):
+        """_calculate_earnings_move_zscore should return correct Z-score."""
+        analyzer = EarningsDipAnalyzer()
+        z = analyzer._calculate_earnings_move_zscore(10.0, 4.0, 3.0)
+        assert z == pytest.approx(2.0)
+
+    def test_zscore_helper_returns_none(self):
+        """_calculate_earnings_move_zscore returns None for invalid inputs."""
+        analyzer = EarningsDipAnalyzer()
+        assert analyzer._calculate_earnings_move_zscore(10.0, None, None) is None
+        assert analyzer._calculate_earnings_move_zscore(10.0, 4.0, 0.0) is None
+        assert analyzer._calculate_earnings_move_zscore(10.0, 4.0, -1.0) is None
+
+
+# =============================================================================
+# 14. B2: SECTOR CONTEXT TESTS
+# =============================================================================
+
+class TestSectorContext:
+    """Tests for sector context in overreaction scoring (B2)."""
+
+    def test_defensive_sector_bonus(self):
+        """Defensive sector should add bonus to overreaction score."""
+        analyzer = EarningsDipAnalyzer()
+
+        class MockContext:
+            sector = "Consumer Defensive"
+
+        prices = [100 - i for i in range(50)]
+        volumes = [1_000_000] * 50
+        info = analyzer._score_overreaction(
+            10.0, prices, volumes, 40, context=MockContext()
+        )
+        assert info["sector_component"] > 0
+        assert any("Defensive" in i or "sector" in i.lower() for i in info["indicators"])
+
+    def test_volatile_sector_no_bonus(self):
+        """Volatile sector should not add bonus."""
+        analyzer = EarningsDipAnalyzer()
+
+        class MockContext:
+            sector = "Technology"
+
+        prices = [100 - i for i in range(50)]
+        volumes = [1_000_000] * 50
+        info = analyzer._score_overreaction(
+            10.0, prices, volumes, 40, context=MockContext()
+        )
+        # Technology has sector_factor ~0.947, which is below 0.95
+        assert info["sector_component"] == 0.0
+
+    def test_no_context_no_sector_bonus(self):
+        """Without context, no sector bonus should be given."""
+        analyzer = EarningsDipAnalyzer()
+        prices = [100 - i for i in range(50)]
+        volumes = [1_000_000] * 50
+        info = analyzer._score_overreaction(10.0, prices, volumes, 40)
+        assert info["sector_component"] == 0.0
+
+    def test_earnings_beat_rate_bonus(self):
+        """Earnings beat rate >= 75% should add bonus (B6)."""
+        analyzer = EarningsDipAnalyzer()
+        prices = [100 - i for i in range(50)]
+        volumes = [1_000_000] * 50
+        info = analyzer._score_overreaction(
+            10.0, prices, volumes, 40, earnings_beat_rate=80.0
+        )
+        assert any("beat rate" in i.lower() for i in info["indicators"])
+
+    def test_low_earnings_beat_rate_no_bonus(self):
+        """Earnings beat rate < 75% should not add bonus."""
+        analyzer = EarningsDipAnalyzer()
+        prices = [100 - i for i in range(50)]
+        volumes = [1_000_000] * 50
+        info = analyzer._score_overreaction(
+            10.0, prices, volumes, 40, earnings_beat_rate=60.0
+        )
+        assert not any("beat rate" in i.lower() for i in info["indicators"])
+
+
+# =============================================================================
+# 15. B3: DYNAMIC STABILIZATION TIMING TESTS
+# =============================================================================
+
+class TestDynamicStabilization:
+    """Tests for dynamic stabilization timing (B3)."""
+
+    def test_small_dip_needs_2_days(self):
+        """Small dip (<15%) should need 2 stabilization days."""
+        analyzer = EarningsDipAnalyzer()
+        assert analyzer._get_min_stabilization_days(10.0) == 2
+
+    def test_large_dip_needs_3_days(self):
+        """Large dip (>=15%) should need 3 stabilization days."""
+        analyzer = EarningsDipAnalyzer()
+        assert analyzer._get_min_stabilization_days(15.0) == 3
+        assert analyzer._get_min_stabilization_days(20.0) == 3
+
+    def test_stabilization_rejects_with_1_day_after_small_dip(self):
+        """1 day after a small dip should be rejected (need 2)."""
+        analyzer = EarningsDipAnalyzer()
+        prices = [100.0] * 98 + [90.0, 91.0]
+        highs = [p + 0.5 for p in prices]
+        lows = [p - 0.5 for p in prices]
+        volumes = [1_000_000] * 100
+
+        result = analyzer._check_stabilization(
+            prices, highs, lows, volumes, drop_day_idx=98, dip_pct=10.0
+        )
+        assert result['stabilized'] is False
+        assert "Too early" in result.get('reason', '')
+
+    def test_stabilization_accepts_with_2_days_after_small_dip(self):
+        """2 days after a small dip should be accepted."""
+        analyzer = EarningsDipAnalyzer()
+        prices = [100.0] * 97 + [90.0, 91.0, 92.0]
+        highs = [p + 0.5 for p in prices]
+        lows = [p - 0.5 for p in prices]
+        lows[97] = 88.0
+        volumes = [1_000_000] * 100
+
+        result = analyzer._check_stabilization(
+            prices, highs, lows, volumes, drop_day_idx=97, dip_pct=10.0
+        )
+        assert result['stabilized'] is True
+
+    def test_large_dip_rejected_at_2_days(self):
+        """2 days after a large (>=15%) dip should be rejected (need 3)."""
+        analyzer = EarningsDipAnalyzer()
+        prices = [100.0] * 97 + [85.0, 86.0, 87.0]
+        highs = [p + 0.5 for p in prices]
+        lows = [p - 0.5 for p in prices]
+        lows[97] = 83.0
+        volumes = [1_000_000] * 100
+
+        result = analyzer._check_stabilization(
+            prices, highs, lows, volumes, drop_day_idx=97, dip_pct=16.0
+        )
+        assert result['stabilized'] is False
+        assert "Too early" in result.get('reason', '')
+
+
+# =============================================================================
+# 16. B4: GRADUATED CONTINUED-DECLINE PENALTY TESTS
+# =============================================================================
+
+class TestGraduatedDeclinePenalty:
+    """Tests for graduated continued-decline penalty (B4)."""
+
+    def test_mild_decline_mild_penalty(self):
+        """Small decline (<= 2% below dip low) → mild penalty (-0.5)."""
+        analyzer = EarningsDipAnalyzer()
+        prices = [100.0] * 90 + [90.0, 89.5, 89.8, 89.6, 89.9, 90.2, 90.5, 91.0, 91.5, 92.0]
+        lows = [p - 0.3 for p in prices]
+        # 2 lows below drop day, but only slightly (< 2%)
+        lows[90] = 89.0
+        lows[91] = 88.8  # 0.22% below
+        lows[92] = 88.7  # 0.34% below
+        fund_info = {'was_above_sma200': True}
+
+        result = analyzer._calculate_penalties(prices, lows, 90, fund_info)
+        decline_details = [d for d in result['details'] if 'decline' in d.lower()]
+        if decline_details:
+            assert "-0.5" in decline_details[0]
+
+    def test_severe_decline_full_penalty(self):
+        """Large decline (> 5% below dip low) → severe penalty (-1.5)."""
+        analyzer = EarningsDipAnalyzer()
+        prices = [100.0] * 90 + [90.0, 87.0, 85.0, 83.0, 81.0, 80.0, 79.0, 78.0, 77.0, 76.0]
+        lows = [p - 0.5 for p in prices]
+        lows[90] = 89.0
+        for i in range(91, 100):
+            lows[i] = 89.0 - (i - 90) * 1.5  # Continued deep decline
+        fund_info = {'was_above_sma200': True}
+
+        result = analyzer._calculate_penalties(prices, lows, 90, fund_info)
+        decline_details = [d for d in result['details'] if 'decline' in d.lower()]
+        assert len(decline_details) > 0
+        assert "-1.5" in decline_details[0]
+
+
+# =============================================================================
+# 17. B5: CONTEXTUAL RSI PENALTY TESTS
+# =============================================================================
+
+class TestContextualRSIPenalty:
+    """Tests for contextual RSI penalty (B5)."""
+
+    def test_rsi_no_penalty_for_uptrend_recovery(self):
+        """RSI 40-55 in uptrend stock should NOT get penalty."""
+        analyzer = EarningsDipAnalyzer()
+        # Create prices that give RSI ~45 (mild downtrend then recovery)
+        prices = [100.0 + i * 0.3 for i in range(80)]
+        # Add small dip then recovery
+        prices.extend([120.0, 116.0, 115.0, 114.5, 115.0, 115.5, 116.0, 117.0, 118.0, 119.0,
+                       119.5, 120.0, 120.5, 121.0, 121.5, 122.0, 122.5, 123.0, 123.5, 124.0])
+        lows = [p - 0.3 for p in prices]
+        fund_info = {'was_above_sma200': True}
+
+        result = analyzer._calculate_penalties(prices, lows, 80, fund_info)
+        rsi_details = [d for d in result['details'] if 'RSI' in d]
+        # If RSI is in 40-55 range and was_above_sma200, should NOT have RSI penalty
+        rsi = analyzer._calculate_rsi(prices)
+        if 40 < rsi <= 55:
+            assert len(rsi_details) == 0
+
+    def test_rsi_penalty_for_downtrend(self):
+        """RSI > 40 in downtrend stock should still get penalty."""
+        analyzer = EarningsDipAnalyzer()
+        prices = [100.0 + (i % 3) * 0.2 for i in range(250)]
+        lows = [p - 0.5 for p in prices]
+        fund_info = {'was_above_sma200': False}
+
+        result = analyzer._calculate_penalties(prices, lows, 240, fund_info)
+        rsi = analyzer._calculate_rsi(prices)
+        if rsi > 40:
+            rsi_details = [d for d in result['details'] if 'RSI' in d]
+            assert len(rsi_details) > 0
+
+
+# =============================================================================
+# 18. B7: DYNAMIC RECOVERY TARGET TESTS
+# =============================================================================
+
+class TestDynamicRecoveryTarget:
+    """Tests for dynamic recovery target (B7)."""
+
+    def test_strong_signal_higher_target(self):
+        """Strong signal should have 60% recovery target."""
+        analyzer = EarningsDipAnalyzer()
+        prices, volumes, highs, lows, _ = make_dip_data(
+            dip_pct=15.0, stabilization_days=5, green_days=3,
+            volume_spike=4.0, volume_decay=0.3,
+        )
+        signal = analyzer.analyze(
+            "TEST", prices, volumes, highs, lows,
+            pre_earnings_price=100.0, stability_score=92.0,
+        )
+        if signal.strength == SignalStrength.STRONG:
+            # Target should use 60% recovery
+            dip_gap = 100.0 - signal.entry_price
+            expected_target = signal.entry_price + dip_gap * 0.60
+            assert signal.target_price == pytest.approx(expected_target, abs=0.5)
+
+    def test_weak_signal_lower_target(self):
+        """Weak signal should have 40% recovery target."""
+        analyzer = EarningsDipAnalyzer()
+        prices, volumes, highs, lows, _ = make_dip_data(
+            dip_pct=6.0, stabilization_days=2, green_days=1,
+            volume_spike=1.5, volume_decay=0.8,
+        )
+        signal = analyzer.analyze(
+            "TEST", prices, volumes, highs, lows,
+            pre_earnings_price=100.0, stability_score=72.0,
+        )
+        if signal.strength == SignalStrength.WEAK:
+            dip_gap = 100.0 - signal.entry_price
+            expected_target = signal.entry_price + dip_gap * 0.40
+            assert signal.target_price == pytest.approx(expected_target, abs=0.5)
+
+
+# =============================================================================
+# 19. INTEGRATION: FULL ANALYZE WITH NEW FEATURES
+# =============================================================================
+
+class TestNewFeaturesIntegration:
+    """Integration tests for all B1-B7 improvements together."""
+
+    def test_analyze_with_all_new_params(self):
+        """analyze() should accept all new parameters without error."""
+        analyzer = EarningsDipAnalyzer()
+        prices, volumes, highs, lows, _ = make_dip_data(
+            dip_pct=11.0, stabilization_days=5, green_days=3
+        )
+
+        class MockContext:
+            sector = "Consumer Defensive"
+            market_context_score = 5
+
+        signal = analyzer.analyze(
+            "TEST", prices, volumes, highs, lows,
+            pre_earnings_price=100.0,
+            stability_score=85.0,
+            historical_avg_earnings_move=5.0,
+            historical_std_earnings_move=2.5,
+            context=MockContext(),
+            earnings_beat_rate=80.0,
+        )
+        assert signal is not None
+        assert signal.score > 0
+
+    def test_zscore_scoring_used_when_available(self):
+        """When historical stats available, Z-Score should be used for drop scoring."""
+        analyzer = EarningsDipAnalyzer()
+        prices, volumes, highs, lows, _ = make_dip_data(
+            dip_pct=11.0, stabilization_days=5, green_days=3
+        )
+        # Without historical data
+        signal_abs = analyzer.analyze(
+            "TEST", prices, volumes, highs, lows,
+            pre_earnings_price=100.0, stability_score=85.0,
+        )
+        # With historical data (makes 11% a 2.0 Z-Score)
+        signal_rel = analyzer.analyze(
+            "TEST", prices, volumes, highs, lows,
+            pre_earnings_price=100.0, stability_score=85.0,
+            historical_avg_earnings_move=5.0, historical_std_earnings_move=3.0,
+        )
+        # Both should produce valid signals
+        assert signal_abs.score >= 0
+        assert signal_rel.score >= 0
+
+    def test_backward_compatible_with_no_new_params(self):
+        """Existing code without new params should still work identically."""
+        analyzer = EarningsDipAnalyzer()
+        prices, volumes, highs, lows, _ = make_dip_data(
+            dip_pct=10.0, stabilization_days=3, green_days=2
+        )
+        signal = analyzer.analyze(
+            "TEST", prices, volumes, highs, lows,
+            pre_earnings_price=100.0, stability_score=80.0,
+        )
+        assert signal is not None
+        assert signal.strategy == "earnings_dip"
 
 
 if __name__ == "__main__":

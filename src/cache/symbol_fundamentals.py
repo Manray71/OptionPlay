@@ -104,6 +104,8 @@ class SymbolFundamentals:
 
     # Earnings
     earnings_beat_rate: Optional[float] = None  # Calculated from earnings_history
+    avg_earnings_move_pct: Optional[float] = None  # Avg absolute % move on earnings
+    std_earnings_move_pct: Optional[float] = None  # Std dev of earnings % moves
 
     # E.6: Survivorship Bias — 1 = delisted/acquired, 0 = active
     delisted: int = 0
@@ -259,6 +261,20 @@ class SymbolFundamentalsManager:
                         "ALTER TABLE symbol_fundamentals ADD COLUMN delisted INTEGER DEFAULT 0"
                     )
                     logger.info("Migrated symbol_fundamentals: added 'delisted' column")
+
+                # Migration: add earnings move stats columns
+                for col in ("avg_earnings_move_pct", "std_earnings_move_pct"):
+                    try:
+                        cursor.execute(
+                            f"SELECT {col} FROM symbol_fundamentals LIMIT 1"
+                        )
+                    except sqlite3.OperationalError:
+                        cursor.execute(
+                            f"ALTER TABLE symbol_fundamentals ADD COLUMN {col} REAL"
+                        )
+                        logger.info(
+                            f"Migrated symbol_fundamentals: added '{col}' column"
+                        )
 
                 # Indices for fast queries
                 cursor.execute("""

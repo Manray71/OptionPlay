@@ -21,6 +21,7 @@
 import logging
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
@@ -117,6 +118,60 @@ EDIP_PENALTY_MAX = _cfg.get("earnings_dip.penalties.penalty_max", 3.0)
 EDIP_SIGNAL_STRONG = _cfg.get("earnings_dip.signal.strong", 6.5)
 EDIP_SIGNAL_MODERATE = _cfg.get("earnings_dip.signal.moderate", 5.0)
 
+# B1: Relative scoring via Z-Score
+EDIP_ZSCORE_EXTREME = _cfg.get("earnings_dip.relative_scoring.zscore_extreme", 3.0)
+EDIP_ZSCORE_IDEAL = _cfg.get("earnings_dip.relative_scoring.zscore_ideal", 2.0)
+EDIP_ZSCORE_GOOD = _cfg.get("earnings_dip.relative_scoring.zscore_good", 1.5)
+EDIP_ZSCORE_MODERATE = _cfg.get("earnings_dip.relative_scoring.zscore_moderate", 1.0)
+EDIP_ZSCORE_SCORE_EXTREME = _cfg.get("earnings_dip.relative_scoring.score_extreme", 1.0)
+EDIP_ZSCORE_SCORE_IDEAL = _cfg.get("earnings_dip.relative_scoring.score_ideal", 2.0)
+EDIP_ZSCORE_SCORE_GOOD = _cfg.get("earnings_dip.relative_scoring.score_good", 1.5)
+EDIP_ZSCORE_SCORE_MODERATE = _cfg.get("earnings_dip.relative_scoring.score_moderate", 1.0)
+EDIP_ZSCORE_SCORE_SMALL = _cfg.get("earnings_dip.relative_scoring.score_small", 0.5)
+
+# B2: Sector context
+EDIP_SECTOR_DEFENSIVE_THRESHOLD = _cfg.get(
+    "earnings_dip.sector_context.defensive_threshold", 1.05
+)
+EDIP_SECTOR_VOLATILE_THRESHOLD = _cfg.get(
+    "earnings_dip.sector_context.volatile_threshold", 0.95
+)
+EDIP_SECTOR_DEFENSIVE_BONUS = _cfg.get("earnings_dip.sector_context.defensive_bonus", 0.5)
+EDIP_SECTOR_NEUTRAL_BONUS = _cfg.get("earnings_dip.sector_context.neutral_bonus", 0.25)
+EDIP_SECTOR_VOLATILE_BONUS = _cfg.get("earnings_dip.sector_context.volatile_bonus", 0.0)
+EDIP_EARNINGS_BEAT_RATE_THRESHOLD = _cfg.get(
+    "earnings_dip.sector_context.earnings_beat_rate_threshold", 75
+)
+EDIP_EARNINGS_BEAT_RATE_BONUS = _cfg.get(
+    "earnings_dip.sector_context.earnings_beat_rate_bonus", 0.25
+)
+
+# B3: Dynamic stabilization timing
+EDIP_STAB_MIN_DAYS_SMALL = _cfg.get("earnings_dip.stabilization_timing.min_days_small", 2)
+EDIP_STAB_MIN_DAYS_LARGE = _cfg.get("earnings_dip.stabilization_timing.min_days_large", 3)
+EDIP_STAB_LARGE_DIP_THRESHOLD = _cfg.get(
+    "earnings_dip.stabilization_timing.large_dip_threshold", 15.0
+)
+
+# B4: Graduated continued-decline penalty
+EDIP_DECLINE_MILD_THRESHOLD = _cfg.get(
+    "earnings_dip.continued_decline.mild_threshold_pct", 2.0
+)
+EDIP_DECLINE_MOD_THRESHOLD = _cfg.get(
+    "earnings_dip.continued_decline.moderate_threshold_pct", 5.0
+)
+EDIP_DECLINE_MILD_PENALTY = _cfg.get("earnings_dip.continued_decline.mild_penalty", 0.5)
+EDIP_DECLINE_MOD_PENALTY = _cfg.get("earnings_dip.continued_decline.moderate_penalty", 1.0)
+EDIP_DECLINE_SEVERE_PENALTY = _cfg.get("earnings_dip.continued_decline.severe_penalty", 1.5)
+
+# B5: Contextual RSI penalty
+EDIP_RSI_RECOVERY_THRESHOLD = _cfg.get("earnings_dip.rsi_penalty.recovery_threshold", 55)
+
+# B7: Dynamic recovery target
+EDIP_RECOVERY_STRONG_PCT = _cfg.get("earnings_dip.recovery_target.strong_pct", 60)
+EDIP_RECOVERY_DEFAULT_PCT = _cfg.get("earnings_dip.recovery_target.default_pct", 50)
+EDIP_RECOVERY_WEAK_PCT = _cfg.get("earnings_dip.recovery_target.weak_pct", 40)
+
 # Stabilization Detection
 EDIP_STAB_VOLUME_DECLINE_RATIO = _cfg.get(
     "earnings_dip.stabilization_detection.volume_decline_ratio", 0.7
@@ -126,6 +181,23 @@ EDIP_HAMMER_LOWER_WICK_RATIO = _cfg.get(
 )
 EDIP_HAMMER_BODY_RATIO = _cfg.get("earnings_dip.stabilization_detection.hammer_body_ratio", 0.3)
 EDIP_HAMMER_APPROX_RATIO = _cfg.get("earnings_dip.stabilization_detection.hammer_approx_ratio", 0.7)
+
+
+def _load_sector_factors() -> Dict[str, float]:
+    """Load earnings_dip sector factors from scoring_weights.yaml."""
+    try:
+        import yaml
+
+        config_path = Path(__file__).resolve().parents[2] / "config" / "scoring_weights.yaml"
+        with open(config_path) as f:
+            data = yaml.safe_load(f)
+        sectors = data.get("strategies", {}).get("earnings_dip", {}).get("sectors", {})
+        return {k: v.get("sector_factor", 1.0) for k, v in sectors.items() if isinstance(v, dict)}
+    except Exception:
+        return {}
+
+
+_SECTOR_FACTORS: Dict[str, float] = _load_sector_factors()
 
 
 @dataclass
@@ -233,6 +305,7 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         stability_score: Optional[float] = None,
         next_earnings_days: Optional[int] = None,
         historical_avg_earnings_move: Optional[float] = None,
+        historical_std_earnings_move: Optional[float] = None,
         context: Optional[AnalysisContext] = None,
         **kwargs,
     ) -> TradeSignal:
@@ -298,7 +371,9 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         # =====================================================================
         # STEP 2: Stabilization Check (PFLICHT)
         # =====================================================================
-        stab_info = self._check_stabilization(prices, highs, lows, volumes, drop_day_idx, opens)
+        stab_info = self._check_stabilization(
+            prices, highs, lows, volumes, drop_day_idx, opens, dip_pct=dip_pct
+        )
 
         if not stab_info["stabilized"]:
             return self._make_disqualified_signal(
@@ -329,7 +404,9 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         # =====================================================================
 
         # 1. Drop Magnitude (0 – 2.0)
-        drop_score = self._score_drop_magnitude(dip_pct)
+        drop_score = self._score_drop_magnitude(
+            dip_pct, historical_avg_earnings_move, historical_std_earnings_move
+        )
         breakdown.dip_score = drop_score
         breakdown.dip_reason = f"-{dip_pct:.1f}% earnings drop"
 
@@ -346,8 +423,11 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         breakdown.trend_reason = fund_info.get("reason", "")
 
         # 4. Overreaction Indicators (0 – 2.0)
+        # B6: Get earnings_beat_rate from kwargs or context
+        earnings_beat_rate = kwargs.get("earnings_beat_rate", None)
         overreaction_info = self._score_overreaction(
-            dip_pct, prices, volumes, drop_day_idx, historical_avg_earnings_move
+            dip_pct, prices, volumes, drop_day_idx, historical_avg_earnings_move,
+            context=context, earnings_beat_rate=earnings_beat_rate,
         )
         overreaction_score = overreaction_info["score"]
         breakdown.rsi_score = overreaction_info.get("rsi_component", 0)
@@ -401,7 +481,15 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         # Entry/Stop/Target
         entry_price = current_price
         stop_loss = dip_low * (1 - cfg.stop_below_dip_low_pct / 100)
-        target_price = current_price + (pre_price - current_price) * (cfg.target_recovery_pct / 100)
+
+        # B7: Dynamic recovery target based on signal strength
+        if strength == SignalStrength.STRONG:
+            recovery_pct = EDIP_RECOVERY_STRONG_PCT
+        elif strength == SignalStrength.WEAK:
+            recovery_pct = EDIP_RECOVERY_WEAK_PCT
+        else:
+            recovery_pct = EDIP_RECOVERY_DEFAULT_PCT
+        target_price = current_price + (pre_price - current_price) * (recovery_pct / 100)
 
         # Warnings
         if dip_pct > 15:
@@ -519,6 +607,12 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
     # STEP 2: STABILIZATION CHECK
     # =========================================================================
 
+    def _get_min_stabilization_days(self, dip_pct: float) -> int:
+        """Dynamic minimum: larger drops need more stabilization time."""
+        if dip_pct >= EDIP_STAB_LARGE_DIP_THRESHOLD:
+            return EDIP_STAB_MIN_DAYS_LARGE
+        return EDIP_STAB_MIN_DAYS_SMALL
+
     def _check_stabilization(
         self,
         prices: List[float],
@@ -527,6 +621,7 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         volumes: List[int],
         drop_day_idx: int,
         opens: Optional[List[float]] = None,
+        dip_pct: float = 0.0,
     ) -> Dict[str, Any]:
         """
         Checks if the price has stabilized after the earnings drop.
@@ -557,9 +652,12 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         # Days after the drop
         days_after = n - 1 - drop_day_idx
 
-        if days_after < self.config.min_stabilization_days:
+        # B3: Dynamic stabilization days based on dip magnitude
+        min_stab_days = self._get_min_stabilization_days(dip_pct) if dip_pct > 0 else self.config.min_stabilization_days
+
+        if days_after < min_stab_days:
             info["reason"] = (
-                f"Too early — only {days_after} day(s) after drop, need {self.config.min_stabilization_days}"
+                f"Too early — only {days_after} day(s) after drop, need {min_stab_days}"
             )
             return info
 
@@ -718,9 +816,25 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
     # SCORING: 1. Drop Magnitude (0 – 2.0)
     # =========================================================================
 
-    def _score_drop_magnitude(self, dip_pct: float) -> float:
+    def _calculate_earnings_move_zscore(
+        self, dip_pct: float, avg_move: Optional[float], std_move: Optional[float]
+    ) -> Optional[float]:
+        """Z-Score of the dip relative to historical earnings reaction."""
+        if avg_move is None or std_move is None or std_move <= 0:
+            return None
+        return (dip_pct - avg_move) / std_move
+
+    def _score_drop_magnitude(
+        self,
+        dip_pct: float,
+        historical_avg_earnings_move: Optional[float] = None,
+        historical_std_earnings_move: Optional[float] = None,
+    ) -> float:
         """
         Score the earnings drop magnitude.
+
+        If historical earnings move stats are available, uses Z-Score
+        for relative scoring. Falls back to absolute thresholds.
 
         | Drop Size    | Score |
         |-------------|-------|
@@ -730,6 +844,23 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         | 15% to 20% | 2.0   |
         | > 20%      | 1.0   | (reduced — might be fundamental)
         """
+        # B1: Try Z-Score-based relative scoring first
+        zscore = self._calculate_earnings_move_zscore(
+            dip_pct, historical_avg_earnings_move, historical_std_earnings_move
+        )
+        if zscore is not None:
+            if zscore >= EDIP_ZSCORE_EXTREME:
+                return EDIP_ZSCORE_SCORE_EXTREME  # Likely fundamental
+            elif zscore >= EDIP_ZSCORE_IDEAL:
+                return EDIP_ZSCORE_SCORE_IDEAL
+            elif zscore >= EDIP_ZSCORE_GOOD:
+                return EDIP_ZSCORE_SCORE_GOOD
+            elif zscore >= EDIP_ZSCORE_MODERATE:
+                return EDIP_ZSCORE_SCORE_MODERATE
+            else:
+                return EDIP_ZSCORE_SCORE_SMALL
+
+        # Fallback: absolute thresholds
         if dip_pct < EDIP_MIN_DIP_PCT:
             return 0.0
         elif dip_pct < EDIP_DROP_MINOR_PCT:
@@ -825,6 +956,8 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         volumes: List[int],
         drop_day_idx: int,
         historical_avg_earnings_move: Optional[float] = None,
+        context: Optional[AnalysisContext] = None,
+        earnings_beat_rate: Optional[float] = None,
     ) -> Dict[str, Any]:
         """
         Score overreaction indicators.
@@ -833,7 +966,7 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         |------------------------------------------|-------|
         | RSI after stabilization < 30             | 0.5   |
         | Drop day volume > 3x avg (panic)         | 0.5   |
-        | Sector/index stable (not implemented)    | 0.5   |
+        | Sector context (defensive = likely firm) | 0.5   |
         | Drop > 2x historical avg earnings move   | 0.5   |
 
         Returns dict with score and component details.
@@ -844,6 +977,7 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             "rsi_component": 0.0,
             "volume_component": 0.0,
             "historical_component": 0.0,
+            "sector_component": 0.0,
         }
 
         total = 0.0
@@ -898,6 +1032,29 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
                 total += EDIP_OVERREACTION_COMPONENT
                 info["historical_component"] = EDIP_OVERREACTION_COMPONENT
                 info["indicators"].append(f"Drop {move_ratio:.1f}x avg earnings move")
+
+        # B2: Sector context — defensive sectors imply firm-specific dip
+        sector = getattr(context, "sector", None) if context else None
+        if sector and sector in _SECTOR_FACTORS:
+            factor = _SECTOR_FACTORS[sector]
+            if factor >= EDIP_SECTOR_DEFENSIVE_THRESHOLD:
+                total += EDIP_SECTOR_DEFENSIVE_BONUS
+                info["sector_component"] = EDIP_SECTOR_DEFENSIVE_BONUS
+                info["indicators"].append(f"Defensive sector ({sector})")
+            elif factor >= EDIP_SECTOR_VOLATILE_THRESHOLD:
+                total += EDIP_SECTOR_NEUTRAL_BONUS
+                info["sector_component"] = EDIP_SECTOR_NEUTRAL_BONUS
+            # Volatile sectors: no bonus (EDIP_SECTOR_VOLATILE_BONUS = 0)
+
+        # B6: Earnings beat rate bonus
+        if (
+            earnings_beat_rate is not None
+            and earnings_beat_rate >= EDIP_EARNINGS_BEAT_RATE_THRESHOLD
+        ):
+            total += EDIP_EARNINGS_BEAT_RATE_BONUS
+            info["indicators"].append(
+                f"Earnings beat rate {earnings_beat_rate:.0f}%"
+            )
 
         info["score"] = clamp_score(total, EDIP_OVERREACTION_MAX)
         return info
@@ -964,25 +1121,43 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
                     f"Under SMA 200 before and after (-{EDIP_PENALTY_UNDER_SMA200})"
                 )
 
-        # Penalty: continued decline after drop
+        # B4: Graduated continued-decline penalty
         if drop_day_idx < len(lows) - 1:
             drop_low = lows[drop_day_idx]
-            # Check if any day after drop made new low
             post_drop_lows = lows[drop_day_idx + 1 :]
             new_lows = sum(1 for l in post_drop_lows if l < drop_low)
             if new_lows >= EDIP_PENALTY_NEW_LOWS_MIN:
-                info["total"] -= EDIP_PENALTY_CONTINUED_DECLINE
+                # Calculate max decline below dip low
+                below_lows = [l for l in post_drop_lows if l < drop_low]
+                if below_lows and drop_low > 0:
+                    max_decline = (drop_low - min(below_lows)) / drop_low * 100
+                else:
+                    max_decline = 0.0
+
+                if max_decline <= EDIP_DECLINE_MILD_THRESHOLD:
+                    penalty = EDIP_DECLINE_MILD_PENALTY
+                elif max_decline <= EDIP_DECLINE_MOD_THRESHOLD and new_lows < 3:
+                    penalty = EDIP_DECLINE_MOD_PENALTY
+                else:
+                    penalty = EDIP_DECLINE_SEVERE_PENALTY
+
+                info["total"] -= penalty
                 info["details"].append(
-                    f"Continued decline: {new_lows} new lows after drop (-{EDIP_PENALTY_CONTINUED_DECLINE})"
+                    f"Continued decline: {new_lows} new lows, {max_decline:.1f}% below dip low (-{penalty})"
                 )
 
-        # Penalty: RSI not extreme
+        # B5: Contextual RSI penalty
         rsi = self._calculate_rsi(prices)
         if rsi > EDIP_RSI_MODERATE_OVERSOLD:
-            info["total"] -= EDIP_PENALTY_RSI_NOT_EXTREME
-            info["details"].append(
-                f"RSI {rsi:.0f} not extreme enough (-{EDIP_PENALTY_RSI_NOT_EXTREME})"
-            )
+            was_above_sma200 = fund_info.get("was_above_sma200", False)
+            if was_above_sma200 and rsi <= EDIP_RSI_RECOVERY_THRESHOLD:
+                # Uptrend stock with RSI 40-55: recovery sign, no penalty
+                pass
+            else:
+                info["total"] -= EDIP_PENALTY_RSI_NOT_EXTREME
+                info["details"].append(
+                    f"RSI {rsi:.0f} not extreme enough (-{EDIP_PENALTY_RSI_NOT_EXTREME})"
+                )
 
         info["total"] = max(-EDIP_PENALTY_MAX, info["total"])
         return info
