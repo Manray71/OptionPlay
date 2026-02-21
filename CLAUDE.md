@@ -257,7 +257,7 @@ python scripts/train_stability_thresholds.py # Stability-Cutoffs per Strategy ×
 | **Bounce** | `analyzers/bounce.py` | 10.0 | 3.5 | 6.0 | 91.6% |
 | **ATH Breakout** | `analyzers/ath_breakout.py` | 9.0 | 4.0 | 6.0 | 88.9% |
 | **Earnings Dip** | `analyzers/earnings_dip.py` | 9.5 | 3.5 | 5.0 | 86.7% |
-| **Trend Continuation** | `analyzers/trend_continuation.py` | 10.5 | 5.0 | 5.5 | 87.7% |
+| **Trend Continuation** | `analyzers/trend_continuation.py` | 10.5 | 3.5 | 5.5 | 87.7% |
 
 - **Min Score**: Analyzer-Schwelle fuer Signal-Generierung
 - **WF Threshold**: Walk-Forward-trainierte optimale Schwelle (2026-02-09)
