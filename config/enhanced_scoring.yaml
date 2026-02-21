@@ -1,18 +1,24 @@
 # Enhanced Scoring Configuration
 # ================================
-# Bonus components (0-6 total) added to base signal score for daily_picks re-ranking.
+# Bonus components for daily_picks re-ranking.
 # Only applies to daily_picks() — regular scans are unaffected.
 
+# Scoring mode: "additive" (legacy) or "multiplicative" (recommended)
+# Additive: enhanced = base + sum(bonuses)  — can exceed 10.0 scale
+# Multiplicative: enhanced = base × (1 + sum(mults)) — preserves signal quality ordering
+mode: multiplicative
+
+# ---------------------------------------------------------------------------
+# Additive bonuses (legacy, used when mode: additive)
+# ---------------------------------------------------------------------------
+
 liquidity_bonus:
-  # Maps liquidity_quality → bonus points
   excellent: 2.0
   good: 2.0
   fair: 1.0
   poor: 0.0
 
 credit_bonus:
-  # return_pct = (estimated_credit / spread_width) * 100
-  # Tiered brackets: higher return → higher bonus
   brackets:
     - min_pct: 10.0
       bonus: 1.5
@@ -20,19 +26,14 @@ credit_bonus:
       bonus: 1.0
     - min_pct: 4.0
       bonus: 0.5
-  # Fallback when credit or spread_width unavailable
   default: 0.0
 
 pullback_bonus:
-  # Bonus when price is above SMA20 AND SMA200 (healthy trend pullback)
   both_above: 1.0
-  # Partial: above SMA200 only (long-term trend intact)
   sma200_above_only: 0.5
-  # Default when no pullback data available
   default: 0.0
 
 stability_bonus:
-  # High-stability symbols get a small bonus
   brackets:
     - min_score: 85
       bonus: 1.0
@@ -40,8 +41,40 @@ stability_bonus:
       bonus: 0.5
   default: 0.0
 
+# ---------------------------------------------------------------------------
+# Multiplicative bonuses (used when mode: multiplicative)
+# enhanced_score = base_score × (1.0 + liq + cred + pull + stab)
+# Max factor: 1.0 + 0.10 + 0.08 + 0.05 + 0.05 = 1.28
+# ---------------------------------------------------------------------------
+
+multiplicative:
+  liquidity:
+    excellent: 0.10
+    good: 0.07
+    fair: 0.03
+    poor: 0.0
+  credit:
+    brackets:
+      - min_pct: 10.0
+        mult: 0.08
+      - min_pct: 7.0
+        mult: 0.05
+      - min_pct: 4.0
+        mult: 0.02
+    default: 0.0
+  pullback:
+    both_above: 0.05
+    sma200_above_only: 0.025
+    default: 0.0
+  stability:
+    brackets:
+      - min_score: 85
+        mult: 0.05
+      - min_score: 75
+        mult: 0.025
+    default: 0.0
+
 quality_filter:
-  # Reject picks with this liquidity quality or worse
   reject_quality: "poor"
 
 overfetch_factor: 5

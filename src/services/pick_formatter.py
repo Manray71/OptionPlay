@@ -128,8 +128,12 @@ def format_single_pick(pick: Any) -> list[str]:
 
     # Enhanced score display
     score_str = f"{pick.score:.1f}/10"
+    esr = getattr(pick, "enhanced_score_result", None)
     if getattr(pick, "enhanced_score", None) is not None:
-        score_str = f"{pick.enhanced_score:.1f} (base {pick.score:.1f})"
+        if esr is not None and esr.mode == "multiplicative":
+            score_str = f"{pick.enhanced_score:.1f} ({pick.score:.1f} \u00d7{esr.bonus_factor:.2f})"
+        else:
+            score_str = f"{pick.enhanced_score:.1f} (base {pick.score:.1f})"
 
     lines = [
         f"### {pick.rank}. **{pick.symbol}** - {pick.strategy.replace('_', ' ').title()}{grade_badge}",
@@ -141,8 +145,7 @@ def format_single_pick(pick: Any) -> list[str]:
         f"| **Stability** | {pick.stability_score:.0f}/100 |",
     ]
 
-    # Bonus breakdown
-    esr = getattr(pick, "enhanced_score_result", None)
+    # Bonus breakdown (esr already retrieved above)
     if esr is not None and esr.total_bonus > 0:
         lines.append(f"| **Bonus** | {esr.bonus_breakdown_str()} |")
 
@@ -291,14 +294,17 @@ def format_single_pick_v2(b: MarkdownBuilder, pick: Any) -> None:
 
     # Enhanced score display
     score_display = f"Score {pick.score:.1f}"
+    esr = getattr(pick, "enhanced_score_result", None)
     if getattr(pick, "enhanced_score", None) is not None:
-        score_display = f"Enhanced {pick.enhanced_score:.1f} (base {pick.score:.1f})"
+        if esr is not None and esr.mode == "multiplicative":
+            score_display = f"Enhanced {pick.enhanced_score:.1f} ({pick.score:.1f} \u00d7{esr.bonus_factor:.2f})"
+        else:
+            score_display = f"Enhanced {pick.enhanced_score:.1f} (base {pick.score:.1f})"
 
     # Header
     b.h2(f"#{pick.rank} -- {pick.symbol} | {strategy_str} | {score_display}{eqs_str}")
 
     # Bonus breakdown line
-    esr = getattr(pick, "enhanced_score_result", None)
     if esr is not None and esr.total_bonus > 0:
         b.text(f"**Bonus:** {esr.bonus_breakdown_str()}")
 
