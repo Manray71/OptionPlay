@@ -8,7 +8,7 @@
 # ============================================================================
 # Für historische Preisdaten (Scanner, Analysen) wird folgende Priorität verwendet:
 # 1. Lokale SQLite-Datenbank (~/.optionplay/trades.db) - Schnellste Option
-# 2. API-Provider (Tradier, Marketdata.app) - Fallback für fehlende/aktuelle Daten
+# 2. API-Provider (Tradier) - Fallback für fehlende/aktuelle Daten
 #
 # Die lokale DB enthält 356 Symbole mit Daten von 2021-01-04 bis heute.
 # Daten werden aus der options_prices Tabelle (underlying_price) extrahiert.
@@ -43,7 +43,7 @@ connection:
     max_retries: 3
     retry_delay_seconds: 5
     
-  # Tradier API - Alternative/Ergänzung zu Marketdata.app
+  # Tradier API - Alternative/Ergänzung 
   # Tradier bietet kostenloses Basis-Abo mit delayed Quotes und
   # Premium-Optionen mit Real-time Daten und ORATS Greeks.
   #
@@ -73,8 +73,7 @@ connection:
     # Provider-Priorität (automatisches Routing):
     # 1. IBKR/TWS (wenn verbunden) - Live-Daten
     # 2. Tradier (wenn API Key gesetzt) - Premium-Daten
-    # 3. Marketdata.app - Standard-Fallback
-    # 4. Yahoo Finance - Kostenloser Fallback für VIX/Earnings
+    # 3. Yahoo Finance - Kostenloser Fallback für VIX/Earnings
     
   # Fallback-Quellen
   yahoo_finance:

@@ -11,6 +11,7 @@ Schritte:
   1. VIX via Yahoo Finance
   2. Options-Chain + Greeks via Tradier (ORATS)
   3. OHLCV daily prices via Tradier
+  4. IV Cache backfill via yfinance (HV→IV estimation)
 
 Usage:
     python scripts/DBupdate.py              # Komplettes Update
@@ -18,6 +19,7 @@ Usage:
     python scripts/DBupdate.py --dry-run    # Zeigt was passieren würde
     python scripts/DBupdate.py --steps vix  # Nur VIX
     python scripts/DBupdate.py --steps options ohlcv  # Options + OHLCV
+    python scripts/DBupdate.py --steps iv             # Nur IV Cache
     python scripts/DBupdate.py -v           # Verbose
 """
 
@@ -39,7 +41,7 @@ load_dotenv()
 
 DB_PATH = Path.home() / ".optionplay" / "trades.db"
 LOG_DIR = Path.home() / ".optionplay" / "logs"
-ALL_STEPS = ["vix", "options", "ohlcv"]
+ALL_STEPS = ["vix", "options", "ohlcv", "iv"]
 
 
 def setup_logging(verbose=False):
@@ -331,6 +333,68 @@ async def step_ohlcv(logger, status, dry_run=False):
         return False
 
 
+# -- Step 4: IV Cache Backfill --
+
+def step_iv(logger, dry_run=False):
+    logger.info("--- STEP 4: IV Cache Backfill (yfinance HV→IV) ---")
+    try:
+        from src.cache.iv_cache_impl import IVCache, HistoricalIVFetcher, IVSource
+        from src.config.watchlist_loader import get_watchlist_loader
+
+        cache = IVCache()
+        stats = cache.stats()
+        logger.info(f"  Cache: {stats['total_symbols']} Symbole, {stats['with_sufficient_data']} mit ≥20 Punkten")
+
+        symbols = get_watchlist_loader().get_all_symbols()
+
+        # Only update symbols with thin data (< 50 points) or stale cache
+        need_update = [
+            s for s in symbols
+            if s not in cache
+            or cache.get_history(s) == []
+            or len(cache.get_history(s)) < 50
+        ]
+        logger.info(f"  {len(need_update)} von {len(symbols)} brauchen Update")
+
+        if not need_update:
+            logger.info("  Alle Symbole haben ausreichend IV-Daten")
+            return True
+
+        if dry_run:
+            logger.info(f"  [DRY RUN] Würde {len(need_update)} Symbole aktualisieren")
+            return True
+
+        fetcher = HistoricalIVFetcher(cache)
+        success = 0
+        errors = 0
+
+        for i, symbol in enumerate(need_update, 1):
+            try:
+                iv_history = fetcher.fetch_iv_history(symbol, days=252)
+                if iv_history and len(iv_history) >= 20:
+                    cache.update_history(symbol, iv_history, IVSource.YAHOO)
+                    success += 1
+                else:
+                    errors += 1
+            except Exception:
+                errors += 1
+
+            if i % 50 == 0:
+                pct = i / len(need_update) * 100
+                logger.info(f"  [{pct:5.1f}%] {success} OK, {errors} Fehler")
+
+            time.sleep(0.3)
+
+        logger.info(f"  +{success} Symbole mit IV-History, {errors} Fehler")
+        stats = cache.stats()
+        logger.info(f"  Cache jetzt: {stats['total_symbols']} Symbole, {stats['with_sufficient_data']} mit ≥20 Punkten")
+        return True
+
+    except Exception as e:
+        logger.error(f"  Fehler: {e}")
+        return False
+
+
 # -- Main --
 
 async def run(args):
@@ -358,6 +422,8 @@ async def run(args):
         results["Options+Greeks"] = await step_options(logger, status, args.dry_run)
     if "ohlcv" in steps:
         results["OHLCV"] = await step_ohlcv(logger, status, args.dry_run)
+    if "iv" in steps:
+        results["IV Cache"] = step_iv(logger, args.dry_run)
     elapsed = time.time() - t0
     print()
     logger.info("=" * 50)
