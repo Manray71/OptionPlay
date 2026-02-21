@@ -571,6 +571,22 @@ ranking:
     pct_2: 0.85
     pct_3: 0.80
 
+  # Strategy Balance (Event-Priority-System)
+  strategy_balance:
+    # Event-Bonus: seltene, zeitkritische Signale werden leicht bevorzugt
+    signal_type_bonus:
+      pullback: 0.5
+      bounce: 0.5
+      ath_breakout: 0.5
+      earnings_dip: 0.5
+      trend_continuation: 0.0
+    # Capacity Limits: max Signale pro Strategie in daily_picks
+    strategy_caps:
+      trend_continuation: 3
+      default: 5
+    # Diversity: Mindestens N verschiedene Strategien in Top-N
+    min_strategies_in_picks: 2
+
   # Sector speed map (avg days_to_playbook_exit, 0.0=fastest, 1.0=slowest)
   sector_speed:
     Utilities: 1.0

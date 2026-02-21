@@ -72,6 +72,13 @@ STRIKE_SUPPORT_PCT_3 = _strike_cfg.get("pct_3", 0.80)
 # Stability warning threshold
 RANKING_STABILITY_WARNING = _ranking_cfg.get("stability_warning", 70)
 
+# Strategy Balance (Event-Priority-System)
+_strategy_balance = _ranking_cfg.get("strategy_balance", {})
+_SIGNAL_TYPE_BONUS = _strategy_balance.get("signal_type_bonus", {})
+_STRATEGY_CAPS = _strategy_balance.get("strategy_caps", {})
+_STRATEGY_CAP_DEFAULT = _STRATEGY_CAPS.get("default", 5)
+_MIN_STRATEGIES_IN_PICKS = _strategy_balance.get("min_strategies_in_picks", 2)
+
 
 class RecommendationRankingMixin:
     """
@@ -240,13 +247,65 @@ class RecommendationRankingMixin:
             speed_normalized = SPEED_MULTIPLIER_MIN + (speed / SPEED_SCORE_MAX)
             combined = base * (speed_normalized**speed_exponent)
 
+            # Event-Bonus: seltene Event-Signale leicht bevorzugen
+            event_bonus = _SIGNAL_TYPE_BONUS.get(signal.strategy, 0.0)
+            combined += event_bonus
+
             return float(combined)
 
         # Scores berechnen und sortieren
         signals_with_scores = [(s, get_combined_score(s)) for s in signals]
         signals_with_scores.sort(key=lambda x: x[1], reverse=True)
 
+        # Post-Ranking: Strategy Caps + Diversity
+        signals_with_scores = self._apply_strategy_balance(signals_with_scores)
+
         return [s for s, _ in signals_with_scores]
+
+    @staticmethod
+    def _apply_strategy_balance(
+        signals_with_scores: List[Tuple[TradeSignal, float]],
+    ) -> List[Tuple[TradeSignal, float]]:
+        """
+        Enforce strategy caps and minimum diversity.
+
+        1. Strategy Caps: limit each strategy to its max allowed signals
+        2. Diversity: ensure min_strategies_in_picks different strategies
+           appear in the result by swapping in the best candidate from
+           an underrepresented strategy.
+        """
+        if not signals_with_scores:
+            return signals_with_scores
+
+        # --- Step 1: Strategy Caps ---
+        strategy_counts: Counter = Counter()
+        accepted: List[Tuple[TradeSignal, float]] = []
+        overflow: List[Tuple[TradeSignal, float]] = []
+
+        for entry in signals_with_scores:
+            sig = entry[0]
+            cap = _STRATEGY_CAPS.get(sig.strategy, _STRATEGY_CAP_DEFAULT)
+            if strategy_counts[sig.strategy] < cap:
+                accepted.append(entry)
+                strategy_counts[sig.strategy] += 1
+            else:
+                overflow.append(entry)
+
+        # --- Step 2: Diversity ---
+        strategies_present = {s.strategy for s, _ in accepted}
+        if len(strategies_present) < _MIN_STRATEGIES_IN_PICKS and overflow:
+            # Find best candidate from a missing strategy in overflow
+            for candidate in overflow:
+                if candidate[0].strategy not in strategies_present:
+                    # Replace the weakest signal in accepted
+                    if accepted:
+                        accepted[-1] = candidate
+                        strategies_present.add(candidate[0].strategy)
+                    break
+
+        # Re-sort after potential swap
+        accepted.sort(key=lambda x: x[1], reverse=True)
+        return accepted
 
     # ------------------------------------------------------------------
     # Strike Recommendation
