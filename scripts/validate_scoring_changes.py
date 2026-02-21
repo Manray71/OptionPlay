@@ -50,27 +50,59 @@ MODERATE_THRESHOLD = 5.0
 WIN_RATE_TOLERANCE = 2.0  # ±2%
 
 
+STRATEGY_SCORE_COLUMNS = {
+    "pullback": "pullback_score",
+    "bounce": "bounce_score",
+    "ath_breakout": "ath_breakout_score",
+    "earnings_dip": "earnings_dip_score",
+    "trend_continuation": "trend_continuation_score",
+}
+
+
 def load_outcomes() -> pd.DataFrame:
-    """Load trade outcomes from outcomes.db."""
+    """Load trade outcomes from outcomes.db.
+
+    The DB has no 'strategy' or 'score' column. Strategy is inferred from
+    which *_score column is non-null. The score is the value of that column.
+    """
     if not OUTCOME_DB.exists():
         print(f"ERROR: Outcome database not found at {OUTCOME_DB}")
         sys.exit(1)
 
+    score_cols = list(STRATEGY_SCORE_COLUMNS.values())
     conn = sqlite3.connect(str(OUTCOME_DB))
     df = pd.read_sql_query(
-        """
-        SELECT symbol, strategy, entry_date, score, was_profitable,
+        f"""
+        SELECT symbol, entry_date, was_profitable,
                pnl_pct, max_drawdown_pct, vix_at_entry, vix_regime,
-               outcome, dte_at_entry
+               outcome, dte_at_entry,
+               {', '.join(score_cols)}
         FROM trade_outcomes
-        WHERE score IS NOT NULL AND strategy IS NOT NULL
         """,
         conn,
     )
     conn.close()
 
-    print(f"Loaded {len(df):,} trades from {OUTCOME_DB}")
-    return df
+    # Derive strategy and score from the non-null score column
+    rows = []
+    for _, row in df.iterrows():
+        for strategy, col in STRATEGY_SCORE_COLUMNS.items():
+            val = row[col]
+            if pd.notna(val) and val > 0:
+                r = row.to_dict()
+                r["strategy"] = strategy
+                r["score"] = val
+                rows.append(r)
+                break  # Take the first non-null strategy score
+
+    result = pd.DataFrame(rows)
+    # Drop the individual score columns
+    for col in score_cols:
+        if col in result.columns:
+            result.drop(columns=[col], inplace=True)
+
+    print(f"Loaded {len(result):,} trades from {OUTCOME_DB}")
+    return result
 
 
 def normalize_score(raw_score: float, strategy: str) -> float:
