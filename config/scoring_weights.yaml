@@ -24,19 +24,24 @@ strategies:
     effective_max: 14.0
     regimes:
       low:
+        vix_score_multiplier: 1.0
         weights:
           market_context: 1.6
-      normal: {}
+      normal:
+        vix_score_multiplier: 1.0
       elevated:
         min_stability: 85
+        vix_score_multiplier: 0.90
       danger:
         min_stability: 80
+        vix_score_multiplier: 0.95
         weights:
           rsi: 4.2
           support: 3.0
           fibonacci: 2.11
           market_context: 1.84
       high:
+        enabled: false
         min_stability: 80
         weights:
           rsi: 3.8
@@ -92,20 +97,25 @@ strategies:
     max_possible: 10.0
     regimes:
       low:
+        vix_score_multiplier: 1.0
         weights:
           vwap: 3.11
           trend: 1.11
-      normal: {}
+      normal:
+        vix_score_multiplier: 1.0
       elevated:
         min_stability: 80
+        vix_score_multiplier: 0.90
       danger:
         min_stability: 75
+        vix_score_multiplier: 0.95
         weights:
           support: 4.0
           candlestick: 2.5
           rsi: 2.45
           macd: 2.5
       high:
+        enabled: false
         min_stability: 90
         weights:
           rsi: 3.0
@@ -155,12 +165,16 @@ strategies:
       gap: 1.0
     max_possible: 10.0
     regimes:
-      low: {}
-      normal: {}
+      low:
+        vix_score_multiplier: 1.0
+      normal:
+        vix_score_multiplier: 1.0
       elevated:
         min_stability: 90
+        vix_score_multiplier: 0.80
       danger:
         min_stability: 85
+        vix_score_multiplier: 0.85
         weights:
           volume: 3.0
           trend: 3.0
@@ -214,13 +228,18 @@ strategies:
       sector: 1.0
     max_possible: 9.5
     regimes:
-      low: {}
-      normal: {}
+      low:
+        vix_score_multiplier: 1.0
+      normal:
+        vix_score_multiplier: 1.0
       elevated:
         min_stability: 75
+        vix_score_multiplier: 0.95
       danger:
         min_stability: 70
+        vix_score_multiplier: 1.0
       high:
+        enabled: false
         min_stability: 80
     sectors:
       Technology:
@@ -255,6 +274,7 @@ strategies:
     max_possible: 10.5
     regimes:
       low:
+        vix_score_multiplier: 1.05
         weights:
           sma_alignment: 1.60
           trend_stability: 1.80
@@ -262,6 +282,7 @@ strategies:
           momentum_health: 1.60
           volatility: 1.50
       normal:
+        vix_score_multiplier: 1.0
         weights:
           sma_alignment: 1.60
           trend_stability: 2.00
@@ -270,8 +291,10 @@ strategies:
           volatility: 1.50
       elevated:
         min_stability: 80
+        vix_score_multiplier: 0.70
       danger:
         min_stability: 80
+        vix_score_multiplier: 0.75
       high:
         enabled: false
     sectors:

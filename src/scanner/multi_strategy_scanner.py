@@ -666,6 +666,22 @@ class MultiStrategyScanner:
             logger.debug("Sector lookup failed for %s: %s", symbol, e)
         return None
 
+    def _get_resolved_weights(
+        self, strategy_name: str, context: Optional[AnalysisContext]
+    ) -> Optional["ResolvedWeights"]:
+        """Get resolved weights for strategy+regime+sector, or None if unavailable."""
+        try:
+            from ..config.scoring_config import get_scoring_resolver
+
+            resolver = get_scoring_resolver()
+            regime = self._get_regime()
+            sector = None
+            if context is not None:
+                sector = getattr(context, "sector", None)
+            return resolver.resolve(strategy_name, regime, sector)
+        except (ImportError, Exception):
+            return None
+
     def _set_dividend_context(self, context: AnalysisContext, symbol: str) -> None:
         """E.5: Sets dividend context fields for gap-filtering."""
         if get_dividend_history_manager is None:
@@ -977,6 +993,15 @@ class MultiStrategyScanner:
 
         for strategy_name in strategies_to_use:
             try:
+                # VIX regime: check if strategy is enabled for current regime
+                resolved = self._get_resolved_weights(strategy_name, context)
+                if resolved is not None and not resolved.enabled:
+                    logger.debug(
+                        f"Skipping {symbol} for {strategy_name}: "
+                        f"disabled in {resolved.regime} regime"
+                    )
+                    continue
+
                 # Earnings-Filter
                 if self._should_skip_for_earnings(symbol, strategy_name):
                     continue
@@ -1010,6 +1035,14 @@ class MultiStrategyScanner:
                 iv_rank = self._iv_cache.get(symbol.upper())
                 if iv_rank is not None and signal.details is not None:
                     signal.details["iv_rank"] = iv_rank
+
+                # VIX regime score multiplier (Schritt 7)
+                if resolved is not None and resolved.vix_score_multiplier != 1.0:
+                    original_score = signal.score
+                    signal.score = round(signal.score * resolved.vix_score_multiplier, 1)
+                    if signal.details is not None:
+                        signal.details["vix_score_multiplier"] = resolved.vix_score_multiplier
+                        signal.details["pre_vix_score"] = original_score
 
                 # Reliability Scoring (Phase 3)
                 if self._reliability_scorer and signal.score >= self.config.min_score:

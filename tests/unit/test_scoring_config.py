@@ -699,3 +699,213 @@ class TestSectorFactor:
         r = RecursiveConfigResolver(fake_path)
         w = r.resolve("pullback", "normal", "Technology")
         assert w.sector_factor == 1.0
+
+
+# ======================================================================
+# Enabled + VIX Score Multiplier (Schritt 7)
+# ======================================================================
+
+
+@pytest.fixture
+def vix_regime_yaml(tmp_path):
+    """Create YAML with enabled and vix_score_multiplier fields."""
+    config = {
+        "version": "3.3.0",
+        "defaults": {"min_stability": 70},
+        "strategies": {
+            "pullback": {
+                "weights": {"rsi": 3.0, "support": 2.5},
+                "max_possible": 14.0,
+                "regimes": {
+                    "low": {"vix_score_multiplier": 1.0},
+                    "normal": {"vix_score_multiplier": 1.0},
+                    "danger": {
+                        "vix_score_multiplier": 0.95,
+                        "min_stability": 80,
+                    },
+                    "elevated": {"vix_score_multiplier": 0.90},
+                    "high": {"enabled": False},
+                },
+                "sectors": {},
+            },
+            "ath_breakout": {
+                "weights": {"volume": 2.0, "trend": 2.0},
+                "max_possible": 10.0,
+                "regimes": {
+                    "normal": {},
+                    "danger": {"vix_score_multiplier": 0.85},
+                    "high": {"enabled": False},
+                },
+                "sectors": {},
+            },
+            "trend_continuation": {
+                "weights": {"sma_alignment": 2.0, "trend_stability": 2.0},
+                "max_possible": 10.5,
+                "regimes": {
+                    "low": {"vix_score_multiplier": 1.05},
+                    "normal": {"vix_score_multiplier": 1.0},
+                    "elevated": {"vix_score_multiplier": 0.70},
+                    "danger": {"vix_score_multiplier": 0.75},
+                    "high": {"enabled": False},
+                },
+                "sectors": {},
+            },
+        },
+    }
+    yaml_path = tmp_path / "scoring_weights_vix.yaml"
+    with open(yaml_path, "w") as f:
+        yaml.dump(config, f)
+    return str(yaml_path)
+
+
+class TestVIXScoreMultiplier:
+    """Tests for enabled and vix_score_multiplier fields on ResolvedWeights (Schritt 7)."""
+
+    def test_enabled_default_true(self, vix_regime_yaml):
+        """Without explicit enabled field, strategy is enabled."""
+        r = RecursiveConfigResolver(vix_regime_yaml)
+        w = r.resolve("pullback", "normal")
+        assert w.enabled is True
+
+    def test_enabled_false_high_regime(self, vix_regime_yaml):
+        """enabled: false in high regime disables the strategy."""
+        r = RecursiveConfigResolver(vix_regime_yaml)
+        w = r.resolve("pullback", "high")
+        assert w.enabled is False
+
+    def test_enabled_false_ath_breakout_high(self, vix_regime_yaml):
+        r = RecursiveConfigResolver(vix_regime_yaml)
+        w = r.resolve("ath_breakout", "high")
+        assert w.enabled is False
+
+    def test_enabled_false_trend_continuation_high(self, vix_regime_yaml):
+        r = RecursiveConfigResolver(vix_regime_yaml)
+        w = r.resolve("trend_continuation", "high")
+        assert w.enabled is False
+
+    def test_vix_multiplier_default_1(self, vix_regime_yaml):
+        """Without explicit multiplier, defaults to 1.0."""
+        r = RecursiveConfigResolver(vix_regime_yaml)
+        w = r.resolve("ath_breakout", "normal")
+        assert w.vix_score_multiplier == 1.0
+
+    def test_vix_multiplier_danger(self, vix_regime_yaml):
+        r = RecursiveConfigResolver(vix_regime_yaml)
+        w = r.resolve("pullback", "danger")
+        assert w.vix_score_multiplier == 0.95
+
+    def test_vix_multiplier_elevated(self, vix_regime_yaml):
+        r = RecursiveConfigResolver(vix_regime_yaml)
+        w = r.resolve("pullback", "elevated")
+        assert w.vix_score_multiplier == 0.90
+
+    def test_vix_multiplier_ath_breakout_danger(self, vix_regime_yaml):
+        r = RecursiveConfigResolver(vix_regime_yaml)
+        w = r.resolve("ath_breakout", "danger")
+        assert w.vix_score_multiplier == 0.85
+
+    def test_vix_multiplier_tc_low_boost(self, vix_regime_yaml):
+        """TC gets a slight boost in low VIX regime."""
+        r = RecursiveConfigResolver(vix_regime_yaml)
+        w = r.resolve("trend_continuation", "low")
+        assert w.vix_score_multiplier == 1.05
+
+    def test_vix_multiplier_tc_elevated_penalty(self, vix_regime_yaml):
+        r = RecursiveConfigResolver(vix_regime_yaml)
+        w = r.resolve("trend_continuation", "elevated")
+        assert w.vix_score_multiplier == 0.70
+
+    def test_vix_multiplier_clamped_high(self, tmp_path):
+        """vix_score_multiplier > 1.5 should be clamped."""
+        config = {
+            "strategies": {
+                "pullback": {
+                    "weights": {"rsi": 3.0},
+                    "max_possible": 14.0,
+                    "regimes": {"low": {"vix_score_multiplier": 2.5}},
+                    "sectors": {},
+                }
+            }
+        }
+        yaml_path = tmp_path / "test_vix_clamp.yaml"
+        with open(yaml_path, "w") as f:
+            yaml.dump(config, f)
+        r = RecursiveConfigResolver(str(yaml_path))
+        w = r.resolve("pullback", "low")
+        assert w.vix_score_multiplier == 1.5
+
+    def test_vix_multiplier_clamped_low(self, tmp_path):
+        """vix_score_multiplier < 0.0 should be clamped to 0.0."""
+        config = {
+            "strategies": {
+                "pullback": {
+                    "weights": {"rsi": 3.0},
+                    "max_possible": 14.0,
+                    "regimes": {"high": {"vix_score_multiplier": -0.5}},
+                    "sectors": {},
+                }
+            }
+        }
+        yaml_path = tmp_path / "test_vix_clamp.yaml"
+        with open(yaml_path, "w") as f:
+            yaml.dump(config, f)
+        r = RecursiveConfigResolver(str(yaml_path))
+        w = r.resolve("pullback", "high")
+        assert w.vix_score_multiplier == 0.0
+
+    def test_enabled_and_multiplier_both_present(self, vix_regime_yaml):
+        """Strategy can have both enabled: false and a multiplier."""
+        r = RecursiveConfigResolver(vix_regime_yaml)
+        w = r.resolve("pullback", "high")
+        assert w.enabled is False
+        # vix_score_multiplier defaults to 1.0 when not set
+        assert w.vix_score_multiplier == 1.0
+
+    def test_frozen_dataclass_new_fields(self, vix_regime_yaml):
+        """New fields should be frozen like the rest."""
+        r = RecursiveConfigResolver(vix_regime_yaml)
+        w = r.resolve("pullback", "danger")
+        with pytest.raises(AttributeError):
+            w.enabled = False
+        with pytest.raises(AttributeError):
+            w.vix_score_multiplier = 0.5
+
+    def test_fallback_no_yaml(self, tmp_path):
+        """Missing YAML → enabled=True, vix_score_multiplier=1.0."""
+        fake_path = str(tmp_path / "nonexistent.yaml")
+        r = RecursiveConfigResolver(fake_path)
+        w = r.resolve("pullback", "normal")
+        assert w.enabled is True
+        assert w.vix_score_multiplier == 1.0
+
+
+class TestVIXMultiplierWithRealConfig:
+    """Tests that verify the real scoring_weights.yaml has correct VIX config."""
+
+    def test_all_strategies_have_high_disabled(self):
+        """All 5 strategies should have enabled: false in high regime."""
+        r = RecursiveConfigResolver()
+        for strategy in ["pullback", "bounce", "ath_breakout", "earnings_dip", "trend_continuation"]:
+            w = r.resolve(strategy, "high")
+            assert w.enabled is False, f"{strategy} should be disabled in high regime"
+
+    def test_tc_preserves_original_multipliers(self):
+        """TC's multipliers should match the old analyzer_thresholds.yaml values."""
+        r = RecursiveConfigResolver()
+        assert r.resolve("trend_continuation", "low").vix_score_multiplier == 1.05
+        assert r.resolve("trend_continuation", "normal").vix_score_multiplier == 1.0
+        assert r.resolve("trend_continuation", "elevated").vix_score_multiplier == 0.70
+        assert r.resolve("trend_continuation", "danger").vix_score_multiplier == 0.75
+
+    def test_ath_breakout_penalized_more_than_pullback(self):
+        """ATH Breakout should be penalized more than Pullback in danger."""
+        r = RecursiveConfigResolver()
+        pb = r.resolve("pullback", "danger")
+        ath = r.resolve("ath_breakout", "danger")
+        assert ath.vix_score_multiplier < pb.vix_score_multiplier
+
+    def test_earnings_dip_minimal_penalty(self):
+        """Earnings Dip has minimal VIX penalty (elevated IV helps credit spreads)."""
+        r = RecursiveConfigResolver()
+        ed_danger = r.resolve("earnings_dip", "danger")
+        assert ed_danger.vix_score_multiplier == 1.0  # No penalty in danger

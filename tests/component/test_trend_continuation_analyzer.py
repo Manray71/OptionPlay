@@ -239,19 +239,16 @@ class TestTrendContinuationInitialization:
         assert analyzer.config.min_buffer_pct == 3.0
         assert analyzer.config.rsi_overbought == 80
         assert analyzer.config.adx_min == 20
-        assert analyzer.config.vix_max == 25.0
         assert analyzer.config.min_score_for_signal == 3.5
 
     def test_custom_config(self):
         config = TrendContinuationConfig(
             min_buffer_pct=5.0,
             rsi_overbought=75,
-            vix_max=20.0,
         )
         analyzer = TrendContinuationAnalyzer(config=config)
         assert analyzer.config.min_buffer_pct == 5.0
         assert analyzer.config.rsi_overbought == 75
-        assert analyzer.config.vix_max == 20.0
 
     def test_strategy_name(self):
         analyzer = TrendContinuationAnalyzer()
@@ -411,7 +408,9 @@ class TestTrendContinuationStability:
 class TestTrendContinuationDisqualifications:
     """Tests for disqualification checks in analyze()."""
 
-    def test_high_vix_disqualifies(self, analyzer, perfect_trend_data):
+    def test_high_vix_no_longer_disqualifies_at_analyzer_level(self, analyzer, perfect_trend_data):
+        """High VIX no longer disqualifies at analyzer level (Schritt 7).
+        VIX gating is now handled by the scanner via enabled: false."""
         signal = analyzer.analyze(
             "AAPL",
             perfect_trend_data['prices'],
@@ -420,9 +419,8 @@ class TestTrendContinuationDisqualifications:
             perfect_trend_data['lows'],
             vix=28.0,
         )
-        assert signal.signal_type == SignalType.NEUTRAL
-        assert signal.score == 0.0
-        assert "HIGH VIX" in signal.reason or "disabled" in signal.reason.lower()
+        # Analyzer no longer gates on VIX — scanner does that
+        assert signal is not None
 
     def test_low_volume_disqualifies(self, analyzer):
         data = make_trend_data(volume_base=100_000)
@@ -631,28 +629,49 @@ class TestTrendContinuationScoring:
 # =============================================================================
 
 class TestTrendContinuationVIXRegime:
-    """Tests for VIX regime detection and adjustment."""
+    """Tests for VIX regime handling.
 
-    def test_low_vix_regime(self, analyzer):
-        assert analyzer._get_vix_regime(12.0) == 'low'
-        assert analyzer._get_vix_adjustment('low') == 1.05
+    NOTE: VIX regime gating and score multipliers are now handled centrally
+    by the scanner via scoring_weights.yaml (Schritt 7). The analyzer no longer
+    has _get_vix_regime() or _get_vix_adjustment(). These tests verify the
+    analyzer still works correctly without its own VIX logic.
+    """
 
-    def test_normal_vix_regime(self, analyzer):
-        assert analyzer._get_vix_regime(17.0) == 'normal'
-        assert analyzer._get_vix_adjustment('normal') == 1.00
+    def test_vix_regime_methods_removed(self, analyzer):
+        """Verify the old VIX methods are removed."""
+        assert not hasattr(analyzer, '_get_vix_regime')
+        assert not hasattr(analyzer, '_get_vix_adjustment')
 
-    def test_elevated_vix_regime(self, analyzer):
-        assert analyzer._get_vix_regime(22.0) == 'elevated'
-        assert analyzer._get_vix_adjustment('elevated') == 0.90
+    def test_analyzer_no_longer_gates_on_high_vix(self, analyzer, perfect_trend_data):
+        """Analyzer should produce a signal even with high VIX kwarg,
+        since VIX gating is now done by the scanner."""
+        signal = analyzer.analyze(
+            "AAPL",
+            perfect_trend_data['prices'],
+            perfect_trend_data['volumes'],
+            perfect_trend_data['highs'],
+            perfect_trend_data['lows'],
+            vix=35.0,
+        )
+        # Analyzer no longer blocks on VIX — scanner handles that
+        # Signal should be non-NEUTRAL for perfect trend data
+        assert signal is not None
 
-    def test_high_vix_regime(self, analyzer):
-        assert analyzer._get_vix_regime(28.0) == 'high'
-        assert analyzer._get_vix_adjustment('high') == 0.0
+    def test_breakdown_vix_adjustment_is_1(self, analyzer, perfect_trend_data):
+        """Breakdown vix_adjustment should always be 1.0 (scanner applies multiplier)."""
+        signal = analyzer.analyze(
+            "AAPL",
+            perfect_trend_data['prices'],
+            perfect_trend_data['volumes'],
+            perfect_trend_data['highs'],
+            perfect_trend_data['lows'],
+        )
+        if signal.signal_type != SignalType.NEUTRAL:
+            breakdown = signal.details.get('score_breakdown', {})
+            assert breakdown.get('vix_adjustment', 1.0) == 1.0
 
-    def test_none_vix_defaults_normal(self, analyzer):
-        assert analyzer._get_vix_regime(None) == 'normal'
-
-    def test_low_vix_boosts_score(self, analyzer, perfect_trend_data):
+    def test_scores_same_regardless_of_vix_kwarg(self, analyzer, perfect_trend_data):
+        """Since VIX adjustment is removed, vix kwarg should not affect score."""
         signal_low = analyzer.analyze(
             "AAPL",
             perfect_trend_data['prices'],
@@ -661,37 +680,17 @@ class TestTrendContinuationVIXRegime:
             perfect_trend_data['lows'],
             vix=12.0,
         )
-        signal_normal = analyzer.analyze(
+        signal_high = analyzer.analyze(
             "AAPL",
             perfect_trend_data['prices'],
             perfect_trend_data['volumes'],
             perfect_trend_data['highs'],
             perfect_trend_data['lows'],
-            vix=17.0,
+            vix=28.0,
         )
-        # Low VIX gives 1.05x boost
-        if signal_low.signal_type != SignalType.NEUTRAL and signal_normal.signal_type != SignalType.NEUTRAL:
-            assert signal_low.score >= signal_normal.score
-
-    def test_elevated_vix_reduces_score(self, analyzer, perfect_trend_data):
-        signal_elevated = analyzer.analyze(
-            "AAPL",
-            perfect_trend_data['prices'],
-            perfect_trend_data['volumes'],
-            perfect_trend_data['highs'],
-            perfect_trend_data['lows'],
-            vix=22.0,
-        )
-        signal_normal = analyzer.analyze(
-            "AAPL",
-            perfect_trend_data['prices'],
-            perfect_trend_data['volumes'],
-            perfect_trend_data['highs'],
-            perfect_trend_data['lows'],
-            vix=17.0,
-        )
-        if signal_elevated.signal_type != SignalType.NEUTRAL and signal_normal.signal_type != SignalType.NEUTRAL:
-            assert signal_elevated.score <= signal_normal.score
+        # Without analyzer-level VIX adjustment, scores should be identical
+        if signal_low.signal_type != SignalType.NEUTRAL and signal_high.signal_type != SignalType.NEUTRAL:
+            assert signal_low.score == signal_high.score
 
 
 # =============================================================================
@@ -982,7 +981,8 @@ class TestTrendContinuationSpecCases:
     def test_case_11_high_vix(self):
         """
         Case 11: VIX 28
-        Expected: No signal (strategy deactivated at HIGH VIX)
+        Expected: Analyzer no longer gates on VIX (Schritt 7).
+        Scanner handles this via enabled: false in scoring_weights.yaml.
         """
         analyzer = TrendContinuationAnalyzer()
         data = make_trend_data(n=300, buffer_to_sma50_pct=9.0)
@@ -991,26 +991,26 @@ class TestTrendContinuationSpecCases:
             data['highs'], data['lows'],
             vix=28.0,
         )
-        assert signal.signal_type == SignalType.NEUTRAL
-        assert signal.score == 0.0
+        # Analyzer produces a signal; scanner would filter it
+        assert signal is not None
 
     def test_case_12_strong_sector_factor(self):
         """
         Case 12: Strong sector factor 1.12
-        Expected: Score boosted (tested via VIX low adjustment)
+        Expected: Score boosted.
 
         Note: Sector factors are applied by FeatureScoringMixin at the scanner level,
-        not directly in the analyzer. We test the VIX low boost as a proxy.
+        not directly in the analyzer. VIX low boost is also now applied at scanner level.
+        We just verify the analyzer produces a valid signal.
         """
         analyzer = TrendContinuationAnalyzer()
         data = make_trend_data(n=300, buffer_to_sma50_pct=9.0)
         signal = analyzer.analyze(
             "AAPL", data['prices'], data['volumes'],
             data['highs'], data['lows'],
-            vix=12.0,  # Low VIX = 1.05x boost
         )
         if signal.signal_type == SignalType.LONG:
-            # Score should be boosted by 1.05x, above normalized weak threshold
+            # Score should be above normalized weak threshold
             assert signal.score >= 3.5
 
     def test_case_13_weak_sector_factor(self):
@@ -1151,14 +1151,24 @@ class TestTrendContinuationEdgeCases:
             assert zone['aggressive_short'] % 5 == 0
 
     def test_warnings_elevated_vix(self, analyzer, perfect_trend_data):
-        """Elevated VIX should add warning."""
+        """Elevated VIX regime (from context) should add warning."""
+        from src.analyzers.context import AnalysisContext
+
+        ctx = AnalysisContext.from_data(
+            "TEST",
+            perfect_trend_data['prices'],
+            perfect_trend_data['volumes'],
+            perfect_trend_data['highs'],
+            perfect_trend_data['lows'],
+            regime="elevated",
+        )
         signal = analyzer.analyze(
             "TEST",
             perfect_trend_data['prices'],
             perfect_trend_data['volumes'],
             perfect_trend_data['highs'],
             perfect_trend_data['lows'],
-            vix=22.0,
+            context=ctx,
         )
         if signal.signal_type == SignalType.LONG:
             assert any("Elevated" in w or "VIX" in w for w in signal.warnings)

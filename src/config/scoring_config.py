@@ -44,6 +44,8 @@ class ResolvedWeights:
     max_possible: float
     min_stability: float
     sector_factor: float = 1.0  # Multiplicative sector adjustment (0.5-1.3)
+    enabled: bool = True  # Whether strategy is enabled for this regime
+    vix_score_multiplier: float = 1.0  # VIX regime score multiplier (0.0-1.5)
 
     def as_numpy_array(self, component_order: List[str]) -> "np.ndarray":
         """Convert weights to numpy array in specified component order."""
@@ -273,6 +275,13 @@ class RecursiveConfigResolver:
         sector_factor = float(merged.get("sector_factor", 1.0))
         sector_factor = max(0.5, min(1.3, sector_factor))  # Safety clamp
 
+        # Extract enabled flag (Schritt 7: VIX regime harmonization)
+        enabled = bool(merged.get("enabled", True))
+
+        # Extract VIX score multiplier (Schritt 7: centralized VIX regime handling)
+        vix_mult = float(merged.get("vix_score_multiplier", 1.0))
+        vix_mult = max(0.0, min(1.5, vix_mult))  # Safety clamp
+
         return ResolvedWeights(
             strategy=strategy,
             regime=regime,
@@ -281,6 +290,8 @@ class RecursiveConfigResolver:
             max_possible=float(merged.get("max_possible", base_max)),
             min_stability=float(merged.get("min_stability", base_stability)),
             sector_factor=sector_factor,
+            enabled=enabled,
+            vix_score_multiplier=vix_mult,
         )
 
     def get_stability_threshold(

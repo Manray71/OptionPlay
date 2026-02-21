@@ -322,7 +322,7 @@ class TestProductionConfig:
             "trend_continuation.buffer_scoring",
             "trend_continuation.momentum_scoring",
             "trend_continuation.volatility_scoring",
-            "trend_continuation.vix_adjustment",
+            # vix_adjustment removed (Schritt 7) — now in scoring_weights.yaml
         ]
         for section_path in required_sections:
             section = cfg.get_section(section_path)

@@ -22,9 +22,6 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from ..constants.trading_rules import (
     ENTRY_VOLUME_MIN,
-    VIX_DANGER_ZONE_MAX,
-    VIX_LOW_VOL_MAX,
-    VIX_NORMAL_MAX,
 )
 from ..models.base import SignalStrength, SignalType, TradeSignal
 from ..models.strategy_breakdowns import TrendContinuationScoreBreakdown
@@ -68,7 +65,6 @@ TREND_ADX_MIN = _cfg.get("trend_continuation.disqualification.adx_min", 15)
 TREND_MIN_AVG_VOLUME = ENTRY_VOLUME_MIN  # Stays linked to trading_rules
 TREND_MIN_STABILITY_SCORE = _cfg.get("trend_continuation.disqualification.min_stability_score", 70)
 TREND_MIN_EARNINGS_DAYS = _cfg.get("trend_continuation.disqualification.min_earnings_days", 14)
-TREND_VIX_MAX = VIX_DANGER_ZONE_MAX  # Stays linked to trading_rules
 
 # Volume average period
 TREND_VOLUME_AVG_PERIOD = _cfg.get("trend_continuation.volume.avg_period", 20)
@@ -99,7 +95,6 @@ class TrendContinuationConfig:
     min_avg_volume: int = TREND_MIN_AVG_VOLUME
     min_stability_score: float = TREND_MIN_STABILITY_SCORE
     min_earnings_days: int = TREND_MIN_EARNINGS_DAYS
-    vix_max: float = TREND_VIX_MAX
 
     # Scoring
     min_score_for_signal: float = TREND_MIN_SCORE
@@ -120,13 +115,13 @@ class TrendContinuationAnalyzer(BaseAnalyzer, FeatureScoringMixin):
     Identifies stocks in stable uptrends suitable for Bull-Put-Spreads.
     State-based signal: no event trigger needed.
 
-    4-Step Pipeline:
+    3-Step Pipeline:
         1. Check SMA alignment (PFLICHT)
         2. Check trend stability (PFLICHT)
         3. Check disqualifications (RSI, ADX, buffer, earnings, volume, stability)
-        4. Check VIX regime (HIGH → deactivate)
         → Score 5 components
         → Build signal text
+        Note: VIX regime gating + score multipliers handled centrally by scanner (Schritt 7)
     """
 
     def __init__(self, config: Optional[TrendContinuationConfig] = None, **kwargs) -> None:
@@ -177,21 +172,13 @@ class TrendContinuationAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         current_price = prices[-1]
         breakdown = TrendContinuationScoreBreakdown()
 
-        # === VIX REGIME CHECK (Step 0 — early exit) ===
-        vix = kwargs.get("vix", None)
-        vix_regime = self._get_vix_regime(vix)
+        # === VIX REGIME (from context, set by scanner) ===
+        vix_regime = getattr(context, "regime", "normal") if context else "normal"
         breakdown.vix_regime = vix_regime
 
-        if vix_regime == "high":
-            return self._make_disqualified_signal(
-                symbol,
-                current_price,
-                (
-                    f"Trend Continuation disabled at HIGH VIX ({vix:.1f})"
-                    if vix
-                    else "Trend Continuation disabled at HIGH VIX"
-                ),
-            )
+        # NOTE: VIX regime disabling and score multipliers are now handled
+        # centrally by the scanner via scoring_weights.yaml (Schritt 7).
+        # The analyzer no longer gates on VIX regime.
 
         # === STEP 1: SMA ALIGNMENT (PFLICHT) ===
         sma_info = self._check_sma_alignment(prices)
@@ -357,10 +344,9 @@ class TrendContinuationAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         # Total Score with weight scaling
         total_score = sum(_scale(k, v) for k, v in _components.items())
 
-        # VIX Regime Adjustment
-        vix_adjustment = self._get_vix_adjustment(vix_regime)
-        breakdown.vix_adjustment = vix_adjustment
-        total_score = total_score * vix_adjustment
+        # VIX Regime Adjustment — now handled centrally by scanner (Schritt 7)
+        # Keep breakdown field for display (multiplier from resolved weights)
+        breakdown.vix_adjustment = 1.0  # Set by scanner post-scoring
 
         # Market Context Adjustment (Prio 4)
         market_adjustment = self._get_market_context_adjustment(context)
@@ -812,33 +798,6 @@ class TrendContinuationAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         elif atr_pct < v_cfg.get("atr_high", 2.0):
             return v_cfg.get("score_high", 0.5)
         return 0.0
-
-    # =========================================================================
-    # VIX REGIME
-    # =========================================================================
-
-    def _get_vix_regime(self, vix: Optional[float]) -> str:
-        """Determine VIX regime from VIX value."""
-        if vix is None:
-            return "normal"
-        if vix > self.config.vix_max:
-            return "high"
-        elif vix > VIX_NORMAL_MAX:
-            return "elevated"
-        elif vix < VIX_LOW_VOL_MAX:
-            return "low"
-        return "normal"
-
-    def _get_vix_adjustment(self, regime: str) -> float:
-        """Get score multiplier for VIX regime."""
-        vix_cfg = _cfg.get_section("trend_continuation.vix_adjustment")
-        adjustments = {
-            "low": vix_cfg.get("low", 1.05),
-            "normal": vix_cfg.get("normal", 1.00),
-            "elevated": vix_cfg.get("elevated", 0.90),
-            "high": vix_cfg.get("high", 0.0),
-        }
-        return adjustments.get(regime, 1.0)
 
     # =========================================================================
     # MARKET CONTEXT (Prio 4)

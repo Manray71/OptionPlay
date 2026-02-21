@@ -586,9 +586,6 @@ trend_continuation:
     score_high: 0.5
     score_unknown: 0.5  # Default when ATR unknown
 
-  # VIX regime adjustments (multipliers)
-  vix_adjustment:
-    low: 1.05
-    normal: 1.00
-    elevated: 0.90
-    high: 0.0           # Deactivated in high VIX
+  # VIX regime adjustments — REMOVED (Schritt 7)
+  # Now centralized in scoring_weights.yaml via vix_score_multiplier per strategy×regime.
+  # Scanner applies multiplier after analyzer scoring.
