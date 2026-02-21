@@ -273,61 +273,98 @@ class StrikeMetricsMixin:
                 StrikeQuality,  # type: ignore[no-redef]  # fallback for non-package execution
             )
 
-        score = 50  # Base score
+        score = 0.0
         warnings = []
 
-        # 1. Check OTM distance (+/- 20 points)
+        # 1. OTM distance (0-25 points)
+        #    Sweet spot: 10-15% OTM for Bull-Put-Spreads
         otm_pct = (current_price - short_strike) / current_price * 100
 
-        if 10 <= otm_pct <= 15:
-            score += 20
-        elif 8 <= otm_pct < 10 or 15 < otm_pct <= 20:
-            score += 10
+        if otm_pct < 5:
+            score += 0
+            warnings.append(f"Strike only {otm_pct:.1f}% OTM - high ITM risk")
         elif otm_pct < 8:
-            score -= 20
+            score += 8
             warnings.append(f"Strike only {otm_pct:.1f}% OTM - increased ITM risk")
-        elif otm_pct > 25:
-            score -= 10
+        elif otm_pct < 10:
+            score += 15
+        elif otm_pct <= 15:
+            score += 25  # ideal zone
+        elif otm_pct <= 20:
+            score += 18
+        elif otm_pct <= 25:
+            score += 10
+        else:
+            score += 3
             warnings.append(f"Strike {otm_pct:.1f}% OTM - possibly too conservative")
 
-        # 2. Support quality (+/- 15 points)
+        # 2. Support quality (0-25 points)
         if support:
             if support.strength == "strong":
-                score += 15
+                score += 18
             elif support.strength == "moderate":
-                score += 10
+                score += 12
+            else:  # weak
+                score += 5
 
             if support.confirmed_by_fib:
-                score += 10
+                score += 7
         else:
-            score -= 5
+            score += 0
             warnings.append("No support level used")
 
-        # 3. IV rank (+/- 10 points)
+        # 3. IV rank (0-25 points)
+        #    Higher IV = more premium collected = better for credit spreads
         if iv_rank is not None:
-            if iv_rank > 50:
-                score += 10  # Credit spreads benefit from high IV
-            elif iv_rank < ENTRY_IV_RANK_MIN:
-                score -= 5
+            if iv_rank >= 70:
+                score += 25
+            elif iv_rank >= 50:
+                score += 20
+            elif iv_rank >= 40:
+                score += 15
+            elif iv_rank >= ENTRY_IV_RANK_MIN:
+                score += 10
+            else:
+                score += 3
                 warnings.append(f"Low IV rank ({iv_rank:.0f}%) - less premium")
+        else:
+            score += 10  # neutral when unknown
 
-        # 5. Risk/Reward (+/- 5 points)
+        # 4. Risk/Reward (0-15 points)
         rr = metrics.get("risk_reward", 0)
-        if rr > 0.40:
+        if rr >= 0.50:
+            score += 15
+        elif rr >= 0.40:
+            score += 12
+        elif rr >= 0.33:
+            score += 9
+        elif rr >= 0.25:
             score += 5
-        elif rr < 0.25:
-            score -= 5
+        else:
+            score += 0
             warnings.append(f"Low Risk/Reward ({rr:.2f})")
 
+        # 5. Prob. Profit bonus (0-10 points)
+        prob = metrics.get("prob_profit")
+        if prob is not None:
+            if prob >= 85:
+                score += 10
+            elif prob >= 75:
+                score += 7
+            elif prob >= 65:
+                score += 4
+            else:
+                score += 1
+
         # Limit score to 0-100
-        score = max(0, min(100, score))
+        score = max(0, min(100, round(score)))
 
         # Determine quality category
-        if score >= 75:
+        if score >= 80:
             quality = StrikeQuality.EXCELLENT
         elif score >= 60:
             quality = StrikeQuality.GOOD
-        elif score >= 45:
+        elif score >= 40:
             quality = StrikeQuality.ACCEPTABLE
         else:
             quality = StrikeQuality.POOR
