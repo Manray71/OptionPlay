@@ -130,12 +130,8 @@ EDIP_ZSCORE_SCORE_MODERATE = _cfg.get("earnings_dip.relative_scoring.score_moder
 EDIP_ZSCORE_SCORE_SMALL = _cfg.get("earnings_dip.relative_scoring.score_small", 0.5)
 
 # B2: Sector context
-EDIP_SECTOR_DEFENSIVE_THRESHOLD = _cfg.get(
-    "earnings_dip.sector_context.defensive_threshold", 1.05
-)
-EDIP_SECTOR_VOLATILE_THRESHOLD = _cfg.get(
-    "earnings_dip.sector_context.volatile_threshold", 0.95
-)
+EDIP_SECTOR_DEFENSIVE_THRESHOLD = _cfg.get("earnings_dip.sector_context.defensive_threshold", 1.05)
+EDIP_SECTOR_VOLATILE_THRESHOLD = _cfg.get("earnings_dip.sector_context.volatile_threshold", 0.95)
 EDIP_SECTOR_DEFENSIVE_BONUS = _cfg.get("earnings_dip.sector_context.defensive_bonus", 0.5)
 EDIP_SECTOR_NEUTRAL_BONUS = _cfg.get("earnings_dip.sector_context.neutral_bonus", 0.25)
 EDIP_SECTOR_VOLATILE_BONUS = _cfg.get("earnings_dip.sector_context.volatile_bonus", 0.0)
@@ -154,12 +150,8 @@ EDIP_STAB_LARGE_DIP_THRESHOLD = _cfg.get(
 )
 
 # B4: Graduated continued-decline penalty
-EDIP_DECLINE_MILD_THRESHOLD = _cfg.get(
-    "earnings_dip.continued_decline.mild_threshold_pct", 2.0
-)
-EDIP_DECLINE_MOD_THRESHOLD = _cfg.get(
-    "earnings_dip.continued_decline.moderate_threshold_pct", 5.0
-)
+EDIP_DECLINE_MILD_THRESHOLD = _cfg.get("earnings_dip.continued_decline.mild_threshold_pct", 2.0)
+EDIP_DECLINE_MOD_THRESHOLD = _cfg.get("earnings_dip.continued_decline.moderate_threshold_pct", 5.0)
 EDIP_DECLINE_MILD_PENALTY = _cfg.get("earnings_dip.continued_decline.mild_penalty", 0.5)
 EDIP_DECLINE_MOD_PENALTY = _cfg.get("earnings_dip.continued_decline.moderate_penalty", 1.0)
 EDIP_DECLINE_SEVERE_PENALTY = _cfg.get("earnings_dip.continued_decline.severe_penalty", 1.5)
@@ -426,8 +418,13 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         # B6: Get earnings_beat_rate from kwargs or context
         earnings_beat_rate = kwargs.get("earnings_beat_rate", None)
         overreaction_info = self._score_overreaction(
-            dip_pct, prices, volumes, drop_day_idx, historical_avg_earnings_move,
-            context=context, earnings_beat_rate=earnings_beat_rate,
+            dip_pct,
+            prices,
+            volumes,
+            drop_day_idx,
+            historical_avg_earnings_move,
+            context=context,
+            earnings_beat_rate=earnings_beat_rate,
         )
         overreaction_score = overreaction_info["score"]
         breakdown.rsi_score = overreaction_info.get("rsi_component", 0)
@@ -653,7 +650,11 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         days_after = n - 1 - drop_day_idx
 
         # B3: Dynamic stabilization days based on dip magnitude
-        min_stab_days = self._get_min_stabilization_days(dip_pct) if dip_pct > 0 else self.config.min_stabilization_days
+        min_stab_days = (
+            self._get_min_stabilization_days(dip_pct)
+            if dip_pct > 0
+            else self.config.min_stabilization_days
+        )
 
         if days_after < min_stab_days:
             info["reason"] = (
@@ -1052,9 +1053,7 @@ class EarningsDipAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             and earnings_beat_rate >= EDIP_EARNINGS_BEAT_RATE_THRESHOLD
         ):
             total += EDIP_EARNINGS_BEAT_RATE_BONUS
-            info["indicators"].append(
-                f"Earnings beat rate {earnings_beat_rate:.0f}%"
-            )
+            info["indicators"].append(f"Earnings beat rate {earnings_beat_rate:.0f}%")
 
         info["score"] = clamp_score(total, EDIP_OVERREACTION_MAX)
         return info

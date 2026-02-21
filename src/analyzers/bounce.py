@@ -143,7 +143,9 @@ BOUNCE_RSI_DIV_THRESHOLD = _cfg.get("bounce.rsi_divergence.threshold", 2.0)
 BOUNCE_RSI_DIV_BONUS = _cfg.get("bounce.rsi_divergence.bonus", 0.75)
 
 # Downtrend Filter (B4)
-BOUNCE_DOWNTREND_DISQUALIFY_PCT = _cfg.get("bounce.downtrend_filter.disqualify_below_sma200_pct", 10.0)
+BOUNCE_DOWNTREND_DISQUALIFY_PCT = _cfg.get(
+    "bounce.downtrend_filter.disqualify_below_sma200_pct", 10.0
+)
 BOUNCE_DOWNTREND_SEVERE_PENALTY = _cfg.get("bounce.downtrend_filter.severe_penalty", -2.5)
 
 # Market Context (B5)
@@ -399,7 +401,9 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
                 sma_200_prev = (
                     sum(
                         prices[
-                            -(SMA_LONG + BOUNCE_SMA200_DIRECTION_LOOKBACK) : -BOUNCE_SMA200_DIRECTION_LOOKBACK
+                            -(
+                                SMA_LONG + BOUNCE_SMA200_DIRECTION_LOOKBACK
+                            ) : -BOUNCE_SMA200_DIRECTION_LOOKBACK
                         ]
                     )
                     / SMA_LONG

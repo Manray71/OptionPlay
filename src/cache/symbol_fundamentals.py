@@ -265,16 +265,10 @@ class SymbolFundamentalsManager:
                 # Migration: add earnings move stats columns
                 for col in ("avg_earnings_move_pct", "std_earnings_move_pct"):
                     try:
-                        cursor.execute(
-                            f"SELECT {col} FROM symbol_fundamentals LIMIT 1"
-                        )
+                        cursor.execute(f"SELECT {col} FROM symbol_fundamentals LIMIT 1")
                     except sqlite3.OperationalError:
-                        cursor.execute(
-                            f"ALTER TABLE symbol_fundamentals ADD COLUMN {col} REAL"
-                        )
-                        logger.info(
-                            f"Migrated symbol_fundamentals: added '{col}' column"
-                        )
+                        cursor.execute(f"ALTER TABLE symbol_fundamentals ADD COLUMN {col} REAL")
+                        logger.info(f"Migrated symbol_fundamentals: added '{col}' column")
 
                 # Indices for fast queries
                 cursor.execute("""

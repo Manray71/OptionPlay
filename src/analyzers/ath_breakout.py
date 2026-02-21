@@ -392,9 +392,7 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
 
         # 2. Breakout Strength (0 – 2.5) — includes candle quality (A4) and gap (A5)
         opens = getattr(context, "_opens", None) if context else None
-        breakout_score = self._score_breakout_strength(
-            close_info, prices, highs, lows, opens=opens
-        )
+        breakout_score = self._score_breakout_strength(close_info, prices, highs, lows, opens=opens)
 
         # 3. Volume Confirmation (-1.0 – 3.0) — includes consol volume profile (A2)
         volume_score = self._score_volume(volume_info["ratio"])
@@ -1183,7 +1181,11 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
 
         # A3: Relative Strength vs SPY
         rs_vs_spy = None
-        if spy_prices is not None and len(spy_prices) >= ATH_RS_LOOKBACK and len(prices) >= ATH_RS_LOOKBACK:
+        if (
+            spy_prices is not None
+            and len(spy_prices) >= ATH_RS_LOOKBACK
+            and len(prices) >= ATH_RS_LOOKBACK
+        ):
             stock_perf = (prices[-1] / prices[-ATH_RS_LOOKBACK] - 1) * 100
             spy_perf = (spy_prices[-1] / spy_prices[-ATH_RS_LOOKBACK] - 1) * 100
             rs_vs_spy = stock_perf - spy_perf

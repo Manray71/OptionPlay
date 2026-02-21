@@ -240,7 +240,9 @@ class TrendContinuationAnalyzer(BaseAnalyzer, FeatureScoringMixin):
                 pass
             else:
                 return self._make_disqualified_signal(
-                    symbol, current_price, f"Overbought: RSI {rsi:.1f} > {self.config.rsi_overbought}"
+                    symbol,
+                    current_price,
+                    f"Overbought: RSI {rsi:.1f} > {self.config.rsi_overbought}",
                 )
 
         # Volume check
@@ -867,9 +869,7 @@ class TrendContinuationAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         close_position = (close - low) / total_range  # 0.0 = at low, 1.0 = at high
 
         if upper_shadow / total_range > 0.6 and close_position < 0.3:
-            warnings.append(
-                "Shooting star candle detected — potential reversal signal"
-            )
+            warnings.append("Shooting star candle detected — potential reversal signal")
 
         # Bearish Engulfing: current range wider than previous, close below previous close
         prev_close = prices[-2]
@@ -883,9 +883,7 @@ class TrendContinuationAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             and close < prev_close  # Closed lower
             and close < prev_low + prev_range * 0.3  # Close in lower 30% of prev range
         ):
-            warnings.append(
-                "Bearish engulfing pattern detected — potential trend reversal"
-            )
+            warnings.append("Bearish engulfing pattern detected — potential trend reversal")
 
         return warnings
 
@@ -1093,8 +1091,7 @@ class TrendContinuationAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         # MACD line = EMA(12) - EMA(26), aligned to EMA-26 start
         offset = 26 - 12  # EMA-26 starts later
         macd_values = [
-            ema_12_series[i + offset] - ema_26_series[i]
-            for i in range(len(ema_26_series))
+            ema_12_series[i + offset] - ema_26_series[i] for i in range(len(ema_26_series))
         ]
 
         macd_line = macd_values[-1]
@@ -1110,7 +1107,11 @@ class TrendContinuationAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         signal_line = signal
 
         # Use context MACD for bullish check if available (more accurate)
-        if context is not None and context.macd_line is not None and context.macd_signal is not None:
+        if (
+            context is not None
+            and context.macd_line is not None
+            and context.macd_signal is not None
+        ):
             bullish = context.macd_line > context.macd_signal
         else:
             bullish = macd_line > signal_line
