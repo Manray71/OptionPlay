@@ -1,7 +1,7 @@
 # OptionPlay - Options Trading Analysis System
 # =============================================
 #
-# Refactored Package Structure (v4.0.0):
+# Refactored Package Structure (v4.1.0):
 #
 #   src/
 #   ├── models/          # Dataclasses (TradeSignal, Indicators, etc.)
@@ -15,7 +15,7 @@
 #
 # For backwards compatibility, all public symbols are re-exported here.
 
-__version__ = "4.0.0"
+__version__ = "4.1.0"
 
 # =============================================================================
 # ANALYZERS
