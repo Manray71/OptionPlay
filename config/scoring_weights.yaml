@@ -545,8 +545,8 @@ parallelization:
 
 ranking:
   # Ranking formula: base = (1-stability_weight)*signal + stability_weight*(stability/10)
-  # combined = base * speed_normalized^speed_exponent
-  stability_weight: 0.3        # 30% stability, 70% signal
+  # combined = base * speed_normalized^speed_exponent + event_bonus
+  stability_weight: 0.15       # 15% stability, 85% signal (was 0.3 — reduced to avoid triple-counting)
   speed_exponent: 0.3          # Speed^0.3 multiplier (PLAYBOOK)
   min_signal_score: 3.5        # Minimum for ranking (not filtering)
   stability_warning: 70        # Warning threshold for stability

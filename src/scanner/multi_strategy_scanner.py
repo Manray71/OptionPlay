@@ -168,16 +168,10 @@ class ScanConfig:
     # - Stability <50: 66.0% Win Rate (Blacklist)
     enable_stability_first: bool = True  # Stability-First-Filterung aktivieren
 
-    # Tiered Thresholds: Je höher Stability, desto niedriger min_score erlaubt
-    stability_premium_threshold: float = _stab_tiers.get("premium", {}).get("threshold", 80.0)
-    stability_premium_min_score: float = _stab_tiers.get("premium", {}).get("min_score", 4.0)
-    stability_good_threshold: float = _stab_tiers.get("good", {}).get("threshold", 70.0)
-    stability_good_min_score: float = _stab_tiers.get("good", {}).get("min_score", 5.0)
-    stability_acceptable_threshold: float = _stab_tiers.get("acceptable", {}).get("threshold", 65.0)
-    stability_acceptable_min_score: float = _stab_tiers.get("acceptable", {}).get("min_score", 5.5)
-    stability_ok_threshold: float = _stab_tiers.get("ok", {}).get("threshold", 50.0)
-    stability_ok_min_score: float = _stab_tiers.get("ok", {}).get("min_score", 6.0)
-    # Symbole unter stability_ok_threshold werden komplett gefiltert (Blacklist)
+    # Simplified 2-tier stability filter (was 4 tiers — reduced to avoid triple-counting)
+    # Qualified (≥threshold): min_score required | Below threshold: blacklisted
+    stability_qualified_threshold: float = _stab_tiers.get("qualified", {}).get("threshold", 60.0)
+    stability_qualified_min_score: float = _stab_tiers.get("qualified", {}).get("min_score", 3.5)
 
     # Win Rate Integration (Phase 5 - Proportionale Integration)
     # Formel: adjusted_score = base_score * (base_multiplier + win_rate/win_rate_divisor)
@@ -199,14 +193,10 @@ class ScanConfig:
     enable_fundamentals_filter: bool = True  # Master-Schalter
 
     # Stability-basierte Filterung (aus outcomes.db)
-    # Note: Lowered from ENTRY_STABILITY_MIN (70) to align with stability_ok_threshold (50).
-    # The Stability-First post-filter (enable_stability_first) handles tiered filtering:
-    # - Premium (≥80): min_score 4.0
-    # - Good (≥70): min_score 5.0
-    # - OK (≥50): min_score 6.0 (requires stronger signals)
-    # - <50: blacklisted
-    # This prevents double-filtering where the pre-filter kills symbols that
-    # the tiered system would handle appropriately with higher score requirements.
+    # Pre-filter aligned with stability_qualified_threshold (60).
+    # The Stability-First post-filter uses a simple 2-tier system:
+    # - Qualified (≥60): min_score 3.5
+    # - Blacklist (<60): rejected
     fundamentals_min_stability: float = _fund_cfg.get("min_stability", 50.0)
     fundamentals_min_win_rate: float = _fund_cfg.get("min_win_rate", 65.0)
 
@@ -1298,11 +1288,10 @@ class MultiStrategyScanner:
         """
         Stability-First-Filterung: Filtert Signale basierend auf Symbol-Stability.
 
-        Konzept: Stability ist der stärkste Prädiktor für Win Rate!
-        - Stability ≥80 (Premium): 94.5% WR → niedriger min_score OK
-        - Stability ≥70 (Gut): 86.1% WR → normaler min_score
-        - Stability ≥50 (OK): 75% WR → höherer min_score erforderlich
-        - Stability <50 (Blacklist): 66% WR → komplett gefiltert
+        Simplified 2-tier system (was 4 tiers — reduced to avoid triple-counting
+        with ranking stability_weight + analyzer-level DQ):
+        - Stability ≥60 (Qualified): min_score 3.5
+        - Stability <60 (Blacklist): komplett gefiltert
 
         Args:
             signals: Liste von TradeSignals (müssen bereits stability data haben)
@@ -1326,9 +1315,7 @@ class MultiStrategyScanner:
         filtered = []
         stats = {
             "total": len(signals),
-            "premium_kept": 0,
-            "good_kept": 0,
-            "ok_kept": 0,
+            "qualified_kept": 0,
             "blacklisted": 0,
             "no_stability_data": 0,
             "score_too_low": 0,
@@ -1341,7 +1328,7 @@ class MultiStrategyScanner:
             if signal.details and "stability" in signal.details:
                 stability_score = signal.details["stability"].get("score", 0.0)
 
-            # Kein Stability-Score vorhanden → konservativ behandeln (wie OK-Tier)
+            # Kein Stability-Score vorhanden → konservativ behandeln
             if stability_score == 0.0:
                 stats["no_stability_data"] += 1
                 # Ohne Stability-Daten: Standard min_score verwenden
@@ -1364,41 +1351,15 @@ class MultiStrategyScanner:
                     stats["below_strategy_threshold"] += 1
                     continue
 
-            # Tier-basierte Filterung
-            if stability_score >= self.config.stability_premium_threshold:
-                # Premium-Symbol (94.5% WR): Niedrigerer Score OK
-                if signal.score >= self.config.stability_premium_min_score:
+            # 2-tier filtering: Qualified vs Blacklist
+            if stability_score >= self.config.stability_qualified_threshold:
+                if signal.score >= self.config.stability_qualified_min_score:
                     filtered.append(signal)
-                    stats["premium_kept"] += 1
+                    stats["qualified_kept"] += 1
                 else:
                     stats["score_too_low"] += 1
-
-            elif stability_score >= self.config.stability_good_threshold:
-                # Gutes Symbol (86.1% WR): Standard Score
-                if signal.score >= self.config.stability_good_min_score:
-                    filtered.append(signal)
-                    stats["good_kept"] += 1
-                else:
-                    stats["score_too_low"] += 1
-
-            elif stability_score >= self.config.stability_acceptable_threshold:
-                # Akzeptables Symbol (65-70, WARNING): Leicht höherer Score
-                if signal.score >= self.config.stability_acceptable_min_score:
-                    filtered.append(signal)
-                    stats["ok_kept"] += 1
-                else:
-                    stats["score_too_low"] += 1
-
-            elif stability_score >= self.config.stability_ok_threshold:
-                # OK Symbol (75% WR): Höherer Score erforderlich
-                if signal.score >= self.config.stability_ok_min_score:
-                    filtered.append(signal)
-                    stats["ok_kept"] += 1
-                else:
-                    stats["score_too_low"] += 1
-
             else:
-                # Blacklist: Stability < 50 → komplett gefiltert
+                # Blacklist: Stability below threshold → komplett gefiltert
                 stats["blacklisted"] += 1
 
         stats["filtered"] = stats["total"] - len(filtered)
@@ -1406,8 +1367,7 @@ class MultiStrategyScanner:
         if stats["filtered"] > 0:
             logger.info(
                 f"Stability-First-Filter: {stats['filtered']}/{stats['total']} Signale gefiltert "
-                f"(Premium: {stats['premium_kept']}, Good: {stats['good_kept']}, "
-                f"OK: {stats['ok_kept']}, Blacklisted: {stats['blacklisted']}, "
+                f"(Qualified: {stats['qualified_kept']}, Blacklisted: {stats['blacklisted']}, "
                 f"BelowStratThresh: {stats['below_strategy_threshold']})"
             )
 

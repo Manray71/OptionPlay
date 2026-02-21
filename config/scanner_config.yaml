@@ -23,27 +23,15 @@ scanner:
   # ===========================================================================
   # STABILITY-FIRST FILTERING
   # ===========================================================================
-  # Tiered thresholds: higher stability → lower min_score required.
-  # Based on Walk-Forward training results:
-  #   Premium (≥80): 94.5% WR → allow scores from 4.0
-  #   Good (≥70): 86.1% WR → standard score 5.0
-  #   Acceptable (≥65): ~80% WR → slightly higher 5.5
-  #   OK (≥50): ~75% WR → requires strong signal 6.0
-  #   <50: blacklisted
+  # Simplified 2-tier system (was 4 tiers — reduced to avoid triple-counting
+  # with ranking stability_weight + analyzer-level DQ).
+  #   Qualified (≥60): min_score 3.5 — signal quality drives ranking
+  #   Blacklist (<60): rejected — insufficient historical reliability
 
   stability_tiers:
-    premium:
-      threshold: 80.0
-      min_score: 2.5       # was 3.5 — high-stability blue chips (WR>85%) need less signal strength
-    good:
-      threshold: 70.0
-      min_score: 3.5       # was 4.0 — proven symbols with good track record
-    acceptable:
-      threshold: 65.0
-      min_score: 4.0       # was 4.5 — moderate confidence symbols
-    ok:
-      threshold: 50.0
-      min_score: 5.0       # unchanged — weak symbols still need strong signals
+    qualified:
+      threshold: 60.0
+      min_score: 3.5       # signal quality matters more than stability tier
 
   # Legacy stability boost (preserved for backwards compat)
   stability_boost:
@@ -82,7 +70,7 @@ scanner:
   # Applied BEFORE the scan to reject clearly unsuitable symbols.
 
   fundamentals_prefilter:
-    min_stability: 50.0       # Aligned with stability_ok_threshold
+    min_stability: 50.0       # Pre-filter: below stability_qualified_threshold (60)
     min_win_rate: 65.0        # Minimum historical win rate %
     max_volatility: 70.0      # Max historical volatility (annualized %)
     max_beta: 2.0             # Max beta to SPY

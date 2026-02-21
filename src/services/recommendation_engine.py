@@ -308,7 +308,7 @@ class DailyRecommendationEngine(RecommendationRankingMixin):
             scan_config = ScanConfig(
                 min_score=self.config["min_signal_score"],
                 enable_stability_first=True,
-                stability_good_threshold=self.config["min_stability_score"],
+                stability_qualified_threshold=self.config["min_stability_score"],
                 enable_fundamentals_filter=True,
             )
             self._scanner = MultiStrategyScanner(scan_config)

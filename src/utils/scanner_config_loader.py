@@ -184,10 +184,7 @@ class ScannerConfig:
         return self._scanner_data.get("scanner", {}).get(
             "stability_tiers",
             {
-                "premium": {"threshold": 80.0, "min_score": 4.0},
-                "good": {"threshold": 70.0, "min_score": 5.0},
-                "acceptable": {"threshold": 65.0, "min_score": 5.5},
-                "ok": {"threshold": 50.0, "min_score": 6.0},
+                "qualified": {"threshold": 60.0, "min_score": 3.5},
             },
         )
 

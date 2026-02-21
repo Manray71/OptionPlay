@@ -179,12 +179,8 @@ def get_scan_config(
         fundamentals_include_market_caps=fundamentals_cfg.include_market_caps,
         fundamentals_blacklist=fundamentals_cfg.blacklist_symbols,
         fundamentals_whitelist=fundamentals_cfg.whitelist_symbols,
-        # Stability-First-Filter (Phase 6)
+        # Stability-First-Filter (simplified 2-tier)
         enable_stability_first=scanner_cfg.enable_stability_first,
-        stability_premium_threshold=scanner_cfg.stability_premium_threshold,
-        stability_premium_min_score=scanner_cfg.stability_premium_min_score,
-        stability_good_threshold=scanner_cfg.stability_good_threshold,
-        stability_good_min_score=scanner_cfg.stability_good_min_score,
-        stability_ok_threshold=scanner_cfg.stability_ok_threshold,
-        stability_ok_min_score=scanner_cfg.stability_ok_min_score,
+        stability_qualified_threshold=scanner_cfg.stability_qualified_threshold,
+        stability_qualified_min_score=scanner_cfg.stability_qualified_min_score,
     )

@@ -432,20 +432,12 @@ scanner:
   # =========================================================================
   # Stability ist der stärkste Prädiktor für Win Rate!
   # Training-Ergebnisse:
-  # - Stability ≥80: 94.5% Win Rate (Premium-Symbole)
-  # - Stability 70-80: 86.1% Win Rate (Gute Symbole)
-  # - Stability 50-70: 75% Win Rate (Akzeptabel)
-  # - Stability <50: 66% Win Rate (Blacklist)
-  enable_stability_first: true          # Stability-First-Filterung aktivieren
-
-  # Tiered Thresholds: Je höher Stability, desto niedriger min_score erlaubt
-  stability_premium_threshold: 80.0     # Premium-Symbole (94.5% WR)
-  stability_premium_min_score: 4.0      # Niedrigerer Score OK für Premium
-  stability_good_threshold: 70.0        # Gute Symbole (86.1% WR)
-  stability_good_min_score: 5.0         # Standard Score für gute Symbole
-  stability_ok_threshold: 50.0          # Akzeptable Symbole
-  stability_ok_min_score: 6.0           # Höherer Score für grenzwertige Symbole
-  # Symbole unter stability_ok_threshold werden komplett gefiltert (Blacklist)
+  # Simplified 2-tier stability filter:
+  # - Qualified (≥60): min_score 3.5
+  # - Blacklist (<60): rejected
+  enable_stability_first: true
+  stability_qualified_threshold: 60.0
+  stability_qualified_min_score: 3.5
 
 # ============================================================================
 # RISIKO-MANAGEMENT PARAMETER

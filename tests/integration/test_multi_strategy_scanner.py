@@ -174,12 +174,8 @@ class TestScanConfig:
         config = ScanConfig()
 
         assert config.enable_stability_first is True
-        assert config.stability_premium_threshold == 80.0
-        assert config.stability_premium_min_score == 2.5
-        assert config.stability_good_threshold == 70.0
-        assert config.stability_good_min_score == 3.5
-        assert config.stability_ok_threshold == 50.0
-        assert config.stability_ok_min_score == 5.0
+        assert config.stability_qualified_threshold == 60.0
+        assert config.stability_qualified_min_score == 3.5
 
     def test_win_rate_integration_config(self):
         """Win rate integration configuration"""
@@ -1225,16 +1221,12 @@ class TestStabilityFirstFilter:
 
     @pytest.fixture
     def scanner_stability_enabled(self):
-        """Scanner mit Stability-First aktiviert"""
+        """Scanner mit Stability-First aktiviert (simplified 2-tier)"""
         return MultiStrategyScanner(ScanConfig(
             min_score=3.5,
             enable_stability_first=True,
-            stability_premium_threshold=80.0,
-            stability_premium_min_score=4.0,
-            stability_good_threshold=70.0,
-            stability_good_min_score=5.0,
-            stability_ok_threshold=50.0,
-            stability_ok_min_score=6.0,
+            stability_qualified_threshold=60.0,
+            stability_qualified_min_score=3.5,
         ))
 
     @pytest.fixture
@@ -1249,57 +1241,33 @@ class TestStabilityFirstFilter:
         """Erstellt ein Test-Signal mit optionalem Stability-Score"""
         return create_test_signal(symbol, score=score, stability_score=stability_score)
 
-    def test_premium_symbol_low_score_passes(self, scanner_stability_enabled):
-        """Premium-Symbol (Stability >=80) mit niedrigem Score sollte durchkommen"""
+    def test_qualified_symbol_passes(self, scanner_stability_enabled):
+        """Qualified symbol (Stability >=60) with sufficient score passes"""
         signals = [self._create_test_signal('AAPL', score=4.5, stability_score=85.0)]
         filtered, stats = scanner_stability_enabled._filter_by_stability(signals)
 
         assert len(filtered) == 1
-        assert stats['premium_kept'] == 1
+        assert stats['qualified_kept'] == 1
 
-    def test_premium_symbol_very_low_score_fails(self, scanner_stability_enabled):
-        """Premium-Symbol mit zu niedrigem Score sollte gefiltert werden"""
-        signals = [self._create_test_signal('MSFT', score=3.5, stability_score=85.0)]
+    def test_qualified_symbol_low_score_fails(self, scanner_stability_enabled):
+        """Qualified symbol with score below min_score fails"""
+        signals = [self._create_test_signal('MSFT', score=3.0, stability_score=85.0)]
         filtered, stats = scanner_stability_enabled._filter_by_stability(signals)
 
         assert len(filtered) == 0
         assert stats['score_too_low'] == 1
 
-    def test_good_symbol_medium_score_passes(self, scanner_stability_enabled):
-        """Gutes Symbol (Stability 70-80) mit mittlerem Score sollte durchkommen"""
-        signals = [self._create_test_signal('GOOGL', score=5.5, stability_score=75.0)]
+    def test_qualified_boundary_passes(self, scanner_stability_enabled):
+        """Symbol at exact qualified threshold passes with sufficient score"""
+        signals = [self._create_test_signal('GOOGL', score=5.5, stability_score=60.0)]
         filtered, stats = scanner_stability_enabled._filter_by_stability(signals)
 
         assert len(filtered) == 1
-        assert stats['good_kept'] == 1
-
-    def test_good_symbol_low_score_fails(self, scanner_stability_enabled):
-        """Gutes Symbol mit zu niedrigem Score sollte gefiltert werden"""
-        signals = [self._create_test_signal('META', score=4.5, stability_score=75.0)]
-        filtered, stats = scanner_stability_enabled._filter_by_stability(signals)
-
-        assert len(filtered) == 0
-        assert stats['score_too_low'] == 1
-
-    def test_ok_symbol_high_score_passes(self, scanner_stability_enabled):
-        """OK-Symbol (Stability 50-70) mit hohem Score sollte durchkommen"""
-        signals = [self._create_test_signal('NFLX', score=7.0, stability_score=55.0)]
-        filtered, stats = scanner_stability_enabled._filter_by_stability(signals)
-
-        assert len(filtered) == 1
-        assert stats['ok_kept'] == 1
-
-    def test_ok_symbol_medium_score_fails(self, scanner_stability_enabled):
-        """OK-Symbol mit mittlerem Score sollte gefiltert werden"""
-        signals = [self._create_test_signal('AMZN', score=5.5, stability_score=55.0)]
-        filtered, stats = scanner_stability_enabled._filter_by_stability(signals)
-
-        assert len(filtered) == 0
-        assert stats['score_too_low'] == 1
+        assert stats['qualified_kept'] == 1
 
     def test_blacklist_symbol_always_fails(self, scanner_stability_enabled):
-        """Blacklist-Symbol (Stability <50) sollte immer gefiltert werden"""
-        signals = [self._create_test_signal('TSLA', score=9.0, stability_score=40.0)]
+        """Blacklist symbol (Stability <60) is always filtered"""
+        signals = [self._create_test_signal('TSLA', score=9.0, stability_score=55.0)]
         filtered, stats = scanner_stability_enabled._filter_by_stability(signals)
 
         assert len(filtered) == 0
@@ -1328,13 +1296,12 @@ class TestStabilityFirstFilter:
     def test_mixed_signals_correctly_filtered(self, scanner_stability_enabled):
         """Gemischte Signale sollten korrekt gefiltert werden"""
         signals = [
-            self._create_test_signal('AAPL', score=4.5, stability_score=85.0),  # Premium OK
-            self._create_test_signal('MSFT', score=3.5, stability_score=85.0),  # Premium score too low
-            self._create_test_signal('GOOGL', score=5.5, stability_score=75.0),  # Good OK
-            self._create_test_signal('META', score=4.5, stability_score=75.0),  # Good score too low
-            self._create_test_signal('NFLX', score=7.0, stability_score=55.0),  # OK OK
-            self._create_test_signal('AMZN', score=5.5, stability_score=55.0),  # OK score too low
-            self._create_test_signal('TSLA', score=9.0, stability_score=40.0),  # Blacklist
+            self._create_test_signal('AAPL', score=4.5, stability_score=85.0),  # Qualified OK
+            self._create_test_signal('MSFT', score=3.0, stability_score=85.0),  # Qualified score too low
+            self._create_test_signal('GOOGL', score=5.5, stability_score=65.0),  # Qualified OK
+            self._create_test_signal('NFLX', score=7.0, stability_score=60.0),  # Qualified OK (boundary)
+            self._create_test_signal('AMZN', score=5.5, stability_score=55.0),  # Blacklisted (< 60)
+            self._create_test_signal('TSLA', score=9.0, stability_score=40.0),  # Blacklisted
         ]
         filtered, stats = scanner_stability_enabled._filter_by_stability(signals)
 
@@ -1342,11 +1309,9 @@ class TestStabilityFirstFilter:
         passed_symbols = {s.symbol for s in filtered}
         assert passed_symbols == {'AAPL', 'GOOGL', 'NFLX'}
 
-        assert stats['premium_kept'] == 1
-        assert stats['good_kept'] == 1
-        assert stats['ok_kept'] == 1
-        assert stats['blacklisted'] == 1
-        assert stats['score_too_low'] == 3
+        assert stats['qualified_kept'] == 3
+        assert stats['blacklisted'] == 2
+        assert stats['score_too_low'] == 1
 
 
 # =============================================================================

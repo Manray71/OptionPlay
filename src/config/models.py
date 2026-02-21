@@ -576,15 +576,10 @@ class ScannerConfig:
     enable_bounce: bool = True
     enable_earnings_dip: bool = True
 
-    # Stability-First-Filter (Phase 6)
-    # Stability ist der stärkste Prädiktor für Win Rate!
-    enable_stability_first: bool = True  # Stability-First-Filterung aktivieren
-    stability_premium_threshold: float = 80.0  # Premium-Symbole (94.5% WR)
-    stability_premium_min_score: float = 4.0  # Niedrigerer Score OK für Premium
-    stability_good_threshold: float = 70.0  # Gute Symbole (86.1% WR)
-    stability_good_min_score: float = 5.0  # Standard Score für gute Symbole
-    stability_ok_threshold: float = 50.0  # Akzeptable Symbole
-    stability_ok_min_score: float = 6.0  # Höherer Score für grenzwertige Symbole
+    # Stability-First-Filter (simplified 2-tier)
+    enable_stability_first: bool = True
+    stability_qualified_threshold: float = 60.0  # Below → blacklisted
+    stability_qualified_min_score: float = 3.5  # Min score for qualified symbols
 
 
 @dataclass

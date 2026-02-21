@@ -393,14 +393,10 @@ class ConfigLoader:
             enable_ath_breakout=scanner_raw.get("enable_ath_breakout", True),
             enable_bounce=scanner_raw.get("enable_bounce", True),
             enable_earnings_dip=scanner_raw.get("enable_earnings_dip", True),
-            # Stability-First-Filter (Phase 6)
+            # Stability-First-Filter (simplified 2-tier)
             enable_stability_first=scanner_raw.get("enable_stability_first", True),
-            stability_premium_threshold=scanner_raw.get("stability_premium_threshold", 80.0),
-            stability_premium_min_score=scanner_raw.get("stability_premium_min_score", 4.0),
-            stability_good_threshold=scanner_raw.get("stability_good_threshold", 70.0),
-            stability_good_min_score=scanner_raw.get("stability_good_min_score", 5.0),
-            stability_ok_threshold=scanner_raw.get("stability_ok_threshold", 50.0),
-            stability_ok_min_score=scanner_raw.get("stability_ok_min_score", 6.0),
+            stability_qualified_threshold=scanner_raw.get("stability_qualified_threshold", 60.0),
+            stability_qualified_min_score=scanner_raw.get("stability_qualified_min_score", 3.5),
         )
 
         # Performance Config
