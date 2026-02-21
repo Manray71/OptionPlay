@@ -77,8 +77,8 @@ STRATEGY_SCORE_CONFIGS: Dict[str, StrategyScoreConfig] = {
         # SMA Alignment: 2.5, Trend Stability: 2.0 (+0.5 bonus),
         # Trend Buffer: 2.0, Momentum Health: 2.0, Volatility: 1.5
         strong_threshold=7.5,
-        moderate_threshold=6.0,
-        weak_threshold=5.0,
+        moderate_threshold=5.0,
+        weak_threshold=3.5,
     ),
 }
 

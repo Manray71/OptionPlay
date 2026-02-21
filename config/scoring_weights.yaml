@@ -246,27 +246,27 @@ strategies:
         sector_factor: 1.154
   trend_continuation:
     weights:
-      sma_alignment: 0.75
-      trend_stability: 0.6
-      trend_buffer: 0.6
-      momentum_health: 0.6
-      volatility: 1.4
+      sma_alignment: 2.00
+      trend_stability: 2.00
+      trend_buffer: 1.60
+      momentum_health: 1.60
+      volatility: 1.50
     max_possible: 10.5
     regimes:
       low:
         weights:
-          sma_alignment: 0.6
-          trend_stability: 0.65
-          trend_buffer: 0.6
-          momentum_health: 0.6
-          volatility: 1.4
+          sma_alignment: 1.60
+          trend_stability: 1.80
+          trend_buffer: 1.60
+          momentum_health: 1.60
+          volatility: 1.50
       normal:
         weights:
-          sma_alignment: 0.6
-          trend_stability: 1.4
-          trend_buffer: 1.03
-          momentum_health: 0.68
-          volatility: 0.6
+          sma_alignment: 1.60
+          trend_stability: 2.00
+          trend_buffer: 1.60
+          momentum_health: 1.60
+          volatility: 1.50
       elevated:
         min_stability: 80
       danger:

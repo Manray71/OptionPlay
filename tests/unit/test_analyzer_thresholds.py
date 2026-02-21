@@ -275,7 +275,7 @@ class TestProductionConfig:
         assert cfg.get("pullback.signal.strong") == 7.0
         assert cfg.get("earnings_dip.signal.strong") == 6.5
         assert cfg.get("ath_breakout.signal.strong") == 7.0
-        assert cfg.get("trend_continuation.general.min_score") == 5.0
+        assert cfg.get("trend_continuation.general.min_score") == 3.5
 
     def test_all_strategies_present(self):
         """All 5 strategies have sections in production config."""
@@ -385,4 +385,4 @@ class TestAnalyzerIntegration:
         """Trend continuation module-level constants match production YAML."""
         from src.analyzers.trend_continuation import TREND_MIN_SCORE
 
-        assert TREND_MIN_SCORE == 5.0
+        assert TREND_MIN_SCORE == 3.5

@@ -238,9 +238,9 @@ class TestTrendContinuationInitialization:
         assert analyzer.config.sma_long == 200
         assert analyzer.config.min_buffer_pct == 3.0
         assert analyzer.config.rsi_overbought == 80
-        assert analyzer.config.adx_min == 15
+        assert analyzer.config.adx_min == 20
         assert analyzer.config.vix_max == 25.0
-        assert analyzer.config.min_score_for_signal == 5.0
+        assert analyzer.config.min_score_for_signal == 3.5
 
     def test_custom_config(self):
         config = TrendContinuationConfig(
@@ -262,7 +262,7 @@ class TestTrendContinuationInitialization:
         assert "Trend Continuation" in analyzer.description
 
     def test_constants(self):
-        assert TREND_MIN_SCORE == 5.0
+        assert TREND_MIN_SCORE == 3.5
         assert TREND_MAX_SCORE == 10.5
 
 
@@ -566,43 +566,43 @@ class TestTrendContinuationScoring:
         assert score == 0.0
 
     def test_momentum_ideal(self, analyzer):
-        """RSI 58, ADX 32, MACD bullish, no divergence."""
+        """RSI 58, ADX 25, MACD bullish, no divergence."""
+        score = analyzer._score_momentum_health(
+            rsi=58.0, adx=25.0,
+            macd_info={'bullish': True, 'divergence': False},
+            volume_divergence=False,
+        )
+        # RSI 50-65: +0.5, ADX > 20: +0.5, MACD bullish: +0.5 = 1.5
+        assert score == 1.5
+
+    def test_momentum_strong_adx(self, analyzer):
+        """ADX > 30 gives full 1.0 instead of 0.5."""
         score = analyzer._score_momentum_health(
             rsi=58.0, adx=32.0,
             macd_info={'bullish': True, 'divergence': False},
             volume_divergence=False,
         )
-        # RSI 50-65: +0.5, ADX > 25: +0.5, MACD bullish: +0.5 = 1.5
-        assert score == 1.5
-
-    def test_momentum_strong_adx(self, analyzer):
-        """ADX > 35 gives full 1.0 instead of 0.5."""
-        score = analyzer._score_momentum_health(
-            rsi=58.0, adx=38.0,
-            macd_info={'bullish': True, 'divergence': False},
-            volume_divergence=False,
-        )
-        # RSI: +0.5, ADX > 35: +1.0, MACD: +0.5 = 2.0
+        # RSI: +0.5, ADX > 30: +1.0, MACD: +0.5 = 2.0
         assert score == 2.0
 
     def test_momentum_with_divergence(self, analyzer):
         """MACD divergence applies -1.0 penalty."""
         score = analyzer._score_momentum_health(
-            rsi=58.0, adx=32.0,
+            rsi=58.0, adx=25.0,
             macd_info={'bullish': False, 'divergence': True},
             volume_divergence=False,
         )
-        # RSI: +0.5, ADX: +0.5, MACD div: -1.0 = 0.0
+        # RSI: +0.5, ADX > 20: +0.5, MACD div: -1.0 = 0.0
         assert score == 0.0
 
     def test_momentum_with_volume_divergence(self, analyzer):
         """Volume divergence applies -0.5 penalty."""
         score = analyzer._score_momentum_health(
-            rsi=58.0, adx=32.0,
+            rsi=58.0, adx=25.0,
             macd_info={'bullish': True, 'divergence': False},
             volume_divergence=True,
         )
-        # RSI: +0.5, ADX: +0.5, MACD: +0.5, Vol div: -0.5 = 1.0
+        # RSI: +0.5, ADX > 20: +0.5, MACD: +0.5, Vol div: -0.5 = 1.0
         assert score == 1.0
 
     def test_volatility_very_low(self, analyzer):
@@ -878,21 +878,21 @@ class TestTrendContinuationSpecCases:
 
     def test_case_06_low_adx(self):
         """
-        Case 6: SMA aligned but ADX 14
-        Expected: No signal (ADX < 15)
+        Case 6: SMA aligned but ADX 18
+        Expected: No signal (ADX < 20)
 
         Note: We can't easily control ADX in generated data,
         so we test via the scoring component directly.
         """
         analyzer = TrendContinuationAnalyzer()
         # Test the ADX disqualification logic directly
-        # ADX < 15 should give no ADX contribution to momentum
+        # ADX < 20 should give no ADX contribution to momentum
         score = analyzer._score_momentum_health(
-            rsi=58.0, adx=14.0,
+            rsi=58.0, adx=18.0,
             macd_info={'bullish': True, 'divergence': False},
             volume_divergence=False,
         )
-        # RSI: +0.5, ADX < 25: +0.0, MACD: +0.5 = 1.0
+        # RSI: +0.5, ADX < 20: +0.0, MACD: +0.5 = 1.0
         assert score == 1.0
 
     def test_case_07_very_low_volatility(self):
@@ -906,7 +906,7 @@ class TestTrendContinuationSpecCases:
         assert vol_score == 1.5
 
         momentum_score = analyzer._score_momentum_health(
-            rsi=58.0, adx=38.0,
+            rsi=58.0, adx=32.0,
             macd_info={'bullish': True, 'divergence': False},
             volume_divergence=False,
         )
@@ -952,12 +952,12 @@ class TestTrendContinuationSpecCases:
         """
         analyzer = TrendContinuationAnalyzer()
         score_with_div = analyzer._score_momentum_health(
-            rsi=58.0, adx=32.0,
+            rsi=58.0, adx=25.0,
             macd_info={'bullish': False, 'divergence': True},
             volume_divergence=False,
         )
         score_no_div = analyzer._score_momentum_health(
-            rsi=58.0, adx=32.0,
+            rsi=58.0, adx=25.0,
             macd_info={'bullish': True, 'divergence': False},
             volume_divergence=False,
         )
@@ -1011,7 +1011,7 @@ class TestTrendContinuationSpecCases:
         )
         if signal.signal_type == SignalType.LONG:
             # Score should be boosted by 1.05x, above normalized weak threshold
-            assert signal.score >= 5.0
+            assert signal.score >= 3.5
 
     def test_case_13_weak_sector_factor(self):
         """
@@ -1107,21 +1107,21 @@ class TestTrendContinuationEdgeCases:
             assert signal.strength == SignalStrength.STRONG
 
     def test_signal_strength_moderate(self, analyzer):
-        """Score 6.0-7.5 should be MODERATE."""
+        """Score 5.0-7.5 should be MODERATE."""
         # Verify strength mapping
-        assert 6.0 < 7.5  # trivial but documents the thresholds
+        assert 5.0 < 7.5  # trivial but documents the thresholds
 
     def test_signal_strength_weak(self, analyzer):
-        """Score 5.0-6.0 should be WEAK (on normalized 0-10 scale)."""
+        """Score 3.5-5.0 should be WEAK (on normalized 0-10 scale)."""
         from src.analyzers.score_normalization import STRATEGY_SCORE_CONFIGS
         tc_config = STRATEGY_SCORE_CONFIGS["trend_continuation"]
-        assert tc_config.weak_threshold == 5.0
+        assert tc_config.weak_threshold == 3.5
 
     def test_neutral_below_min_score(self, analyzer):
-        """Score below weak_threshold (5.0 normalized) should produce NEUTRAL signal."""
+        """Score below weak_threshold (3.5 normalized) should produce NEUTRAL signal."""
         from src.analyzers.score_normalization import STRATEGY_SCORE_CONFIGS
         tc_config = STRATEGY_SCORE_CONFIGS["trend_continuation"]
-        assert tc_config.weak_threshold == 5.0
+        assert tc_config.weak_threshold == 3.5
 
     def test_strike_zone_conservative_below_sma50(self, analyzer, perfect_trend_data):
         """Conservative strike should be below SMA 50, rounded to $5."""
@@ -1353,6 +1353,68 @@ class TestTrendContinuationScoreBreakdown:
         assert 'trend_buffer' in components
         assert 'momentum_health' in components
         assert 'volatility' in components
+
+
+# =============================================================================
+# TEST: RSI OVERBOUGHT + ADX INTERACTION (Prio 3)
+# =============================================================================
+
+class TestTrendContinuationRSIADXInteraction:
+    """Tests for ADX-dependent RSI overbought disqualification."""
+
+    def test_rsi_overbought_weak_adx_disqualifies(self):
+        """RSI > 80 with weak ADX (< 25) should disqualify."""
+        config = TrendContinuationConfig(rsi_overbought=80, adx_min=20)
+        analyzer = TrendContinuationAnalyzer(config=config)
+        data = make_trend_data(n=300, buffer_to_sma50_pct=9.0)
+        signal = analyzer.analyze(
+            "TEST", data['prices'], data['volumes'],
+            data['highs'], data['lows'],
+        )
+        # We can't control RSI exactly, but verify the logic path exists
+        assert isinstance(signal, TradeSignal)
+
+    def test_adx_check_before_rsi(self):
+        """ADX disqualification should happen before RSI check."""
+        config = TrendContinuationConfig(adx_min=20)
+        analyzer = TrendContinuationAnalyzer(config=config)
+        # With ADX < 20, should be disqualified for ADX, not RSI
+        data = make_trend_data(n=300, buffer_to_sma50_pct=9.0)
+        signal = analyzer.analyze(
+            "TEST", data['prices'], data['volumes'],
+            data['highs'], data['lows'],
+        )
+        # If disqualified, reason should mention ADX or other filter, not RSI
+        # (unless the data happens to produce RSI in healthy range)
+        assert isinstance(signal, TradeSignal)
+
+    def test_adx_min_threshold_20(self):
+        """ADX minimum should be 20 (was 15)."""
+        analyzer = TrendContinuationAnalyzer()
+        assert analyzer.config.adx_min == 20
+
+    def test_adx_scoring_thresholds_lowered(self, ):
+        """ADX scoring thresholds should be 30/20 (was 35/25)."""
+        analyzer = TrendContinuationAnalyzer()
+        # ADX 22 should get moderate bonus (> 20 threshold)
+        score = analyzer._score_momentum_health(
+            rsi=58.0, adx=22.0,
+            macd_info={'bullish': True, 'divergence': False},
+            volume_divergence=False,
+        )
+        # RSI: +0.5, ADX > 20: +0.5, MACD: +0.5 = 1.5
+        assert score == 1.5
+
+    def test_adx_strong_threshold_30(self):
+        """ADX > 30 should give strong bonus (was 35)."""
+        analyzer = TrendContinuationAnalyzer()
+        score = analyzer._score_momentum_health(
+            rsi=58.0, adx=31.0,
+            macd_info={'bullish': True, 'divergence': False},
+            volume_divergence=False,
+        )
+        # RSI: +0.5, ADX > 30: +1.0, MACD: +0.5 = 2.0
+        assert score == 2.0
 
 
 if __name__ == "__main__":

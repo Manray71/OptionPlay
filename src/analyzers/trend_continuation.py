@@ -230,6 +230,15 @@ class TrendContinuationAnalyzer(BaseAnalyzer, FeatureScoringMixin):
                 f"Insufficient buffer: {buffer_to_sma50:.1f}% to SMA 50 (min {self.config.min_buffer_pct}%)",
             )
 
+        # ADX check (moved before RSI to enable ADX-dependent RSI logic)
+        adx = self._calculate_adx(highs, lows, prices, 14)
+        breakdown.adx_value = adx if adx is not None else 0
+
+        if adx is not None and adx < self.config.adx_min:
+            return self._make_disqualified_signal(
+                symbol, current_price, f"No trend: ADX {adx:.1f} < {self.config.adx_min}"
+            )
+
         # RSI check (prefer context if available)
         rsi = None
         if context is not None and context.rsi_14 is not None:
@@ -239,18 +248,13 @@ class TrendContinuationAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         breakdown.rsi_value = rsi if rsi is not None else 0
 
         if rsi is not None and rsi > self.config.rsi_overbought:
-            return self._make_disqualified_signal(
-                symbol, current_price, f"Overbought: RSI {rsi:.1f} > {self.config.rsi_overbought}"
-            )
-
-        # ADX check
-        adx = self._calculate_adx(highs, lows, prices, 14)
-        breakdown.adx_value = adx if adx is not None else 0
-
-        if adx is not None and adx < self.config.adx_min:
-            return self._make_disqualified_signal(
-                symbol, current_price, f"No trend: ADX {adx:.1f} < {self.config.adx_min}"
-            )
+            if adx is not None and adx >= 25:
+                # Strong trend — RSI overbought tolerierbar, penalty in _score_momentum_health
+                pass
+            else:
+                return self._make_disqualified_signal(
+                    symbol, current_price, f"Overbought: RSI {rsi:.1f} > {self.config.rsi_overbought}"
+                )
 
         # Volume check
         avg_volume = (

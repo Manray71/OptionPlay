@@ -95,8 +95,8 @@ class TestStrategyScoreConfigs:
         config = STRATEGY_SCORE_CONFIGS['trend_continuation']
         assert config.max_possible == 10.5
         assert config.strong_threshold == 7.5
-        assert config.moderate_threshold == 6.0
-        assert config.weak_threshold == 5.0
+        assert config.moderate_threshold == 5.0
+        assert config.weak_threshold == 3.5
 
 
 # =============================================================================
