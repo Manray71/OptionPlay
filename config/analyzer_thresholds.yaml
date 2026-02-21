@@ -201,6 +201,30 @@ bounce:
   rsi:
     momentum_fade: 50
 
+  # RSI bullish divergence (B3)
+  rsi_divergence:
+    lookback: 20
+    threshold: 2.0
+    bonus: 0.75
+
+  # Downtrend filter (B4)
+  downtrend_filter:
+    disqualify_below_sma200_pct: 10.0
+    severe_penalty: -2.5
+
+  # Market context modifier (B5) — disabled by default
+  market_context:
+    enabled: false
+    bearish_multiplier: 0.8
+    neutral_multiplier: 0.9
+    sector_weak_multiplier: 0.9
+
+  # Bollinger Band confluence (B6) — disabled by default
+  bollinger:
+    enabled: false
+    confluence_tolerance_pct: 1.0
+    confluence_bonus: 0.25
+
 
 # -----------------------------------------------------------------------------
 # EARNINGS DIP STRATEGY
@@ -350,6 +374,14 @@ ath_breakout:
     wide_range_bonus: 0.25
     close_high_bonus: 0.25
     long_wick_penalty: -0.5
+
+  # Gap analysis (A5)
+  gap_analysis:
+    power_threshold_pct: 3.0
+    standard_threshold_pct: 1.0
+    power_bonus: 0.5
+    standard_bonus: 0.25
+    reversal_bonus: 0.25
 
   # Consolidation volume profile (A2)
   consol_volume:

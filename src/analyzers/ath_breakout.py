@@ -137,6 +137,13 @@ ATH_RS_UNDERPERFORMANCE_PENALTY = _cfg.get(
     "ath_breakout.relative_strength.underperformance_penalty", -0.5
 )
 
+# Gap Analysis (A5)
+ATH_GAP_POWER_PCT = _cfg.get("ath_breakout.gap_analysis.power_threshold_pct", 3.0)
+ATH_GAP_STANDARD_PCT = _cfg.get("ath_breakout.gap_analysis.standard_threshold_pct", 1.0)
+ATH_GAP_POWER_BONUS = _cfg.get("ath_breakout.gap_analysis.power_bonus", 0.5)
+ATH_GAP_STANDARD_BONUS = _cfg.get("ath_breakout.gap_analysis.standard_bonus", 0.25)
+ATH_GAP_REVERSAL_BONUS = _cfg.get("ath_breakout.gap_analysis.reversal_bonus", 0.25)
+
 # Volume Score Tiers
 ATH_VOLUME_EXCEPTIONAL = _cfg.get("ath_breakout.volume.exceptional_ratio", 2.5)
 ATH_VOLUME_STRONG = _cfg.get("ath_breakout.volume.strong_ratio", 2.0)
@@ -383,8 +390,11 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             + (f", {consol_info['ath_tests']}x tested" if consol_info["ath_tests"] >= 2 else "")
         )
 
-        # 2. Breakout Strength (0 – 2.5)
-        breakout_score = self._score_breakout_strength(close_info, prices, highs, lows)
+        # 2. Breakout Strength (0 – 2.5) — includes candle quality (A4) and gap (A5)
+        opens = getattr(context, "_opens", None) if context else None
+        breakout_score = self._score_breakout_strength(
+            close_info, prices, highs, lows, opens=opens
+        )
 
         # 3. Volume Confirmation (-1.0 – 3.0) — includes consol volume profile (A2)
         volume_score = self._score_volume(volume_info["ratio"])
@@ -712,6 +722,7 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             "confirmed": confirmed,
             "pct_above": round(pct_above, 2),
             "days_above": days_above,
+            "previous_ath": previous_ath,
         }
 
     # =========================================================================
@@ -951,11 +962,12 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         prices: Optional[List[float]] = None,
         highs: Optional[List[float]] = None,
         lows: Optional[List[float]] = None,
+        opens: Optional[List[float]] = None,
     ) -> float:
         """
         Score breakout strength (0 – 2.5).
 
-        Based on how far close is above ATH, days confirmed, and candle quality.
+        Based on how far close is above ATH, days confirmed, candle quality, and gap.
 
         Scoring table:
           Close 0-1% above ATH           → 1.0
@@ -967,6 +979,9 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
           Wide range bar (> 1.5x ATR)     → +0.25
           Close near high (> 80%)         → +0.25
           Long upper wick (> 50% range)   → -0.5
+          Power gap above ATH (>3%)       → +0.5
+          Standard gap above ATH (1-3%)   → +0.25
+          Gap-down reversal close > ATH   → +0.25
           Cap: 2.5
         """
         pct_above = close_info["pct_above"]
@@ -989,6 +1004,23 @@ class ATHBreakoutAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         # Candle quality analysis (A4)
         if prices is not None and highs is not None and lows is not None and len(prices) >= 2:
             score += self._score_candle_quality(prices, highs, lows)
+
+        # A5: Gap-up analysis
+        if opens is not None and len(opens) >= 2 and prices is not None and len(prices) >= 2:
+            prev_close = prices[-2]
+            open_today = opens[-1]
+            prev_ath = close_info.get("previous_ath", 0)
+
+            if prev_close > 0:
+                gap_pct = (open_today - prev_close) / prev_close * 100
+
+                if open_today > prev_ath and gap_pct >= ATH_GAP_POWER_PCT:
+                    score += ATH_GAP_POWER_BONUS
+                elif open_today > prev_ath and gap_pct >= ATH_GAP_STANDARD_PCT:
+                    score += ATH_GAP_STANDARD_BONUS
+                elif gap_pct < 0 and prices[-1] > prev_ath:
+                    # Gap down but closed above ATH — reversal strength
+                    score += ATH_GAP_REVERSAL_BONUS
 
         return clamp_score(score, ATH_BREAKOUT_SCORE_MAX)
 

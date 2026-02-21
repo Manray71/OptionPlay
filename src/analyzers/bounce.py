@@ -137,6 +137,26 @@ BOUNCE_SMA_RECLAIM_20_BONUS = _cfg.get("bounce.sma_reclaim.sma20_bonus", 0.5)
 BOUNCE_SMA_RECLAIM_50_BONUS = _cfg.get("bounce.sma_reclaim.sma50_bonus", 0.25)
 BOUNCE_SMA_BELOW_BOTH_PENALTY = _cfg.get("bounce.sma_reclaim.below_both_penalty", -0.25)
 
+# RSI Bullish Divergence (B3)
+BOUNCE_RSI_DIV_LOOKBACK = _cfg.get("bounce.rsi_divergence.lookback", 20)
+BOUNCE_RSI_DIV_THRESHOLD = _cfg.get("bounce.rsi_divergence.threshold", 2.0)
+BOUNCE_RSI_DIV_BONUS = _cfg.get("bounce.rsi_divergence.bonus", 0.75)
+
+# Downtrend Filter (B4)
+BOUNCE_DOWNTREND_DISQUALIFY_PCT = _cfg.get("bounce.downtrend_filter.disqualify_below_sma200_pct", 10.0)
+BOUNCE_DOWNTREND_SEVERE_PENALTY = _cfg.get("bounce.downtrend_filter.severe_penalty", -2.5)
+
+# Market Context (B5)
+BOUNCE_MARKET_CONTEXT_ENABLED = _cfg.get("bounce.market_context.enabled", False)
+BOUNCE_MARKET_BEARISH_MULT = _cfg.get("bounce.market_context.bearish_multiplier", 0.8)
+BOUNCE_MARKET_NEUTRAL_MULT = _cfg.get("bounce.market_context.neutral_multiplier", 0.9)
+BOUNCE_SECTOR_WEAK_MULT = _cfg.get("bounce.market_context.sector_weak_multiplier", 0.9)
+
+# Bollinger Band Confluence (B6)
+BOUNCE_BB_ENABLED = _cfg.get("bounce.bollinger.enabled", False)
+BOUNCE_BB_TOLERANCE_PCT = _cfg.get("bounce.bollinger.confluence_tolerance_pct", 1.0)
+BOUNCE_BB_BONUS = _cfg.get("bounce.bollinger.confluence_bonus", 0.25)
+
 # Candlestick Pattern Detection
 BOUNCE_HAMMER_WICK_BODY_RATIO = _cfg.get("bounce.candlestick.hammer_wick_body_ratio", 2)
 BOUNCE_HAMMER_UPPER_WICK_PCT = _cfg.get("bounce.candlestick.hammer_upper_wick_pct", 0.5)
@@ -364,11 +384,53 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
                 )
 
         # =====================================================================
+        # B4: Downtrend Filter — disqualify extreme downtrends
+        # =====================================================================
+        sma_200 = (
+            sum(prices[-SMA_LONG:]) / SMA_LONG
+            if len(prices) >= SMA_LONG
+            else sum(prices) / len(prices)
+        )
+        distance_to_sma200 = (current_price - sma_200) / sma_200 * 100
+
+        if distance_to_sma200 < -BOUNCE_DOWNTREND_DISQUALIFY_PCT:
+            # Check if SMA 200 is also falling (steep)
+            if len(prices) >= SMA_LONG + BOUNCE_SMA200_DIRECTION_LOOKBACK:
+                sma_200_prev = (
+                    sum(
+                        prices[
+                            -(SMA_LONG + BOUNCE_SMA200_DIRECTION_LOOKBACK) : -BOUNCE_SMA200_DIRECTION_LOOKBACK
+                        ]
+                    )
+                    / SMA_LONG
+                )
+                sma_slope_pct = (sma_200 - sma_200_prev) / sma_200_prev * 100
+                if sma_slope_pct < BOUNCE_TREND_SLOPE_STEEP:
+                    return self._make_disqualified_signal(
+                        symbol,
+                        current_price,
+                        f"Strong downtrend: {distance_to_sma200:.1f}% below falling SMA 200",
+                        support_info,
+                    )
+
+        # =====================================================================
         # SCORING: 5 Components
         # =====================================================================
 
         # 1. Support Quality (0 – 2.5)
         support_score = self._score_support_quality(touches, sma_200_confluence)
+
+        # B6: Bollinger Band confluence bonus
+        if BOUNCE_BB_ENABLED and len(prices) >= SMA_SHORT:
+            bb_middle = sum(prices[-SMA_SHORT:]) / SMA_SHORT
+            bb_std = float(np.std(prices[-SMA_SHORT:]))
+            bb_lower = bb_middle - 2 * bb_std
+            if bb_lower > 0:
+                bb_distance_pct = abs(current_price - bb_lower) / bb_lower * 100
+                if bb_distance_pct <= BOUNCE_BB_TOLERANCE_PCT:
+                    support_score = min(support_score + BOUNCE_BB_BONUS, BOUNCE_SUPPORT_QUALITY_MAX)
+                    reasons.append("BB confluence")
+
         breakdown.support_score = support_score
         breakdown.support_reason = f"{touches}x tested" + (
             " + SMA 200 confluence" if sma_200_confluence else ""
@@ -397,6 +459,20 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         total_score = (
             support_score + proximity_score + confirmation_score + volume_score + trend_score
         )
+
+        # B5: Market context multiplier (disabled by default)
+        if BOUNCE_MARKET_CONTEXT_ENABLED and context is not None:
+            sector_status = getattr(context, "sector_status", None)
+            if sector_status:
+                market_trend = getattr(sector_status, "market_trend", None)
+                if market_trend == "bearish":
+                    total_score *= BOUNCE_MARKET_BEARISH_MULT
+                elif market_trend == "neutral":
+                    total_score *= BOUNCE_MARKET_NEUTRAL_MULT
+                sector_rs = getattr(sector_status, "sector_rs", None)
+                if sector_rs is not None and sector_rs < 0:
+                    total_score *= BOUNCE_SECTOR_WEAK_MULT
+
         total_score = clamp_score(total_score, BOUNCE_MAX_SCORE)
         breakdown.total_score = round(total_score, 1)
         breakdown.max_possible = BOUNCE_MAX_SCORE
@@ -758,6 +834,28 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
             elif sma_20 is not None and current < sma_20 and current < sma_50:
                 signals.append("Below SMA 20 & 50")
                 score += BOUNCE_SMA_BELOW_BOTH_PENALTY
+
+        # --- B3: RSI Bullish Divergence ---
+        if len(rsi_values) >= BOUNCE_RSI_DIV_LOOKBACK and len(prices) >= BOUNCE_RSI_DIV_LOOKBACK:
+            mid = BOUNCE_RSI_DIV_LOOKBACK // 2
+            # Price: compare lows in two halves
+            price_low_1 = min(prices[-BOUNCE_RSI_DIV_LOOKBACK:-mid])
+            price_low_2 = min(prices[-mid:])
+            # Find RSI at those price low points
+            idx_low_1 = prices[-BOUNCE_RSI_DIV_LOOKBACK:-mid].index(price_low_1)
+            idx_low_2 = prices[-mid:].index(price_low_2)
+            rsi_at_low_1 = rsi_values[-(BOUNCE_RSI_DIV_LOOKBACK - idx_low_1)]
+            rsi_at_low_2 = rsi_values[-(mid - idx_low_2)]
+
+            # Bullish divergence: price equal/lower low, RSI higher low
+            if (
+                price_low_2 <= price_low_1 * 1.01
+                and rsi_at_low_2 > rsi_at_low_1 + BOUNCE_RSI_DIV_THRESHOLD
+            ):
+                signals.append(
+                    f"RSI bullish divergence (price low ≈ RSI {rsi_at_low_2:.0f} > {rsi_at_low_1:.0f})"
+                )
+                score += BOUNCE_RSI_DIV_BONUS
 
         # --- E.1: Momentum penalty (bearish momentum reduces score) ---
         # RSI falling above BOUNCE_RSI_MOMENTUM_FADE = momentum fading, not oversold
