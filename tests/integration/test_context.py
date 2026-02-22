@@ -707,13 +707,16 @@ class TestVolumeAnalysis:
 
     def test_low_volume_ratio(self):
         """Test volume ratio with low current volume."""
+        from unittest.mock import patch
+
         n = 30
         prices = [100.0 + i * 0.1 for i in range(n)]
         volumes = [1000000] * (n - 1) + [100000]  # Last day 0.1x average
         highs = [p + 1 for p in prices]
         lows = [p - 1 for p in prices]
 
-        ctx = AnalysisContext.from_data("TEST", prices, volumes, highs, lows)
+        with patch("src.analyzers.context._intraday_volume_scale", return_value=1.0):
+            ctx = AnalysisContext.from_data("TEST", prices, volumes, highs, lows)
 
         assert ctx.volume_ratio is not None
         assert ctx.volume_ratio < 0.2

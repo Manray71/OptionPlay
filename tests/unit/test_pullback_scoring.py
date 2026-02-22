@@ -220,7 +220,10 @@ class TestScoreVolume:
 
     def test_decreasing_volume_is_healthy(self, scorer):
         """Low volume during pullback is positive."""
-        score, reason, status = scorer._score_volume(500, 1000)
+        from unittest.mock import patch
+
+        with patch.object(type(scorer), "_intraday_volume_scale", return_value=1.0):
+            score, reason, status = scorer._score_volume(500, 1000)
         assert score > 0 or status == "decreasing"
 
     def test_volume_spike_is_caution(self, scorer):
@@ -230,7 +233,10 @@ class TestScoreVolume:
         assert status == "increasing"
 
     def test_normal_volume(self, scorer):
-        score, reason, status = scorer._score_volume(1000, 1000)
+        from unittest.mock import patch
+
+        with patch.object(type(scorer), "_intraday_volume_scale", return_value=1.0):
+            score, reason, status = scorer._score_volume(1000, 1000)
         assert status in ("stable", "decreasing")
 
 
