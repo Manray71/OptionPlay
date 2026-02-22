@@ -92,6 +92,15 @@ class StrikeMetricsMixin:
             long_debit = long_put.get("ask", 0) or 0
             net_credit = short_credit - long_debit
 
+            # Mid-price fallback when market is closed (bid=0, ask=0)
+            if net_credit <= 0:
+                short_mid = short_put.get("mid") or short_put.get("last") or 0
+                long_mid = long_put.get("mid") or long_put.get("last") or 0
+                mid_credit = short_mid - long_mid
+                if mid_credit > 0:
+                    net_credit = mid_credit
+                    metrics["data_source"] = "mid_price"
+
             if net_credit > 0:
                 metrics["credit"] = round(net_credit, 2)
                 metrics["max_profit"] = round(net_credit * 100, 2)

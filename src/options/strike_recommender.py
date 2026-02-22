@@ -583,7 +583,10 @@ class StrikeRecommender(StrikeMetricsMixin):
         if oi < ENTRY_OPEN_INTEREST_MIN:
             return False
         if bid <= 0:
-            return False
+            # Accept strikes with valid mid/last (market closed but historically liquid)
+            mid = option.get("mid") or option.get("last") or 0
+            if mid <= 0:
+                return False
         return True
 
     def _find_short_strike(
