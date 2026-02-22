@@ -681,6 +681,9 @@ class ScanHandler(BaseHandler):
 
         duration = (datetime.now() - start_time).total_seconds()
 
+        # Shadow Trade Tracker integration
+        shadow_results = await self._shadow_log_picks(result)
+
         # Format output using the mixin's formatter (imported inline)
         from ..services.recommendation_engine import DailyPick
         from ..utils.markdown_builder import MarkdownBuilder, truncate
@@ -702,6 +705,19 @@ class ScanHandler(BaseHandler):
             b.kv("Regime", f"{regime_str} (VIX {result.vix_level:.2f})")
 
         b.kv("Scanned", f"{result.symbols_scanned} symbols | Duration: {duration:.1f}s")
+
+        # Shadow tracker summary
+        if shadow_results:
+            logged = shadow_results.get("logged", 0)
+            rejected = shadow_results.get("rejected", 0)
+            skipped = shadow_results.get("skipped", 0)
+            total = logged + rejected + skipped
+            if total > 0:
+                b.kv(
+                    "Shadow",
+                    f"{logged} logged | {rejected} rejected | {skipped} skipped",
+                )
+
         b.blank()
 
         if result.warnings:
@@ -846,7 +862,187 @@ class ScanHandler(BaseHandler):
             for warning in pick.warnings:
                 b.bullet(f"Warning: {warning}")
 
+        # Shadow trade status (attached by _shadow_log_picks)
+        shadow_status = getattr(pick, "_shadow_status", None)
+        if shadow_status:
+            b.text(shadow_status)
+
         b.blank()
+
+    # --- Shadow Trade Tracker ---
+
+    async def _shadow_log_picks(self, result: Any) -> Dict[str, int]:
+        """Log daily picks through the tradability gate into shadow tracker.
+
+        For each pick with strike data, runs check_tradability() against the
+        live options chain. Tradeable picks are logged as shadow trades,
+        non-tradeable ones as rejections. Attaches _shadow_status to each pick
+        for display in the output.
+
+        Returns dict with counts: {logged, rejected, skipped}.
+        """
+        from ..shadow_tracker import ShadowTracker, check_tradability
+
+        counts = {"logged": 0, "rejected": 0, "skipped": 0}
+
+        # Check if shadow tracker is enabled
+        try:
+            settings = ShadowTracker._load_settings_static()
+            if not settings.get("enabled", True):
+                return counts
+            if not settings.get("auto_log_daily_picks", True):
+                return counts
+            min_score = settings.get("auto_log_min_score", 8.0)
+        except Exception:
+            min_score = 8.0
+
+        if not result.picks:
+            return counts
+
+        # Get tradier provider for tradability checks
+        provider = None
+        if self._ctx.tradier_connected and self._ctx.tradier_provider:
+            provider = self._ctx.tradier_provider
+
+        try:
+            tracker = ShadowTracker()
+        except Exception as e:
+            self._logger.warning("Shadow tracker init failed: %s", e)
+            return counts
+
+        try:
+            for pick in result.picks:
+                # Need strike data to check tradability
+                sv = pick.spread_validation
+                ss = pick.suggested_strikes
+
+                # Determine strikes and expiration
+                if sv and sv.tradeable and sv.short_leg and sv.long_leg:
+                    short_strike = sv.short_leg.strike
+                    long_strike = sv.long_leg.strike
+                    spread_width = sv.spread_width or (short_strike - long_strike)
+                    expiration = sv.expiration
+                    dte = sv.dte or 0
+                    est_credit = sv.credit_bid or 0.0
+                elif ss:
+                    short_strike = ss.short_strike
+                    long_strike = ss.long_strike
+                    spread_width = ss.spread_width
+                    expiration = ss.expiry
+                    dte = ss.dte or 0
+                    est_credit = ss.estimated_credit or 0.0
+                else:
+                    pick._shadow_status = ""
+                    counts["skipped"] += 1
+                    continue
+
+                if not expiration:
+                    pick._shadow_status = ""
+                    counts["skipped"] += 1
+                    continue
+
+                # Score filter
+                effective_score = pick.enhanced_score or pick.score
+                if effective_score < min_score:
+                    pick._shadow_status = ""
+                    counts["skipped"] += 1
+                    continue
+
+                # Tradability check
+                if provider:
+                    try:
+                        tradeable, reason, details = await check_tradability(
+                            provider,
+                            pick.symbol,
+                            expiration,
+                            short_strike,
+                            long_strike,
+                        )
+                    except Exception as e:
+                        self._logger.debug("Tradability check failed for %s: %s", pick.symbol, e)
+                        tradeable, reason, details = False, "no_chain", {"error": str(e)}
+                else:
+                    # No provider available — skip tradability, log with estimated data
+                    tradeable = True
+                    reason = "tradeable"
+                    details = {}
+
+                # Derive liquidity tier from suggested_strikes quality
+                liquidity_tier = None
+                if ss and ss.liquidity_quality:
+                    tier_map = {"excellent": 1, "good": 1, "fair": 2, "poor": 3}
+                    liquidity_tier = tier_map.get(ss.liquidity_quality, 2)
+
+                # Common kwargs
+                vix_at_log = result.vix_level
+                regime_at_log = result.market_regime.value if result.market_regime else None
+
+                if tradeable:
+                    # Use chain data from tradability check if available
+                    trade_id = tracker.log_trade(
+                        source="daily_picks",
+                        symbol=pick.symbol,
+                        strategy=pick.strategy,
+                        score=pick.score,
+                        enhanced_score=pick.enhanced_score,
+                        liquidity_tier=liquidity_tier,
+                        short_strike=short_strike,
+                        long_strike=long_strike,
+                        spread_width=spread_width,
+                        est_credit=details.get("net_credit", est_credit),
+                        expiration=expiration,
+                        dte=dte,
+                        short_bid=details.get("short_bid"),
+                        short_ask=details.get("short_ask"),
+                        short_oi=details.get("short_oi"),
+                        long_bid=details.get("long_bid"),
+                        long_ask=details.get("long_ask"),
+                        long_oi=details.get("long_oi"),
+                        price_at_log=pick.current_price,
+                        vix_at_log=vix_at_log,
+                        regime_at_log=regime_at_log,
+                        stability_at_log=pick.stability_score,
+                    )
+                    if trade_id:
+                        credit_str = f"${details.get('net_credit', est_credit):.2f}"
+                        oi_short = details.get("short_oi", "?")
+                        oi_long = details.get("long_oi", "?")
+                        oi_str = f"{oi_short:,} / {oi_long:,}" if isinstance(oi_short, int) else "?"
+                        pick._shadow_status = (
+                            f"TRADEABLE — Shadow Trade geloggt "
+                            f"(Credit {credit_str} | OI: {oi_str})"
+                        )
+                        counts["logged"] += 1
+                    else:
+                        # Duplicate
+                        pick._shadow_status = "Shadow Trade bereits geloggt (Duplikat)"
+                        counts["skipped"] += 1
+                else:
+                    # Log rejection
+                    import json
+
+                    tracker.log_rejection(
+                        source="daily_picks",
+                        symbol=pick.symbol,
+                        strategy=pick.strategy,
+                        score=pick.score,
+                        liquidity_tier=liquidity_tier,
+                        short_strike=short_strike,
+                        long_strike=long_strike,
+                        rejection_reason=reason,
+                        actual_credit=details.get("net_credit"),
+                        short_oi=details.get("short_oi"),
+                        details=json.dumps(details),
+                    )
+                    pick._shadow_status = f"NOT TRADEABLE — {reason}"
+                    counts["rejected"] += 1
+
+        except Exception as e:
+            self._logger.warning("Shadow tracker error: %s", e)
+        finally:
+            tracker.close()
+
+        return counts
 
     # --- Shared helper methods (delegating to server context) ---
 

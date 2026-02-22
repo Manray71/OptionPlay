@@ -26,6 +26,7 @@ Alle Tools sind hier definiert mit:
 - Handler-Funktion
 """
 
+import json
 import logging
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Union
@@ -1193,9 +1194,294 @@ async def handle_sector_status(server: Any, arguments: ToolArguments) -> str:
 
 
 # =============================================================================
+# SHADOW TRADE TRACKER (2)
+# =============================================================================
+
+
+@tool_registry.register(
+    name="optionplay_shadow_review",
+    description=(
+        "Review shadow trades: resolve open trades against current market data, "
+        "show open/closed trades with P&L. Resolves using live options chain prices."
+    ),
+    input_schema={
+        "type": "object",
+        "properties": {
+            "resolve": {
+                "type": "boolean",
+                "description": "Resolve open trades against current prices (default: true)",
+            },
+            "status_filter": {
+                "type": "string",
+                "enum": ["all", "open", "closed"],
+                "description": "Filter by status (default: all)",
+            },
+            "strategy_filter": {
+                "type": "string",
+                "description": "Filter by strategy name",
+            },
+            "days_back": {
+                "type": "number",
+                "description": "Time period in days (default: 90)",
+            },
+        },
+    },
+    aliases=["shadow_review", "shadow"],
+)
+async def handle_shadow_review(server: Any, arguments: ToolArguments) -> str:
+    from .shadow_tracker import (
+        ShadowTracker,
+        format_review_output,
+        resolve_open_trades,
+    )
+
+    do_resolve = arguments.get("resolve", True)
+    status_filter = arguments.get("status_filter", "all")
+    strategy_filter = arguments.get("strategy_filter")
+    days_back = int(arguments.get("days_back", 90))
+
+    tracker = ShadowTracker()
+    try:
+        # Resolve open trades if requested
+        resolutions = []
+        if do_resolve:
+            provider = None
+            if hasattr(server, "handlers"):
+                ctx = server.handlers._context
+                if ctx.tradier_connected and ctx.tradier_provider:
+                    provider = ctx.tradier_provider
+            resolutions = await resolve_open_trades(tracker, provider=provider)
+
+        # Fetch trades and rejections
+        trades = tracker.get_trades(
+            status_filter=status_filter,
+            strategy_filter=strategy_filter,
+            days_back=days_back,
+        )
+        rejections = tracker.get_rejections(days_back=days_back)
+
+        return format_review_output(trades, resolutions, rejections)
+    finally:
+        tracker.close()
+
+
+@tool_registry.register(
+    name="optionplay_shadow_stats",
+    description=(
+        "Aggregated shadow trade statistics. Group by strategy, score bucket, "
+        "regime, month, symbol, liquidity tier, or rejection reason."
+    ),
+    input_schema={
+        "type": "object",
+        "properties": {
+            "group_by": {
+                "type": "string",
+                "enum": [
+                    "strategy",
+                    "score_bucket",
+                    "regime",
+                    "month",
+                    "symbol",
+                    "tier",
+                    "rejection_reason",
+                ],
+                "description": "Grouping dimension (default: strategy)",
+            },
+            "min_trades": {
+                "type": "number",
+                "description": "Minimum trades per group for relevance (default: 5)",
+            },
+        },
+    },
+    aliases=["shadow_stats"],
+)
+async def handle_shadow_stats(server: Any, arguments: ToolArguments) -> str:
+    from .shadow_tracker import ShadowTracker, format_stats_output, get_stats
+
+    group_by = arguments.get("group_by", "strategy")
+    min_trades = int(arguments.get("min_trades", 5))
+
+    tracker = ShadowTracker()
+    try:
+        stats = get_stats(tracker, group_by=group_by, min_trades=min_trades)
+        return format_stats_output(stats)
+    finally:
+        tracker.close()
+
+
+@tool_registry.register(
+    name="optionplay_shadow_log",
+    description=(
+        "Manually log a shadow trade. Runs tradability check against the live "
+        "options chain before logging. Use this when you want to track a specific "
+        "trade idea outside of daily_picks."
+    ),
+    input_schema={
+        "type": "object",
+        "properties": {
+            "symbol": {"type": "string", "description": "Ticker symbol (e.g. AAPL)"},
+            "strategy": {
+                "type": "string",
+                "enum": [
+                    "pullback",
+                    "bounce",
+                    "ath_breakout",
+                    "earnings_dip",
+                    "trend_continuation",
+                ],
+                "description": "Trading strategy",
+            },
+            "score": {"type": "number", "description": "Signal score (0-10)"},
+            "short_strike": {"type": "number", "description": "Short put strike price"},
+            "long_strike": {"type": "number", "description": "Long put strike price"},
+            "expiration": {"type": "string", "description": "Expiration date (YYYY-MM-DD)"},
+            "price_at_log": {"type": "number", "description": "Current underlying price"},
+        },
+        "required": [
+            "symbol",
+            "strategy",
+            "score",
+            "short_strike",
+            "long_strike",
+            "expiration",
+            "price_at_log",
+        ],
+    },
+    aliases=["shadow_log"],
+)
+async def handle_shadow_log(server: Any, arguments: ToolArguments) -> str:
+    from .shadow_tracker import ShadowTracker, check_tradability
+
+    symbol = arguments["symbol"].upper()
+    strategy = arguments["strategy"]
+    score = float(arguments["score"])
+    short_strike = float(arguments["short_strike"])
+    long_strike = float(arguments["long_strike"])
+    expiration = arguments["expiration"]
+    price_at_log = float(arguments["price_at_log"])
+    spread_width = short_strike - long_strike
+
+    if spread_width <= 0:
+        return "**Error:** short_strike must be greater than long_strike."
+
+    # Get Tradier provider
+    provider = None
+    if hasattr(server, "handlers"):
+        ctx = server.handlers._context
+        if ctx.tradier_connected and ctx.tradier_provider:
+            provider = ctx.tradier_provider
+
+    if not provider:
+        return "**Error:** Tradier provider not available. Cannot run tradability check."
+
+    # Run tradability check
+    tradeable, reason, details = await check_tradability(
+        provider, symbol, expiration, short_strike, long_strike
+    )
+
+    tracker = ShadowTracker()
+    try:
+        if not tradeable:
+            # Log rejection
+            rej_id = tracker.log_rejection(
+                source="manual",
+                symbol=symbol,
+                strategy=strategy,
+                score=score,
+                rejection_reason=reason,
+                short_strike=short_strike,
+                long_strike=long_strike,
+                actual_credit=details.get("net_credit"),
+                short_oi=details.get("short_oi"),
+                details=json.dumps(details),
+            )
+            return (
+                f"**NOT TRADEABLE** — {reason}\n\n"
+                f"Rejection logged (ID: `{rej_id}`)\n\n"
+                f"Details: {json.dumps(details, indent=2)}"
+            )
+
+        # Calculate DTE
+        from datetime import date as _date
+
+        dte = (_date.fromisoformat(expiration) - _date.today()).days
+        est_credit = details.get("net_credit", 0.0)
+
+        trade_id = tracker.log_trade(
+            source="manual",
+            symbol=symbol,
+            strategy=strategy,
+            score=score,
+            short_strike=short_strike,
+            long_strike=long_strike,
+            spread_width=spread_width,
+            est_credit=est_credit,
+            expiration=expiration,
+            dte=dte,
+            price_at_log=price_at_log,
+            short_bid=details.get("short_bid"),
+            short_ask=details.get("short_ask"),
+            short_oi=details.get("short_oi"),
+            long_bid=details.get("long_bid"),
+            long_ask=details.get("long_ask"),
+            long_oi=details.get("long_oi"),
+        )
+
+        if trade_id is None:
+            return f"**Duplicate:** A trade for {symbol} {short_strike}/{long_strike} already exists today."
+
+        return (
+            f"**TRADEABLE** — Shadow trade logged\n\n"
+            f"- **Trade ID:** `{trade_id}`\n"
+            f"- **Symbol:** {symbol}\n"
+            f"- **Strategy:** {strategy}\n"
+            f"- **Score:** {score:.1f}\n"
+            f"- **Strikes:** {short_strike:.0f}/{long_strike:.0f}\n"
+            f"- **Est. Credit:** ${est_credit:.2f}\n"
+            f"- **Expiration:** {expiration} (DTE: {dte})\n"
+            f"- **Short Bid/Ask:** ${details.get('short_bid', 0):.2f}/${details.get('short_ask', 0):.2f}\n"
+            f"- **Long Bid/Ask:** ${details.get('long_bid', 0):.2f}/${details.get('long_ask', 0):.2f}"
+        )
+    finally:
+        tracker.close()
+
+
+@tool_registry.register(
+    name="optionplay_shadow_detail",
+    description=(
+        "Show full details of a single shadow trade by ID. "
+        "Displays all fields including options market data at logging, "
+        "current status, and resolution details."
+    ),
+    input_schema={
+        "type": "object",
+        "properties": {
+            "trade_id": {
+                "type": "string",
+                "description": "Trade UUID (from shadow_review or shadow_log output)",
+            },
+        },
+        "required": ["trade_id"],
+    },
+    aliases=["shadow_detail"],
+)
+async def handle_shadow_detail(server: Any, arguments: ToolArguments) -> str:
+    from .shadow_tracker import ShadowTracker, format_detail_output
+
+    trade_id = arguments["trade_id"]
+
+    tracker = ShadowTracker()
+    try:
+        trade = tracker.get_trade(trade_id)
+        return format_detail_output(trade)
+    finally:
+        tracker.close()
+
+
+# =============================================================================
 # SUMMARY
 # =============================================================================
-# Total: 54 Tools + 56 Aliases = 110 MCP endpoints
+# Total: 58 Tools + 61 Aliases = 119 MCP endpoints
 #
 # Categories:
 # - VIX & Strategy: 6 tools (inkl. sector_status)
@@ -1207,3 +1493,4 @@ async def handle_sector_status(server: Any, arguments: ToolArguments) -> str:
 # - Reports: 2 tools
 # - Risk: 4 tools
 # - System: 2 tools
+# - Shadow Tracker: 4 tools

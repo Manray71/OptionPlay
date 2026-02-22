@@ -492,3 +492,26 @@ roll_strategy:
     max_rolls: 5
     min_credit_recovery_pct: 0.60
     support_buffer_pct: 3.39
+
+# ============================================================================
+# SHADOW TRADE TRACKER
+# ============================================================================
+# Protokolliert daily_picks-Empfehlungen und trackt deren Ausgang.
+# Separate DB: data/shadow_trades.db (WAL-Modus)
+shadow_tracker:
+  enabled: true
+  auto_log_daily_picks: true
+  auto_log_scans: false
+  auto_log_min_score: 8.0
+  db_path: "data/shadow_trades.db"
+
+# ============================================================================
+# TRADABILITY GATE
+# ============================================================================
+# Schwellenwerte für den Tradability-Check gegen die echte Options-Chain.
+# Nur Trades, die alle Prüfungen bestehen, werden als Shadow Trade geloggt.
+tradability_gate:
+  min_net_credit: 2.00            # USD, berechnet als Short Bid - Long Ask
+  min_open_interest: 100          # Pro Leg
+  min_bid: 0.10                   # Short Put Bid muss > $0.10 sein
+  max_bid_ask_spread_pct: 30      # Prozent des Midpoint
