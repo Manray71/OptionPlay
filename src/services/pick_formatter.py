@@ -135,8 +135,12 @@ def format_single_pick(pick: Any) -> list[str]:
         else:
             score_str = f"{pick.enhanced_score:.1f} (base {pick.score:.1f})"
 
+    tier_badge = ""
+    if getattr(pick, "liquidity_tier", None) is not None:
+        tier_badge = f" [T{pick.liquidity_tier}]"
+
     lines = [
-        f"### {pick.rank}. **{pick.symbol}** - {pick.strategy.replace('_', ' ').title()}{grade_badge}",
+        f"### {pick.rank}. **{pick.symbol}**{tier_badge} - {pick.strategy.replace('_', ' ').title()}{grade_badge}",
         "",
         f"| Metrik | Wert |",
         f"|--------|------|",

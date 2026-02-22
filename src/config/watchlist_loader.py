@@ -612,6 +612,54 @@ class WatchlistLoader:
             "risk_pct": round(len(risk) / total * 100, 1) if total > 0 else 0,
         }
 
+    def get_symbols_by_tier(self, max_tier: int = 1) -> List[str]:
+        """
+        Returns symbols with liquidity_tier <= max_tier.
+
+        Uses FundamentalsManager to check each symbol's liquidity_tier.
+        Falls back to full symbol list if no tier data is available.
+
+        Args:
+            max_tier: Maximum tier to include (1=only Tier 1, 2=Tier 1+2, 3=all)
+
+        Returns:
+            List of symbols matching the tier filter
+        """
+        try:
+            from ..cache import get_fundamentals_manager
+        except ImportError:
+            try:
+                from src.cache import get_fundamentals_manager
+            except ImportError:
+                logger.warning("FundamentalsManager not available, returning all symbols")
+                return self._all_symbols.copy()
+
+        manager = get_fundamentals_manager()
+        fundamentals_map = manager.get_fundamentals_batch(self._all_symbols)
+
+        # Check if any symbol has tier data
+        has_tier_data = any(f.liquidity_tier is not None for f in fundamentals_map.values())
+
+        if not has_tier_data:
+            logger.info("No liquidity tier data available, returning all symbols")
+            return self._all_symbols.copy()
+
+        result = []
+        for symbol in self._all_symbols:
+            fund = fundamentals_map.get(symbol)
+            if fund and fund.liquidity_tier is not None:
+                if fund.liquidity_tier <= max_tier:
+                    result.append(symbol)
+            else:
+                # Symbols without tier data: include if max_tier >= 2 (lenient)
+                if max_tier >= 2:
+                    result.append(symbol)
+
+        logger.info(
+            f"Tier filter (max_tier={max_tier}): {len(result)}/{len(self._all_symbols)} symbols"
+        )
+        return result
+
     @property
     def stability_split_enabled(self) -> bool:
         """Gibt zurück ob Stability Split aktiviert ist"""

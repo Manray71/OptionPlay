@@ -154,6 +154,9 @@ class DailyPick:
     reason: str = ""
     warnings: list[str] = field(default_factory=list)
 
+    # Liquidity tier (1=high, 2=medium, 3=low)
+    liquidity_tier: Optional[int] = None
+
     # Enhanced scoring (daily_picks re-ranking)
     enhanced_score: Optional[float] = None
     enhanced_score_result: Optional[Any] = None  # EnhancedScoreResult
@@ -181,6 +184,8 @@ class DailyPick:
             "warnings": self.warnings,
             "timestamp": self.timestamp.isoformat(),
         }
+        if self.liquidity_tier is not None:
+            result["liquidity_tier"] = self.liquidity_tier
         if self.enhanced_score is not None:
             result["enhanced_score"] = self.enhanced_score
         return result

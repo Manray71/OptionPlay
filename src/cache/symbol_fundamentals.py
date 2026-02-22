@@ -107,6 +107,10 @@ class SymbolFundamentals:
     avg_earnings_move_pct: Optional[float] = None  # Avg absolute % move on earnings
     std_earnings_move_pct: Optional[float] = None  # Std dev of earnings % moves
 
+    # Liquidity tier (from options OI analysis)
+    liquidity_tier: Optional[int] = None  # 1=high, 2=medium, 3=low
+    avg_put_oi: Optional[float] = None  # Median put OI at 60-90 DTE
+
     # E.6: Survivorship Bias — 1 = delisted/acquired, 0 = active
     delisted: int = 0
 
@@ -268,6 +272,19 @@ class SymbolFundamentalsManager:
                         cursor.execute(f"SELECT {col} FROM symbol_fundamentals LIMIT 1")
                     except sqlite3.OperationalError:
                         cursor.execute(f"ALTER TABLE symbol_fundamentals ADD COLUMN {col} REAL")
+                        logger.info(f"Migrated symbol_fundamentals: added '{col}' column")
+
+                # Migration: add liquidity tier columns
+                for col, col_type in (
+                    ("liquidity_tier", "INTEGER"),
+                    ("avg_put_oi", "REAL"),
+                ):
+                    try:
+                        cursor.execute(f"SELECT {col} FROM symbol_fundamentals LIMIT 1")
+                    except sqlite3.OperationalError:
+                        cursor.execute(
+                            f"ALTER TABLE symbol_fundamentals ADD COLUMN {col} {col_type}"
+                        )
                         logger.info(f"Migrated symbol_fundamentals: added '{col}' column")
 
                 # Indices for fast queries

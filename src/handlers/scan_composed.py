@@ -578,11 +578,21 @@ class ScanHandler(BaseHandler):
 
         await self._ensure_connected()
 
-        # Load symbols
+        # Load symbols — prefer Tier 1 (high liquidity) if tier data available
         if not symbols:
             watchlist_loader = get_watchlist_loader()
-            symbols = watchlist_loader.get_symbols_by_list_type("stable")
-            self._logger.info(f"Daily picks: scanning {len(symbols)} stable symbols")
+            tier1_symbols = watchlist_loader.get_symbols_by_tier(max_tier=1)
+            all_stable = watchlist_loader.get_symbols_by_list_type("stable")
+            # Use tier 1 if it has enough symbols, otherwise fall back to stable list
+            if len(tier1_symbols) < len(all_stable):
+                symbols = tier1_symbols
+                self._logger.info(
+                    f"Daily picks: scanning {len(symbols)} Tier-1 symbols "
+                    f"(of {len(all_stable)} stable)"
+                )
+            else:
+                symbols = all_stable
+                self._logger.info(f"Daily picks: scanning {len(symbols)} stable symbols")
         else:
             symbols = validate_symbols(symbols, skip_invalid=True)
 
@@ -746,6 +756,10 @@ class ScanHandler(BaseHandler):
         }
         strategy_str = strategy_display.get(pick.strategy, pick.strategy.replace("_", " ").title())
 
+        tier_badge = ""
+        if getattr(pick, "liquidity_tier", None) is not None:
+            tier_badge = f" [T{pick.liquidity_tier}]"
+
         eqs_str = ""
         if pick.entry_quality and hasattr(pick.entry_quality, "eqs_total"):
             eqs_str = f" | EQS {pick.entry_quality.eqs_total:.0f}"
@@ -755,7 +769,9 @@ class ScanHandler(BaseHandler):
         if pick.enhanced_score is not None:
             score_display = f"Enhanced {pick.enhanced_score:.1f} (base {pick.score:.1f})"
 
-        b.h2(f"#{pick.rank} -- {pick.symbol} | {strategy_str} | {score_display}{eqs_str}")
+        b.h2(
+            f"#{pick.rank} -- {pick.symbol}{tier_badge} | {strategy_str} | {score_display}{eqs_str}"
+        )
 
         # Bonus breakdown line
         if hasattr(pick, "enhanced_score_result") and pick.enhanced_score_result is not None:

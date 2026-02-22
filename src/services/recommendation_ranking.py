@@ -522,11 +522,13 @@ class RecommendationRankingMixin:
         # Sektor und Market Cap aus Fundamentals
         sector = None
         market_cap = None
+        liquidity_tier = None
         if self._fundamentals_manager:
             fundamentals = self._fundamentals_manager.get_fundamentals(signal.symbol)
             if fundamentals:
                 sector = fundamentals.sector
                 market_cap = fundamentals.market_cap_category
+                liquidity_tier = fundamentals.liquidity_tier
                 if stability_score == 0.0 and fundamentals.stability_score:
                     stability_score = fundamentals.stability_score
                 if historical_wr is None and fundamentals.historical_win_rate:
@@ -585,6 +587,7 @@ class RecommendationRankingMixin:
             current_price=signal.current_price,
             sector=sector,
             market_cap_category=market_cap,
+            liquidity_tier=liquidity_tier,
             suggested_strikes=suggested_strikes,
             reason=signal.reason or "",
             warnings=warnings,
