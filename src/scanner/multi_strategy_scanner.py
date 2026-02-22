@@ -1018,7 +1018,11 @@ class MultiStrategyScanner:
                     continue
 
                 # Liquidity tier gate: skip if symbol's tier exceeds strategy limit
-                max_tier = resolved.max_tier if resolved is not None else self._get_strategy_max_tier(strategy_name)
+                max_tier = (
+                    resolved.max_tier
+                    if resolved is not None
+                    else self._get_strategy_max_tier(strategy_name)
+                )
                 if max_tier < 3:
                     f = self._fundamentals_cache.get(symbol.upper())
                     sym_tier = f.liquidity_tier if f and f.liquidity_tier else 3
