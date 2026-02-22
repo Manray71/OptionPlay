@@ -16,6 +16,7 @@ import logging
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from enum import Enum
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from ..analyzers.ath_breakout import ATHBreakoutAnalyzer, ATHBreakoutConfig
@@ -682,6 +683,20 @@ class MultiStrategyScanner:
         except (ImportError, Exception):
             return None
 
+    def _get_strategy_max_tier(self, strategy_name: str) -> int:
+        """Fallback: read max_tier directly from scoring_weights.yaml when resolved weights unavailable."""
+        try:
+            config_path = Path(__file__).resolve().parents[1] / "config" / "scoring_weights.yaml"
+            if not hasattr(self, "_scoring_weights_yaml"):
+                import yaml
+
+                with open(config_path) as f:
+                    self._scoring_weights_yaml = yaml.safe_load(f)
+            strat_cfg = self._scoring_weights_yaml.get("strategies", {}).get(strategy_name, {})
+            return int(strat_cfg.get("max_tier", 3))
+        except Exception:
+            return 3
+
     def _set_dividend_context(self, context: AnalysisContext, symbol: str) -> None:
         """E.5: Sets dividend context fields for gap-filtering."""
         if get_dividend_history_manager is None:
@@ -1003,13 +1018,14 @@ class MultiStrategyScanner:
                     continue
 
                 # Liquidity tier gate: skip if symbol's tier exceeds strategy limit
-                if resolved is not None and resolved.max_tier < 3:
+                max_tier = resolved.max_tier if resolved is not None else self._get_strategy_max_tier(strategy_name)
+                if max_tier < 3:
                     f = self._fundamentals_cache.get(symbol.upper())
                     sym_tier = f.liquidity_tier if f and f.liquidity_tier else 3
-                    if sym_tier > resolved.max_tier:
+                    if sym_tier > max_tier:
                         logger.debug(
                             f"Skipping {symbol} for {strategy_name}: "
-                            f"tier {sym_tier} > max_tier {resolved.max_tier}"
+                            f"tier {sym_tier} > max_tier {max_tier}"
                         )
                         continue
 
