@@ -1002,6 +1002,17 @@ class MultiStrategyScanner:
                     )
                     continue
 
+                # Liquidity tier gate: skip if symbol's tier exceeds strategy limit
+                if resolved is not None and resolved.max_tier < 3:
+                    f = self._fundamentals_cache.get(symbol.upper())
+                    sym_tier = f.liquidity_tier if f and f.liquidity_tier else 3
+                    if sym_tier > resolved.max_tier:
+                        logger.debug(
+                            f"Skipping {symbol} for {strategy_name}: "
+                            f"tier {sym_tier} > max_tier {resolved.max_tier}"
+                        )
+                        continue
+
                 # Earnings-Filter
                 if self._should_skip_for_earnings(symbol, strategy_name):
                     continue

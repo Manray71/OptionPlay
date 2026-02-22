@@ -46,6 +46,7 @@ class ResolvedWeights:
     sector_factor: float = 1.0  # Multiplicative sector adjustment (0.5-1.3)
     enabled: bool = True  # Whether strategy is enabled for this regime
     vix_score_multiplier: float = 1.0  # VIX regime score multiplier (0.0-1.5)
+    max_tier: int = 3  # Max liquidity tier allowed (1=T1 only, 2=T1+T2, 3=all)
 
     def as_numpy_array(self, component_order: List[str]) -> "np.ndarray":
         """Convert weights to numpy array in specified component order."""
@@ -250,6 +251,7 @@ class RecursiveConfigResolver:
             "weights": base_weights,
             "max_possible": base_max,
             "min_stability": base_stability,
+            "max_tier": strat_cfg.get("max_tier", 3),
         }
 
         # Layer 2: Regime override
@@ -282,6 +284,10 @@ class RecursiveConfigResolver:
         vix_mult = float(merged.get("vix_score_multiplier", 1.0))
         vix_mult = max(0.0, min(1.5, vix_mult))  # Safety clamp
 
+        # Extract max liquidity tier (Schritt 5: liquidity tier gate)
+        max_tier = int(merged.get("max_tier", 3))
+        max_tier = max(1, min(3, max_tier))  # Safety clamp
+
         return ResolvedWeights(
             strategy=strategy,
             regime=regime,
@@ -292,6 +298,7 @@ class RecursiveConfigResolver:
             sector_factor=sector_factor,
             enabled=enabled,
             vix_score_multiplier=vix_mult,
+            max_tier=max_tier,
         )
 
     def get_stability_threshold(

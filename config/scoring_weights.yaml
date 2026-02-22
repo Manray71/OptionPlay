@@ -5,6 +5,7 @@ defaults:
   min_stability: 70
 strategies:
   pullback:
+    max_tier: 1
     weights:
       rsi: 3.7
       rsi_divergence: 3.6
@@ -80,6 +81,7 @@ strategies:
       Utilities:
         sector_factor: 1.003
   bounce:
+    max_tier: 1
     weights:
       support: 1.05
       rsi: 2.7
@@ -150,6 +152,7 @@ strategies:
       Real Estate:
         sector_factor: 0.983
   ath_breakout:
+    max_tier: 2
     weights:
       ath: 1.03
       volume: 2.0
@@ -213,6 +216,7 @@ strategies:
       Healthcare:
         sector_factor: 0.928
   earnings_dip:
+    max_tier: 2
     weights:
       dip: 3.0
       gap: 2.0
@@ -265,6 +269,7 @@ strategies:
       Real Estate:
         sector_factor: 1.154
   trend_continuation:
+    max_tier: 1
     weights:
       sma_alignment: 2.00
       trend_stability: 2.00
