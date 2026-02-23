@@ -994,6 +994,37 @@ class ScanHandler(BaseHandler):
                 regime_at_log = result.market_regime.value if result.market_regime else None
 
                 if tradeable:
+                    # Build trade context from signal details
+                    trade_context_json = None
+                    signal = getattr(pick, "_signal", None)
+                    if signal:
+                        try:
+                            trade_ctx = {
+                                "signal": {
+                                    "score": signal.score,
+                                    "strength": signal.strength.value if hasattr(signal.strength, "value") else str(signal.strength),
+                                    "reason": signal.reason,
+                                    "details": signal.details,
+                                },
+                                "recommendation": {
+                                    "quality": ss.quality if ss and hasattr(ss, "quality") else None,
+                                    "risk_reward_ratio": ss.risk_reward_ratio if ss and hasattr(ss, "risk_reward_ratio") else None,
+                                    "prob_profit": ss.prob_profit if ss and hasattr(ss, "prob_profit") else None,
+                                    "data_source": ss.data_source if ss and hasattr(ss, "data_source") else None,
+                                },
+                                "scanner": {
+                                    "win_rate": pick.historical_win_rate,
+                                    "stability": pick.stability_score,
+                                    "sector": pick.sector,
+                                    "rank": pick.rank,
+                                    "speed_score": pick.speed_score,
+                                    "reliability_grade": pick.reliability_grade,
+                                },
+                            }
+                            trade_context_json = json.dumps(trade_ctx, default=str)
+                        except Exception:
+                            pass
+
                     # Use chain data from tradability check if available
                     trade_id = tracker.log_trade(
                         source="daily_picks",
@@ -1018,6 +1049,7 @@ class ScanHandler(BaseHandler):
                         vix_at_log=vix_at_log,
                         regime_at_log=regime_at_log,
                         stability_at_log=pick.stability_score,
+                        trade_context=trade_context_json,
                     )
                     if trade_id:
                         credit_str = f"${details.get('net_credit', est_credit):.2f}"

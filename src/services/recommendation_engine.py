@@ -161,6 +161,9 @@ class DailyPick:
     enhanced_score: Optional[float] = None
     enhanced_score_result: Optional[Any] = None  # EnhancedScoreResult
 
+    # Original signal reference (for shadow trade context logging)
+    _signal: Optional[Any] = field(default=None, repr=False)
+
     # Metadata
     timestamp: datetime = field(default_factory=datetime.now)
 

@@ -591,4 +591,5 @@ class RecommendationRankingMixin:
             suggested_strikes=suggested_strikes,
             reason=signal.reason or "",
             warnings=warnings,
+            _signal=signal,
         )

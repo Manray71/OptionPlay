@@ -85,6 +85,7 @@ CREATE TABLE IF NOT EXISTS shadow_trades (
     vix_at_log      REAL,
     regime_at_log   TEXT,
     stability_at_log REAL,
+    trade_context   TEXT,
 
     status          TEXT DEFAULT 'open',
     resolved_at     TEXT,
@@ -334,6 +335,10 @@ class ShadowTracker:
             conn.executescript(_SCHEMA_SQL)
             for idx_sql in _INDEX_SQL:
                 conn.execute(idx_sql)
+            # Migrations for existing DBs
+            cols = {r[1] for r in conn.execute("PRAGMA table_info(shadow_trades)").fetchall()}
+            if "trade_context" not in cols:
+                conn.execute("ALTER TABLE shadow_trades ADD COLUMN trade_context TEXT")
 
     def _ensure_connection(self) -> sqlite3.Connection:
         """Create or return existing connection with WAL mode."""
@@ -390,8 +395,15 @@ class ShadowTracker:
         vix_at_log: Optional[float] = None,
         regime_at_log: Optional[str] = None,
         stability_at_log: Optional[float] = None,
+        trade_context: Optional[str] = None,
     ) -> Optional[str]:
-        """Log a shadow trade. Returns trade_id (UUID) or None if duplicate."""
+        """Log a shadow trade. Returns trade_id (UUID) or None if duplicate.
+
+        Args:
+            trade_context: JSON string with full analysis context (indicators,
+                score breakdown, IV data, support/resistance levels, etc.)
+                for later correlation analysis.
+        """
         if source not in VALID_SOURCES:
             raise ValueError(f"Invalid source: {source}. Must be one of {VALID_SOURCES}")
         if strategy not in VALID_STRATEGIES:
@@ -422,7 +434,7 @@ class ShadowTracker:
                     short_bid, short_ask, short_oi,
                     long_bid, long_ask, long_oi,
                     price_at_log, vix_at_log, regime_at_log, stability_at_log,
-                    status
+                    trade_context, status
                 ) VALUES (
                     ?, ?, ?, ?, ?, ?,
                     ?, ?,
@@ -431,7 +443,7 @@ class ShadowTracker:
                     ?, ?, ?,
                     ?, ?, ?,
                     ?, ?, ?, ?,
-                    'open'
+                    ?, 'open'
                 )
                 """,
                 (
@@ -459,6 +471,7 @@ class ShadowTracker:
                     vix_at_log,
                     regime_at_log,
                     stability_at_log,
+                    trade_context,
                 ),
             )
 
