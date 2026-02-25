@@ -41,7 +41,7 @@ load_dotenv()
 
 DB_PATH = Path.home() / ".optionplay" / "trades.db"
 LOG_DIR = Path.home() / ".optionplay" / "logs"
-ALL_STEPS = ["vix", "options", "ohlcv", "iv"]
+ALL_STEPS = ["vix", "options", "ohlcv", "iv", "liquidity"]
 
 
 def setup_logging(verbose=False):
@@ -395,6 +395,30 @@ def step_iv(logger, dry_run=False):
         return False
 
 
+# -- Step 5: Liquidity Tier Classification --
+
+def step_liquidity(logger, dry_run=False):
+    logger.info("--- STEP 5: Liquidity Tier Classification ---")
+    try:
+        from scripts.classify_liquidity import classify_symbols
+
+        if dry_run:
+            tiers = classify_symbols(dry_run=True)
+        else:
+            tiers = classify_symbols()
+
+        for tier_num in (1, 2, 3):
+            count = len(tiers[tier_num])
+            logger.info(f"  Tier {tier_num}: {count} Symbole")
+        total = sum(len(v) for v in tiers.values())
+        logger.info(f"  Gesamt: {total} Symbole klassifiziert")
+        return True
+
+    except Exception as e:
+        logger.error(f"  Fehler: {e}")
+        return False
+
+
 # -- Main --
 
 async def run(args):
@@ -424,6 +448,8 @@ async def run(args):
         results["OHLCV"] = await step_ohlcv(logger, status, args.dry_run)
     if "iv" in steps:
         results["IV Cache"] = step_iv(logger, args.dry_run)
+    if "liquidity" in steps:
+        results["Liquidity Tiers"] = step_liquidity(logger, args.dry_run)
     elapsed = time.time() - t0
     print()
     logger.info("=" * 50)
