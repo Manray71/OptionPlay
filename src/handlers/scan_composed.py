@@ -1002,15 +1002,33 @@ class ScanHandler(BaseHandler):
                             trade_ctx = {
                                 "signal": {
                                     "score": signal.score,
-                                    "strength": signal.strength.value if hasattr(signal.strength, "value") else str(signal.strength),
+                                    "strength": (
+                                        signal.strength.value
+                                        if hasattr(signal.strength, "value")
+                                        else str(signal.strength)
+                                    ),
                                     "reason": signal.reason,
                                     "details": signal.details,
                                 },
                                 "recommendation": {
-                                    "quality": ss.quality if ss and hasattr(ss, "quality") else None,
-                                    "risk_reward_ratio": ss.risk_reward_ratio if ss and hasattr(ss, "risk_reward_ratio") else None,
-                                    "prob_profit": ss.prob_profit if ss and hasattr(ss, "prob_profit") else None,
-                                    "data_source": ss.data_source if ss and hasattr(ss, "data_source") else None,
+                                    "quality": (
+                                        ss.quality if ss and hasattr(ss, "quality") else None
+                                    ),
+                                    "risk_reward_ratio": (
+                                        ss.risk_reward_ratio
+                                        if ss and hasattr(ss, "risk_reward_ratio")
+                                        else None
+                                    ),
+                                    "prob_profit": (
+                                        ss.prob_profit
+                                        if ss and hasattr(ss, "prob_profit")
+                                        else None
+                                    ),
+                                    "data_source": (
+                                        ss.data_source
+                                        if ss and hasattr(ss, "data_source")
+                                        else None
+                                    ),
                                 },
                                 "scanner": {
                                     "win_rate": pick.historical_win_rate,
