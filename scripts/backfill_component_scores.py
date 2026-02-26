@@ -32,10 +32,7 @@ import time
 import numpy as np
 
 # Setup logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 # Paths
@@ -49,6 +46,7 @@ LOOKBACK_DAYS = 100
 @dataclass
 class TradeToProcess:
     """Ein Trade der Scores braucht."""
+
     id: int
     symbol: str
     entry_date: str
@@ -74,10 +72,10 @@ def get_trades_without_scores(limit: int = None) -> List[TradeToProcess]:
     cursor.execute(query)
     trades = [
         TradeToProcess(
-            id=row['id'],
-            symbol=row['symbol'],
-            entry_date=row['entry_date'],
-            entry_price=row['entry_price']
+            id=row["id"],
+            symbol=row["symbol"],
+            entry_date=row["entry_date"],
+            entry_price=row["entry_price"],
         )
         for row in cursor.fetchall()
     ]
@@ -92,17 +90,20 @@ def get_price_data(symbol: str, start_date: str, end_date: str) -> Dict:
     cursor = conn.cursor()
 
     # Underlying-Preise aus options_prices
-    cursor.execute("""
+    cursor.execute(
+        """
         SELECT DISTINCT quote_date, underlying_price
         FROM options_prices
         WHERE underlying = ?
           AND quote_date BETWEEN ? AND ?
         ORDER BY quote_date
-    """, (symbol, start_date, end_date))
+    """,
+        (symbol, start_date, end_date),
+    )
 
     prices = {}
     for row in cursor.fetchall():
-        prices[row['quote_date']] = row['underlying_price']
+        prices[row["quote_date"]] = row["underlying_price"]
 
     conn.close()
     return prices
@@ -151,7 +152,9 @@ def calculate_macd(prices: List[float]) -> Tuple[float, float, float]:
     return float(macd_line), float(signal), float(histogram)
 
 
-def calculate_stochastic(prices: List[float], highs: List[float], lows: List[float], period: int = 14) -> Tuple[float, float]:
+def calculate_stochastic(
+    prices: List[float], highs: List[float], lows: List[float], period: int = 14
+) -> Tuple[float, float]:
     """Berechne Stochastic %K und %D."""
     if len(prices) < period:
         return 50.0, 50.0
@@ -177,7 +180,7 @@ def find_support_levels(prices: List[float], lows: List[float]) -> Tuple[float, 
     # Finde lokale Tiefs
     local_lows = []
     for i in range(5, len(lows) - 5):
-        if lows[i] == min(lows[i-5:i+6]):
+        if lows[i] == min(lows[i - 5 : i + 6]):
             local_lows.append(lows[i])
 
     if not local_lows:
@@ -201,9 +204,7 @@ def find_support_levels(prices: List[float], lows: List[float]) -> Tuple[float, 
 
 
 def calculate_scores_for_trade(
-    trade: TradeToProcess,
-    symbol_prices: Dict[str, float],
-    spy_prices: Dict[str, float]
+    trade: TradeToProcess, symbol_prices: Dict[str, float], spy_prices: Dict[str, float]
 ) -> Dict:
     """Berechne alle Komponenten-Scores für einen Trade."""
     entry_date = trade.entry_date
@@ -212,7 +213,7 @@ def calculate_scores_for_trade(
     sorted_dates = sorted([d for d in symbol_prices.keys() if d <= entry_date])
 
     if len(sorted_dates) < 50:
-        return {'error': 'Insufficient price data'}
+        return {"error": "Insufficient price data"}
 
     # Letzte 100 Tage
     recent_dates = sorted_dates[-100:]
@@ -220,7 +221,7 @@ def calculate_scores_for_trade(
 
     # Approximiere Highs/Lows (wir haben nur closes)
     highs = [p * 1.01 for p in prices]  # ~1% über close
-    lows = [p * 0.99 for p in prices]   # ~1% unter close
+    lows = [p * 0.99 for p in prices]  # ~1% unter close
 
     current_price = prices[-1]
 
@@ -345,58 +346,56 @@ def calculate_scores_for_trade(
 
     # Gesamtscores pro Strategie
     pullback_score = (
-        rsi_score * 0.2 +
-        support_score * 0.25 +
-        ma_score * 0.15 +
-        macd_score * 0.1 +
-        stoch_score * 0.1 +
-        trend_score * 0.1 +
-        market_context_score * 0.1
+        rsi_score * 0.2
+        + support_score * 0.25
+        + ma_score * 0.15
+        + macd_score * 0.1
+        + stoch_score * 0.1
+        + trend_score * 0.1
+        + market_context_score * 0.1
     )
 
     bounce_score = (
-        support_score * 0.3 +
-        rsi_score * 0.2 +
-        stoch_score * 0.15 +
-        ma_score * 0.15 +
-        market_context_score * 0.1 +
-        fibonacci_score * 0.1
+        support_score * 0.3
+        + rsi_score * 0.2
+        + stoch_score * 0.15
+        + ma_score * 0.15
+        + market_context_score * 0.1
+        + fibonacci_score * 0.1
     )
 
     # Breakout braucht andere Logik (hier vereinfacht)
     ath_breakout_score = ma_score * 0.4 + trend_score * 0.3 + market_context_score * 0.3
 
     return {
-        'rsi_score': round(rsi_score, 2),
-        'support_score': round(support_score, 2),
-        'fibonacci_score': round(fibonacci_score, 2),
-        'ma_score': round(ma_score, 2),
-        'volume_score': round(volume_score, 2),
-        'macd_score': round(macd_score, 2),
-        'stoch_score': round(stoch_score, 2),
-        'keltner_score': 0.5,  # Platzhalter
-        'trend_strength_score': round(trend_score, 2),
-        'momentum_score': round((rsi_score + macd_score) / 2, 2),
-        'rs_score': 0.5,  # Platzhalter (relative strength)
-        'candlestick_score': 0.5,  # Platzhalter
-        'vwap_score': round(ma_score, 2),  # Approximation
-        'market_context_score': round(market_context_score, 2),
-        'sector_score': 0.0,  # Würde Sektor-Mapping brauchen
-        'gap_score': 0.0,  # Würde Open-Daten brauchen
-        'pullback_score': round(pullback_score, 2),
-        'bounce_score': round(bounce_score, 2),
-        'ath_breakout_score': round(ath_breakout_score, 2),
-        'earnings_dip_score': 0.0,  # Würde Earnings-Daten brauchen
-        'rsi_value': round(rsi, 2),
-        'distance_to_support_pct': round(distance_to_support, 2),
-        'spy_trend': spy_trend,
+        "rsi_score": round(rsi_score, 2),
+        "support_score": round(support_score, 2),
+        "fibonacci_score": round(fibonacci_score, 2),
+        "ma_score": round(ma_score, 2),
+        "volume_score": round(volume_score, 2),
+        "macd_score": round(macd_score, 2),
+        "stoch_score": round(stoch_score, 2),
+        "keltner_score": 0.5,  # Platzhalter
+        "trend_strength_score": round(trend_score, 2),
+        "momentum_score": round((rsi_score + macd_score) / 2, 2),
+        "rs_score": 0.5,  # Platzhalter (relative strength)
+        "candlestick_score": 0.5,  # Platzhalter
+        "vwap_score": round(ma_score, 2),  # Approximation
+        "market_context_score": round(market_context_score, 2),
+        "sector_score": 0.0,  # Würde Sektor-Mapping brauchen
+        "gap_score": 0.0,  # Würde Open-Daten brauchen
+        "pullback_score": round(pullback_score, 2),
+        "bounce_score": round(bounce_score, 2),
+        "ath_breakout_score": round(ath_breakout_score, 2),
+        "earnings_dip_score": 0.0,  # Würde Earnings-Daten brauchen
+        "rsi_value": round(rsi, 2),
+        "distance_to_support_pct": round(distance_to_support, 2),
+        "spy_trend": spy_trend,
     }
 
 
 def process_symbol_batch(
-    symbol: str,
-    trades: List[TradeToProcess],
-    spy_prices: Dict[str, float]
+    symbol: str, trades: List[TradeToProcess], spy_prices: Dict[str, float]
 ) -> List[Tuple[int, Dict]]:
     """Verarbeite alle Trades eines Symbols."""
     results = []
@@ -423,11 +422,13 @@ def process_symbol_batch(
             # Prüfe ob genug Historie für diesen Trade vorhanden ist
             sorted_dates = sorted([d for d in symbol_prices.keys() if d <= trade.entry_date])
             if len(sorted_dates) < 50:
-                logger.debug(f"{symbol} {trade.entry_date}: Not enough history ({len(sorted_dates)} days)")
+                logger.debug(
+                    f"{symbol} {trade.entry_date}: Not enough history ({len(sorted_dates)} days)"
+                )
                 continue
 
             scores = calculate_scores_for_trade(trade, symbol_prices, spy_prices)
-            if 'error' not in scores:
+            if "error" not in scores:
                 results.append((trade.id, scores))
         except Exception as e:
             logger.debug(f"Error processing {symbol} {trade.entry_date}: {e}")
@@ -444,12 +445,29 @@ def update_scores_batch(updates: List[Tuple[int, Dict]]) -> int:
     cursor = conn.cursor()
 
     score_columns = [
-        'rsi_score', 'support_score', 'fibonacci_score', 'ma_score', 'volume_score',
-        'macd_score', 'stoch_score', 'keltner_score', 'trend_strength_score',
-        'momentum_score', 'rs_score', 'candlestick_score',
-        'vwap_score', 'market_context_score', 'sector_score', 'gap_score',
-        'pullback_score', 'bounce_score', 'ath_breakout_score', 'earnings_dip_score',
-        'rsi_value', 'distance_to_support_pct', 'spy_trend',
+        "rsi_score",
+        "support_score",
+        "fibonacci_score",
+        "ma_score",
+        "volume_score",
+        "macd_score",
+        "stoch_score",
+        "keltner_score",
+        "trend_strength_score",
+        "momentum_score",
+        "rs_score",
+        "candlestick_score",
+        "vwap_score",
+        "market_context_score",
+        "sector_score",
+        "gap_score",
+        "pullback_score",
+        "bounce_score",
+        "ath_breakout_score",
+        "earnings_dip_score",
+        "rsi_value",
+        "distance_to_support_pct",
+        "spy_trend",
     ]
 
     updated = 0
@@ -464,8 +482,7 @@ def update_scores_batch(updates: List[Tuple[int, Dict]]) -> int:
         if set_clauses:
             values.append(trade_id)
             cursor.execute(
-                f"UPDATE trade_outcomes SET {', '.join(set_clauses)} WHERE id = ?",
-                values
+                f"UPDATE trade_outcomes SET {', '.join(set_clauses)} WHERE id = ?", values
             )
             updated += 1
 

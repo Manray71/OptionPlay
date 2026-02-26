@@ -33,10 +33,7 @@ from typing import Dict, List, Optional, Any
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 DB_PATH = Path.home() / ".optionplay" / "trades.db"
@@ -90,11 +87,11 @@ def fetch_earnings_from_yfinance(symbol: str) -> List[Dict[str, Any]]:
             return []
 
         results = []
-        now = pd.Timestamp.now(tz='UTC')
+        now = pd.Timestamp.now(tz="UTC")
 
         # Konvertiere Index zu UTC wenn nötig
         if earnings_dates.index.tz is None:
-            earnings_dates.index = earnings_dates.index.tz_localize('UTC')
+            earnings_dates.index = earnings_dates.index.tz_localize("UTC")
 
         for idx, row in earnings_dates.iterrows():
             try:
@@ -102,8 +99,8 @@ def fetch_earnings_from_yfinance(symbol: str) -> List[Dict[str, Any]]:
                 if idx >= now:
                     continue
 
-                eps_actual = row.get('Reported EPS')
-                eps_estimate = row.get('EPS Estimate')
+                eps_actual = row.get("Reported EPS")
+                eps_estimate = row.get("EPS Estimate")
 
                 # Skip wenn keine Daten
                 if pd.isna(eps_actual) and pd.isna(eps_estimate):
@@ -119,10 +116,12 @@ def fetch_earnings_from_yfinance(symbol: str) -> List[Dict[str, Any]]:
                 if eps_actual is not None and eps_estimate is not None:
                     eps_surprise = round(eps_actual - eps_estimate, 4)
                     if eps_estimate != 0:
-                        eps_surprise_pct = round((eps_actual - eps_estimate) / abs(eps_estimate) * 100, 2)
+                        eps_surprise_pct = round(
+                            (eps_actual - eps_estimate) / abs(eps_estimate) * 100, 2
+                        )
 
                 result = {
-                    "earnings_date": idx.strftime('%Y-%m-%d'),
+                    "earnings_date": idx.strftime("%Y-%m-%d"),
                     "eps_actual": eps_actual,
                     "eps_estimate": eps_estimate,
                     "eps_surprise": eps_surprise,
@@ -158,7 +157,8 @@ def update_earnings_eps(symbol: str, earnings_data: List[Dict[str, Any]]) -> int
     for data in earnings_data:
         try:
             # Update nur wenn Daten vorhanden
-            cursor.execute("""
+            cursor.execute(
+                """
                 UPDATE earnings_history
                 SET eps_actual = COALESCE(?, eps_actual),
                     eps_estimate = COALESCE(?, eps_estimate),
@@ -166,14 +166,16 @@ def update_earnings_eps(symbol: str, earnings_data: List[Dict[str, Any]]) -> int
                     eps_surprise_pct = COALESCE(?, eps_surprise_pct),
                     source = 'yfinance'
                 WHERE symbol = ? AND earnings_date = ?
-            """, (
-                data.get('eps_actual'),
-                data.get('eps_estimate'),
-                data.get('eps_surprise'),
-                data.get('eps_surprise_pct'),
-                symbol.upper(),
-                data.get('earnings_date')
-            ))
+            """,
+                (
+                    data.get("eps_actual"),
+                    data.get("eps_estimate"),
+                    data.get("eps_surprise"),
+                    data.get("eps_surprise_pct"),
+                    symbol.upper(),
+                    data.get("earnings_date"),
+                ),
+            )
 
             if cursor.rowcount > 0:
                 updated += 1
@@ -204,27 +206,33 @@ def insert_missing_earnings(symbol: str, earnings_data: List[Dict[str, Any]]) ->
     for data in earnings_data:
         try:
             # Check ob Eintrag existiert
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT 1 FROM earnings_history
                 WHERE symbol = ? AND earnings_date = ?
-            """, (symbol.upper(), data.get('earnings_date')))
+            """,
+                (symbol.upper(), data.get("earnings_date")),
+            )
 
             if cursor.fetchone() is None:
                 # Insert neuer Eintrag
-                cursor.execute("""
+                cursor.execute(
+                    """
                     INSERT INTO earnings_history (
                         symbol, earnings_date, eps_actual, eps_estimate,
                         eps_surprise, eps_surprise_pct, source, collected_at
                     ) VALUES (?, ?, ?, ?, ?, ?, 'yfinance', ?)
-                """, (
-                    symbol.upper(),
-                    data.get('earnings_date'),
-                    data.get('eps_actual'),
-                    data.get('eps_estimate'),
-                    data.get('eps_surprise'),
-                    data.get('eps_surprise_pct'),
-                    datetime.now().isoformat()
-                ))
+                """,
+                    (
+                        symbol.upper(),
+                        data.get("earnings_date"),
+                        data.get("eps_actual"),
+                        data.get("eps_estimate"),
+                        data.get("eps_surprise"),
+                        data.get("eps_surprise_pct"),
+                        datetime.now().isoformat(),
+                    ),
+                )
                 inserted += 1
 
         except sqlite3.Error as e:
@@ -251,11 +259,7 @@ def process_symbol(symbol: str) -> Dict[str, int]:
     updated = update_earnings_eps(symbol, earnings_data)
     inserted = insert_missing_earnings(symbol, earnings_data)
 
-    return {
-        "fetched": len(earnings_data),
-        "updated": updated,
-        "inserted": inserted
-    }
+    return {"fetched": len(earnings_data), "updated": updated, "inserted": inserted}
 
 
 def get_eps_statistics() -> Dict[str, Any]:
@@ -278,7 +282,9 @@ def get_eps_statistics() -> Dict[str, Any]:
     """)
     with_both = cursor.fetchone()[0]
 
-    cursor.execute("SELECT COUNT(DISTINCT symbol) FROM earnings_history WHERE eps_actual IS NOT NULL")
+    cursor.execute(
+        "SELECT COUNT(DISTINCT symbol) FROM earnings_history WHERE eps_actual IS NOT NULL"
+    )
     symbols_with_eps = cursor.fetchone()[0]
 
     conn.close()
@@ -289,7 +295,7 @@ def get_eps_statistics() -> Dict[str, Any]:
         "with_eps_estimate": with_eps_estimate,
         "with_both": with_both,
         "symbols_with_eps": symbols_with_eps,
-        "coverage_pct": round(with_both / total * 100, 1) if total > 0 else 0
+        "coverage_pct": round(with_both / total * 100, 1) if total > 0 else 0,
     }
 
 
@@ -297,26 +303,22 @@ def main():
     parser = argparse.ArgumentParser(description="Collect Earnings EPS Data from yfinance")
 
     parser.add_argument(
-        '--symbols', '-s',
-        nargs='+',
-        help='Spezifische Symbole (default: alle aus earnings_history)'
+        "--symbols",
+        "-s",
+        nargs="+",
+        help="Spezifische Symbole (default: alle aus earnings_history)",
     )
     parser.add_argument(
-        '--missing-only',
-        action='store_true',
-        help='Nur Symbole ohne EPS-Daten verarbeiten'
+        "--missing-only", action="store_true", help="Nur Symbole ohne EPS-Daten verarbeiten"
     )
     parser.add_argument(
-        '--delay', '-d',
+        "--delay",
+        "-d",
         type=float,
         default=0.3,
-        help='Delay zwischen API-Aufrufen in Sekunden (default: 0.3)'
+        help="Delay zwischen API-Aufrufen in Sekunden (default: 0.3)",
     )
-    parser.add_argument(
-        '--stats',
-        action='store_true',
-        help='Nur Statistiken anzeigen'
-    )
+    parser.add_argument("--stats", action="store_true", help="Nur Statistiken anzeigen")
 
     args = parser.parse_args()
 
@@ -359,12 +361,14 @@ def main():
     for i, symbol in enumerate(symbols, 1):
         result = process_symbol(symbol)
 
-        if result['fetched'] > 0:
+        if result["fetched"] > 0:
             successful += 1
-            total_fetched += result['fetched']
-            total_updated += result['updated']
-            total_inserted += result['inserted']
-            logger.info(f"[{i}/{len(symbols)}] {symbol}: {result['fetched']} Earnings, {result['updated']} updated, {result['inserted']} inserted")
+            total_fetched += result["fetched"]
+            total_updated += result["updated"]
+            total_inserted += result["inserted"]
+            logger.info(
+                f"[{i}/{len(symbols)}] {symbol}: {result['fetched']} Earnings, {result['updated']} updated, {result['inserted']} inserted"
+            )
         else:
             logger.debug(f"[{i}/{len(symbols)}] {symbol}: keine Daten")
 
@@ -383,7 +387,9 @@ def main():
     logger.info(f"Earnings-Datensätze geholt: {total_fetched}")
     logger.info(f"Einträge aktualisiert: {total_updated}")
     logger.info(f"Einträge eingefügt: {total_inserted}")
-    logger.info(f"\nEPS-Coverage: {stats['coverage_pct']}% ({stats['with_both']}/{stats['total_earnings']})")
+    logger.info(
+        f"\nEPS-Coverage: {stats['coverage_pct']}% ({stats['with_both']}/{stats['total_earnings']})"
+    )
     logger.info(f"Dauer: {elapsed:.1f} Sekunden")
     logger.info(f"{'='*60}")
 

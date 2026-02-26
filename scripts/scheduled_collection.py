@@ -54,9 +54,11 @@ from src.backtesting import TradeTracker
 # Batch Planning
 # =============================================================================
 
+
 @dataclass
 class BatchPlan:
     """Plan für Batch-Sammlung"""
+
     batch_id: int
     symbols: List[str]
     estimated_requests: int
@@ -65,21 +67,22 @@ class BatchPlan:
 
     def to_dict(self) -> Dict:
         return {
-            'batch_id': self.batch_id,
-            'symbols': self.symbols,
-            'estimated_requests': self.estimated_requests,
-            'estimated_minutes': self.estimated_minutes,
-            'status': self.status,
+            "batch_id": self.batch_id,
+            "symbols": self.symbols,
+            "estimated_requests": self.estimated_requests,
+            "estimated_minutes": self.estimated_minutes,
+            "status": self.status,
         }
 
     @classmethod
-    def from_dict(cls, data: Dict) -> 'BatchPlan':
+    def from_dict(cls, data: Dict) -> "BatchPlan":
         return cls(**data)
 
 
 @dataclass
 class CollectionSchedule:
     """Gesamtplan für die Datensammlung"""
+
     created_at: str
     total_symbols: int
     batches: List[BatchPlan]
@@ -91,34 +94,34 @@ class CollectionSchedule:
 
     def to_dict(self) -> Dict:
         return {
-            'created_at': self.created_at,
-            'total_symbols': self.total_symbols,
-            'batches': [b.to_dict() for b in self.batches],
-            'lookback_days': self.lookback_days,
-            'requests_per_symbol': self.requests_per_symbol,
-            'requests_per_minute': self.requests_per_minute,
+            "created_at": self.created_at,
+            "total_symbols": self.total_symbols,
+            "batches": [b.to_dict() for b in self.batches],
+            "lookback_days": self.lookback_days,
+            "requests_per_symbol": self.requests_per_symbol,
+            "requests_per_minute": self.requests_per_minute,
         }
 
     @classmethod
-    def from_dict(cls, data: Dict) -> 'CollectionSchedule':
-        batches = [BatchPlan.from_dict(b) for b in data['batches']]
+    def from_dict(cls, data: Dict) -> "CollectionSchedule":
+        batches = [BatchPlan.from_dict(b) for b in data["batches"]]
         return cls(
-            created_at=data['created_at'],
-            total_symbols=data['total_symbols'],
+            created_at=data["created_at"],
+            total_symbols=data["total_symbols"],
             batches=batches,
-            lookback_days=data.get('lookback_days', 260),
-            requests_per_symbol=data.get('requests_per_symbol', 2),
-            requests_per_minute=data.get('requests_per_minute', 80),
+            lookback_days=data.get("lookback_days", 260),
+            requests_per_symbol=data.get("requests_per_symbol", 2),
+            requests_per_minute=data.get("requests_per_minute", 80),
         )
 
     def save(self):
         """Speichert den Schedule"""
         self.SCHEDULE_FILE.parent.mkdir(parents=True, exist_ok=True)
-        with open(self.SCHEDULE_FILE, 'w') as f:
+        with open(self.SCHEDULE_FILE, "w") as f:
             json.dump(self.to_dict(), f, indent=2)
 
     @classmethod
-    def load(cls) -> Optional['CollectionSchedule']:
+    def load(cls) -> Optional["CollectionSchedule"]:
         """Lädt existierenden Schedule"""
         if cls.SCHEDULE_FILE.exists():
             with open(cls.SCHEDULE_FILE) as f:
@@ -127,11 +130,11 @@ class CollectionSchedule:
 
     @property
     def completed_batches(self) -> List[BatchPlan]:
-        return [b for b in self.batches if b.status == 'completed']
+        return [b for b in self.batches if b.status == "completed"]
 
     @property
     def pending_batches(self) -> List[BatchPlan]:
-        return [b for b in self.batches if b.status in ('pending', 'partial')]
+        return [b for b in self.batches if b.status in ("pending", "partial")]
 
     @property
     def next_batch(self) -> Optional[BatchPlan]:
@@ -179,7 +182,7 @@ def create_schedule(
     # Batches erstellen
     batches = []
     for i in range(0, len(symbols), batch_size):
-        batch_symbols = symbols[i:i + batch_size]
+        batch_symbols = symbols[i : i + batch_size]
         batch_id = len(batches) + 1
 
         estimated_requests = len(batch_symbols) * requests_per_symbol
@@ -190,12 +193,14 @@ def create_schedule(
         # Zeit schätzen bei 80 req/min
         estimated_minutes = estimated_requests / 80
 
-        batches.append(BatchPlan(
-            batch_id=batch_id,
-            symbols=batch_symbols,
-            estimated_requests=estimated_requests,
-            estimated_minutes=round(estimated_minutes, 1),
-        ))
+        batches.append(
+            BatchPlan(
+                batch_id=batch_id,
+                symbols=batch_symbols,
+                estimated_requests=estimated_requests,
+                estimated_minutes=round(estimated_minutes, 1),
+            )
+        )
 
     return CollectionSchedule(
         created_at=datetime.now().isoformat(),
@@ -232,11 +237,11 @@ def print_schedule(schedule: CollectionSchedule):
 
     for batch in schedule.batches:
         status_color = {
-            'completed': '✓',
-            'in_progress': '►',
-            'partial': '◐',
-            'pending': '○',
-        }.get(batch.status, '?')
+            "completed": "✓",
+            "in_progress": "►",
+            "partial": "◐",
+            "pending": "○",
+        }.get(batch.status, "?")
 
         print(
             f"{batch.batch_id:<8} "
@@ -249,12 +254,15 @@ def print_schedule(schedule: CollectionSchedule):
     next_batch = schedule.next_batch
     if next_batch:
         print(f"\nNext: Batch {next_batch.batch_id} ({len(next_batch.symbols)} symbols)")
-        print(f"      Run with: python scripts/scheduled_collection.py --batch {next_batch.batch_id}")
+        print(
+            f"      Run with: python scripts/scheduled_collection.py --batch {next_batch.batch_id}"
+        )
 
 
 # =============================================================================
 # Batch Execution
 # =============================================================================
+
 
 async def run_batch(
     schedule: CollectionSchedule,
@@ -281,7 +289,7 @@ async def run_batch(
         logger.error(f"Batch {batch_id} not found!")
         return False
 
-    if batch.status == 'completed':
+    if batch.status == "completed":
         logger.info(f"Batch {batch_id} already completed")
         return True
 
@@ -291,7 +299,7 @@ async def run_batch(
     print(f"{'='*60}\n")
 
     # Status aktualisieren
-    schedule.update_batch_status(batch_id, 'in_progress')
+    schedule.update_batch_status(batch_id, "in_progress")
 
     # Collector
     quota_config = QuotaConfig(
@@ -318,20 +326,20 @@ async def run_batch(
 
         # Status basierend auf Ergebnis
         if result.success_rate >= 95:
-            schedule.update_batch_status(batch_id, 'completed')
+            schedule.update_batch_status(batch_id, "completed")
             return True
         else:
-            schedule.update_batch_status(batch_id, 'partial')
+            schedule.update_batch_status(batch_id, "partial")
             logger.warning(f"Batch {batch_id} partial: {result.success_rate:.1f}% success")
             return False
 
     except KeyboardInterrupt:
-        schedule.update_batch_status(batch_id, 'partial')
+        schedule.update_batch_status(batch_id, "partial")
         print("\n\nInterrupted! Batch marked as partial.")
         raise
 
     except Exception as e:
-        schedule.update_batch_status(batch_id, 'partial')
+        schedule.update_batch_status(batch_id, "partial")
         logger.error(f"Batch {batch_id} failed: {e}")
         return False
 
@@ -385,36 +393,34 @@ async def run_all_batches(
 # CLI
 # =============================================================================
 
+
 async def main():
     parser = argparse.ArgumentParser(
-        description='Scheduled batch data collection for OptionPlay',
+        description="Scheduled batch data collection for OptionPlay",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=__doc__
+        epilog=__doc__,
     )
 
     # Actions
-    parser.add_argument('--plan', action='store_true',
-                        help='Show/create collection plan')
-    parser.add_argument('--batch', type=int,
-                        help='Run specific batch number')
-    parser.add_argument('--next', action='store_true',
-                        help='Run next pending batch')
-    parser.add_argument('--run-all', action='store_true',
-                        help='Run all pending batches')
-    parser.add_argument('--reset', action='store_true',
-                        help='Reset schedule (mark all as pending)')
+    parser.add_argument("--plan", action="store_true", help="Show/create collection plan")
+    parser.add_argument("--batch", type=int, help="Run specific batch number")
+    parser.add_argument("--next", action="store_true", help="Run next pending batch")
+    parser.add_argument("--run-all", action="store_true", help="Run all pending batches")
+    parser.add_argument("--reset", action="store_true", help="Reset schedule (mark all as pending)")
 
     # Options
-    parser.add_argument('--batch-size', type=int, default=50,
-                        help='Symbols per batch (default: 50)')
-    parser.add_argument('--delay', type=float, default=0.75,
-                        help='Delay between requests (default: 0.75s)')
-    parser.add_argument('--pause', type=int, default=5,
-                        help='Pause between batches in seconds (default: 5)')
-    parser.add_argument('--days', type=int, default=260,
-                        help='Days of history (default: 260)')
+    parser.add_argument(
+        "--batch-size", type=int, default=50, help="Symbols per batch (default: 50)"
+    )
+    parser.add_argument(
+        "--delay", type=float, default=0.75, help="Delay between requests (default: 0.75s)"
+    )
+    parser.add_argument(
+        "--pause", type=int, default=5, help="Pause between batches in seconds (default: 5)"
+    )
+    parser.add_argument("--days", type=int, default=260, help="Days of history (default: 260)")
 
-    parser.add_argument('-v', '--verbose', action='store_true')
+    parser.add_argument("-v", "--verbose", action="store_true")
 
     args = parser.parse_args()
 
@@ -441,7 +447,7 @@ async def main():
     # Reset
     if args.reset:
         for batch in schedule.batches:
-            batch.status = 'pending'
+            batch.status = "pending"
         schedule.save()
         print("Schedule reset. All batches marked as pending.")
         print_schedule(schedule)
@@ -467,14 +473,12 @@ async def main():
             print("No pending batches!")
 
     elif args.run_all:
-        await run_all_batches(
-            schedule, api_key, args.delay, args.pause
-        )
+        await run_all_batches(schedule, api_key, args.delay, args.pause)
 
     else:
         print_schedule(schedule)
         print("\nUse --batch N, --next, or --run-all to start collection")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     asyncio.run(main())

@@ -39,6 +39,7 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from dotenv import load_dotenv
+
 load_dotenv()
 
 from src.data_providers.tradier import TradierProvider
@@ -47,9 +48,7 @@ from src.config.watchlist_loader import get_watchlist_loader
 
 # Logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    datefmt='%H:%M:%S'
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s", datefmt="%H:%M:%S"
 )
 logger = logging.getLogger(__name__)
 
@@ -89,8 +88,12 @@ def ensure_schema(db_path: str):
         )
     """)
 
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_options_prices_underlying ON options_prices(underlying)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_options_prices_quote_date ON options_prices(quote_date)")
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_options_prices_underlying ON options_prices(underlying)"
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_options_prices_quote_date ON options_prices(quote_date)"
+    )
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_options_prices_dte ON options_prices(dte)")
 
     cursor.execute("""
@@ -111,8 +114,12 @@ def ensure_schema(db_path: str):
         )
     """)
 
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_options_greeks_occ ON options_greeks(occ_symbol)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_options_greeks_date ON options_greeks(quote_date)")
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_options_greeks_occ ON options_greeks(occ_symbol)"
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_options_greeks_date ON options_greeks(quote_date)"
+    )
 
     conn.commit()
     conn.close()
@@ -154,53 +161,60 @@ def store_options_with_greeks(
                 moneyness = round(opt.strike / opt.underlying_price, 4)
 
             # INSERT options_prices
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT OR REPLACE INTO options_prices (
                     occ_symbol, underlying, expiration, strike, option_type,
                     quote_date, bid, ask, mid, last, volume, open_interest,
                     underlying_price, dte, moneyness
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                opt.symbol,
-                opt.underlying,
-                opt.expiry.isoformat(),
-                opt.strike,
-                opt.right,
-                quote_date_str,
-                opt.bid,
-                opt.ask,
-                mid,
-                opt.last,
-                opt.volume or 0,
-                opt.open_interest or 0,
-                opt.underlying_price,
-                dte,
-                moneyness,
-            ))
+            """,
+                (
+                    opt.symbol,
+                    opt.underlying,
+                    opt.expiry.isoformat(),
+                    opt.strike,
+                    opt.right,
+                    quote_date_str,
+                    opt.bid,
+                    opt.ask,
+                    mid,
+                    opt.last,
+                    opt.volume or 0,
+                    opt.open_interest or 0,
+                    opt.underlying_price,
+                    dte,
+                    moneyness,
+                ),
+            )
             prices_inserted += 1
 
             # Greeks einfügen falls vorhanden
-            has_greeks = any(v is not None for v in [
-                opt.delta, opt.gamma, opt.theta, opt.vega, opt.implied_volatility
-            ])
+            has_greeks = any(
+                v is not None
+                for v in [opt.delta, opt.gamma, opt.theta, opt.vega, opt.implied_volatility]
+            )
             if has_greeks:
                 price_id = cursor.lastrowid
-                cursor.execute("""
+                cursor.execute(
+                    """
                     INSERT OR REPLACE INTO options_greeks (
                         options_price_id, occ_symbol, quote_date,
                         iv_calculated, iv_method, delta, gamma, theta, vega
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    price_id,
-                    opt.symbol,
-                    quote_date_str,
-                    opt.implied_volatility,
-                    "tradier_orats",
-                    opt.delta,
-                    opt.gamma,
-                    opt.theta,
-                    opt.vega,
-                ))
+                """,
+                    (
+                        price_id,
+                        opt.symbol,
+                        quote_date_str,
+                        opt.implied_volatility,
+                        "tradier_orats",
+                        opt.delta,
+                        opt.gamma,
+                        opt.theta,
+                        opt.vega,
+                    ),
+                )
                 greeks_inserted += 1
 
         except Exception as e:
@@ -214,6 +228,7 @@ def store_options_with_greeks(
 # =============================================================================
 # COLLECTOR
 # =============================================================================
+
 
 @dataclass
 class CollectionStats:
@@ -296,7 +311,7 @@ async def collect_batch(
     total_batches = (len(symbols) + batch_size - 1) // batch_size
 
     for i in range(0, len(symbols), batch_size):
-        batch = symbols[i:i + batch_size]
+        batch = symbols[i : i + batch_size]
         batch_num = i // batch_size + 1
 
         tasks = [worker(s) for s in batch]
@@ -317,16 +332,18 @@ async def collect_batch(
 # CLI
 # =============================================================================
 
+
 def get_api_key() -> str:
-    api_key = os.environ.get('TRADIER_API_KEY')
+    api_key = os.environ.get("TRADIER_API_KEY")
 
     if not api_key:
         config_file = Path.home() / ".optionplay" / "config.json"
         if config_file.exists():
             import json
+
             with open(config_file) as f:
                 config = json.load(f)
-                api_key = config.get('tradier_api_key')
+                api_key = config.get("tradier_api_key")
 
     if not api_key:
         print("ERROR: No TRADIER_API_KEY found!")
@@ -382,22 +399,17 @@ def show_status():
 
 async def main():
     parser = argparse.ArgumentParser(
-        description='Collect options chains via Tradier API',
+        description="Collect options chains via Tradier API",
     )
-    parser.add_argument('--test', action='store_true',
-                        help='Test with SPY, AAPL, MSFT')
-    parser.add_argument('--symbols', type=str,
-                        help='Comma-separated symbols (e.g. AAPL,MSFT)')
-    parser.add_argument('--all', action='store_true',
-                        help='All watchlist symbols')
-    parser.add_argument('--status', action='store_true',
-                        help='Show DB status')
-    parser.add_argument('--workers', type=int, default=3,
-                        help='Concurrent workers (default: 3, max: 5)')
-    parser.add_argument('--dte-min', type=int, default=7,
-                        help='Min DTE (default: 7)')
-    parser.add_argument('--dte-max', type=int, default=130,
-                        help='Max DTE (default: 130)')
+    parser.add_argument("--test", action="store_true", help="Test with SPY, AAPL, MSFT")
+    parser.add_argument("--symbols", type=str, help="Comma-separated symbols (e.g. AAPL,MSFT)")
+    parser.add_argument("--all", action="store_true", help="All watchlist symbols")
+    parser.add_argument("--status", action="store_true", help="Show DB status")
+    parser.add_argument(
+        "--workers", type=int, default=3, help="Concurrent workers (default: 3, max: 5)"
+    )
+    parser.add_argument("--dte-min", type=int, default=7, help="Min DTE (default: 7)")
+    parser.add_argument("--dte-max", type=int, default=130, help="Max DTE (default: 130)")
 
     args = parser.parse_args()
 
@@ -407,9 +419,9 @@ async def main():
 
     # Symbole bestimmen
     if args.test:
-        symbols = ['SPY', 'AAPL', 'MSFT']
+        symbols = ["SPY", "AAPL", "MSFT"]
     elif args.symbols:
-        symbols = [s.strip().upper() for s in args.symbols.split(',')]
+        symbols = [s.strip().upper() for s in args.symbols.split(",")]
     elif args.all:
         loader = get_watchlist_loader()
         symbols = loader.get_all_symbols()
@@ -474,5 +486,5 @@ async def main():
     show_status()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     asyncio.run(main())

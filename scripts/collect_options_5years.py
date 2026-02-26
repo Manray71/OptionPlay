@@ -42,9 +42,7 @@ from src.config.watchlist_loader import get_watchlist_loader
 
 # Logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    datefmt='%H:%M:%S'
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s", datefmt="%H:%M:%S"
 )
 logger = logging.getLogger(__name__)
 
@@ -57,20 +55,51 @@ def get_available_months() -> List[date]:
     # Bekannte verfügbare Monate (aus dem Scan)
     available = [
         # 2021
-        (2021, 1), (2021, 3), (2021, 4), (2021, 6), (2021, 7),
-        (2021, 9), (2021, 10), (2021, 11), (2021, 12),
+        (2021, 1),
+        (2021, 3),
+        (2021, 4),
+        (2021, 6),
+        (2021, 7),
+        (2021, 9),
+        (2021, 10),
+        (2021, 11),
+        (2021, 12),
         # 2022
-        (2022, 2), (2022, 3), (2022, 6), (2022, 7), (2022, 8),
-        (2022, 9), (2022, 11), (2022, 12),
+        (2022, 2),
+        (2022, 3),
+        (2022, 6),
+        (2022, 7),
+        (2022, 8),
+        (2022, 9),
+        (2022, 11),
+        (2022, 12),
         # 2023
-        (2023, 2), (2023, 3), (2023, 5), (2023, 6), (2023, 8),
-        (2023, 9), (2023, 11), (2023, 12),
+        (2023, 2),
+        (2023, 3),
+        (2023, 5),
+        (2023, 6),
+        (2023, 8),
+        (2023, 9),
+        (2023, 11),
+        (2023, 12),
         # 2024
-        (2024, 2), (2024, 3), (2024, 4), (2024, 5), (2024, 7),
-        (2024, 8), (2024, 10), (2024, 11),
+        (2024, 2),
+        (2024, 3),
+        (2024, 4),
+        (2024, 5),
+        (2024, 7),
+        (2024, 8),
+        (2024, 10),
+        (2024, 11),
         # 2025
-        (2025, 1), (2025, 4), (2025, 5), (2025, 7), (2025, 8),
-        (2025, 9), (2025, 10), (2025, 12),
+        (2025, 1),
+        (2025, 4),
+        (2025, 5),
+        (2025, 7),
+        (2025, 8),
+        (2025, 9),
+        (2025, 10),
+        (2025, 12),
         # 2026
         (2026, 1),
     ]
@@ -81,6 +110,7 @@ def get_available_months() -> List[date]:
 def get_collected_months(db_path: str) -> set:
     """Gibt bereits gesammelte Monate zurück."""
     import sqlite3
+
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     cursor.execute("""
@@ -167,17 +197,16 @@ async def main_collect(symbols: List[str], workers: int = 20, rpm: int = 6000):
 
     # Bereits gesammelte Monate überspringen
     collected = get_collected_months(db_path)
-    remaining_months = [
-        m for m in available_months
-        if f"{m.year}-{m.month:02d}" not in collected
-    ]
+    remaining_months = [m for m in available_months if f"{m.year}-{m.month:02d}" not in collected]
 
     total_months = len(remaining_months)
     skipped = len(available_months) - total_months
 
     logger.info(f"Starting 5-year collection")
     logger.info(f"Symbols: {len(symbols)}")
-    logger.info(f"Available months: {len(available_months)}, Already collected: {skipped}, Remaining: {total_months}")
+    logger.info(
+        f"Available months: {len(available_months)}, Already collected: {skipped}, Remaining: {total_months}"
+    )
     logger.info(f"Workers: {workers}, RPM: {rpm}")
 
     semaphore = asyncio.Semaphore(workers)
@@ -211,12 +240,12 @@ async def main_collect(symbols: List[str], workers: int = 20, rpm: int = 6000):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Collect 5 years of historical options')
-    parser.add_argument('--start', action='store_true', help='Start collection')
-    parser.add_argument('--status', action='store_true', help='Show status')
-    parser.add_argument('--workers', type=int, default=50, help='Concurrent workers')
-    parser.add_argument('--rpm', type=int, default=8000, help='Requests per minute')
-    parser.add_argument('--symbols', type=str, help='Comma-separated symbols (default: all)')
+    parser = argparse.ArgumentParser(description="Collect 5 years of historical options")
+    parser.add_argument("--start", action="store_true", help="Start collection")
+    parser.add_argument("--status", action="store_true", help="Show status")
+    parser.add_argument("--workers", type=int, default=50, help="Concurrent workers")
+    parser.add_argument("--rpm", type=int, default=8000, help="Requests per minute")
+    parser.add_argument("--symbols", type=str, help="Comma-separated symbols (default: all)")
 
     args = parser.parse_args()
 
@@ -230,7 +259,7 @@ def main():
 
     # Symbole laden
     if args.symbols:
-        symbols = [s.strip().upper() for s in args.symbols.split(',')]
+        symbols = [s.strip().upper() for s in args.symbols.split(",")]
     else:
         loader = get_watchlist_loader()
         symbols = loader.get_all_symbols()
@@ -244,5 +273,5 @@ def main():
     show_status()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

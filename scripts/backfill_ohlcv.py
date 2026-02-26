@@ -51,6 +51,7 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from dotenv import load_dotenv
+
 load_dotenv(project_root / ".env")
 
 # Database path
@@ -76,19 +77,17 @@ def setup_logging(verbose: bool = False) -> logging.Logger:
     # Console handler
     console = logging.StreamHandler()
     console.setLevel(level)
-    console.setFormatter(logging.Formatter(
-        '%(asctime)s - %(levelname)s - %(message)s',
-        datefmt='%H:%M:%S'
-    ))
+    console.setFormatter(
+        logging.Formatter("%(asctime)s - %(levelname)s - %(message)s", datefmt="%H:%M:%S")
+    )
     logger.addHandler(console)
 
     # File handler (always debug)
     file_handler = logging.FileHandler(log_file)
     file_handler.setLevel(logging.DEBUG)
-    file_handler.setFormatter(logging.Formatter(
-        '%(asctime)s - %(levelname)s - %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
-    ))
+    file_handler.setFormatter(
+        logging.Formatter("%(asctime)s - %(levelname)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+    )
     logger.addHandler(file_handler)
 
     return logger
@@ -104,14 +103,15 @@ def get_all_symbols(conn: sqlite3.Connection) -> List[str]:
     return [row[0] for row in cursor.fetchall()]
 
 
-def get_existing_ohlcv_dates(
-    conn: sqlite3.Connection, symbol: str
-) -> set:
+def get_existing_ohlcv_dates(conn: sqlite3.Connection, symbol: str) -> set:
     """Get dates that already have real OHLCV data (volume > 0) for a symbol."""
-    cursor = conn.execute("""
+    cursor = conn.execute(
+        """
         SELECT quote_date FROM daily_prices
         WHERE symbol = ? AND volume > 0
-    """, (symbol,))
+    """,
+        (symbol,),
+    )
     return {row[0] for row in cursor.fetchall()}
 
 
@@ -139,8 +139,8 @@ def fetch_tradier_history(
     for attempt in range(max_retries):
         try:
             req = urllib.request.Request(url)
-            req.add_header('Authorization', f'Bearer {api_key}')
-            req.add_header('Accept', 'application/json')
+            req.add_header("Authorization", f"Bearer {api_key}")
+            req.add_header("Accept", "application/json")
 
             with urllib.request.urlopen(req, timeout=30) as response:
                 data = json.loads(response.read().decode())
@@ -208,20 +208,23 @@ def store_bars(
                 skipped += 1
                 continue
 
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT OR REPLACE INTO daily_prices
                     (symbol, quote_date, open, high, low, close, volume, source)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                symbol.upper(),
-                bar_date,
-                float(bar["open"]),
-                float(bar["high"]),
-                float(bar["low"]),
-                float(bar["close"]),
-                int(bar.get("volume", 0)),
-                "tradier_backfill",
-            ))
+            """,
+                (
+                    symbol.upper(),
+                    bar_date,
+                    float(bar["open"]),
+                    float(bar["high"]),
+                    float(bar["low"]),
+                    float(bar["close"]),
+                    int(bar.get("volume", 0)),
+                    "tradier_backfill",
+                ),
+            )
             inserted += 1
 
         except (KeyError, ValueError, sqlite3.Error) as e:
@@ -301,44 +304,47 @@ Examples:
     %(prog)s --start 2023-01-01       # Custom start date
     %(prog)s --dry-run                # Preview without writing
     %(prog)s --batch-size 10 --delay 2  # Slower, safer batching
-        """
+        """,
     )
 
     parser.add_argument(
-        '--symbols', nargs='+', metavar='SYM',
-        help='Only backfill these symbols (default: all in DB)'
+        "--symbols",
+        nargs="+",
+        metavar="SYM",
+        help="Only backfill these symbols (default: all in DB)",
     )
     parser.add_argument(
-        '--start', type=str, default='2021-01-04',
-        help='Start date YYYY-MM-DD (default: 2021-01-04)'
+        "--start",
+        type=str,
+        default="2021-01-04",
+        help="Start date YYYY-MM-DD (default: 2021-01-04)",
     )
     parser.add_argument(
-        '--end', type=str, default=None,
-        help='End date YYYY-MM-DD (default: yesterday)'
+        "--end", type=str, default=None, help="End date YYYY-MM-DD (default: yesterday)"
     )
     parser.add_argument(
-        '--batch-size', type=int, default=10,
-        help='Symbols per batch before pausing (default: 10)'
+        "--batch-size", type=int, default=10, help="Symbols per batch before pausing (default: 10)"
     )
     parser.add_argument(
-        '--delay', type=float, default=0.6,
-        help='Delay in seconds between API calls (default: 0.6)'
+        "--delay", type=float, default=0.6, help="Delay in seconds between API calls (default: 0.6)"
     )
     parser.add_argument(
-        '--batch-pause', type=float, default=5.0,
-        help='Pause in seconds between batches (default: 5.0)'
+        "--batch-pause",
+        type=float,
+        default=5.0,
+        help="Pause in seconds between batches (default: 5.0)",
     )
     parser.add_argument(
-        '--dry-run', '-n', action='store_true',
-        help='Show what would be done without making changes'
+        "--dry-run",
+        "-n",
+        action="store_true",
+        help="Show what would be done without making changes",
     )
+    parser.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
     parser.add_argument(
-        '--verbose', '-v', action='store_true',
-        help='Verbose output'
-    )
-    parser.add_argument(
-        '--force', action='store_true',
-        help='Overwrite existing OHLCV data (default: skip existing)'
+        "--force",
+        action="store_true",
+        help="Overwrite existing OHLCV data (default: skip existing)",
     )
 
     args = parser.parse_args()
@@ -363,9 +369,11 @@ Examples:
     logger.info("=" * 65)
     logger.info("OPTIONPLAY - OHLCV BACKFILL")
     logger.info(f"  Date range: {start_date} to {end_date}")
-    logger.info(f"  Batch size: {args.batch_size} symbols, "
-                f"{args.delay}s between calls, "
-                f"{args.batch_pause}s between batches")
+    logger.info(
+        f"  Batch size: {args.batch_size} symbols, "
+        f"{args.delay}s between calls, "
+        f"{args.batch_pause}s between batches"
+    )
     if args.dry_run:
         logger.info("  MODE: DRY RUN (no changes)")
     if args.force:
@@ -426,10 +434,7 @@ Examples:
             bars = fetch_tradier_history(api_key, symbol, start_date, end_date, logger)
 
             if not bars:
-                logger.info(
-                    f"  [{i}/{len(symbols)}] {symbol}: "
-                    f"No data from Tradier"
-                )
+                logger.info(f"  [{i}/{len(symbols)}] {symbol}: " f"No data from Tradier")
                 results[symbol] = (0, 0, "no_data")
             else:
                 # Check if all dates already exist
@@ -444,9 +449,7 @@ Examples:
                     results[symbol] = (0, len(bars), "up_to_date")
                 else:
                     # Store new bars
-                    inserted, skipped = store_bars(
-                        conn, symbol, bars, existing_dates, logger
-                    )
+                    inserted, skipped = store_bars(conn, symbol, bars, existing_dates, logger)
                     logger.info(
                         f"  [{i}/{len(symbols)}] {symbol}: "
                         f"{inserted} bars inserted, {skipped} skipped "

@@ -49,9 +49,7 @@ from src.config.watchlist_loader import get_watchlist_loader
 
 # Logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    datefmt='%H:%M:%S'
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s", datefmt="%H:%M:%S"
 )
 logger = logging.getLogger(__name__)
 
@@ -60,9 +58,11 @@ logger = logging.getLogger(__name__)
 # DATA CLASSES
 # =============================================================================
 
+
 @dataclass
 class OptionPrice:
     """Historische Options-Preisdaten (ohne Greeks)"""
+
     occ_symbol: str
     underlying: str
     expiration: date
@@ -83,6 +83,7 @@ class OptionPrice:
 @dataclass
 class CollectionStats:
     """Sammlungsstatistik"""
+
     symbols_requested: int = 0
     symbols_processed: int = 0
     symbols_failed: int = 0
@@ -94,6 +95,7 @@ class CollectionStats:
 # =============================================================================
 # DATABASE
 # =============================================================================
+
 
 def ensure_schema(db_path: str):
     """Stellt sicher, dass das Schema existiert"""
@@ -154,29 +156,32 @@ def store_options(db_path: str, options: List[OptionPrice]) -> int:
     inserted = 0
     for opt in options:
         try:
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT OR REPLACE INTO options_prices (
                     occ_symbol, underlying, expiration, strike, option_type,
                     quote_date, bid, ask, mid, last, volume, open_interest,
                     underlying_price, dte, moneyness
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                opt.occ_symbol,
-                opt.underlying,
-                opt.expiration.isoformat(),
-                opt.strike,
-                opt.option_type,
-                opt.quote_date.isoformat(),
-                opt.bid,
-                opt.ask,
-                opt.mid,
-                opt.last,
-                opt.volume,
-                opt.open_interest,
-                opt.underlying_price,
-                opt.dte,
-                opt.moneyness,
-            ))
+            """,
+                (
+                    opt.occ_symbol,
+                    opt.underlying,
+                    opt.expiration.isoformat(),
+                    opt.strike,
+                    opt.option_type,
+                    opt.quote_date.isoformat(),
+                    opt.bid,
+                    opt.ask,
+                    opt.mid,
+                    opt.last,
+                    opt.volume,
+                    opt.open_interest,
+                    opt.underlying_price,
+                    opt.dte,
+                    opt.moneyness,
+                ),
+            )
             inserted += 1
         except Exception as e:
             logger.debug(f"Insert error for {opt.occ_symbol}: {e}")
@@ -189,6 +194,7 @@ def store_options(db_path: str, options: List[OptionPrice]) -> int:
 # =============================================================================
 # MARKETDATA.APP CLIENT
 # =============================================================================
+
 
 class MarketdataClient:
     """Async Client für Marketdata.app API"""
@@ -203,8 +209,8 @@ class MarketdataClient:
 
     async def __aenter__(self):
         headers = {
-            'Authorization': f'Token {self.api_key}',
-            'Accept': 'application/json',
+            "Authorization": f"Token {self.api_key}",
+            "Accept": "application/json",
         }
         self.session = aiohttp.ClientSession(headers=headers)
         return self
@@ -216,6 +222,7 @@ class MarketdataClient:
     async def _rate_limit(self):
         """Einfaches Rate-Limiting"""
         import time
+
         now = time.time()
         minute_ago = now - 60
 
@@ -247,9 +254,9 @@ class MarketdataClient:
         exp_to = quote_date + timedelta(days=dte_max)
 
         params = {
-            'date': quote_date.isoformat(),
-            'from': exp_from.isoformat(),
-            'to': exp_to.isoformat(),
+            "date": quote_date.isoformat(),
+            "from": exp_from.isoformat(),
+            "to": exp_to.isoformat(),
         }
 
         url = f"{self.BASE_URL}/v1/options/chain/{symbol}/"
@@ -262,14 +269,16 @@ class MarketdataClient:
                         return None
                     if resp.status == 429:
                         wait_time = 10 * (attempt + 1)  # 10s, 20s, 30s
-                        logger.warning(f"Rate limit for {symbol}, waiting {wait_time}s (attempt {attempt+1}/{max_retries})")
+                        logger.warning(
+                            f"Rate limit for {symbol}, waiting {wait_time}s (attempt {attempt+1}/{max_retries})"
+                        )
                         await asyncio.sleep(wait_time)
                         continue  # Retry
                     if resp.status not in [200, 203]:
                         return None
 
                     data = await resp.json()
-                    if data.get('s') != 'ok':
+                    if data.get("s") != "ok":
                         return None
 
                     return self._parse_chain(data, quote_date)
@@ -287,39 +296,43 @@ class MarketdataClient:
         """Parsed die API-Response in eine Liste von Optionen"""
         options = []
 
-        occ_symbols = data.get('optionSymbol', [])
-        underlyings = data.get('underlying', [])
-        expirations = data.get('expiration', [])
-        strikes = data.get('strike', [])
-        sides = data.get('side', [])
-        bids = data.get('bid', [])
-        asks = data.get('ask', [])
-        mids = data.get('mid', [])
-        lasts = data.get('last', [])
-        volumes = data.get('volume', [])
-        ois = data.get('openInterest', [])
-        underlying_prices = data.get('underlyingPrice', [])
+        occ_symbols = data.get("optionSymbol", [])
+        underlyings = data.get("underlying", [])
+        expirations = data.get("expiration", [])
+        strikes = data.get("strike", [])
+        sides = data.get("side", [])
+        bids = data.get("bid", [])
+        asks = data.get("ask", [])
+        mids = data.get("mid", [])
+        lasts = data.get("last", [])
+        volumes = data.get("volume", [])
+        ois = data.get("openInterest", [])
+        underlying_prices = data.get("underlyingPrice", [])
 
         for i in range(len(occ_symbols)):
             try:
                 exp_ts = expirations[i]
                 exp_date = date.fromtimestamp(exp_ts)
 
-                options.append({
-                    'occ_symbol': occ_symbols[i],
-                    'underlying': underlyings[i] if i < len(underlyings) else None,
-                    'expiration': exp_date,
-                    'strike': strikes[i],
-                    'side': sides[i],  # 'call' or 'put'
-                    'bid': bids[i] if i < len(bids) else 0,
-                    'ask': asks[i] if i < len(asks) else 0,
-                    'mid': mids[i] if i < len(mids) else 0,
-                    'last': lasts[i] if i < len(lasts) else None,
-                    'volume': volumes[i] if i < len(volumes) else 0,
-                    'open_interest': ois[i] if i < len(ois) else 0,
-                    'underlying_price': underlying_prices[i] if i < len(underlying_prices) else None,
-                    'quote_date': quote_date,
-                })
+                options.append(
+                    {
+                        "occ_symbol": occ_symbols[i],
+                        "underlying": underlyings[i] if i < len(underlyings) else None,
+                        "expiration": exp_date,
+                        "strike": strikes[i],
+                        "side": sides[i],  # 'call' or 'put'
+                        "bid": bids[i] if i < len(bids) else 0,
+                        "ask": asks[i] if i < len(asks) else 0,
+                        "mid": mids[i] if i < len(mids) else 0,
+                        "last": lasts[i] if i < len(lasts) else None,
+                        "volume": volumes[i] if i < len(volumes) else 0,
+                        "open_interest": ois[i] if i < len(ois) else 0,
+                        "underlying_price": (
+                            underlying_prices[i] if i < len(underlying_prices) else None
+                        ),
+                        "quote_date": quote_date,
+                    }
+                )
             except Exception as e:
                 continue
 
@@ -330,8 +343,8 @@ class MarketdataClient:
         await self._rate_limit()
 
         params = {
-            'from': quote_date.isoformat(),
-            'to': (quote_date + timedelta(days=1)).isoformat(),
+            "from": quote_date.isoformat(),
+            "to": (quote_date + timedelta(days=1)).isoformat(),
         }
 
         url = f"{self.BASE_URL}/v1/stocks/candles/D/{symbol}/"
@@ -342,8 +355,8 @@ class MarketdataClient:
                     return None
 
                 data = await resp.json()
-                if data.get('s') == 'ok' and data.get('c'):
-                    return data['c'][0]
+                if data.get("s") == "ok" and data.get("c"):
+                    return data["c"][0]
 
                 return None
         except:
@@ -353,6 +366,7 @@ class MarketdataClient:
 # =============================================================================
 # COLLECTOR
 # =============================================================================
+
 
 class OptionsCollector:
     """Sammelt Options-Preise"""
@@ -420,9 +434,9 @@ class OptionsCollector:
         filtered = []
 
         for opt in options:
-            underlying_price = opt.get('underlying_price')
-            strike = opt.get('strike')
-            expiration = opt.get('expiration')
+            underlying_price = opt.get("underlying_price")
+            strike = opt.get("strike")
+            expiration = opt.get("expiration")
 
             if not underlying_price or underlying_price <= 0:
                 continue
@@ -436,15 +450,15 @@ class OptionsCollector:
                 continue
 
             moneyness = strike / underlying_price
-            side = opt.get('side', '').lower()
+            side = opt.get("side", "").lower()
 
             # Puts: Strike bis 20% unter Spot (Moneyness 0.80-1.00)
-            if side == 'put':
+            if side == "put":
                 min_moneyness = 1.0 - self.strike_below_pct  # 0.87
                 if min_moneyness <= moneyness <= 1.00:
                     filtered.append(opt)
             # Calls: Strike bis 16% über Spot (Moneyness 1.00-1.16)
-            elif side == 'call':
+            elif side == "call":
                 max_moneyness = 1.0 + self.strike_above_pct  # 1.16
                 if 1.00 <= moneyness <= max_moneyness:
                     filtered.append(opt)
@@ -454,29 +468,29 @@ class OptionsCollector:
     def _to_option_price(self, opt: Dict) -> Optional[OptionPrice]:
         """Konvertiert Dict zu OptionPrice"""
         try:
-            underlying_price = opt.get('underlying_price')
-            strike = opt.get('strike')
+            underlying_price = opt.get("underlying_price")
+            strike = opt.get("strike")
 
             if not underlying_price or underlying_price <= 0:
                 return None
 
-            expiration = opt['expiration']
-            quote_date = opt['quote_date']
+            expiration = opt["expiration"]
+            quote_date = opt["quote_date"]
             dte = (expiration - quote_date).days
 
             return OptionPrice(
-                occ_symbol=opt['occ_symbol'],
-                underlying=opt.get('underlying', ''),
+                occ_symbol=opt["occ_symbol"],
+                underlying=opt.get("underlying", ""),
                 expiration=expiration,
                 strike=strike,
-                option_type='P' if opt.get('side', '').lower() == 'put' else 'C',
+                option_type="P" if opt.get("side", "").lower() == "put" else "C",
                 quote_date=quote_date,
-                bid=opt.get('bid', 0) or 0,
-                ask=opt.get('ask', 0) or 0,
-                mid=opt.get('mid', 0) or 0,
-                last=opt.get('last'),
-                volume=opt.get('volume', 0) or 0,
-                open_interest=opt.get('open_interest', 0) or 0,
+                bid=opt.get("bid", 0) or 0,
+                ask=opt.get("ask", 0) or 0,
+                mid=opt.get("mid", 0) or 0,
+                last=opt.get("last"),
+                volume=opt.get("volume", 0) or 0,
+                open_interest=opt.get("open_interest", 0) or 0,
                 underlying_price=underlying_price,
                 dte=dte,
                 moneyness=strike / underlying_price,
@@ -495,7 +509,9 @@ class OptionsCollector:
         async with semaphore:
             try:
                 # Hole Options mit erweitertem DTE-Bereich für 4 Monats-Expirations
-                raw_options = await client.get_options_chain(symbol, trade_date, dte_min=1, dte_max=130)
+                raw_options = await client.get_options_chain(
+                    symbol, trade_date, dte_min=1, dte_max=130
+                )
 
                 if not raw_options:
                     return []
@@ -548,7 +564,7 @@ class OptionsCollector:
             batch_size = 30  # Symbole pro Batch
 
             for batch_start in range(0, len(symbols), batch_size):
-                batch_symbols = symbols[batch_start:batch_start + batch_size]
+                batch_symbols = symbols[batch_start : batch_start + batch_size]
                 batch_options = []
 
                 # Tasks erstellen
@@ -597,24 +613,25 @@ class OptionsCollector:
 # CLI
 # =============================================================================
 
+
 def get_api_key() -> str:
     """API Key laden"""
-    api_key = os.environ.get('MARKETDATA_API_KEY')
+    api_key = os.environ.get("MARKETDATA_API_KEY")
 
     if not api_key:
         config_file = Path.home() / ".optionplay" / "config.json"
         if config_file.exists():
             with open(config_file) as f:
                 config = json.load(f)
-                api_key = config.get('marketdata_api_key')
+                api_key = config.get("marketdata_api_key")
 
     if not api_key:
         env_file = project_root / ".env"
         if env_file.exists():
             with open(env_file) as f:
                 for line in f:
-                    if line.startswith('MARKETDATA_API_KEY='):
-                        api_key = line.split('=', 1)[1].strip()
+                    if line.startswith("MARKETDATA_API_KEY="):
+                        api_key = line.split("=", 1)[1].strip()
                         break
 
     if not api_key:
@@ -710,14 +727,14 @@ def show_status():
 
 
 async def main():
-    parser = argparse.ArgumentParser(description='Collect historical options prices')
-    parser.add_argument('--test', action='store_true', help='Test with 3 symbols')
-    parser.add_argument('--symbols', type=str, help='Comma-separated symbols')
-    parser.add_argument('--all', action='store_true', help='All watchlist symbols')
-    parser.add_argument('--days', type=int, default=30, help='Days back (default: 30)')
-    parser.add_argument('--workers', type=int, default=50, help='Concurrent workers (default: 50)')
-    parser.add_argument('--rpm', type=int, default=8000, help='Requests per minute (default: 8000)')
-    parser.add_argument('--status', action='store_true', help='Show collection status')
+    parser = argparse.ArgumentParser(description="Collect historical options prices")
+    parser.add_argument("--test", action="store_true", help="Test with 3 symbols")
+    parser.add_argument("--symbols", type=str, help="Comma-separated symbols")
+    parser.add_argument("--all", action="store_true", help="All watchlist symbols")
+    parser.add_argument("--days", type=int, default=30, help="Days back (default: 30)")
+    parser.add_argument("--workers", type=int, default=50, help="Concurrent workers (default: 50)")
+    parser.add_argument("--rpm", type=int, default=8000, help="Requests per minute (default: 8000)")
+    parser.add_argument("--status", action="store_true", help="Show collection status")
 
     args = parser.parse_args()
 
@@ -727,9 +744,9 @@ async def main():
 
     # Symbole bestimmen
     if args.test:
-        symbols = ['AAPL', 'MSFT', 'SPY']
+        symbols = ["AAPL", "MSFT", "SPY"]
     elif args.symbols:
-        symbols = [s.strip().upper() for s in args.symbols.split(',')]
+        symbols = [s.strip().upper() for s in args.symbols.split(",")]
     elif args.all:
         loader = get_watchlist_loader()
         symbols = loader.get_all_symbols()
@@ -766,5 +783,5 @@ async def main():
     show_status()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     asyncio.run(main())

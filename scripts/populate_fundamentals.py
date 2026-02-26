@@ -35,15 +35,9 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from src.cache.symbol_fundamentals import (
-    SymbolFundamentalsManager,
-    get_fundamentals_manager
-)
+from src.cache.symbol_fundamentals import SymbolFundamentalsManager, get_fundamentals_manager
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -51,6 +45,7 @@ def get_watchlist_symbols() -> list:
     """Holt alle Symbole aus der Watchlist"""
     try:
         from src.config.watchlist_loader import WatchlistLoader
+
         loader = WatchlistLoader()
         symbols = loader.get_all_symbols()
         logger.info(f"Watchlist: {len(symbols)} Symbole geladen")
@@ -63,6 +58,7 @@ def get_watchlist_symbols() -> list:
 def get_symbols_from_outcomes_db() -> list:
     """Holt alle Symbole aus outcomes.db"""
     import sqlite3
+
     outcomes_db = Path.home() / ".optionplay" / "outcomes.db"
 
     if not outcomes_db.exists():
@@ -171,10 +167,7 @@ def populate_proxy_stability(manager: SymbolFundamentalsManager):
         if f.stability_score is not None and f.sector:
             sector_stability.setdefault(f.sector, []).append(f.stability_score)
 
-    sector_avg = {
-        sector: sum(scores) / len(scores)
-        for sector, scores in sector_stability.items()
-    }
+    sector_avg = {sector: sum(scores) / len(scores) for sector, scores in sector_stability.items()}
     overall_avg = sum(
         f.stability_score for f in all_fundamentals if f.stability_score is not None
     ) / max(1, len([f for f in all_fundamentals if f.stability_score is not None]))
@@ -219,14 +212,16 @@ def print_statistics(manager: SymbolFundamentalsManager):
     logger.info(f"{'='*60}")
 
     logger.info(f"Gesamt Symbole: {stats['total_symbols']}")
-    logger.info(f"Mit Stability Score: {stats['with_stability_score']} ({stats['stability_coverage_pct']}%)")
+    logger.info(
+        f"Mit Stability Score: {stats['with_stability_score']} ({stats['stability_coverage_pct']}%)"
+    )
 
     logger.info("\nNach Sektor:")
-    for sector, count in sorted(stats['by_sector'].items(), key=lambda x: -x[1]):
+    for sector, count in sorted(stats["by_sector"].items(), key=lambda x: -x[1]):
         logger.info(f"  {sector}: {count}")
 
     logger.info("\nNach Market Cap:")
-    for cat, count in stats['by_market_cap'].items():
+    for cat, count in stats["by_market_cap"].items():
         logger.info(f"  {cat}: {count}")
 
 
@@ -234,41 +229,28 @@ def main():
     parser = argparse.ArgumentParser(description="Populate Symbol Fundamentals Database")
 
     parser.add_argument(
-        '--symbols', '-s',
-        nargs='+',
-        help='Spezifische Symbole (default: Watchlist)'
+        "--symbols", "-s", nargs="+", help="Spezifische Symbole (default: Watchlist)"
+    )
+    parser.add_argument("--yfinance-only", action="store_true", help="Nur yfinance-Daten holen")
+    parser.add_argument(
+        "--stability-only", action="store_true", help="Nur Stability-Scores updaten"
     )
     parser.add_argument(
-        '--yfinance-only',
-        action='store_true',
-        help='Nur yfinance-Daten holen'
+        "--earnings-only", action="store_true", help="Nur Earnings Beat Rate updaten"
     )
     parser.add_argument(
-        '--stability-only',
-        action='store_true',
-        help='Nur Stability-Scores updaten'
-    )
-    parser.add_argument(
-        '--earnings-only',
-        action='store_true',
-        help='Nur Earnings Beat Rate updaten'
-    )
-    parser.add_argument(
-        '--delay', '-d',
+        "--delay",
+        "-d",
         type=float,
         default=0.5,
-        help='Delay zwischen API-Aufrufen in Sekunden (default: 0.5)'
+        help="Delay zwischen API-Aufrufen in Sekunden (default: 0.5)",
     )
     parser.add_argument(
-        '--proxy-stability',
-        action='store_true',
-        help='Nur Proxy-Stability Scores fuer Symbole ohne Backtest-Daten berechnen'
+        "--proxy-stability",
+        action="store_true",
+        help="Nur Proxy-Stability Scores fuer Symbole ohne Backtest-Daten berechnen",
     )
-    parser.add_argument(
-        '--stats',
-        action='store_true',
-        help='Nur Statistiken anzeigen'
-    )
+    parser.add_argument("--stats", action="store_true", help="Nur Statistiken anzeigen")
 
     args = parser.parse_args()
 

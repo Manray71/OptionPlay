@@ -62,9 +62,7 @@ from src.config.watchlist_loader import get_watchlist_loader
 
 # Logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    datefmt='%H:%M:%S'
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s", datefmt="%H:%M:%S"
 )
 logger = logging.getLogger(__name__)
 
@@ -73,9 +71,11 @@ logger = logging.getLogger(__name__)
 # DATA CLASSES
 # =============================================================================
 
+
 @dataclass
 class HistoricalOptionQuote:
     """Historische Options-Quote mit berechneten Greeks"""
+
     # Identifikation
     occ_symbol: str
     underlying: str
@@ -111,6 +111,7 @@ class HistoricalOptionQuote:
 @dataclass
 class CollectionStats:
     """Statistiken einer Sammlungssession"""
+
     symbols_requested: int = 0
     symbols_processed: int = 0
     symbols_failed: int = 0
@@ -124,6 +125,7 @@ class CollectionStats:
 # =============================================================================
 # DATABASE SCHEMA EXTENSION
 # =============================================================================
+
 
 def ensure_schema(db_path: str):
     """Stellt sicher, dass die erweiterte Tabelle existiert"""
@@ -210,7 +212,8 @@ def store_historical_options(db_path: str, options: List[HistoricalOptionQuote])
 
     for opt in options:
         try:
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT OR REPLACE INTO historical_options (
                     occ_symbol, underlying, expiration, strike, option_type,
                     quote_date, bid, ask, mid, last, volume, open_interest,
@@ -218,30 +221,32 @@ def store_historical_options(db_path: str, options: List[HistoricalOptionQuote])
                     iv_calculated, delta, gamma, theta, vega,
                     iv_calibration_factor, created_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                opt.occ_symbol,
-                opt.underlying,
-                opt.expiration.isoformat(),
-                opt.strike,
-                opt.option_type,
-                opt.quote_date.isoformat(),
-                opt.bid,
-                opt.ask,
-                opt.mid,
-                opt.last,
-                opt.volume,
-                opt.open_interest,
-                opt.underlying_price,
-                opt.dte,
-                opt.moneyness,
-                opt.iv_calculated,
-                opt.delta,
-                opt.gamma,
-                opt.theta,
-                opt.vega,
-                opt.iv_calibration_factor,
-                now
-            ))
+            """,
+                (
+                    opt.occ_symbol,
+                    opt.underlying,
+                    opt.expiration.isoformat(),
+                    opt.strike,
+                    opt.option_type,
+                    opt.quote_date.isoformat(),
+                    opt.bid,
+                    opt.ask,
+                    opt.mid,
+                    opt.last,
+                    opt.volume,
+                    opt.open_interest,
+                    opt.underlying_price,
+                    opt.dte,
+                    opt.moneyness,
+                    opt.iv_calculated,
+                    opt.delta,
+                    opt.gamma,
+                    opt.theta,
+                    opt.vega,
+                    opt.iv_calibration_factor,
+                    now,
+                ),
+            )
             stored += 1
         except Exception as e:
             logger.debug(f"Error storing {opt.occ_symbol}: {e}")
@@ -255,6 +260,7 @@ def store_historical_options(db_path: str, options: List[HistoricalOptionQuote])
 # =============================================================================
 # MARKETDATA.APP CLIENT
 # =============================================================================
+
 
 class MarketdataOptionsClient:
     """Client für Marketdata.app Options API"""
@@ -276,10 +282,7 @@ class MarketdataOptionsClient:
         self._minute_start = 0
 
     async def __aenter__(self):
-        headers = {
-            'Authorization': f'Bearer {self.api_key}',
-            'Accept': 'application/json'
-        }
+        headers = {"Authorization": f"Bearer {self.api_key}", "Accept": "application/json"}
         self.session = aiohttp.ClientSession(headers=headers)
         return self
 
@@ -345,9 +348,9 @@ class MarketdataOptionsClient:
         exp_to = (quote_date + timedelta(days=dte_max)).isoformat()
 
         params = {
-            'date': quote_date.isoformat(),
-            'from': exp_from,  # Expiration from
-            'to': exp_to,      # Expiration to
+            "date": quote_date.isoformat(),
+            "from": exp_from,  # Expiration from
+            "to": exp_to,  # Expiration to
         }
 
         url = f"{self.BASE_URL}/v1/options/chain/{symbol}/"
@@ -363,33 +366,35 @@ class MarketdataOptionsClient:
 
                 data = await resp.json()
 
-                if data.get('s') != 'ok':
-                    return [], data.get('errmsg', 'unknown error')
+                if data.get("s") != "ok":
+                    return [], data.get("errmsg", "unknown error")
 
                 # Parse response arrays into list of dicts
                 options = []
-                n = len(data.get('optionSymbol', []))
+                n = len(data.get("optionSymbol", []))
 
                 for i in range(n):
                     opt = {
-                        'occ_symbol': data['optionSymbol'][i],
-                        'underlying': data['underlying'][i] if 'underlying' in data else symbol,
-                        'expiration': data['expiration'][i],
-                        'strike': data['strike'][i],
-                        'side': data['side'][i],
-                        'bid': data['bid'][i],
-                        'ask': data['ask'][i],
-                        'mid': data['mid'][i] if 'mid' in data else None,
-                        'last': data['last'][i] if 'last' in data else None,
-                        'volume': data['volume'][i] if 'volume' in data else 0,
-                        'open_interest': data['openInterest'][i] if 'openInterest' in data else 0,
-                        'underlying_price': data['underlyingPrice'][i] if 'underlyingPrice' in data else None,
-                        'dte': data['dte'][i] if 'dte' in data else None,
+                        "occ_symbol": data["optionSymbol"][i],
+                        "underlying": data["underlying"][i] if "underlying" in data else symbol,
+                        "expiration": data["expiration"][i],
+                        "strike": data["strike"][i],
+                        "side": data["side"][i],
+                        "bid": data["bid"][i],
+                        "ask": data["ask"][i],
+                        "mid": data["mid"][i] if "mid" in data else None,
+                        "last": data["last"][i] if "last" in data else None,
+                        "volume": data["volume"][i] if "volume" in data else 0,
+                        "open_interest": data["openInterest"][i] if "openInterest" in data else 0,
+                        "underlying_price": (
+                            data["underlyingPrice"][i] if "underlyingPrice" in data else None
+                        ),
+                        "dte": data["dte"][i] if "dte" in data else None,
                     }
 
                     # Calculate mid if not provided
-                    if opt['mid'] is None and opt['bid'] and opt['ask']:
-                        opt['mid'] = (opt['bid'] + opt['ask']) / 2
+                    if opt["mid"] is None and opt["bid"] and opt["ask"]:
+                        opt["mid"] = (opt["bid"] + opt["ask"]) / 2
 
                     options.append(opt)
 
@@ -403,8 +408,8 @@ class MarketdataOptionsClient:
         await self._rate_limit()
 
         params = {
-            'from': quote_date.isoformat(),
-            'to': (quote_date + timedelta(days=1)).isoformat(),
+            "from": quote_date.isoformat(),
+            "to": (quote_date + timedelta(days=1)).isoformat(),
         }
 
         url = f"{self.BASE_URL}/v1/stocks/candles/D/{symbol}/"
@@ -415,8 +420,8 @@ class MarketdataOptionsClient:
                     return None
 
                 data = await resp.json()
-                if data.get('s') == 'ok' and data.get('c'):
-                    return data['c'][0]  # Close price
+                if data.get("s") == "ok" and data.get("c"):
+                    return data["c"][0]  # Close price
 
                 return None
         except:
@@ -426,6 +431,7 @@ class MarketdataOptionsClient:
 # =============================================================================
 # GREEKS CALCULATOR
 # =============================================================================
+
 
 class GreeksCalculator:
     """Berechnet Greeks mit kalibriertem Black-Scholes Modell"""
@@ -462,13 +468,16 @@ class GreeksCalculator:
         for symbol in symbols:
             try:
                 cursor = conn.cursor()
-                cursor.execute("""
+                cursor.execute(
+                    """
                     SELECT date, close FROM (
                         SELECT date, close FROM price_data
                         WHERE symbol = ?
                         ORDER BY date DESC
                     ) ORDER BY date ASC
-                """, (symbol,))
+                """,
+                    (symbol,),
+                )
 
                 rows = cursor.fetchall()
                 if len(rows) < window + 1:
@@ -479,7 +488,7 @@ class GreeksCalculator:
                 hv_dict = {}
 
                 for i in range(window, len(prices)):
-                    window_prices = [p[1] for p in prices[i-window:i+1]]
+                    window_prices = [p[1] for p in prices[i - window : i + 1]]
                     returns = np.log(np.array(window_prices[1:]) / np.array(window_prices[:-1]))
                     hv = float(np.std(returns, ddof=1) * np.sqrt(252))
                     hv_dict[prices[i][0]] = hv
@@ -538,11 +547,11 @@ class GreeksCalculator:
         3. Berechnet alle Greeks mit Black-Scholes
         """
         # Extrahiere Daten
-        strike = option_data['strike']
-        underlying_price = option_data.get('underlying_price')
-        mid_price = option_data.get('mid')
-        bid = option_data.get('bid', 0)
-        ask = option_data.get('ask', 0)
+        strike = option_data["strike"]
+        underlying_price = option_data.get("underlying_price")
+        mid_price = option_data.get("mid")
+        bid = option_data.get("bid", 0)
+        ask = option_data.get("ask", 0)
 
         # Validierung
         if not underlying_price or underlying_price <= 0:
@@ -554,7 +563,7 @@ class GreeksCalculator:
                 return None
 
         # Parse expiration
-        exp_str = option_data['expiration']
+        exp_str = option_data["expiration"]
         if isinstance(exp_str, int):
             expiration = date.fromtimestamp(exp_str)
         else:
@@ -571,13 +580,12 @@ class GreeksCalculator:
         moneyness = strike / underlying_price
 
         # Option type
-        side = option_data.get('side', 'put').lower()
-        option_type = 'P' if side == 'put' else 'C'
+        side = option_data.get("side", "put").lower()
+        option_type = "P" if side == "put" else "C"
 
         # 1. Versuche IV aus Mid-Price zu berechnen
         iv_from_price = implied_volatility(
-            mid_price, underlying_price, strike, T,
-            self.risk_free_rate, option_type
+            mid_price, underlying_price, strike, T, self.risk_free_rate, option_type
         )
 
         # 2. Falls nicht konvergiert, schätze IV
@@ -608,11 +616,11 @@ class GreeksCalculator:
             T=T,
             r=self.risk_free_rate,
             sigma=iv_calculated,
-            option_type=option_type
+            option_type=option_type,
         )
 
         return HistoricalOptionQuote(
-            occ_symbol=option_data['occ_symbol'],
+            occ_symbol=option_data["occ_symbol"],
             underlying=symbol,
             expiration=expiration,
             strike=strike,
@@ -621,9 +629,9 @@ class GreeksCalculator:
             bid=bid,
             ask=ask,
             mid=mid_price,
-            last=option_data.get('last'),
-            volume=option_data.get('volume', 0) or 0,
-            open_interest=option_data.get('open_interest', 0) or 0,
+            last=option_data.get("last"),
+            volume=option_data.get("volume", 0) or 0,
+            open_interest=option_data.get("open_interest", 0) or 0,
             underlying_price=underlying_price,
             dte=dte,
             moneyness=moneyness,
@@ -639,6 +647,7 @@ class GreeksCalculator:
 # =============================================================================
 # COLLECTOR
 # =============================================================================
+
 
 class HistoricalOptionsCollector:
     """Hauptklasse für die Datensammlung mit parallelen Workers"""
@@ -740,7 +749,7 @@ class HistoricalOptionsCollector:
             batch_size = 50  # Symbole pro Batch für DB-Write
 
             for batch_start in range(0, len(symbols), batch_size):
-                batch_symbols = symbols[batch_start:batch_start + batch_size]
+                batch_symbols = symbols[batch_start : batch_start + batch_size]
                 batch_options = []
 
                 # Erstelle Tasks für alle Symbol-Datum-Kombinationen im Batch
@@ -769,8 +778,10 @@ class HistoricalOptionsCollector:
 
                 if progress_callback:
                     progress_callback(
-                        batch_symbols[-1], self._current_op, total_ops,
-                        f"Batch {batch_start//batch_size + 1}"
+                        batch_symbols[-1],
+                        self._current_op,
+                        total_ops,
+                        f"Batch {batch_start//batch_size + 1}",
                     )
 
                 # Batch in DB speichern
@@ -784,7 +795,9 @@ class HistoricalOptionsCollector:
                 self.stats.symbols_processed += len(symbols_in_batch)
                 self.stats.symbols_failed += len(batch_symbols) - len(symbols_in_batch)
 
-                logger.info(f"Batch {batch_start//batch_size + 1}: {len(batch_options)} options from {len(symbols_in_batch)} symbols")
+                logger.info(
+                    f"Batch {batch_start//batch_size + 1}: {len(batch_options)} options from {len(symbols_in_batch)} symbols"
+                )
 
         return self.stats
 
@@ -793,16 +806,17 @@ class HistoricalOptionsCollector:
 # CLI
 # =============================================================================
 
+
 def get_api_key() -> str:
     """API Key laden"""
-    api_key = os.environ.get('MARKETDATA_API_KEY')
+    api_key = os.environ.get("MARKETDATA_API_KEY")
 
     if not api_key:
         config_file = Path.home() / ".optionplay" / "config.json"
         if config_file.exists():
             with open(config_file) as f:
                 config = json.load(f)
-                api_key = config.get('marketdata_api_key')
+                api_key = config.get("marketdata_api_key")
 
     if not api_key:
         # Try .env
@@ -810,8 +824,8 @@ def get_api_key() -> str:
         if env_file.exists():
             with open(env_file) as f:
                 for line in f:
-                    if line.startswith('MARKETDATA_API_KEY='):
-                        api_key = line.split('=', 1)[1].strip()
+                    if line.startswith("MARKETDATA_API_KEY="):
+                        api_key = line.split("=", 1)[1].strip()
                         break
 
     if not api_key:
@@ -940,7 +954,7 @@ class ProgressTracker:
         # Progress bar
         bar_width = 25
         filled = int(bar_width * current / total) if total > 0 else 0
-        bar = '█' * filled + '░' * (bar_width - filled)
+        bar = "█" * filled + "░" * (bar_width - filled)
 
         # ETA
         if current > 0 and elapsed > 0:
@@ -951,39 +965,41 @@ class ProgressTracker:
         else:
             eta_str = "--:--"
 
-        print(f"\r[{bar}] {pct:5.1f}% | {symbol:<6} | {status:<20} | ETA {eta_str}",
-              end='', flush=True)
+        print(
+            f"\r[{bar}] {pct:5.1f}% | {symbol:<6} | {status:<20} | ETA {eta_str}",
+            end="",
+            flush=True,
+        )
 
 
 async def main():
     parser = argparse.ArgumentParser(
-        description='Collect historical options data with calculated Greeks'
+        description="Collect historical options data with calculated Greeks"
     )
 
-    parser.add_argument('--test', action='store_true',
-                       help='Test mode with 3 symbols, 5 days')
-    parser.add_argument('--symbols', type=str,
-                       help='Comma-separated list of symbols')
-    parser.add_argument('--all', action='store_true',
-                       help='Process all watchlist symbols')
-    parser.add_argument('--days', type=int, default=30,
-                       help='Days of history (default: 30)')
-    parser.add_argument('--status', action='store_true',
-                       help='Show collection status')
-    parser.add_argument('--delta-min', type=float, default=0.03,
-                       help='Minimum |delta| filter (default: 0.03)')
-    parser.add_argument('--delta-max', type=float, default=0.40,
-                       help='Maximum |delta| filter (default: 0.40)')
-    parser.add_argument('--dte-min', type=int, default=7,
-                       help='Minimum DTE (default: 7)')
-    parser.add_argument('--dte-max', type=int, default=60,
-                       help='Maximum DTE (default: 60)')
-    parser.add_argument('--rpm', type=int, default=6000,
-                       help='Requests per minute (Quant plan: 10000, default: 6000)')
-    parser.add_argument('--workers', type=int, default=20,
-                       help='Concurrent API workers (default: 20)')
-    parser.add_argument('-v', '--verbose', action='store_true',
-                       help='Verbose output')
+    parser.add_argument("--test", action="store_true", help="Test mode with 3 symbols, 5 days")
+    parser.add_argument("--symbols", type=str, help="Comma-separated list of symbols")
+    parser.add_argument("--all", action="store_true", help="Process all watchlist symbols")
+    parser.add_argument("--days", type=int, default=30, help="Days of history (default: 30)")
+    parser.add_argument("--status", action="store_true", help="Show collection status")
+    parser.add_argument(
+        "--delta-min", type=float, default=0.03, help="Minimum |delta| filter (default: 0.03)"
+    )
+    parser.add_argument(
+        "--delta-max", type=float, default=0.40, help="Maximum |delta| filter (default: 0.40)"
+    )
+    parser.add_argument("--dte-min", type=int, default=7, help="Minimum DTE (default: 7)")
+    parser.add_argument("--dte-max", type=int, default=60, help="Maximum DTE (default: 60)")
+    parser.add_argument(
+        "--rpm",
+        type=int,
+        default=6000,
+        help="Requests per minute (Quant plan: 10000, default: 6000)",
+    )
+    parser.add_argument(
+        "--workers", type=int, default=20, help="Concurrent API workers (default: 20)"
+    )
+    parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
 
     args = parser.parse_args()
 
@@ -996,11 +1012,11 @@ async def main():
 
     # Symbole bestimmen
     if args.test:
-        symbols = ['AAPL', 'SPY', 'MSFT']
+        symbols = ["AAPL", "SPY", "MSFT"]
         days = 5
         logger.info("Test mode: 3 symbols, 5 days")
     elif args.symbols:
-        symbols = [s.strip().upper() for s in args.symbols.split(',')]
+        symbols = [s.strip().upper() for s in args.symbols.split(",")]
         days = args.days
     elif args.all:
         loader = get_watchlist_loader()
@@ -1011,7 +1027,9 @@ async def main():
         parser.print_help()
         print("\nExamples:")
         print("  python scripts/collect_historical_options_marketdata.py --test")
-        print("  python scripts/collect_historical_options_marketdata.py --symbols AAPL,MSFT --days 30")
+        print(
+            "  python scripts/collect_historical_options_marketdata.py --symbols AAPL,MSFT --days 30"
+        )
         print("  python scripts/collect_historical_options_marketdata.py --all --days 14")
         return
 
@@ -1073,5 +1091,5 @@ async def main():
         print("\n\nInterrupted by user.")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     asyncio.run(main())

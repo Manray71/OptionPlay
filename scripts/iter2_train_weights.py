@@ -42,15 +42,33 @@ def load_trades_df():
 
     # Columns we need
     cols = [
-        "symbol", "entry_date", "was_profitable", "pnl_pct",
-        "vix_regime", "max_drawdown_pct",
-        "pullback_score", "bounce_score", "ath_breakout_score", "earnings_dip_score",
+        "symbol",
+        "entry_date",
+        "was_profitable",
+        "pnl_pct",
+        "vix_regime",
+        "max_drawdown_pct",
+        "pullback_score",
+        "bounce_score",
+        "ath_breakout_score",
+        "earnings_dip_score",
         # Component scores
-        "rsi_score", "support_score", "fibonacci_score", "ma_score",
-        "volume_score", "macd_score", "stoch_score", "keltner_score",
-        "trend_strength_score", "momentum_score", "rs_score",
-        "candlestick_score", "vwap_score", "market_context_score",
-        "sector_score", "gap_score",
+        "rsi_score",
+        "support_score",
+        "fibonacci_score",
+        "ma_score",
+        "volume_score",
+        "macd_score",
+        "stoch_score",
+        "keltner_score",
+        "trend_strength_score",
+        "momentum_score",
+        "rs_score",
+        "candlestick_score",
+        "vwap_score",
+        "market_context_score",
+        "sector_score",
+        "gap_score",
     ]
 
     query = f"SELECT {', '.join(cols)} FROM trade_outcomes WHERE pullback_score IS NOT NULL ORDER BY entry_date"
@@ -83,9 +101,11 @@ def train_strategy(strategy, df):
     RecursiveConfigResolver.reset()
 
     trainer = StrategyWeightTrainer(strategy)
-    print(f"  Config: L2={trainer.config.l2_lambda}, "
-          f"max_change={trainer.config.max_weight_change}, "
-          f"bounds={trainer.config.weight_bounds}")
+    print(
+        f"  Config: L2={trainer.config.l2_lambda}, "
+        f"max_change={trainer.config.max_weight_change}, "
+        f"bounds={trainer.config.weight_bounds}"
+    )
     print(f"  Components: {len(trainer.components)}")
 
     result = trainer.train(df)
@@ -116,7 +136,7 @@ def evaluate_improvement(strategy, df, old_weights, new_weights):
     score_col = f"{strategy}_score"
     other_cols = [f"{s}_score" for s in STRATEGIES if s != strategy]
 
-    mask = (df[score_col] > 0)
+    mask = df[score_col] > 0
     for oc in other_cols:
         mask = mask & (df[score_col] >= df[oc])
 
@@ -200,8 +220,9 @@ def main():
             },
             "weights": {k: round(v, 4) for k, v in result.weights.items()},
             "old_weights": {k: round(v, 4) for k, v in old_weights.items()},
-            "metrics": {k: round(v, 4) if isinstance(v, float) else v
-                       for k, v in result.metrics.items()},
+            "metrics": {
+                k: round(v, 4) if isinstance(v, float) else v for k, v in result.metrics.items()
+            },
             "improvement": improvement,
         }
 
@@ -227,9 +248,11 @@ def main():
     print(f"{'='*60}")
     for strategy, stats in summary.items():
         imp = stats.get("improvement", {})
-        print(f"  {strategy:>15s}: converged={stats['converged']}, "
-              f"WR delta={imp.get('wr_delta', 'N/A')}, "
-              f"PnL delta={imp.get('pnl_delta', 'N/A')}")
+        print(
+            f"  {strategy:>15s}: converged={stats['converged']}, "
+            f"WR delta={imp.get('wr_delta', 'N/A')}, "
+            f"PnL delta={imp.get('pnl_delta', 'N/A')}"
+        )
 
 
 if __name__ == "__main__":

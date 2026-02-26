@@ -29,14 +29,11 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 # Add src to path
-sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from data_providers.marketdata import MarketDataProvider, HistoricalBar
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 # Configuration
@@ -51,6 +48,7 @@ RATE_LIMIT_DELAY = 0.15  # 150ms between requests
 # TRADIER PROVIDER (Primary - better historical coverage)
 # =============================================================================
 
+
 class TradierHistoricalProvider:
     """Simple Tradier client for historical data only."""
 
@@ -62,10 +60,7 @@ class TradierHistoricalProvider:
     async def connect(self):
         if self._session is None or self._session.closed:
             self._session = aiohttp.ClientSession(
-                headers={
-                    "Authorization": f"Bearer {self.api_key}",
-                    "Accept": "application/json"
-                }
+                headers={"Authorization": f"Bearer {self.api_key}", "Accept": "application/json"}
             )
 
     async def disconnect(self):
@@ -80,17 +75,11 @@ class TradierHistoricalProvider:
         start = (date.today() - timedelta(days=int(days * 1.5))).isoformat()
         end = date.today().isoformat()
 
-        params = {
-            "symbol": symbol.upper(),
-            "interval": "daily",
-            "start": start,
-            "end": end
-        }
+        params = {"symbol": symbol.upper(), "interval": "daily", "start": start, "end": end}
 
         try:
             async with self._session.get(
-                f"{self.base_url}/v1/markets/history",
-                params=params
+                f"{self.base_url}/v1/markets/history", params=params
             ) as resp:
                 if resp.status != 200:
                     return []
@@ -119,7 +108,7 @@ class TradierHistoricalProvider:
                             low=float(day.get("low", 0)),
                             close=float(day.get("close", 0)),
                             volume=int(day.get("volume", 0)),
-                            source="tradier"
+                            source="tradier",
                         )
                         bars.append(bar)
                     except (KeyError, ValueError) as e:
@@ -142,14 +131,19 @@ def get_db_connection() -> sqlite3.Connection:
     return sqlite3.connect(str(DB_PATH))
 
 
-def get_symbols_needing_enrichment(conn: sqlite3.Connection, min_bars: int = 750) -> List[Tuple[str, int, str, str]]:
+def get_symbols_needing_enrichment(
+    conn: sqlite3.Connection, min_bars: int = 750
+) -> List[Tuple[str, int, str, str]]:
     """Get symbols with less than min_bars of data."""
-    cursor = conn.execute("""
+    cursor = conn.execute(
+        """
         SELECT symbol, bar_count, start_date, end_date
         FROM price_data
         WHERE bar_count < ?
         ORDER BY bar_count ASC
-    """, (min_bars,))
+    """,
+        (min_bars,),
+    )
     return cursor.fetchall()
 
 
@@ -165,11 +159,14 @@ def get_all_symbols(conn: sqlite3.Connection) -> List[Tuple[str, int, str, str]]
 
 def get_symbol_data(conn: sqlite3.Connection, symbol: str) -> Optional[Tuple[int, str, str, bytes]]:
     """Get existing data for a symbol."""
-    cursor = conn.execute("""
+    cursor = conn.execute(
+        """
         SELECT bar_count, start_date, end_date, data_compressed
         FROM price_data
         WHERE symbol = ?
-    """, (symbol,))
+    """,
+        (symbol,),
+    )
     return cursor.fetchone()
 
 
@@ -180,13 +177,14 @@ def decompress_bars(data_compressed: bytes) -> List[Dict]:
     try:
         # Try gzip first
         decompressed = gzip.decompress(data_compressed)
-        return json.loads(decompressed.decode('utf-8'))
+        return json.loads(decompressed.decode("utf-8"))
     except gzip.BadGzipFile:
         # Fall back to zlib (older format)
         try:
             import zlib
+
             decompressed = zlib.decompress(data_compressed)
-            return json.loads(decompressed.decode('utf-8'))
+            return json.loads(decompressed.decode("utf-8"))
         except Exception as e:
             logger.warning(f"Failed to decompress with zlib: {e}")
             return []
@@ -197,7 +195,7 @@ def decompress_bars(data_compressed: bytes) -> List[Dict]:
 
 def compress_bars(bars: List[Dict]) -> bytes:
     """Compress bar data for storage."""
-    json_data = json.dumps(bars).encode('utf-8')
+    json_data = json.dumps(bars).encode("utf-8")
     return gzip.compress(json_data, compresslevel=9)
 
 
@@ -205,14 +203,16 @@ def bars_to_dict_list(bars: List[HistoricalBar]) -> List[Dict]:
     """Convert HistoricalBar objects to dicts for storage."""
     result = []
     for bar in bars:
-        result.append({
-            'date': bar.date.isoformat() if isinstance(bar.date, date) else bar.date,
-            'open': bar.open,
-            'high': bar.high,
-            'low': bar.low,
-            'close': bar.close,
-            'volume': bar.volume
-        })
+        result.append(
+            {
+                "date": bar.date.isoformat() if isinstance(bar.date, date) else bar.date,
+                "open": bar.open,
+                "high": bar.high,
+                "low": bar.low,
+                "close": bar.close,
+                "volume": bar.volume,
+            }
+        )
     return result
 
 
@@ -221,7 +221,7 @@ def merge_bar_data(existing: List[Dict], new_bars: List[HistoricalBar]) -> List[
     # Convert existing to dict by date
     by_date = {}
     for bar in existing:
-        bar_date = bar.get('date', bar.get('d'))
+        bar_date = bar.get("date", bar.get("d"))
         if bar_date:
             by_date[bar_date] = bar
 
@@ -231,16 +231,16 @@ def merge_bar_data(existing: List[Dict], new_bars: List[HistoricalBar]) -> List[
         # Only add if not already present (prefer existing data)
         if bar_date not in by_date:
             by_date[bar_date] = {
-                'date': bar_date,
-                'open': bar.open,
-                'high': bar.high,
-                'low': bar.low,
-                'close': bar.close,
-                'volume': bar.volume
+                "date": bar_date,
+                "open": bar.open,
+                "high": bar.high,
+                "low": bar.low,
+                "close": bar.close,
+                "volume": bar.volume,
             }
 
     # Sort by date
-    sorted_bars = sorted(by_date.values(), key=lambda x: x.get('date', x.get('d', '')))
+    sorted_bars = sorted(by_date.values(), key=lambda x: x.get("date", x.get("d", "")))
     return sorted_bars
 
 
@@ -250,7 +250,7 @@ def update_symbol_data(conn: sqlite3.Connection, symbol: str, bars: List[Dict]):
         return
 
     # Get date range
-    dates = [b.get('date', b.get('d', '')) for b in bars]
+    dates = [b.get("date", b.get("d", "")) for b in bars]
     dates = [d for d in dates if d]
     if not dates:
         return
@@ -263,14 +263,25 @@ def update_symbol_data(conn: sqlite3.Connection, symbol: str, bars: List[Dict]):
     data_compressed = compress_bars(bars)
 
     # Update or insert
-    conn.execute("""
+    conn.execute(
+        """
         INSERT OR REPLACE INTO price_data
         (symbol, start_date, end_date, bar_count, data_compressed, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?,
                 COALESCE((SELECT created_at FROM price_data WHERE symbol = ?), ?),
                 ?)
-    """, (symbol, start_date, end_date, bar_count, data_compressed,
-          symbol, datetime.now().isoformat(), datetime.now().isoformat()))
+    """,
+        (
+            symbol,
+            start_date,
+            end_date,
+            bar_count,
+            data_compressed,
+            symbol,
+            datetime.now().isoformat(),
+            datetime.now().isoformat(),
+        ),
+    )
     conn.commit()
 
 
@@ -282,7 +293,7 @@ async def enrich_symbol(
     current_bars: int,
     current_start: str,
     dry_run: bool = False,
-    provider_preference: str = "tradier"
+    provider_preference: str = "tradier",
 ) -> Tuple[str, int, int, str]:
     """
     Enrich a single symbol with more historical data.
@@ -325,7 +336,7 @@ async def enrich_symbol(
         update_symbol_data(conn, symbol, merged)
 
         # Get new date range
-        dates = [b.get('date', b.get('d', '')) for b in merged if b.get('date') or b.get('d')]
+        dates = [b.get("date", b.get("d", "")) for b in merged if b.get("date") or b.get("d")]
         new_start = min(dates) if dates else current_start
 
         return (symbol, current_bars, new_count, f"enriched: {current_start} -> {new_start}")
@@ -339,7 +350,7 @@ async def enrich_all(
     symbols_data: List[Tuple[str, int, str, str]],
     dry_run: bool = False,
     workers: int = 1,
-    provider_preference: str = "tradier"
+    provider_preference: str = "tradier",
 ) -> Dict[str, Tuple[int, int, str]]:
     """Enrich all specified symbols."""
 
@@ -380,7 +391,9 @@ async def enrich_all(
         elif status == "dry_run":
             enriched += 1
             improvement = new_bars - old_bars
-            print(f"[{i+1}/{total}] {symbol}: {old_bars} -> {new_bars} bars (+{improvement}) [DRY RUN]")
+            print(
+                f"[{i+1}/{total}] {symbol}: {old_bars} -> {new_bars} bars (+{improvement}) [DRY RUN]"
+            )
         else:
             failed += 1
             print(f"[{i+1}/{total}] {symbol}: {status}")
@@ -444,15 +457,28 @@ def print_summary(conn: sqlite3.Connection):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Enrich historical data from Marketdata.app')
-    parser.add_argument('--symbols', '-s', help='Comma-separated symbols')
-    parser.add_argument('--min-bars', type=int, default=750, help='Enrich symbols with fewer bars (default: 750 = ~3 years)')
-    parser.add_argument('--all', '-a', action='store_true', help='Enrich all symbols')
-    parser.add_argument('--dry-run', '-n', action='store_true', help='Preview without making changes')
-    parser.add_argument('--workers', type=int, default=1, help='Number of workers (currently unused)')
-    parser.add_argument('--provider', choices=['tradier', 'marketdata'], default='tradier',
-                        help='Primary data provider (default: tradier)')
-    parser.add_argument('--summary', action='store_true', help='Just show database summary')
+    parser = argparse.ArgumentParser(description="Enrich historical data from Marketdata.app")
+    parser.add_argument("--symbols", "-s", help="Comma-separated symbols")
+    parser.add_argument(
+        "--min-bars",
+        type=int,
+        default=750,
+        help="Enrich symbols with fewer bars (default: 750 = ~3 years)",
+    )
+    parser.add_argument("--all", "-a", action="store_true", help="Enrich all symbols")
+    parser.add_argument(
+        "--dry-run", "-n", action="store_true", help="Preview without making changes"
+    )
+    parser.add_argument(
+        "--workers", type=int, default=1, help="Number of workers (currently unused)"
+    )
+    parser.add_argument(
+        "--provider",
+        choices=["tradier", "marketdata"],
+        default="tradier",
+        help="Primary data provider (default: tradier)",
+    )
+    parser.add_argument("--summary", action="store_true", help="Just show database summary")
 
     args = parser.parse_args()
 
@@ -465,14 +491,14 @@ def main():
 
     # Determine which symbols to process
     if args.symbols:
-        symbols = [s.strip().upper() for s in args.symbols.split(',')]
+        symbols = [s.strip().upper() for s in args.symbols.split(",")]
         symbols_data = []
         for sym in symbols:
             data = get_symbol_data(conn, sym)
             if data:
                 symbols_data.append((sym, data[0], data[1], data[2]))
             else:
-                symbols_data.append((sym, 0, '', ''))
+                symbols_data.append((sym, 0, "", ""))
     elif args.all:
         symbols_data = get_all_symbols(conn)
     else:
@@ -496,12 +522,19 @@ def main():
     conn.close()
 
     # Run enrichment
-    asyncio.run(enrich_all(symbols_data, dry_run=args.dry_run, workers=args.workers, provider_preference=args.provider))
+    asyncio.run(
+        enrich_all(
+            symbols_data,
+            dry_run=args.dry_run,
+            workers=args.workers,
+            provider_preference=args.provider,
+        )
+    )
 
     # Show updated summary
     if not args.dry_run:
         conn = get_db_connection()
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("AFTER ENRICHMENT:")
         print_summary(conn)
         conn.close()

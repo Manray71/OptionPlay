@@ -24,6 +24,7 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from dotenv import load_dotenv
+
 load_dotenv()
 
 from src.backtesting import TradeTracker
@@ -36,12 +37,13 @@ from src.models.base import SignalType
 
 logger = logging.getLogger(__name__)
 
-STRATEGIES = ['pullback', 'bounce', 'ath_breakout', 'earnings_dip', 'trend_continuation']
+STRATEGIES = ["pullback", "bounce", "ath_breakout", "earnings_dip", "trend_continuation"]
 
 
 @dataclass
 class TradeResult:
     """Simplified trade result for weight training"""
+
     symbol: str
     signal_date: date
     score: float
@@ -54,6 +56,7 @@ class TradeResult:
 @dataclass
 class ComponentWeight:
     """Component weight and statistics"""
+
     name: str
     samples: int = 0
     correlation: float = 0.0
@@ -76,7 +79,10 @@ def analyze_single_symbol(
     results = []
 
     # Sort data by date
-    sorted_data = sorted(symbol_data, key=lambda x: x['date'] if isinstance(x['date'], date) else date.fromisoformat(x['date']))
+    sorted_data = sorted(
+        symbol_data,
+        key=lambda x: x["date"] if isinstance(x["date"], date) else date.fromisoformat(x["date"]),
+    )
 
     if len(sorted_data) < 200:
         return results
@@ -84,9 +90,9 @@ def analyze_single_symbol(
     # Build date index for O(1) lookups
     date_to_idx = {}
     for i, bar in enumerate(sorted_data):
-        d = bar['date'] if isinstance(bar['date'], date) else date.fromisoformat(bar['date'])
+        d = bar["date"] if isinstance(bar["date"], date) else date.fromisoformat(bar["date"])
         date_to_idx[d] = i
-        sorted_data[i] = {**bar, 'date': d}
+        sorted_data[i] = {**bar, "date": d}
 
     # Sample every 5th trading day for speed
     trading_days = [d for d in sorted(date_to_idx.keys()) if start_date <= d <= end_date]
@@ -98,22 +104,18 @@ def analyze_single_symbol(
             continue
 
         # Get history up to this point
-        history = sorted_data[max(0, idx-259):idx]
+        history = sorted_data[max(0, idx - 259) : idx]
         if len(history) < 200:
             continue
 
-        prices = [bar['close'] for bar in history]
-        volumes = [bar['volume'] for bar in history]
-        highs = [bar['high'] for bar in history]
-        lows = [bar['low'] for bar in history]
+        prices = [bar["close"] for bar in history]
+        volumes = [bar["volume"] for bar in history]
+        highs = [bar["high"] for bar in history]
+        lows = [bar["low"] for bar in history]
 
         try:
             signal = analyzer.analyze(
-                symbol=symbol,
-                prices=prices,
-                volumes=volumes,
-                highs=highs,
-                lows=lows
+                symbol=symbol, prices=prices, volumes=volumes, highs=highs, lows=lows
             )
         except Exception:
             continue
@@ -124,29 +126,29 @@ def analyze_single_symbol(
         # Extract component scores
         component_scores = {}
         if signal.details:
-            breakdown = signal.details.get('score_breakdown') or signal.details.get('breakdown')
+            breakdown = signal.details.get("score_breakdown") or signal.details.get("breakdown")
             if breakdown:
                 if isinstance(breakdown, dict):
                     for k, v in breakdown.items():
                         if isinstance(v, (int, float)):
                             component_scores[k] = float(v)
-                elif hasattr(breakdown, '__dict__'):
+                elif hasattr(breakdown, "__dict__"):
                     for k, v in breakdown.__dict__.items():
-                        if isinstance(v, (int, float)) and not k.startswith('_'):
+                        if isinstance(v, (int, float)) and not k.startswith("_"):
                             component_scores[k] = float(v)
 
         # Simplified outcome calculation
         entry_price = prices[-1]
 
         # Look ahead 30 days for outcome
-        future_bars = sorted_data[idx:idx+30]
+        future_bars = sorted_data[idx : idx + 30]
         if len(future_bars) < 10:
             continue
 
         short_strike = entry_price * 0.92
-        max_price = max(b['high'] for b in future_bars[:15])
-        min_price = min(b['low'] for b in future_bars)
-        final_price = future_bars[-1]['close']
+        max_price = max(b["high"] for b in future_bars[:15])
+        min_price = min(b["low"] for b in future_bars)
+        final_price = future_bars[-1]["close"]
 
         # Win if stock stayed above short strike
         if min_price >= short_strike:
@@ -159,15 +161,17 @@ def analyze_single_symbol(
             outcome = 0
             pnl = -(entry_price * 0.03 * 100)  # Approximate loss
 
-        results.append(TradeResult(
-            symbol=symbol,
-            signal_date=current_date,
-            score=signal.score,
-            outcome=outcome,
-            pnl=pnl,
-            vix=vix_data.get(current_date),
-            component_scores=component_scores
-        ))
+        results.append(
+            TradeResult(
+                symbol=symbol,
+                signal_date=current_date,
+                score=signal.score,
+                outcome=outcome,
+                pnl=pnl,
+                vix=vix_data.get(current_date),
+                component_scores=component_scores,
+            )
+        )
 
     return results
 
@@ -182,16 +186,20 @@ def train_strategy_fast(
     """Fast training for a single strategy"""
 
     # Initialize analyzer
-    if strategy == 'pullback':
+    if strategy == "pullback":
         analyzer = PullbackAnalyzer(PullbackScoringConfig())
-    elif strategy == 'bounce':
+    elif strategy == "bounce":
         analyzer = BounceAnalyzer(BounceConfig())
-    elif strategy == 'ath_breakout':
+    elif strategy == "ath_breakout":
         analyzer = ATHBreakoutAnalyzer(ATHBreakoutConfig())
-    elif strategy == 'earnings_dip':
+    elif strategy == "earnings_dip":
         analyzer = EarningsDipAnalyzer(EarningsDipConfig())
-    elif strategy == 'trend_continuation':
-        from src.analyzers.trend_continuation import TrendContinuationAnalyzer, TrendContinuationConfig
+    elif strategy == "trend_continuation":
+        from src.analyzers.trend_continuation import (
+            TrendContinuationAnalyzer,
+            TrendContinuationConfig,
+        )
+
         analyzer = TrendContinuationAnalyzer(TrendContinuationConfig())
     else:
         return {}
@@ -200,7 +208,7 @@ def train_strategy_fast(
     all_dates = set()
     for sym_data in historical_data.values():
         for bar in sym_data:
-            d = bar['date'] if isinstance(bar['date'], date) else date.fromisoformat(bar['date'])
+            d = bar["date"] if isinstance(bar["date"], date) else date.fromisoformat(bar["date"])
             all_dates.add(d)
 
     if not all_dates:
@@ -230,8 +238,13 @@ def train_strategy_fast(
         train_futures = {
             executor.submit(
                 analyze_single_symbol,
-                symbol, historical_data[symbol], strategy, analyzer,
-                vix_data, train_start, train_end
+                symbol,
+                historical_data[symbol],
+                strategy,
+                analyzer,
+                vix_data,
+                train_start,
+                train_end,
             ): symbol
             for symbol in symbols
         }
@@ -248,8 +261,13 @@ def train_strategy_fast(
         test_futures = {
             executor.submit(
                 analyze_single_symbol,
-                symbol, historical_data[symbol], strategy, analyzer,
-                vix_data, test_start, test_end
+                symbol,
+                historical_data[symbol],
+                strategy,
+                analyzer,
+                vix_data,
+                test_start,
+                test_end,
             ): symbol
             for symbol in symbols
         }
@@ -265,9 +283,9 @@ def train_strategy_fast(
 
     if len(train_trades) < 20:
         return {
-            'strategy': strategy,
-            'status': 'insufficient_data',
-            'train_trades': len(train_trades),
+            "strategy": strategy,
+            "status": "insufficient_data",
+            "train_trades": len(train_trades),
         }
 
     # Analyze components
@@ -336,40 +354,38 @@ def train_strategy_fast(
     test_wr = (test_wins / len(test_trades) * 100) if test_trades else 0
 
     return {
-        'strategy': strategy,
-        'status': 'success',
-        'train_trades': len(train_trades),
-        'test_trades': len(test_trades),
-        'train_win_rate': train_wr,
-        'test_win_rate': test_wr,
-        'degradation': train_wr - test_wr,
-        'components': {
+        "strategy": strategy,
+        "status": "success",
+        "train_trades": len(train_trades),
+        "test_trades": len(test_trades),
+        "train_win_rate": train_wr,
+        "test_win_rate": test_wr,
+        "degradation": train_wr - test_wr,
+        "components": {
             k: {
-                'samples': v.samples,
-                'correlation': v.correlation,
-                'predictive_power': v.predictive_power,
-                'avg_when_win': v.avg_when_win,
-                'avg_when_loss': v.avg_when_loss,
-                'optimal_weight': v.optimal_weight,
+                "samples": v.samples,
+                "correlation": v.correlation,
+                "predictive_power": v.predictive_power,
+                "avg_when_win": v.avg_when_win,
+                "avg_when_loss": v.avg_when_loss,
+                "optimal_weight": v.optimal_weight,
             }
             for k, v in sorted(
-                component_weights.items(),
-                key=lambda x: abs(x[1].correlation),
-                reverse=True
+                component_weights.items(), key=lambda x: abs(x[1].correlation), reverse=True
             )
-        }
+        },
     }
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Fast component weight training')
-    parser.add_argument('--strategy', choices=STRATEGIES + ['all'], default='all')
-    parser.add_argument('--train-months', type=int, default=12)
-    parser.add_argument('--test-months', type=int, default=3)
-    parser.add_argument('--export', action='store_true')
+    parser = argparse.ArgumentParser(description="Fast component weight training")
+    parser.add_argument("--strategy", choices=STRATEGIES + ["all"], default="all")
+    parser.add_argument("--train-months", type=int, default=12)
+    parser.add_argument("--test-months", type=int, default=3)
+    parser.add_argument("--export", action="store_true")
     args = parser.parse_args()
 
-    logging.basicConfig(level=logging.INFO, format='%(message)s')
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
 
     print("=" * 70)
     print("  OPTIONPLAY FAST COMPONENT WEIGHT TRAINING")
@@ -386,7 +402,7 @@ def main():
 
     # Load historical data
     symbol_info = tracker.list_symbols_with_price_data()
-    symbols = [s['symbol'] for s in symbol_info]
+    symbols = [s["symbol"] for s in symbol_info]
 
     print(f"\n  Loading {len(symbols)} symbols...")
 
@@ -396,12 +412,12 @@ def main():
         if price_data and price_data.bars:
             historical_data[symbol] = [
                 {
-                    'date': bar.date,
-                    'open': bar.open,
-                    'high': bar.high,
-                    'low': bar.low,
-                    'close': bar.close,
-                    'volume': bar.volume,
+                    "date": bar.date,
+                    "open": bar.open,
+                    "high": bar.high,
+                    "low": bar.low,
+                    "close": bar.close,
+                    "volume": bar.volume,
                 }
                 for bar in price_data.bars
             ]
@@ -414,7 +430,7 @@ def main():
     print(f"  Loaded: {len(historical_data)} symbols")
 
     # Train each strategy
-    strategies = [args.strategy] if args.strategy != 'all' else STRATEGIES
+    strategies = [args.strategy] if args.strategy != "all" else STRATEGIES
     all_results = {}
 
     for strategy in strategies:
@@ -432,22 +448,24 @@ def main():
 
         all_results[strategy] = result
 
-        if result.get('status') == 'success':
+        if result.get("status") == "success":
             print(f"\n    Results:")
             print(f"      Train Win Rate: {result['train_win_rate']:.1f}%")
             print(f"      Test Win Rate:  {result['test_win_rate']:.1f}%")
             print(f"      Degradation:    {result['degradation']:+.1f}%")
 
-            if result.get('components'):
+            if result.get("components"):
                 print(f"\n    Top Components by Correlation:")
                 print(f"    {'Component':<25} {'Corr':>8} {'Pred':>8} {'Weight':>8}")
                 print("    " + "-" * 53)
 
-                for i, (name, comp) in enumerate(result['components'].items()):
+                for i, (name, comp) in enumerate(result["components"].items()):
                     if i >= 8:  # Top 8
                         break
-                    print(f"    {name:<25} {comp['correlation']:>+7.3f} "
-                          f"{comp['predictive_power']:>+7.3f} {comp['optimal_weight']:>7.2f}")
+                    print(
+                        f"    {name:<25} {comp['correlation']:>+7.3f} "
+                        f"{comp['predictive_power']:>+7.3f} {comp['optimal_weight']:>7.2f}"
+                    )
 
     # Summary
     print(f"\n{'='*70}")
@@ -458,72 +476,70 @@ def main():
     print("  " + "-" * 60)
 
     for strategy, result in all_results.items():
-        if result.get('status') == 'success':
-            print(f"  {strategy:<15} "
-                  f"{result['train_win_rate']:>9.1f}% "
-                  f"{result['test_win_rate']:>9.1f}% "
-                  f"{result['degradation']:>+9.1f}% "
-                  f"{'OK' if result['degradation'] < 10 else 'OVERFIT':<15}")
+        if result.get("status") == "success":
+            print(
+                f"  {strategy:<15} "
+                f"{result['train_win_rate']:>9.1f}% "
+                f"{result['test_win_rate']:>9.1f}% "
+                f"{result['degradation']:>+9.1f}% "
+                f"{'OK' if result['degradation'] < 10 else 'OVERFIT':<15}"
+            )
         else:
-            print(f"  {strategy:<15} {'N/A':>10} {'N/A':>10} {'N/A':>10} {result.get('status', 'unknown'):<15}")
+            print(
+                f"  {strategy:<15} {'N/A':>10} {'N/A':>10} {'N/A':>10} {result.get('status', 'unknown'):<15}"
+            )
 
     # Save results
-    output_dir = Path.home() / '.optionplay' / 'models'
+    output_dir = Path.home() / ".optionplay" / "models"
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Save component weights
-    weights_data = {
-        'version': '1.0.0',
-        'created_at': datetime.now().isoformat(),
-        'strategies': {}
-    }
+    weights_data = {"version": "1.0.0", "created_at": datetime.now().isoformat(), "strategies": {}}
 
     for strategy, result in all_results.items():
-        if result.get('status') == 'success':
-            weights_data['strategies'][strategy] = {
-                'component_weights': {
-                    k: v['optimal_weight']
-                    for k, v in result.get('components', {}).items()
+        if result.get("status") == "success":
+            weights_data["strategies"][strategy] = {
+                "component_weights": {
+                    k: v["optimal_weight"] for k, v in result.get("components", {}).items()
                 },
-                'validation': {
-                    'train_trades': result['train_trades'],
-                    'test_trades': result['test_trades'],
-                    'train_win_rate': result['train_win_rate'],
-                    'test_win_rate': result['test_win_rate'],
-                    'degradation': result['degradation'],
+                "validation": {
+                    "train_trades": result["train_trades"],
+                    "test_trades": result["test_trades"],
+                    "train_win_rate": result["train_win_rate"],
+                    "test_win_rate": result["test_win_rate"],
+                    "degradation": result["degradation"],
                 },
-                'component_stats': result.get('components', {})
+                "component_stats": result.get("components", {}),
             }
 
-    weights_path = output_dir / 'component_weights.json'
-    with open(weights_path, 'w') as f:
+    weights_path = output_dir / "component_weights.json"
+    with open(weights_path, "w") as f:
         json.dump(weights_data, f, indent=2)
 
     print(f"\n  Weights saved to: {weights_path}")
 
     # Export for production
     if args.export:
-        export_path = output_dir / 'production_weights.json'
+        export_path = output_dir / "production_weights.json"
         prod_data = {
-            'version': '1.0.0',
-            'created_at': datetime.now().isoformat(),
-            'strategies': {
+            "version": "1.0.0",
+            "created_at": datetime.now().isoformat(),
+            "strategies": {
                 s: {
-                    'component_weights': {
-                        k: v['optimal_weight']
-                        for k, v in r.get('components', {}).items()
+                    "component_weights": {
+                        k: v["optimal_weight"] for k, v in r.get("components", {}).items()
                     }
                 }
                 for s, r in all_results.items()
-                if r.get('status') == 'success'
-            }
+                if r.get("status") == "success"
+            },
         }
-        with open(export_path, 'w') as f:
+        with open(export_path, "w") as f:
             json.dump(prod_data, f, indent=2)
         print(f"  Production export: {export_path}")
 
     print("\n" + "=" * 70)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

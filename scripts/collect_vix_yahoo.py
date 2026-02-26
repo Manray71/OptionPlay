@@ -62,11 +62,8 @@ def collect_vix(days: int = 260) -> int:
         # In VixDataPoints konvertieren
         vix_points = []
         for idx, row in hist.iterrows():
-            bar_date = idx.date() if hasattr(idx, 'date') else date.fromisoformat(str(idx)[:10])
-            vix_points.append(VixDataPoint(
-                date=bar_date,
-                value=round(row['Close'], 2)
-            ))
+            bar_date = idx.date() if hasattr(idx, "date") else date.fromisoformat(str(idx)[:10])
+            vix_points.append(VixDataPoint(date=bar_date, value=round(row["Close"], 2)))
 
         # In Datenbank speichern
         tracker = TradeTracker()
@@ -84,16 +81,14 @@ def collect_vix(days: int = 260) -> int:
     except Exception as e:
         print(f"✗ Fehler: {e}")
         import traceback
+
         traceback.print_exc()
         return 0
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description='Collect historical VIX data from Yahoo Finance'
-    )
-    parser.add_argument('--days', type=int, default=260,
-                        help='Days of history (default: 260)')
+    parser = argparse.ArgumentParser(description="Collect historical VIX data from Yahoo Finance")
+    parser.add_argument("--days", type=int, default=260, help="Days of history (default: 260)")
 
     args = parser.parse_args()
 
@@ -117,5 +112,5 @@ def main():
         sys.exit(1)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

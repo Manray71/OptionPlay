@@ -33,12 +33,24 @@ STRATEGY_SCORE_COLS = {
 }
 
 COMPONENT_COLS = [
-    "rsi_score", "support_score", "fibonacci_score", "ma_score",
-    "volume_score", "macd_score", "stoch_score", "keltner_score",
-    "trend_strength_score", "momentum_score", "rs_score",
-    "candlestick_score", "vwap_score", "market_context_score",
-    "sector_score", "gap_score",
+    "rsi_score",
+    "support_score",
+    "fibonacci_score",
+    "ma_score",
+    "volume_score",
+    "macd_score",
+    "stoch_score",
+    "keltner_score",
+    "trend_strength_score",
+    "momentum_score",
+    "rs_score",
+    "candlestick_score",
+    "vwap_score",
+    "market_context_score",
+    "sector_score",
+    "gap_score",
 ]
+
 
 def _spearman_r(x, y):
     """Simple Spearman rank correlation (no scipy needed)."""
@@ -62,16 +74,20 @@ def get_strategy_trades(conn, strategy, score_col):
         where_parts.append(f"{score_col} >= COALESCE({oc}, 0)")
 
     cols = ", ".join(
-        ["symbol", "was_profitable", "pnl_pct", "vix_regime",
-         "max_drawdown_pct", score_col] + COMPONENT_COLS
+        ["symbol", "was_profitable", "pnl_pct", "vix_regime", "max_drawdown_pct", score_col]
+        + COMPONENT_COLS
     )
     query = f"SELECT {cols} FROM trade_outcomes WHERE {' AND '.join(where_parts)}"
 
     rows = conn.execute(query).fetchall()
-    col_names = (
-        ["symbol", "was_profitable", "pnl_pct", "vix_regime",
-         "max_drawdown_pct", "strategy_score"] + COMPONENT_COLS
-    )
+    col_names = [
+        "symbol",
+        "was_profitable",
+        "pnl_pct",
+        "vix_regime",
+        "max_drawdown_pct",
+        "strategy_score",
+    ] + COMPONENT_COLS
     return [dict(zip(col_names, row)) for row in rows]
 
 
@@ -232,7 +248,9 @@ def main():
         deciles = analyze_win_rate_by_decile(trades)
         print(f"\n  Score Deciles:")
         for label, stats in deciles.items():
-            print(f"    {label} [{stats['score_range']:>13s}]: n={stats['count']:>5}, WR={stats['win_rate']:>5.1f}%, PnL={stats['avg_pnl']:>7.2f}%")
+            print(
+                f"    {label} [{stats['score_range']:>13s}]: n={stats['count']:>5}, WR={stats['win_rate']:>5.1f}%, PnL={stats['avg_pnl']:>7.2f}%"
+            )
 
         # 2. Component Importance
         importance = analyze_component_importance(trades)
@@ -247,8 +265,12 @@ def main():
         calibration = analyze_score_calibration(trades)
         spearman = calibration.get("spearman_r", 0)
         print(f"\n  Score Calibration (Spearman r): {spearman:.3f}")
-        print(f"    D1 (worst scores):  WR={calibration.get('D1', {}).get('actual_win_rate', 'N/A')}%")
-        print(f"    D10 (best scores):  WR={calibration.get('D10', {}).get('actual_win_rate', 'N/A')}%")
+        print(
+            f"    D1 (worst scores):  WR={calibration.get('D1', {}).get('actual_win_rate', 'N/A')}%"
+        )
+        print(
+            f"    D10 (best scores):  WR={calibration.get('D10', {}).get('actual_win_rate', 'N/A')}%"
+        )
 
         # 4. Sector Performance
         sectors = analyze_sector_performance(trades, sector_map)
@@ -256,13 +278,17 @@ def main():
         for i, (sector, stats) in enumerate(sectors.items()):
             if i >= 5:
                 break
-            print(f"    {sector:>25s}: n={stats['count']:>4}, WR={stats['win_rate']:>5.1f}%, PnL={stats['avg_pnl']:>7.2f}%")
+            print(
+                f"    {sector:>25s}: n={stats['count']:>4}, WR={stats['win_rate']:>5.1f}%, PnL={stats['avg_pnl']:>7.2f}%"
+            )
 
         # 5. Regime Performance
         regimes = analyze_regime_performance(trades)
         print(f"\n  Regime Performance:")
         for regime, stats in regimes.items():
-            print(f"    {regime:>10s}: n={stats['count']:>5}, WR={stats['win_rate']:>5.1f}%, PnL={stats['avg_pnl']:>7.2f}%")
+            print(
+                f"    {regime:>10s}: n={stats['count']:>5}, WR={stats['win_rate']:>5.1f}%, PnL={stats['avg_pnl']:>7.2f}%"
+            )
 
         # Save per-strategy baseline
         baseline = {
@@ -288,8 +314,12 @@ def main():
             "avg_pnl": baseline["overall_avg_pnl"],
             "spearman_r": spearman,
             "top_component": list(importance.keys())[0] if importance else None,
-            "best_regime": max(regimes.items(), key=lambda x: x[1]["win_rate"])[0] if regimes else None,
-            "worst_regime": min(regimes.items(), key=lambda x: x[1]["win_rate"])[0] if regimes else None,
+            "best_regime": (
+                max(regimes.items(), key=lambda x: x[1]["win_rate"])[0] if regimes else None
+            ),
+            "worst_regime": (
+                min(regimes.items(), key=lambda x: x[1]["win_rate"])[0] if regimes else None
+            ),
         }
 
     conn.close()
@@ -303,10 +333,12 @@ def main():
     print(f"  SUMMARY")
     print(f"{'='*60}")
     for strategy, stats in summary.items():
-        print(f"  {strategy:>15s}: n={stats.get('count', 0):>5}, "
-              f"WR={stats.get('win_rate', 'N/A')}%, "
-              f"Spearman={stats.get('spearman_r', 'N/A')}, "
-              f"Top={stats.get('top_component', 'N/A')}")
+        print(
+            f"  {strategy:>15s}: n={stats.get('count', 0):>5}, "
+            f"WR={stats.get('win_rate', 'N/A')}%, "
+            f"Spearman={stats.get('spearman_r', 'N/A')}, "
+            f"Top={stats.get('top_component', 'N/A')}"
+        )
 
     print(f"\nAll baselines saved to {OUTPUT_DIR}/")
 

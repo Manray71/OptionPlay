@@ -50,7 +50,9 @@ def load_sector_map():
 def load_stability_scores():
     """Load symbol → stability_score mapping."""
     conn = sqlite3.connect(TRADES_DB)
-    rows = conn.execute("SELECT symbol, stability_score FROM symbol_fundamentals WHERE stability_score IS NOT NULL").fetchall()
+    rows = conn.execute(
+        "SELECT symbol, stability_score FROM symbol_fundamentals WHERE stability_score IS NOT NULL"
+    ).fetchall()
     conn.close()
     return {r[0]: r[1] for r in rows}
 
@@ -59,8 +61,13 @@ def load_trades():
     """Load all trades with strategy assignment."""
     conn = sqlite3.connect(OUTCOMES_DB)
     cols = [
-        "symbol", "was_profitable", "pnl_pct", "vix_regime",
-        "pullback_score", "bounce_score", "ath_breakout_score",
+        "symbol",
+        "was_profitable",
+        "pnl_pct",
+        "vix_regime",
+        "pullback_score",
+        "bounce_score",
+        "ath_breakout_score",
     ]
     query = f"SELECT {', '.join(cols)} FROM trade_outcomes WHERE pullback_score IS NOT NULL ORDER BY entry_date"
     rows = conn.execute(query).fetchall()
@@ -94,11 +101,13 @@ def find_optimal_threshold(trades, stability_scores, min_target_wr=TARGET_MIN_WR
     for t in trades:
         stab = stability_scores.get(t["symbol"])
         if stab is not None:
-            enriched.append({
-                "stable": stab,
-                "won": t["was_profitable"] or 0,
-                "pnl": t["pnl_pct"] or 0,
-            })
+            enriched.append(
+                {
+                    "stable": stab,
+                    "won": t["was_profitable"] or 0,
+                    "pnl": t["pnl_pct"] or 0,
+                }
+            )
 
     if len(enriched) < 20:
         return DEFAULT_THRESHOLD, 0, 0
@@ -181,8 +190,10 @@ def main():
                 print(f"    {regime:>8s}: thresh={thresh:>3}, WR={wr:>5.1f}%, n={n:>5}")
             else:
                 regime_thresholds[regime] = {
-                    "threshold": global_thresh, "win_rate": global_wr,
-                    "n_trades": len(regime_trades), "source": "fallback_global"
+                    "threshold": global_thresh,
+                    "win_rate": global_wr,
+                    "n_trades": len(regime_trades),
+                    "source": "fallback_global",
                 }
                 print(f"    {regime:>8s}: FALLBACK → global ({len(regime_trades)} < 50 trades)")
 
@@ -199,22 +210,24 @@ def main():
                 continue
 
             for regime in REGIMES:
-                regime_sector_trades = [
-                    t for t in sector_trades if t["vix_regime"] == regime
-                ]
+                regime_sector_trades = [t for t in sector_trades if t["vix_regime"] == regime]
                 if len(regime_sector_trades) >= 30:
-                    thresh, wr, n = find_optimal_threshold(
-                        regime_sector_trades, stability_scores
-                    )
+                    thresh, wr, n = find_optimal_threshold(regime_sector_trades, stability_scores)
                     # Only report if different from regime default
-                    regime_default = regime_thresholds.get(regime, {}).get("threshold", global_thresh)
+                    regime_default = regime_thresholds.get(regime, {}).get(
+                        "threshold", global_thresh
+                    )
                     if abs(thresh - regime_default) >= 5:
                         sector_thresholds[sector][regime] = {
-                            "threshold": thresh, "win_rate": wr, "n_trades": n,
+                            "threshold": thresh,
+                            "win_rate": wr,
+                            "n_trades": n,
                         }
                         delta = thresh - regime_default
-                        print(f"    {sector:>25s}/{regime:<8s}: {thresh:>3} "
-                              f"(vs regime {regime_default}, Δ={delta:+d}), WR={wr:.1f}%, n={n}")
+                        print(
+                            f"    {sector:>25s}/{regime:<8s}: {thresh:>3} "
+                            f"(vs regime {regime_default}, Δ={delta:+d}), WR={wr:.1f}%, n={n}"
+                        )
 
         # Save
         output = {
@@ -223,9 +236,7 @@ def main():
             "global_threshold": global_thresh,
             "global_win_rate": global_wr,
             "regime_thresholds": regime_thresholds,
-            "sector_regime_thresholds": {
-                k: v for k, v in sector_thresholds.items() if v
-            },
+            "sector_regime_thresholds": {k: v for k, v in sector_thresholds.items() if v},
         }
 
         output_path = OUTPUT_DIR / f"trained_weights_v3_stability_{strategy}.json"
@@ -236,9 +247,7 @@ def main():
         summary[strategy] = {
             "global_threshold": global_thresh,
             "regime_thresholds": {r: d["threshold"] for r, d in regime_thresholds.items()},
-            "n_sector_overrides": sum(
-                len(v) for v in sector_thresholds.values()
-            ),
+            "n_sector_overrides": sum(len(v) for v in sector_thresholds.values()),
         }
 
     # Save summary
@@ -251,9 +260,11 @@ def main():
     print(f"{'='*60}")
     for strategy, stats in summary.items():
         rt = stats["regime_thresholds"]
-        print(f"  {strategy:>15s}: global={stats['global_threshold']}, "
-              f"regime=[{rt.get('low','?')}/{rt.get('medium','?')}/{rt.get('high','?')}/{rt.get('extreme','?')}], "
-              f"sector_overrides={stats['n_sector_overrides']}")
+        print(
+            f"  {strategy:>15s}: global={stats['global_threshold']}, "
+            f"regime=[{rt.get('low','?')}/{rt.get('medium','?')}/{rt.get('high','?')}/{rt.get('extreme','?')}], "
+            f"sector_overrides={stats['n_sector_overrides']}"
+        )
 
 
 if __name__ == "__main__":

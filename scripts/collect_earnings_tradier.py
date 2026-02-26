@@ -39,6 +39,7 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from dotenv import load_dotenv
+
 load_dotenv()
 
 import requests
@@ -48,9 +49,7 @@ from src.config.watchlist_loader import get_watchlist_loader
 
 # Logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    datefmt='%H:%M:%S'
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s", datefmt="%H:%M:%S"
 )
 logger = logging.getLogger(__name__)
 
@@ -67,14 +66,34 @@ EARNINGS_EVENT_TYPES = EARNINGS_RESULT_TYPES | EARNINGS_CALL_TYPES
 
 # Map event_type to fiscal quarter
 EVENT_TYPE_TO_QUARTER = {
-    7: "Q1", 8: "Q2", 9: "Q3", 10: "Q4",
-    12: "Q1", 13: "Q2", 14: "Q3", 15: "Q4",
+    7: "Q1",
+    8: "Q2",
+    9: "Q3",
+    10: "Q4",
+    12: "Q1",
+    13: "Q2",
+    14: "Q3",
+    15: "Q4",
 }
 
 # ETFs (keine Earnings)
 ETFS = {
-    'SPY', 'QQQ', 'IWM', 'DIA', 'XLK', 'XLF', 'XLE', 'XLV',
-    'XLI', 'XLY', 'XLP', 'XLU', 'XLRE', 'XLB', 'XLC', 'ARKK',
+    "SPY",
+    "QQQ",
+    "IWM",
+    "DIA",
+    "XLK",
+    "XLF",
+    "XLE",
+    "XLV",
+    "XLI",
+    "XLY",
+    "XLP",
+    "XLU",
+    "XLRE",
+    "XLB",
+    "XLC",
+    "ARKK",
 }
 
 
@@ -163,16 +182,18 @@ def fetch_calendars_batch(
             event_text = ev.get("event", "")
             is_future = earnings_date >= today_str
 
-            earnings_list.append({
-                "earnings_date": earnings_date,
-                "fiscal_year": fiscal_year,
-                "fiscal_quarter": quarter,
-                "eps_actual": None,  # Future: no EPS yet
-                "eps_estimate": None,
-                "eps_surprise": None,
-                "eps_surprise_pct": None,
-                "time_of_day": _parse_time_of_day(event_text),
-            })
+            earnings_list.append(
+                {
+                    "earnings_date": earnings_date,
+                    "fiscal_year": fiscal_year,
+                    "fiscal_quarter": quarter,
+                    "eps_actual": None,  # Future: no EPS yet
+                    "eps_estimate": None,
+                    "eps_surprise": None,
+                    "eps_surprise_pct": None,
+                    "time_of_day": _parse_time_of_day(event_text),
+                }
+            )
 
         result[symbol] = earnings_list
 
@@ -209,7 +230,7 @@ def collect_earnings(
     }
 
     # Process in batches
-    batches = [symbols[i:i + BATCH_SIZE] for i in range(0, len(symbols), BATCH_SIZE)]
+    batches = [symbols[i : i + BATCH_SIZE] for i in range(0, len(symbols), BATCH_SIZE)]
 
     for batch_idx, batch in enumerate(batches):
         pct = (batch_idx + 1) / len(batches) * 100
@@ -255,6 +276,7 @@ def collect_earnings(
 def show_status():
     """Show earnings data status."""
     import sqlite3
+
     db_path = str(Path.home() / ".optionplay" / "trades.db")
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
@@ -268,31 +290,40 @@ def show_status():
 
     # Future earnings
     today_str = date.today().isoformat()
-    cursor.execute("""
+    cursor.execute(
+        """
         SELECT COUNT(DISTINCT symbol), COUNT(*)
         FROM earnings_history
         WHERE earnings_date >= ?
-    """, (today_str,))
+    """,
+        (today_str,),
+    )
     future_symbols, future_records = cursor.fetchone()
 
     # Symbols without future earnings
-    cursor.execute("""
+    cursor.execute(
+        """
         SELECT symbol, MAX(earnings_date) as last_date
         FROM earnings_history
         GROUP BY symbol
         HAVING MAX(earnings_date) < ?
         ORDER BY last_date DESC
-    """, (today_str,))
+    """,
+        (today_str,),
+    )
     missing_future = cursor.fetchall()
 
     # Next 30 days
     next_30 = (date.today() + timedelta(days=30)).isoformat()
-    cursor.execute("""
+    cursor.execute(
+        """
         SELECT symbol, earnings_date, time_of_day
         FROM earnings_history
         WHERE earnings_date >= ? AND earnings_date <= ?
         ORDER BY earnings_date
-    """, (today_str, next_30))
+    """,
+        (today_str, next_30),
+    )
     upcoming = cursor.fetchall()
 
     # Source breakdown
@@ -346,15 +377,15 @@ def show_status():
 
 def get_api_key() -> str:
     """Get Tradier API key from environment."""
-    api_key = os.environ.get('TRADIER_API_KEY')
+    api_key = os.environ.get("TRADIER_API_KEY")
 
     if not api_key:
         env_file = project_root / ".env"
         if env_file.exists():
             with open(env_file) as f:
                 for line in f:
-                    if line.startswith('TRADIER_API_KEY='):
-                        api_key = line.split('=', 1)[1].strip()
+                    if line.startswith("TRADIER_API_KEY="):
+                        api_key = line.split("=", 1)[1].strip()
                         break
 
     if not api_key:
@@ -367,18 +398,15 @@ def get_api_key() -> str:
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Collect earnings dates from Tradier Beta Fundamentals API',
+        description="Collect earnings dates from Tradier Beta Fundamentals API",
     )
-    parser.add_argument('--test', action='store_true',
-                        help='Test with 5 symbols')
-    parser.add_argument('--symbols', type=str,
-                        help='Comma-separated symbols')
-    parser.add_argument('--all', action='store_true',
-                        help='All watchlist symbols')
-    parser.add_argument('--status', action='store_true',
-                        help='Show earnings data status')
-    parser.add_argument('--future-only', action='store_true',
-                        help='Only save future earnings (skip historical)')
+    parser.add_argument("--test", action="store_true", help="Test with 5 symbols")
+    parser.add_argument("--symbols", type=str, help="Comma-separated symbols")
+    parser.add_argument("--all", action="store_true", help="All watchlist symbols")
+    parser.add_argument("--status", action="store_true", help="Show earnings data status")
+    parser.add_argument(
+        "--future-only", action="store_true", help="Only save future earnings (skip historical)"
+    )
 
     args = parser.parse_args()
 
@@ -388,9 +416,9 @@ def main():
 
     # Determine symbols
     if args.test:
-        symbols = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META']
+        symbols = ["AAPL", "MSFT", "GOOGL", "AMZN", "META"]
     elif args.symbols:
-        symbols = [s.strip().upper() for s in args.symbols.split(',')]
+        symbols = [s.strip().upper() for s in args.symbols.split(",")]
     elif args.all:
         loader = get_watchlist_loader()
         all_symbols = loader.get_all_symbols()
@@ -439,5 +467,5 @@ def main():
     show_status()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

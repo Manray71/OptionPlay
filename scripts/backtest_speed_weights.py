@@ -227,8 +227,12 @@ def main():
     print("Lade Daten...")
     df = load_data()
     print(f"  {len(df)} Trades geladen")
-    print(f"  Signal Score: mean={df['signal_score'].mean():.2f}, std={df['signal_score'].std():.2f}")
-    print(f"  Stability: mean={df['stability_score'].mean():.1f}, std={df['stability_score'].std():.1f}")
+    print(
+        f"  Signal Score: mean={df['signal_score'].mean():.2f}, std={df['signal_score'].std():.2f}"
+    )
+    print(
+        f"  Stability: mean={df['stability_score'].mean():.1f}, std={df['stability_score'].std():.1f}"
+    )
 
     # Speed Score berechnen
     print("\nBerechne Speed Score...")
@@ -302,9 +306,7 @@ def main():
 
     # Spalte anlegen
     try:
-        cursor.execute(
-            "ALTER TABLE trade_outcomes ADD COLUMN speed_score REAL"
-        )
+        cursor.execute("ALTER TABLE trade_outcomes ADD COLUMN speed_score REAL")
         print("  Spalte speed_score angelegt")
     except Exception:
         print("  Spalte speed_score existiert bereits")
@@ -318,9 +320,7 @@ def main():
     conn.commit()
 
     # Verifizierung
-    cursor.execute(
-        "SELECT COUNT(*) FROM trade_outcomes WHERE speed_score IS NOT NULL"
-    )
+    cursor.execute("SELECT COUNT(*) FROM trade_outcomes WHERE speed_score IS NOT NULL")
     saved = cursor.fetchone()[0]
     print(f"  {saved} Trades mit speed_score gespeichert")
 

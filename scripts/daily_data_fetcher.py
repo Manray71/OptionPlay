@@ -73,19 +73,17 @@ def setup_logging(verbose: bool = False) -> logging.Logger:
     # Console handler
     console = logging.StreamHandler()
     console.setLevel(level)
-    console.setFormatter(logging.Formatter(
-        '%(asctime)s - %(levelname)s - %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
-    ))
+    console.setFormatter(
+        logging.Formatter("%(asctime)s - %(levelname)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+    )
     logger.addHandler(console)
 
     # File handler
     file_handler = logging.FileHandler(log_file)
     file_handler.setLevel(logging.DEBUG)
-    file_handler.setFormatter(logging.Formatter(
-        '%(asctime)s - %(levelname)s - %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
-    ))
+    file_handler.setFormatter(
+        logging.Formatter("%(asctime)s - %(levelname)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+    )
     logger.addHandler(file_handler)
 
     return logger
@@ -109,10 +107,7 @@ def get_vix_gaps(conn: sqlite3.Connection, days_back: int = 30) -> List[date]:
     """
     # Get existing dates
     start = (date.today() - timedelta(days=days_back)).isoformat()
-    cursor = conn.execute(
-        "SELECT date FROM vix_data WHERE date >= ? ORDER BY date",
-        (start,)
-    )
+    cursor = conn.execute("SELECT date FROM vix_data WHERE date >= ? ORDER BY date", (start,))
     existing = {date.fromisoformat(row[0]) for row in cursor.fetchall()}
 
     # Generate expected trading days (Mon-Fri, excluding holidays)
@@ -132,9 +127,7 @@ def get_vix_gaps(conn: sqlite3.Connection, days_back: int = 30) -> List[date]:
 
 
 def fetch_vix_from_yahoo(
-    start_date: date,
-    end_date: date,
-    logger: logging.Logger
+    start_date: date, end_date: date, logger: logging.Logger
 ) -> List[Tuple[date, float]]:
     """
     Fetch VIX closing prices from Yahoo Finance.
@@ -151,10 +144,7 @@ def fetch_vix_from_yahoo(
 
     try:
         vix = yf.Ticker("^VIX")
-        hist = vix.history(
-            start=start_date,
-            end=end_date + timedelta(days=1)  # end is exclusive
-        )
+        hist = vix.history(start=start_date, end=end_date + timedelta(days=1))  # end is exclusive
 
         if hist.empty:
             logger.warning("No VIX data received from Yahoo Finance")
@@ -162,8 +152,8 @@ def fetch_vix_from_yahoo(
 
         results = []
         for idx, row in hist.iterrows():
-            bar_date = idx.date() if hasattr(idx, 'date') else date.fromisoformat(str(idx)[:10])
-            vix_close = round(row['Close'], 2)
+            bar_date = idx.date() if hasattr(idx, "date") else date.fromisoformat(str(idx)[:10])
+            vix_close = round(row["Close"], 2)
             results.append((bar_date, vix_close))
 
         logger.info(f"Received {len(results)} VIX data points")
@@ -175,9 +165,7 @@ def fetch_vix_from_yahoo(
 
 
 def store_vix_data(
-    conn: sqlite3.Connection,
-    data: List[Tuple[date, float]],
-    logger: logging.Logger
+    conn: sqlite3.Connection, data: List[Tuple[date, float]], logger: logging.Logger
 ) -> int:
     """
     Store VIX data in database.
@@ -197,7 +185,7 @@ def store_vix_data(
                 INSERT OR IGNORE INTO vix_data (date, value, created_at)
                 VALUES (?, ?, ?)
                 """,
-                (vix_date.isoformat(), value, now)
+                (vix_date.isoformat(), value, now),
             )
             if cursor.rowcount > 0:
                 inserted += 1
@@ -212,9 +200,7 @@ def store_vix_data(
 
 
 def fetch_missing_vix(
-    conn: sqlite3.Connection,
-    logger: logging.Logger,
-    dry_run: bool = False
+    conn: sqlite3.Connection, logger: logging.Logger, dry_run: bool = False
 ) -> int:
     """
     Fetch and store missing VIX data since last stored date.
@@ -254,10 +240,7 @@ def fetch_missing_vix(
 
 
 def backfill_vix(
-    conn: sqlite3.Connection,
-    days: int,
-    logger: logging.Logger,
-    dry_run: bool = False
+    conn: sqlite3.Connection, days: int, logger: logging.Logger, dry_run: bool = False
 ) -> int:
     """
     Backfill VIX data for the last N days.
@@ -324,10 +307,7 @@ def update_fundamentals(logger: logging.Logger, dry_run: bool = False) -> int:
         return 0
 
 
-def fetch_future_earnings(
-    logger: logging.Logger,
-    dry_run: bool = False
-) -> int:
+def fetch_future_earnings(logger: logging.Logger, dry_run: bool = False) -> int:
     """
     Fetch future earnings dates for all watchlist symbols and store in DB.
 
@@ -367,10 +347,15 @@ def fetch_future_earnings(
                     days_to = (earnings_date - date.today()).days
 
                     if days_to >= 0:  # Only future earnings
-                        manager.save_earnings(symbol, [{
-                            "earnings_date": earnings_date.isoformat(),
-                            "source": "yahoo_daily_fetch",
-                        }])
+                        manager.save_earnings(
+                            symbol,
+                            [
+                                {
+                                    "earnings_date": earnings_date.isoformat(),
+                                    "source": "yahoo_daily_fetch",
+                                }
+                            ],
+                        )
                         stored += 1
                         logger.debug(
                             f"  [{i}/{len(symbols)}] {symbol}: "
@@ -382,13 +367,12 @@ def fetch_future_earnings(
                             f"Past earnings {earnings_date}, skipped"
                         )
                 else:
-                    logger.debug(
-                        f"  [{i}/{len(symbols)}] {symbol}: No earnings date found"
-                    )
+                    logger.debug(f"  [{i}/{len(symbols)}] {symbol}: No earnings date found")
 
                 # Rate limit: ~2 requests per second
                 if i < len(symbols):
                     import time
+
                     time.sleep(0.5)
 
             except Exception as e:
@@ -396,8 +380,7 @@ def fetch_future_earnings(
                 logger.debug(f"  [{i}/{len(symbols)}] {symbol}: Error - {e}")
 
         logger.info(
-            f"Future earnings: {stored} stored, "
-            f"{errors} errors, {len(symbols)} checked"
+            f"Future earnings: {stored} stored, " f"{errors} errors, {len(symbols)} checked"
         )
         return stored
 
@@ -427,23 +410,16 @@ def _fetch_yahoo_earnings_date(symbol: str) -> Optional[date]:
     )
 
     req = urllib.request.Request(url)
-    req.add_header(
-        'User-Agent',
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)'
-    )
+    req.add_header("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)")
 
     with urllib.request.urlopen(req, timeout=10) as response:
         data = json.loads(response.read().decode())
 
-    calendar = (
-        data.get('quoteSummary', {})
-        .get('result', [{}])[0]
-        .get('calendarEvents', {})
-    )
-    earnings_dates = calendar.get('earnings', {}).get('earningsDate', [])
+    calendar = data.get("quoteSummary", {}).get("result", [{}])[0].get("calendarEvents", {})
+    earnings_dates = calendar.get("earnings", {}).get("earningsDate", [])
 
     if earnings_dates:
-        timestamp = earnings_dates[0].get('raw')
+        timestamp = earnings_dates[0].get("raw")
         if timestamp:
             return datetime.fromtimestamp(timestamp).date()
 
@@ -451,9 +427,7 @@ def _fetch_yahoo_earnings_date(symbol: str) -> Optional[date]:
 
 
 async def fetch_daily_prices(
-    logger: logging.Logger,
-    dry_run: bool = False,
-    backfill_days: int = 5
+    logger: logging.Logger, dry_run: bool = False, backfill_days: int = 5
 ) -> int:
     """
     Fetch OHLCV daily prices for all watchlist symbols from Tradier.
@@ -510,14 +484,9 @@ async def fetch_daily_prices(
                         count = await local_db.save_daily_prices(symbol, bars)
                         if count > 0:
                             saved_count += 1
-                            logger.debug(
-                                f"  [{i}/{len(symbols)}] {symbol}: "
-                                f"{count} bars saved"
-                            )
+                            logger.debug(f"  [{i}/{len(symbols)}] {symbol}: " f"{count} bars saved")
                     else:
-                        logger.debug(
-                            f"  [{i}/{len(symbols)}] {symbol}: No data from Tradier"
-                        )
+                        logger.debug(f"  [{i}/{len(symbols)}] {symbol}: No data from Tradier")
 
                     # Rate limit: ~2 requests per second
                     if i < len(symbols):
@@ -531,8 +500,7 @@ async def fetch_daily_prices(
             await tradier.disconnect()
 
         logger.info(
-            f"OHLCV fetch: {saved_count} symbols saved, "
-            f"{errors} errors, {len(symbols)} checked"
+            f"OHLCV fetch: {saved_count} symbols saved, " f"{errors} errors, {len(symbols)} checked"
         )
         return saved_count
 
@@ -587,49 +555,44 @@ Examples:
     %(prog)s --backfill 30      # Backfill last 30 days
     %(prog)s --update-fundamentals  # Force fundamentals update
     %(prog)s --dry-run          # Show what would be done
-        """
+        """,
     )
 
     parser.add_argument(
-        '--backfill', '-b',
-        type=int,
-        metavar='DAYS',
-        help='Backfill VIX data for the last N days'
+        "--backfill", "-b", type=int, metavar="DAYS", help="Backfill VIX data for the last N days"
     )
     parser.add_argument(
-        '--update-fundamentals', '-f',
-        action='store_true',
-        help='Update symbol fundamentals (normally runs on Sundays)'
+        "--update-fundamentals",
+        "-f",
+        action="store_true",
+        help="Update symbol fundamentals (normally runs on Sundays)",
     )
     parser.add_argument(
-        '--dry-run', '-n',
-        action='store_true',
-        help='Show what would be done without making changes'
+        "--dry-run",
+        "-n",
+        action="store_true",
+        help="Show what would be done without making changes",
+    )
+    parser.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
+    parser.add_argument(
+        "--status", "-s", action="store_true", help="Show current data status and exit"
     )
     parser.add_argument(
-        '--verbose', '-v',
-        action='store_true',
-        help='Verbose output'
+        "--vix-only",
+        action="store_true",
+        help="Only fetch VIX data (skip automatic Sunday fundamentals update)",
     )
     parser.add_argument(
-        '--status', '-s',
-        action='store_true',
-        help='Show current data status and exit'
+        "--update-earnings",
+        "-e",
+        action="store_true",
+        help="Fetch future earnings dates for all watchlist symbols",
     )
     parser.add_argument(
-        '--vix-only',
-        action='store_true',
-        help='Only fetch VIX data (skip automatic Sunday fundamentals update)'
-    )
-    parser.add_argument(
-        '--update-earnings', '-e',
-        action='store_true',
-        help='Fetch future earnings dates for all watchlist symbols'
-    )
-    parser.add_argument(
-        '--update-prices', '-p',
-        action='store_true',
-        help='Fetch OHLCV daily prices for all watchlist symbols'
+        "--update-prices",
+        "-p",
+        action="store_true",
+        help="Fetch OHLCV daily prices for all watchlist symbols",
     )
 
     args = parser.parse_args()

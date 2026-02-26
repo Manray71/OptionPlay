@@ -55,10 +55,7 @@ from tqdm import tqdm
 from src.backtesting.tracking import TradeTracker, PriceBar, SymbolPriceData, VixDataPoint
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -68,6 +65,7 @@ logger = logging.getLogger(__name__)
 
 # Delta targets (from PLAYBOOK)
 from src.constants.trading_rules import SPREAD_SHORT_DELTA_TARGET, SPREAD_LONG_DELTA_TARGET
+
 SHORT_DELTA_TARGET = SPREAD_SHORT_DELTA_TARGET
 LONG_DELTA_TARGET = SPREAD_LONG_DELTA_TARGET
 INITIAL_DTE = 45
@@ -94,6 +92,7 @@ RESULTS_DB_PATH = Path.home() / ".optionplay" / "backtest_diagonal_full.db"
 # Enums
 # =============================================================================
 
+
 class RollType(Enum):
     NONE = "none"
     DIAGONAL_ROLL = "diagonal_roll"
@@ -112,6 +111,7 @@ class TradeOutcome(Enum):
 # =============================================================================
 # Data Classes
 # =============================================================================
+
 
 @dataclass
 class DiagonalRollEvent:
@@ -163,34 +163,35 @@ class DiagonalTradeResult:
 
     def to_dict(self) -> Dict[str, Any]:
         return {
-            'symbol': self.symbol,
-            'entry_date': self.entry_date.isoformat(),
-            'exit_date': self.exit_date.isoformat(),
-            'entry_price': self.entry_price,
-            'exit_price': self.exit_price,
-            'initial_short_strike': self.initial_short_strike,
-            'initial_long_strike': self.initial_long_strike,
-            'initial_dte': self.initial_dte,
-            'initial_credit': self.initial_credit,
-            'final_short_strike': self.final_short_strike,
-            'final_long_strike': self.final_long_strike,
-            'final_dte_remaining': self.final_dte_remaining,
-            'total_credits_received': self.total_credits_received,
-            'total_costs_paid': self.total_costs_paid,
-            'final_pnl': self.final_pnl,
-            'outcome': self.outcome.value,
-            'roll_count': self.roll_count,
-            'max_drawdown_pct': self.max_drawdown_pct,
-            'holding_days': self.holding_days,
-            'iv_at_entry': self.iv_at_entry,
-            'vix_at_entry': self.vix_at_entry,
-            'lowest_price_seen': self.lowest_price_seen,
+            "symbol": self.symbol,
+            "entry_date": self.entry_date.isoformat(),
+            "exit_date": self.exit_date.isoformat(),
+            "entry_price": self.entry_price,
+            "exit_price": self.exit_price,
+            "initial_short_strike": self.initial_short_strike,
+            "initial_long_strike": self.initial_long_strike,
+            "initial_dte": self.initial_dte,
+            "initial_credit": self.initial_credit,
+            "final_short_strike": self.final_short_strike,
+            "final_long_strike": self.final_long_strike,
+            "final_dte_remaining": self.final_dte_remaining,
+            "total_credits_received": self.total_credits_received,
+            "total_costs_paid": self.total_costs_paid,
+            "final_pnl": self.final_pnl,
+            "outcome": self.outcome.value,
+            "roll_count": self.roll_count,
+            "max_drawdown_pct": self.max_drawdown_pct,
+            "holding_days": self.holding_days,
+            "iv_at_entry": self.iv_at_entry,
+            "vix_at_entry": self.vix_at_entry,
+            "lowest_price_seen": self.lowest_price_seen,
         }
 
 
 # =============================================================================
 # Black-Scholes Functions
 # =============================================================================
+
 
 def norm_cdf(x: float) -> float:
     return 0.5 * (1.0 + math.erf(x / math.sqrt(2.0)))
@@ -199,7 +200,7 @@ def norm_cdf(x: float) -> float:
 def black_scholes_put(S: float, K: float, T: float, r: float, sigma: float) -> float:
     if T <= 0 or sigma <= 0 or S <= 0 or K <= 0:
         return max(K - S, 0)
-    d1 = (math.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * math.sqrt(T))
+    d1 = (math.log(S / K) + (r + 0.5 * sigma**2) * T) / (sigma * math.sqrt(T))
     d2 = d1 - sigma * math.sqrt(T)
     return max(K * math.exp(-r * T) * norm_cdf(-d2) - S * norm_cdf(-d1), 0)
 
@@ -207,12 +208,13 @@ def black_scholes_put(S: float, K: float, T: float, r: float, sigma: float) -> f
 def black_scholes_delta(S: float, K: float, T: float, r: float, sigma: float) -> float:
     if T <= 0 or sigma <= 0 or S <= 0 or K <= 0:
         return -1.0 if K > S else 0.0
-    d1 = (math.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * math.sqrt(T))
+    d1 = (math.log(S / K) + (r + 0.5 * sigma**2) * T) / (sigma * math.sqrt(T))
     return norm_cdf(d1) - 1.0
 
 
-def find_strike_for_delta(S: float, T: float, r: float, sigma: float,
-                          target_delta: float, strike_step: float = 1.0) -> float:
+def find_strike_for_delta(
+    S: float, T: float, r: float, sigma: float, target_delta: float, strike_step: float = 1.0
+) -> float:
     low, high = S * 0.50, S * 1.20
     for _ in range(50):
         mid = (low + high) / 2
@@ -229,7 +231,7 @@ def find_strike_for_delta(S: float, T: float, r: float, sigma: float,
 def estimate_iv_from_history(prices: np.ndarray, days: int = 30) -> float:
     if len(prices) < days + 1:
         return 0.30
-    returns = np.diff(np.log(prices[-days-1:]))
+    returns = np.diff(np.log(prices[-days - 1 :]))
     daily_vol = np.std(returns)
     annual_vol = daily_vol * math.sqrt(252)
     return min(max(annual_vol * 1.20, 0.15), 1.50)
@@ -239,9 +241,14 @@ def estimate_iv_from_history(prices: np.ndarray, days: int = 30) -> float:
 # Support Level Detection
 # =============================================================================
 
-def find_support_levels_simple(lows: np.ndarray, lookback: int = 60,
-                               window: int = 5, max_levels: int = 5,
-                               tolerance_pct: float = 1.5) -> List[float]:
+
+def find_support_levels_simple(
+    lows: np.ndarray,
+    lookback: int = 60,
+    window: int = 5,
+    max_levels: int = 5,
+    tolerance_pct: float = 1.5,
+) -> List[float]:
     if len(lows) < 2 * window + 1:
         return []
 
@@ -267,21 +274,22 @@ def find_support_levels_simple(lows: np.ndarray, lookback: int = 60,
     for price in swing_lows:
         found = False
         for cluster in clusters:
-            if abs(price - cluster['avg']) / cluster['avg'] * 100 <= tolerance_pct:
-                cluster['prices'].append(price)
-                cluster['avg'] = sum(cluster['prices']) / len(cluster['prices'])
-                cluster['count'] += 1
+            if abs(price - cluster["avg"]) / cluster["avg"] * 100 <= tolerance_pct:
+                cluster["prices"].append(price)
+                cluster["avg"] = sum(cluster["prices"]) / len(cluster["prices"])
+                cluster["count"] += 1
                 found = True
                 break
         if not found:
-            clusters.append({'avg': price, 'prices': [price], 'count': 1})
+            clusters.append({"avg": price, "prices": [price], "count": 1})
 
-    clusters.sort(key=lambda x: x['count'], reverse=True)
-    return [c['avg'] for c in clusters[:max_levels]]
+    clusters.sort(key=lambda x: x["count"], reverse=True)
+    return [c["avg"] for c in clusters[:max_levels]]
 
 
-def find_next_support_below(current_price: float, support_levels: List[float],
-                            buffer_pct: float = 2.0) -> Optional[float]:
+def find_next_support_below(
+    current_price: float, support_levels: List[float], buffer_pct: float = 2.0
+) -> Optional[float]:
     supports_below = [s for s in support_levels if s < current_price]
     if not supports_below:
         return None
@@ -292,8 +300,10 @@ def find_next_support_below(current_price: float, support_levels: List[float],
 # Data Loading from Database
 # =============================================================================
 
-def load_price_data_from_db(symbols: Optional[List[str]] = None,
-                            min_bars: int = 252) -> Dict[str, SymbolPriceData]:
+
+def load_price_data_from_db(
+    symbols: Optional[List[str]] = None, min_bars: int = 252
+) -> Dict[str, SymbolPriceData]:
     """Load price data from trades.db database"""
     tracker = TradeTracker(str(TRADES_DB_PATH))
 
@@ -302,16 +312,16 @@ def load_price_data_from_db(symbols: Optional[List[str]] = None,
 
     if symbols:
         # Filter to requested symbols
-        available = [s for s in available if s['symbol'] in symbols]
+        available = [s for s in available if s["symbol"] in symbols]
 
     # Filter by minimum bars
-    available = [s for s in available if s['bar_count'] >= min_bars]
+    available = [s for s in available if s["bar_count"] >= min_bars]
 
     logger.info(f"Loading price data for {len(available)} symbols (min {min_bars} bars)")
 
     price_data = {}
     for item in tqdm(available, desc="Loading price data"):
-        symbol = item['symbol']
+        symbol = item["symbol"]
         try:
             data = tracker.get_price_data(symbol)
             if data and data.bars:
@@ -333,6 +343,7 @@ def load_vix_data_from_db() -> Dict[date, float]:
 # =============================================================================
 # Diagonal Roll Simulation
 # =============================================================================
+
 
 def simulate_diagonal_roll_trade(
     bars: List[PriceBar],
@@ -359,7 +370,7 @@ def simulate_diagonal_roll_trade(
 
     # Estimate IV
     lookback = min(60, entry_idx)
-    recent_prices = prices[entry_idx - lookback:entry_idx + 1]
+    recent_prices = prices[entry_idx - lookback : entry_idx + 1]
     iv = estimate_iv_from_history(recent_prices)
 
     # Adjust IV based on VIX if available
@@ -377,8 +388,12 @@ def simulate_diagonal_roll_trade(
 
     # Initial position
     T = INITIAL_DTE / 365.0
-    short_strike = find_strike_for_delta(entry_price, T, RISK_FREE_RATE, iv, SHORT_DELTA_TARGET, strike_step)
-    long_strike = find_strike_for_delta(entry_price, T, RISK_FREE_RATE, iv, LONG_DELTA_TARGET, strike_step)
+    short_strike = find_strike_for_delta(
+        entry_price, T, RISK_FREE_RATE, iv, SHORT_DELTA_TARGET, strike_step
+    )
+    long_strike = find_strike_for_delta(
+        entry_price, T, RISK_FREE_RATE, iv, LONG_DELTA_TARGET, strike_step
+    )
 
     if long_strike >= short_strike:
         long_strike = short_strike - strike_step
@@ -428,8 +443,12 @@ def simulate_diagonal_roll_trade(
 
         # Current spread value
         if T_remaining > 0:
-            short_val = black_scholes_put(current_price, current_short, T_remaining, RISK_FREE_RATE, iv)
-            long_val = black_scholes_put(current_price, current_long, T_remaining, RISK_FREE_RATE, iv)
+            short_val = black_scholes_put(
+                current_price, current_short, T_remaining, RISK_FREE_RATE, iv
+            )
+            long_val = black_scholes_put(
+                current_price, current_long, T_remaining, RISK_FREE_RATE, iv
+            )
         else:
             short_val = max(current_short - current_price, 0)
             long_val = max(current_long - current_price, 0)
@@ -482,7 +501,9 @@ def simulate_diagonal_roll_trade(
 
         # Check expiration
         if dte_remaining <= 0:
-            final_spread = max(current_short - current_price, 0) - max(current_long - current_price, 0)
+            final_spread = max(current_short - current_price, 0) - max(
+                current_long - current_price, 0
+            )
             final_pnl = total_credits - total_costs - (final_spread * 100)
 
             if final_pnl > 0:
@@ -521,10 +542,12 @@ def simulate_diagonal_roll_trade(
 
         # DIAGONAL ROLL TRIGGER
         if pnl_pct <= ROLL_TRIGGER_PCT and roll_count < MAX_ROLLS_PER_TRADE:
-            lookback_lows = lows[max(0, current_idx - 252):current_idx]
+            lookback_lows = lows[max(0, current_idx - 252) : current_idx]
             support_levels = find_support_levels_simple(lookback_lows)
 
-            target_price = find_next_support_below(current_price, support_levels, SUPPORT_BUFFER_PCT)
+            target_price = find_next_support_below(
+                current_price, support_levels, SUPPORT_BUFFER_PCT
+            )
             if target_price is None:
                 target_price = current_price * 0.90
 
@@ -540,9 +563,13 @@ def simulate_diagonal_roll_trade(
 
             new_short = round(target_price / strike_step) * strike_step
             if new_short >= current_price:
-                new_short = find_strike_for_delta(current_price, new_T, RISK_FREE_RATE, iv, SHORT_DELTA_TARGET, strike_step)
+                new_short = find_strike_for_delta(
+                    current_price, new_T, RISK_FREE_RATE, iv, SHORT_DELTA_TARGET, strike_step
+                )
 
-            new_long = find_strike_for_delta(current_price, new_T, RISK_FREE_RATE, iv, LONG_DELTA_TARGET, strike_step)
+            new_long = find_strike_for_delta(
+                current_price, new_T, RISK_FREE_RATE, iv, LONG_DELTA_TARGET, strike_step
+            )
             if new_long >= new_short:
                 new_long = new_short - strike_step
 
@@ -565,7 +592,9 @@ def simulate_diagonal_roll_trade(
 
                 roll_event = DiagonalRollEvent(
                     roll_day=day,
-                    roll_type=RollType.DIAGONAL_ROLL if roll_count < 2 else RollType.AGGRESSIVE_ROLL,
+                    roll_type=(
+                        RollType.DIAGONAL_ROLL if roll_count < 2 else RollType.AGGRESSIVE_ROLL
+                    ),
                     old_short_strike=current_short,
                     new_short_strike=new_short,
                     old_long_strike=current_long,
@@ -648,6 +677,7 @@ def simulate_diagonal_roll_trade(
 # =============================================================================
 # Database for Results
 # =============================================================================
+
 
 class ResultsDatabase:
     """SQLite database for backtest results"""
@@ -745,12 +775,15 @@ class ResultsDatabase:
             now = datetime.now().isoformat()
             hostname = socket.gethostname()
 
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT INTO backtest_runs (
                     run_name, run_date, total_symbols, total_trades,
                     win_rate, total_pnl, config_json, hostname, created_at
                 ) VALUES (?, ?, ?, 0, 0, 0, ?, ?, ?)
-            """, (run_name, now[:10], total_symbols, json.dumps(config), hostname, now))
+            """,
+                (run_name, now[:10], total_symbols, json.dumps(config), hostname, now),
+            )
 
             return cursor.lastrowid
 
@@ -759,7 +792,8 @@ class ResultsDatabase:
             cursor = conn.cursor()
             now = datetime.now().isoformat()
 
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT INTO trades (
                     run_id, symbol, entry_date, exit_date,
                     entry_price, exit_price,
@@ -770,35 +804,59 @@ class ResultsDatabase:
                     roll_count, max_drawdown_pct, holding_days,
                     iv_at_entry, vix_at_entry, lowest_price, created_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                run_id, trade.symbol,
-                trade.entry_date.isoformat(), trade.exit_date.isoformat(),
-                trade.entry_price, trade.exit_price,
-                trade.initial_short_strike, trade.initial_long_strike,
-                trade.initial_dte, trade.initial_credit,
-                trade.final_short_strike, trade.final_long_strike,
-                trade.total_credits_received, trade.total_costs_paid,
-                trade.final_pnl, trade.outcome.value,
-                trade.roll_count, trade.max_drawdown_pct, trade.holding_days,
-                trade.iv_at_entry, trade.vix_at_entry, trade.lowest_price_seen, now
-            ))
+            """,
+                (
+                    run_id,
+                    trade.symbol,
+                    trade.entry_date.isoformat(),
+                    trade.exit_date.isoformat(),
+                    trade.entry_price,
+                    trade.exit_price,
+                    trade.initial_short_strike,
+                    trade.initial_long_strike,
+                    trade.initial_dte,
+                    trade.initial_credit,
+                    trade.final_short_strike,
+                    trade.final_long_strike,
+                    trade.total_credits_received,
+                    trade.total_costs_paid,
+                    trade.final_pnl,
+                    trade.outcome.value,
+                    trade.roll_count,
+                    trade.max_drawdown_pct,
+                    trade.holding_days,
+                    trade.iv_at_entry,
+                    trade.vix_at_entry,
+                    trade.lowest_price_seen,
+                    now,
+                ),
+            )
 
             trade_id = cursor.lastrowid
 
             for roll in trade.roll_events:
-                cursor.execute("""
+                cursor.execute(
+                    """
                     INSERT INTO roll_events (
                         trade_id, roll_day, roll_type,
                         old_short_strike, new_short_strike,
                         roll_net, stock_price, loss_at_roll_pct,
                         vix_at_roll, created_at
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    trade_id, roll.roll_day, roll.roll_type.value,
-                    roll.old_short_strike, roll.new_short_strike,
-                    roll.roll_net, roll.stock_price_at_roll,
-                    roll.loss_at_roll_pct, roll.vix_at_roll, now
-                ))
+                """,
+                    (
+                        trade_id,
+                        roll.roll_day,
+                        roll.roll_type.value,
+                        roll.old_short_strike,
+                        roll.new_short_strike,
+                        roll.roll_net,
+                        roll.stock_price_at_roll,
+                        roll.loss_at_roll_pct,
+                        roll.vix_at_roll,
+                        now,
+                    ),
+                )
 
             return trade_id
 
@@ -806,24 +864,30 @@ class ResultsDatabase:
         with self._get_connection() as conn:
             cursor = conn.cursor()
 
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT
                     COUNT(*) as total,
                     SUM(CASE WHEN outcome IN ('win', 'rolled_win') THEN 1 ELSE 0 END) as wins,
                     SUM(final_pnl) as total_pnl
                 FROM trades WHERE run_id = ?
-            """, (run_id,))
+            """,
+                (run_id,),
+            )
 
             row = cursor.fetchone()
-            total = row['total'] or 0
-            wins = row['wins'] or 0
+            total = row["total"] or 0
+            wins = row["wins"] or 0
             win_rate = (wins / total * 100) if total > 0 else 0
 
-            cursor.execute("""
+            cursor.execute(
+                """
                 UPDATE backtest_runs SET
                     total_trades = ?, win_rate = ?, total_pnl = ?
                 WHERE id = ?
-            """, (total, win_rate, row['total_pnl'] or 0, run_id))
+            """,
+                (total, win_rate, row["total_pnl"] or 0, run_id),
+            )
 
     def get_summary(self, run_id: int) -> Dict:
         with self._get_connection() as conn:
@@ -832,7 +896,8 @@ class ResultsDatabase:
             cursor.execute("SELECT * FROM backtest_runs WHERE id = ?", (run_id,))
             run = cursor.fetchone()
 
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT
                     COUNT(*) as total,
                     SUM(CASE WHEN outcome IN ('win', 'rolled_win') THEN 1 ELSE 0 END) as wins,
@@ -845,11 +910,14 @@ class ResultsDatabase:
                     SUM(roll_count) as total_rolls,
                     AVG(max_drawdown_pct) as avg_drawdown
                 FROM trades WHERE run_id = ?
-            """, (run_id,))
+            """,
+                (run_id,),
+            )
             stats = cursor.fetchone()
 
             # Rolled vs non-rolled
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT
                     CASE WHEN roll_count > 0 THEN 'rolled' ELSE 'not_rolled' END as cat,
                     COUNT(*) as trades,
@@ -858,38 +926,41 @@ class ResultsDatabase:
                     SUM(final_pnl) as total_pnl
                 FROM trades WHERE run_id = ?
                 GROUP BY cat
-            """, (run_id,))
+            """,
+                (run_id,),
+            )
 
             by_roll = {}
             for row in cursor.fetchall():
-                by_roll[row['cat']] = {
-                    'trades': row['trades'],
-                    'wins': row['wins'],
-                    'win_rate': (row['wins'] / row['trades'] * 100) if row['trades'] > 0 else 0,
-                    'avg_pnl': row['avg_pnl'],
-                    'total_pnl': row['total_pnl'],
+                by_roll[row["cat"]] = {
+                    "trades": row["trades"],
+                    "wins": row["wins"],
+                    "win_rate": (row["wins"] / row["trades"] * 100) if row["trades"] > 0 else 0,
+                    "avg_pnl": row["avg_pnl"],
+                    "total_pnl": row["total_pnl"],
                 }
 
             return {
-                'run': dict(run) if run else None,
-                'total_trades': stats['total'] or 0,
-                'wins': stats['wins'] or 0,
-                'losses': stats['losses'] or 0,
-                'max_losses': stats['max_losses'] or 0,
-                'win_rate': (stats['wins'] / stats['total'] * 100) if stats['total'] else 0,
-                'avg_pnl': stats['avg_pnl'] or 0,
-                'total_pnl': stats['total_pnl'] or 0,
-                'avg_holding_days': stats['avg_holding'] or 0,
-                'avg_rolls': stats['avg_rolls'] or 0,
-                'total_rolls': stats['total_rolls'] or 0,
-                'avg_drawdown': stats['avg_drawdown'] or 0,
-                'by_roll_status': by_roll,
+                "run": dict(run) if run else None,
+                "total_trades": stats["total"] or 0,
+                "wins": stats["wins"] or 0,
+                "losses": stats["losses"] or 0,
+                "max_losses": stats["max_losses"] or 0,
+                "win_rate": (stats["wins"] / stats["total"] * 100) if stats["total"] else 0,
+                "avg_pnl": stats["avg_pnl"] or 0,
+                "total_pnl": stats["total_pnl"] or 0,
+                "avg_holding_days": stats["avg_holding"] or 0,
+                "avg_rolls": stats["avg_rolls"] or 0,
+                "total_rolls": stats["total_rolls"] or 0,
+                "avg_drawdown": stats["avg_drawdown"] or 0,
+                "by_roll_status": by_roll,
             }
 
 
 # =============================================================================
 # Backtest Runner
 # =============================================================================
+
 
 def backtest_symbol_worker(args) -> List[DiagonalTradeResult]:
     """Worker function for backtesting a single symbol"""
@@ -937,23 +1008,25 @@ def run_full_backtest(
     # Distribute symbols across workers (for Thunderbolt setup)
     if total_workers > 1:
         my_symbols = [s for i, s in enumerate(all_symbols) if i % total_workers == worker_id]
-        logger.info(f"Worker {worker_id}/{total_workers}: Processing {len(my_symbols)} of {len(all_symbols)} symbols")
+        logger.info(
+            f"Worker {worker_id}/{total_workers}: Processing {len(my_symbols)} of {len(all_symbols)} symbols"
+        )
     else:
         my_symbols = all_symbols
 
     db = ResultsDatabase()
 
     config = {
-        'short_delta': SHORT_DELTA_TARGET,
-        'long_delta': LONG_DELTA_TARGET,
-        'initial_dte': INITIAL_DTE,
-        'roll_trigger_pct': ROLL_TRIGGER_PCT,
-        'roll_dte_extension': ROLL_DTE_EXTENSION,
-        'max_rolls': MAX_ROLLS_PER_TRADE,
-        'entry_interval': entry_interval,
-        'min_bars': min_bars,
-        'worker_id': worker_id,
-        'total_workers': total_workers,
+        "short_delta": SHORT_DELTA_TARGET,
+        "long_delta": LONG_DELTA_TARGET,
+        "initial_dte": INITIAL_DTE,
+        "roll_trigger_pct": ROLL_TRIGGER_PCT,
+        "roll_dte_extension": ROLL_DTE_EXTENSION,
+        "max_rolls": MAX_ROLLS_PER_TRADE,
+        "entry_interval": entry_interval,
+        "min_bars": min_bars,
+        "worker_id": worker_id,
+        "total_workers": total_workers,
     }
 
     run_name = run_name or f"diagonal_full_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
@@ -967,8 +1040,7 @@ def run_full_backtest(
 
     # Prepare work items
     work_items = [
-        (symbol, price_data[symbol].bars, vix_data, entry_interval)
-        for symbol in my_symbols
+        (symbol, price_data[symbol].bars, vix_data, entry_interval) for symbol in my_symbols
     ]
 
     all_results = []
@@ -977,7 +1049,7 @@ def run_full_backtest(
         for results in tqdm(
             pool.imap_unordered(backtest_symbol_worker, work_items),
             total=len(work_items),
-            desc=f"Backtesting (Worker {worker_id})"
+            desc=f"Backtesting (Worker {worker_id})",
         ):
             for result in results:
                 db.add_trade(run_id, result)
@@ -999,7 +1071,7 @@ def print_results(run_id: int):
     print("DIAGONAL ROLL STRATEGY - FULL DATABASE BACKTEST")
     print("=" * 70)
 
-    if summary.get('run'):
+    if summary.get("run"):
         print(f"\nRun ID: {run_id}")
         print(f"Name: {summary['run'].get('run_name', 'N/A')}")
         print(f"Host: {summary['run'].get('hostname', 'N/A')}")
@@ -1018,9 +1090,9 @@ def print_results(run_id: int):
     print(f"Avg Rolls/Trade: {summary['avg_rolls']:.2f}")
     print(f"Avg Drawdown: {summary['avg_drawdown']:.1f}%")
 
-    if summary.get('by_roll_status'):
+    if summary.get("by_roll_status"):
         print(f"\n{'='*30} BY ROLL STATUS {'='*30}")
-        for cat, data in summary['by_roll_status'].items():
+        for cat, data in summary["by_roll_status"].items():
             print(f"\n  {cat.upper()}:")
             print(f"    Trades: {data['trades']:,}")
             print(f"    Win Rate: {data['win_rate']:.1f}%")
@@ -1033,6 +1105,7 @@ def print_results(run_id: int):
 def get_watchlist_symbols(watchlist_name: str) -> List[str]:
     """Load symbols from watchlist"""
     import yaml
+
     watchlist_path = PROJECT_ROOT / "config" / "watchlists.yaml"
 
     if not watchlist_path.exists():
@@ -1041,18 +1114,18 @@ def get_watchlist_symbols(watchlist_name: str) -> List[str]:
     with open(watchlist_path) as f:
         config = yaml.safe_load(f)
 
-    watchlists = config.get('watchlists', {})
+    watchlists = config.get("watchlists", {})
 
     if watchlist_name in watchlists:
         wl = watchlists[watchlist_name]
         if isinstance(wl, dict):
-            if 'symbols' in wl:
-                return wl['symbols']
-            elif 'sectors' in wl:
+            if "symbols" in wl:
+                return wl["symbols"]
+            elif "sectors" in wl:
                 symbols = []
-                for sector_data in wl['sectors'].values():
-                    if isinstance(sector_data, dict) and 'symbols' in sector_data:
-                        symbols.extend(sector_data['symbols'])
+                for sector_data in wl["sectors"].values():
+                    if isinstance(sector_data, dict) and "symbols" in sector_data:
+                        symbols.extend(sector_data["symbols"])
                 return symbols
     return []
 
@@ -1061,25 +1134,28 @@ def get_watchlist_symbols(watchlist_name: str) -> List[str]:
 # Main
 # =============================================================================
 
+
 def main():
     parser = argparse.ArgumentParser(description="Full Diagonal Roll Backtest from Database")
 
-    parser.add_argument('--symbols', '-s', type=str, help='Comma-separated symbols')
-    parser.add_argument('--watchlist', '-w', type=str, help='Watchlist name')
-    parser.add_argument('--all', '-a', action='store_true', help='Use all symbols in database')
+    parser.add_argument("--symbols", "-s", type=str, help="Comma-separated symbols")
+    parser.add_argument("--watchlist", "-w", type=str, help="Watchlist name")
+    parser.add_argument("--all", "-a", action="store_true", help="Use all symbols in database")
 
-    parser.add_argument('--min-bars', type=int, default=500, help='Minimum bars required (default: 500 = ~2 years)')
-    parser.add_argument('--min-years', type=float, help='Minimum years of data')
-    parser.add_argument('--entry-interval', type=int, default=30, help='Days between entries')
-    parser.add_argument('--workers', type=int, default=4, help='Local workers')
-    parser.add_argument('--name', type=str, help='Run name')
+    parser.add_argument(
+        "--min-bars", type=int, default=500, help="Minimum bars required (default: 500 = ~2 years)"
+    )
+    parser.add_argument("--min-years", type=float, help="Minimum years of data")
+    parser.add_argument("--entry-interval", type=int, default=30, help="Days between entries")
+    parser.add_argument("--workers", type=int, default=4, help="Local workers")
+    parser.add_argument("--name", type=str, help="Run name")
 
     # Distributed processing
-    parser.add_argument('--distributed', action='store_true', help='Enable distributed mode')
-    parser.add_argument('--worker-id', type=int, default=0, help='Worker ID (0-indexed)')
-    parser.add_argument('--total-workers', type=int, default=1, help='Total workers')
+    parser.add_argument("--distributed", action="store_true", help="Enable distributed mode")
+    parser.add_argument("--worker-id", type=int, default=0, help="Worker ID (0-indexed)")
+    parser.add_argument("--total-workers", type=int, default=1, help="Total workers")
 
-    parser.add_argument('--results', type=int, help='Show results for run ID')
+    parser.add_argument("--results", type=int, help="Show results for run ID")
 
     args = parser.parse_args()
 
@@ -1095,7 +1171,7 @@ def main():
     # Get symbols
     symbols = None
     if args.symbols:
-        symbols = [s.strip().upper() for s in args.symbols.split(',')]
+        symbols = [s.strip().upper() for s in args.symbols.split(",")]
     elif args.watchlist:
         symbols = get_watchlist_symbols(args.watchlist)
     elif not args.all:
@@ -1131,5 +1207,5 @@ def main():
     print(f"View: python {__file__} --results {run_id}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

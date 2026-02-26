@@ -52,12 +52,25 @@ def load_strategy_trades(strategy):
         where.append(f"{score_col} >= COALESCE({oc}, 0)")
 
     cols = [
-        "symbol", "was_profitable", "pnl_pct", "vix_regime",
-        "max_drawdown_pct", score_col,
-        "rsi_score", "support_score", "fibonacci_score", "ma_score",
-        "volume_score", "macd_score", "stoch_score", "keltner_score",
-        "trend_strength_score", "momentum_score",
-        "candlestick_score", "vwap_score", "market_context_score",
+        "symbol",
+        "was_profitable",
+        "pnl_pct",
+        "vix_regime",
+        "max_drawdown_pct",
+        score_col,
+        "rsi_score",
+        "support_score",
+        "fibonacci_score",
+        "ma_score",
+        "volume_score",
+        "macd_score",
+        "stoch_score",
+        "keltner_score",
+        "trend_strength_score",
+        "momentum_score",
+        "candlestick_score",
+        "vwap_score",
+        "market_context_score",
     ]
 
     query = f"SELECT {', '.join(cols)} FROM trade_outcomes WHERE {' AND '.join(where)} ORDER BY entry_date"
@@ -69,10 +82,16 @@ def load_strategy_trades(strategy):
 
 def analyze_sector_performance(trades, sector_map, strategy):
     """Compute sector performance metrics per strategy."""
-    sector_stats = defaultdict(lambda: {
-        "n": 0, "wins": 0, "pnl_sum": 0.0, "pnl_list": [],
-        "drawdowns": [], "regimes": defaultdict(int),
-    })
+    sector_stats = defaultdict(
+        lambda: {
+            "n": 0,
+            "wins": 0,
+            "pnl_sum": 0.0,
+            "pnl_list": [],
+            "drawdowns": [],
+            "regimes": defaultdict(int),
+        }
+    )
 
     for t in trades:
         sector = sector_map.get(t["symbol"], "Unknown")
@@ -223,9 +242,11 @@ def main():
         sector_perf = analyze_sector_performance(trades, sector_map, strategy)
         print(f"\n  Sector Performance ({len(sector_perf)} sectors):")
         for sector, p in sorted(sector_perf.items(), key=lambda x: -x[1]["avg_pnl"]):
-            print(f"    {sector:>25s}: n={p['n']:>5}, WR={p['win_rate']:>5.1f}%, "
-                  f"PnL={p['avg_pnl']:>8.2f}%, Sharpe={p['sharpe_like']:>6.3f}, "
-                  f"Tail10={p['tail_loss_10pct']:>8.2f}%")
+            print(
+                f"    {sector:>25s}: n={p['n']:>5}, WR={p['win_rate']:>5.1f}%, "
+                f"PnL={p['avg_pnl']:>8.2f}%, Sharpe={p['sharpe_like']:>6.3f}, "
+                f"Tail10={p['tail_loss_10pct']:>8.2f}%"
+            )
 
         # 2. Sector Factors
         sector_factors = compute_sector_scores(sector_perf, strategy)
@@ -267,8 +288,12 @@ def main():
             "n_sectors": len(sector_factors),
             "factor_mean": round(float(factors_arr.mean()), 3),
             "factor_std": round(float(factors_arr.std()), 3),
-            "best_sector": max(sector_factors.items(), key=lambda x: x[1])[0] if sector_factors else None,
-            "worst_sector": min(sector_factors.items(), key=lambda x: x[1])[0] if sector_factors else None,
+            "best_sector": (
+                max(sector_factors.items(), key=lambda x: x[1])[0] if sector_factors else None
+            ),
+            "worst_sector": (
+                min(sector_factors.items(), key=lambda x: x[1])[0] if sector_factors else None
+            ),
             "n_boosted": sum(1 for f in sector_factors.values() if f > 1.05),
             "n_penalized": sum(1 for f in sector_factors.values() if f < 0.95),
         }
@@ -282,9 +307,11 @@ def main():
     print(f"  SECTOR MOMENTUM ANALYSIS COMPLETE")
     print(f"{'='*60}")
     for strategy, stats in summary.items():
-        print(f"  {strategy:>15s}: {stats['n_sectors']} sectors, "
-              f"boosted={stats['n_boosted']}, penalized={stats['n_penalized']}, "
-              f"best={stats['best_sector']}, worst={stats['worst_sector']}")
+        print(
+            f"  {strategy:>15s}: {stats['n_sectors']} sectors, "
+            f"boosted={stats['n_boosted']}, penalized={stats['n_penalized']}, "
+            f"best={stats['best_sector']}, worst={stats['worst_sector']}"
+        )
 
 
 if __name__ == "__main__":

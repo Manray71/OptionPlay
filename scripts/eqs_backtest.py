@@ -36,7 +36,6 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.services.entry_quality_scorer import EntryQualityScorer
 
-
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
@@ -44,8 +43,8 @@ from src.services.entry_quality_scorer import EntryQualityScorer
 OUTCOMES_DB = Path.home() / ".optionplay" / "outcomes.db"
 TRADES_DB = Path.home() / ".optionplay" / "trades.db"
 
-TRAIN_END = "2024-01-01"    # Train: everything before this
-TEST_START = "2024-01-01"    # Test: everything from this date
+TRAIN_END = "2024-01-01"  # Train: everything before this
+TEST_START = "2024-01-01"  # Test: everything from this date
 
 # Simulate daily picks: pick top N per day
 PICKS_PER_DAY = 5
@@ -55,9 +54,11 @@ PICKS_PER_DAY = 5
 # DATA CLASSES
 # =============================================================================
 
+
 @dataclass
 class TradeRecord:
     """A single backtested trade."""
+
     symbol: str
     entry_date: str
     exit_date: str
@@ -72,7 +73,7 @@ class TradeRecord:
     held_to_expiration: int
 
     # Signal Scores
-    signal_score: float      # Sum of all sub-scores
+    signal_score: float  # Sum of all sub-scores
     pullback_score: float
     bounce_score: float
     ath_breakout_score: float
@@ -80,7 +81,7 @@ class TradeRecord:
 
     # EQS inputs
     rsi_value: Optional[float]
-    credit_pct: float        # net_credit / spread_width * 100
+    credit_pct: float  # net_credit / spread_width * 100
 
     # Computed
     eqs_total: float = 0.0
@@ -92,6 +93,7 @@ class TradeRecord:
     @property
     def holding_days(self) -> int:
         from datetime import datetime
+
         d1 = datetime.strptime(self.entry_date, "%Y-%m-%d")
         d2 = datetime.strptime(self.exit_date, "%Y-%m-%d")
         return (d2 - d1).days
@@ -109,6 +111,7 @@ class TradeRecord:
 @dataclass
 class BacktestMetrics:
     """Metrics for a ranking method."""
+
     name: str
     total_trades: int = 0
     wins: int = 0
@@ -126,6 +129,7 @@ class BacktestMetrics:
 # =============================================================================
 # DATA LOADING
 # =============================================================================
+
 
 def load_trades() -> List[TradeRecord]:
     """Load trades from outcomes.db with computed signal scores."""
@@ -154,36 +158,53 @@ def load_trades() -> List[TradeRecord]:
     trades = []
     for row in cursor.fetchall():
         # Sum all technical sub-scores for signal score
-        signal_score = sum(filter(None, [
-            row['rsi_score'], row['support_score'], row['fibonacci_score'],
-            row['ma_score'], row['volume_score'], row['macd_score'],
-            row['stoch_score'], row['keltner_score'], row['trend_strength_score'],
-            row['momentum_score'], row['rs_score'], row['candlestick_score'],
-            row['vwap_score'], row['market_context_score'], row['sector_score'],
-            row['gap_score'],
-        ]))
+        signal_score = sum(
+            filter(
+                None,
+                [
+                    row["rsi_score"],
+                    row["support_score"],
+                    row["fibonacci_score"],
+                    row["ma_score"],
+                    row["volume_score"],
+                    row["macd_score"],
+                    row["stoch_score"],
+                    row["keltner_score"],
+                    row["trend_strength_score"],
+                    row["momentum_score"],
+                    row["rs_score"],
+                    row["candlestick_score"],
+                    row["vwap_score"],
+                    row["market_context_score"],
+                    row["sector_score"],
+                    row["gap_score"],
+                ],
+            )
+        )
 
-        credit_pct = (row['net_credit'] / row['spread_width']) * 100 if row['spread_width'] > 0 else 0
+        credit_pct = (
+            (row["net_credit"] / row["spread_width"]) * 100 if row["spread_width"] > 0 else 0
+        )
 
         trade = TradeRecord(
-            symbol=row['symbol'],
-            entry_date=row['entry_date'],
-            exit_date=row['exit_date'],
-            net_credit=row['net_credit'],
-            spread_width=row['spread_width'],
-            pnl=row['pnl'],
-            pnl_pct=row['pnl_pct'],
-            was_profitable=row['was_profitable'],
-            dte_at_entry=row['dte_at_entry'],
-            vix_at_entry=row['vix_at_entry'] or 20.0,
-            max_drawdown_pct=row['max_drawdown_pct'] or 0.0,
-            held_to_expiration=row['held_to_expiration'] or 0,
+            symbol=row["symbol"],
+            entry_date=row["entry_date"],
+            exit_date=row["exit_date"],
+            net_credit=row["net_credit"],
+            spread_width=row["spread_width"],
+            pnl=row["pnl"],
+            pnl_pct=row["pnl_pct"],
+            was_profitable=row["was_profitable"],
+            dte_at_entry=row["dte_at_entry"],
+            vix_at_entry=row["vix_at_entry"] or 20.0,
+            max_drawdown_pct=row["max_drawdown_pct"] or 0.0,
+            held_to_expiration=row["held_to_expiration"] or 0,
             signal_score=signal_score,
-            pullback_score=row['pullback_score'] or 0.0,
-            bounce_score=row['bounce_score'] or 0.0,
-            ath_breakout_score=row['ath_breakout_score'] or 0.0,
-            earnings_dip_score=row['earnings_dip_score'] or 0.0,
-            rsi_value=row['rsi_value'],
+            pullback_score=row["pullback_score"] or 0.0,
+            bounce_score=row["bounce_score"] or 0.0,
+            ath_breakout_score=row["ath_breakout_score"] or 0.0,
+            earnings_dip_score=row["earnings_dip_score"] or 0.0,
+            rsi_value=row["rsi_value"],
             credit_pct=credit_pct,
         )
         trades.append(trade)
@@ -269,6 +290,7 @@ def compute_iv_rank_for_trade(
 # EQS COMPUTATION
 # =============================================================================
 
+
 def compute_eqs_for_trades(
     trades: List[TradeRecord],
     iv_data: Dict[str, Dict[str, float]],
@@ -279,9 +301,7 @@ def compute_eqs_for_trades(
 
     for trade in trades:
         # Get IV metrics
-        iv_rank, iv_percentile = compute_iv_rank_for_trade(
-            trade.symbol, trade.entry_date, iv_data
-        )
+        iv_rank, iv_percentile = compute_iv_rank_for_trade(trade.symbol, trade.entry_date, iv_data)
 
         # Estimate pullback_pct from pullback_score
         # pullback_score 0-1 range, higher = deeper pullback
@@ -310,9 +330,7 @@ def compute_eqs_for_trades(
         trade.ranking_score_baseline = trade.signal_score
 
         # EQS-enhanced ranking
-        trade.ranking_score_eqs = scorer.apply_eqs_bonus(
-            trade.signal_score, eq, max_bonus_pct=0.3
-        )
+        trade.ranking_score_eqs = scorer.apply_eqs_bonus(trade.signal_score, eq, max_bonus_pct=0.3)
 
         if iv_rank is not None:
             enriched += 1
@@ -324,6 +342,7 @@ def compute_eqs_for_trades(
 # =============================================================================
 # BACKTEST SIMULATION
 # =============================================================================
+
 
 def simulate_daily_picks(
     trades: List[TradeRecord],
@@ -404,6 +423,7 @@ def calculate_metrics(
 # REPORTING
 # =============================================================================
 
+
 def print_comparison(train_a, train_b, test_a, test_b):
     """Print comparison table."""
     print("\n" + "=" * 80)
@@ -419,23 +439,48 @@ def print_comparison(train_a, train_b, test_a, test_b):
 
         rows = [
             ("Total Trades", f"{a.total_trades:,}", f"{b.total_trades:,}", ""),
-            ("Win Rate", f"{a.win_rate:.1f}%", f"{b.win_rate:.1f}%",
-             f"{b.win_rate - a.win_rate:+.1f}%"),
-            ("Avg P&L / Trade", f"${a.avg_pnl:.2f}", f"${b.avg_pnl:.2f}",
-             f"${b.avg_pnl - a.avg_pnl:+.2f}"),
-            ("Total P&L", f"${a.total_pnl:,.0f}", f"${b.total_pnl:,.0f}",
-             f"${b.total_pnl - a.total_pnl:+,.0f}"),
-            ("Avg Capital Efficiency", f"{a.avg_capital_efficiency:.3f}",
-             f"{b.avg_capital_efficiency:.3f}",
-             f"{(b.avg_capital_efficiency/a.avg_capital_efficiency - 1)*100:+.1f}%" if a.avg_capital_efficiency > 0 else "N/A"),
-            ("Avg Profit (Winners)", f"${a.avg_profit_winners:.2f}",
-             f"${b.avg_profit_winners:.2f}", ""),
-            ("Avg Loss (Losers)", f"${a.avg_loss_losers:.2f}",
-             f"${b.avg_loss_losers:.2f}", ""),
-            ("Max Consecutive Losses", f"{a.max_consecutive_losses}",
-             f"{b.max_consecutive_losses}", ""),
-            ("Avg Holding Days", f"{a.avg_holding_days:.1f}",
-             f"{b.avg_holding_days:.1f}", ""),
+            (
+                "Win Rate",
+                f"{a.win_rate:.1f}%",
+                f"{b.win_rate:.1f}%",
+                f"{b.win_rate - a.win_rate:+.1f}%",
+            ),
+            (
+                "Avg P&L / Trade",
+                f"${a.avg_pnl:.2f}",
+                f"${b.avg_pnl:.2f}",
+                f"${b.avg_pnl - a.avg_pnl:+.2f}",
+            ),
+            (
+                "Total P&L",
+                f"${a.total_pnl:,.0f}",
+                f"${b.total_pnl:,.0f}",
+                f"${b.total_pnl - a.total_pnl:+,.0f}",
+            ),
+            (
+                "Avg Capital Efficiency",
+                f"{a.avg_capital_efficiency:.3f}",
+                f"{b.avg_capital_efficiency:.3f}",
+                (
+                    f"{(b.avg_capital_efficiency/a.avg_capital_efficiency - 1)*100:+.1f}%"
+                    if a.avg_capital_efficiency > 0
+                    else "N/A"
+                ),
+            ),
+            (
+                "Avg Profit (Winners)",
+                f"${a.avg_profit_winners:.2f}",
+                f"${b.avg_profit_winners:.2f}",
+                "",
+            ),
+            ("Avg Loss (Losers)", f"${a.avg_loss_losers:.2f}", f"${b.avg_loss_losers:.2f}", ""),
+            (
+                "Max Consecutive Losses",
+                f"{a.max_consecutive_losses}",
+                f"{b.max_consecutive_losses}",
+                "",
+            ),
+            ("Avg Holding Days", f"{a.avg_holding_days:.1f}", f"{b.avg_holding_days:.1f}", ""),
         ]
 
         for label_r, val_a, val_b, delta in rows:
@@ -451,10 +496,16 @@ def print_comparison(train_a, train_b, test_a, test_b):
 
     wr_delta_train = train_b.win_rate - train_a.win_rate
     wr_delta_test = test_b.win_rate - test_a.win_rate
-    ce_delta_train = ((train_b.avg_capital_efficiency / train_a.avg_capital_efficiency - 1) * 100
-                      if train_a.avg_capital_efficiency > 0 else 0)
-    ce_delta_test = ((test_b.avg_capital_efficiency / test_a.avg_capital_efficiency - 1) * 100
-                     if test_a.avg_capital_efficiency > 0 else 0)
+    ce_delta_train = (
+        (train_b.avg_capital_efficiency / train_a.avg_capital_efficiency - 1) * 100
+        if train_a.avg_capital_efficiency > 0
+        else 0
+    )
+    ce_delta_test = (
+        (test_b.avg_capital_efficiency / test_a.avg_capital_efficiency - 1) * 100
+        if test_a.avg_capital_efficiency > 0
+        else 0
+    )
 
     print(f"  Win Rate Change:       Train {wr_delta_train:+.1f}%  |  Test {wr_delta_test:+.1f}%")
     print(f"  Cap. Efficiency Change: Train {ce_delta_train:+.1f}%  |  Test {ce_delta_test:+.1f}%")
@@ -465,12 +516,18 @@ def print_comparison(train_a, train_b, test_a, test_b):
     ce_pass = ce_delta_test > 0  # Measurably better
     overfit = abs(ce_delta_train - ce_delta_test) < 20  # Similar improvement
 
-    print(f"  {'PASS' if wr_pass else 'FAIL'} Win Rate >= Baseline (Test): "
-          f"{test_b.win_rate:.1f}% vs {test_a.win_rate:.1f}%")
-    print(f"  {'PASS' if ce_pass else 'FAIL'} Capital Efficiency improved (Test): "
-          f"{ce_delta_test:+.1f}%")
-    print(f"  {'PASS' if overfit else 'WARN'} No overfitting (Train vs Test similar): "
-          f"Train {ce_delta_train:+.1f}% vs Test {ce_delta_test:+.1f}%")
+    print(
+        f"  {'PASS' if wr_pass else 'FAIL'} Win Rate >= Baseline (Test): "
+        f"{test_b.win_rate:.1f}% vs {test_a.win_rate:.1f}%"
+    )
+    print(
+        f"  {'PASS' if ce_pass else 'FAIL'} Capital Efficiency improved (Test): "
+        f"{ce_delta_test:+.1f}%"
+    )
+    print(
+        f"  {'PASS' if overfit else 'WARN'} No overfitting (Train vs Test similar): "
+        f"Train {ce_delta_train:+.1f}% vs Test {ce_delta_test:+.1f}%"
+    )
 
     print(f"\n{'=' * 80}")
 
@@ -478,6 +535,7 @@ def print_comparison(train_a, train_b, test_a, test_b):
 # =============================================================================
 # MAIN
 # =============================================================================
+
 
 def main():
     print("Loading trades from outcomes.db...")
@@ -498,10 +556,10 @@ def main():
     # Simulate daily picks
     print(f"\nSimulating daily picks (top {PICKS_PER_DAY}/day)...")
 
-    train_baseline = simulate_daily_picks(train, 'ranking_score_baseline')
-    train_eqs = simulate_daily_picks(train, 'ranking_score_eqs')
-    test_baseline = simulate_daily_picks(test, 'ranking_score_baseline')
-    test_eqs = simulate_daily_picks(test, 'ranking_score_eqs')
+    train_baseline = simulate_daily_picks(train, "ranking_score_baseline")
+    train_eqs = simulate_daily_picks(train, "ranking_score_eqs")
+    test_baseline = simulate_daily_picks(test, "ranking_score_baseline")
+    test_eqs = simulate_daily_picks(test, "ranking_score_eqs")
 
     print(f"Train: Baseline {len(train_baseline)} | EQS {len(train_eqs)}")
     print(f"Test:  Baseline {len(test_baseline)} | EQS {len(test_eqs)}")
@@ -518,9 +576,11 @@ def main():
     # EQS distribution
     eqs_values = [t.eqs_total for t in trades]
     print(f"\n  EQS Distribution:")
-    print(f"    Min: {min(eqs_values):.1f}  Max: {max(eqs_values):.1f}  "
-          f"Mean: {sum(eqs_values)/len(eqs_values):.1f}  "
-          f"Median: {sorted(eqs_values)[len(eqs_values)//2]:.1f}")
+    print(
+        f"    Min: {min(eqs_values):.1f}  Max: {max(eqs_values):.1f}  "
+        f"Mean: {sum(eqs_values)/len(eqs_values):.1f}  "
+        f"Median: {sorted(eqs_values)[len(eqs_values)//2]:.1f}"
+    )
 
 
 if __name__ == "__main__":

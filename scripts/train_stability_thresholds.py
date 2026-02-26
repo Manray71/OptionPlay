@@ -36,13 +36,20 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from dotenv import load_dotenv
+
 load_dotenv(project_root / ".env")
 
 # Reuse WF training infrastructure
 from scripts.full_walkforward_train import (
-    STRATEGIES, VIX_REGIMES, MODELS_DIR, DB_PATH,
-    WFConfig, generate_epochs,
-    _init_analyzer, _run_backtest_period, _get_regime,
+    STRATEGIES,
+    VIX_REGIMES,
+    MODELS_DIR,
+    DB_PATH,
+    WFConfig,
+    generate_epochs,
+    _init_analyzer,
+    _run_backtest_period,
+    _get_regime,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -84,9 +91,7 @@ def load_stability_scores() -> Dict[str, float]:
 def load_sector_map() -> Dict[str, str]:
     """Load sector per symbol."""
     conn = sqlite3.connect(str(DB_PATH))
-    cursor = conn.execute(
-        "SELECT symbol, sector FROM symbol_fundamentals WHERE sector IS NOT NULL"
-    )
+    cursor = conn.execute("SELECT symbol, sector FROM symbol_fundamentals WHERE sector IS NOT NULL")
     sectors = {row[0]: row[1] for row in cursor.fetchall()}
     conn.close()
     return sectors
@@ -95,9 +100,18 @@ def load_sector_map() -> Dict[str, str]:
 def worker_stability_epoch(args):
     """Worker: run one epoch for one strategy at optimal threshold, return per-trade stability data."""
     (
-        epoch_id, strategy, min_score,
-        train_start_str, train_end_str, test_start_str, test_end_str,
-        historical_data, vix_by_date, config_dict, sector_map, stability_scores,
+        epoch_id,
+        strategy,
+        min_score,
+        train_start_str,
+        train_end_str,
+        test_start_str,
+        test_end_str,
+        historical_data,
+        vix_by_date,
+        config_dict,
+        sector_map,
+        stability_scores,
     ) = args
 
     config = WFConfig(**config_dict)
@@ -112,14 +126,22 @@ def worker_stability_epoch(args):
         if config.pricing_mode == "real":
             from src.backtesting.core.database import OptionsDatabase
             from src.backtesting.core.spread_engine import SpreadFinder
+
             db = OptionsDatabase(DB_PATH)
             spread_finder = SpreadFinder(db)
 
         # OOS backtest only (that's what we care about)
         oos_trades, _, _ = _run_backtest_period(
-            analyzer, strategy, historical_data, vix_by_date,
-            test_start, test_end, min_score, config,
-            spread_finder=spread_finder, sector_map=sector_map,
+            analyzer,
+            strategy,
+            historical_data,
+            vix_by_date,
+            test_start,
+            test_end,
+            min_score,
+            config,
+            spread_finder=spread_finder,
+            sector_map=sector_map,
         )
 
         if spread_finder:
@@ -131,15 +153,17 @@ def worker_stability_epoch(args):
             symbol = t["symbol"]
             stability = stability_scores.get(symbol)
             if stability is not None:
-                enriched.append({
-                    "symbol": symbol,
-                    "strategy": strategy,
-                    "regime": t.get("vix_regime", "normal"),
-                    "sector": t.get("sector", "Unknown"),
-                    "stability": stability,
-                    "is_win": t["is_win"],
-                    "pnl": t["pnl"],
-                })
+                enriched.append(
+                    {
+                        "symbol": symbol,
+                        "strategy": strategy,
+                        "regime": t.get("vix_regime", "normal"),
+                        "sector": t.get("sector", "Unknown"),
+                        "stability": stability,
+                        "is_win": t["is_win"],
+                        "pnl": t["pnl"],
+                    }
+                )
 
         return {
             "epoch_id": epoch_id,
@@ -182,9 +206,7 @@ def find_optimal_cutoff(trades: List[Dict], target_wr: float = TARGET_WIN_RATE) 
     return best_cutoff
 
 
-def find_sector_adjustments(
-    trades: List[Dict], base_cutoff: int
-) -> Dict[str, int]:
+def find_sector_adjustments(trades: List[Dict], base_cutoff: int) -> Dict[str, int]:
     """Find per-sector stability adjustments relative to base cutoff.
     Returns {sector: adjustment} where negative = lower threshold needed."""
     sector_groups = defaultdict(list)
@@ -209,6 +231,7 @@ def find_sector_adjustments(
 
 def main():
     import argparse
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--workers", type=int, default=mp.cpu_count())
     parser.add_argument("--dry-run", action="store_true")
@@ -225,6 +248,7 @@ def main():
     sector_map = load_sector_map()
 
     from src.backtesting import TradeTracker
+
     tracker = TradeTracker()
     symbol_entries = tracker.list_symbols_with_price_data()
     all_symbols = sorted(set(e["symbol"] for e in symbol_entries))
@@ -236,8 +260,14 @@ def main():
         spd = tracker.get_price_data(sym)
         if spd and spd.bars and len(spd.bars) >= 60:
             historical_data[sym] = [
-                {"date": b.date if isinstance(b.date, date) else date.fromisoformat(str(b.date)),
-                 "close": b.close, "high": b.high, "low": b.low, "open": b.open, "volume": b.volume}
+                {
+                    "date": b.date if isinstance(b.date, date) else date.fromisoformat(str(b.date)),
+                    "close": b.close,
+                    "high": b.high,
+                    "low": b.low,
+                    "open": b.open,
+                    "volume": b.volume,
+                }
                 for b in spd.bars
             ]
     print(f"  Loaded history for {len(historical_data)} symbols")
@@ -275,12 +305,22 @@ def main():
     for strategy in STRATEGIES:
         min_score = TRAINED_THRESHOLDS[strategy]
         for i, (ts, te, vs, ve) in enumerate(epochs):
-            jobs.append((
-                i, strategy, min_score,
-                str(ts), str(te), str(vs), str(ve),
-                historical_data, vix_by_date, config_dict, sector_map,
-                stability_scores,
-            ))
+            jobs.append(
+                (
+                    i,
+                    strategy,
+                    min_score,
+                    str(ts),
+                    str(te),
+                    str(vs),
+                    str(ve),
+                    historical_data,
+                    vix_by_date,
+                    config_dict,
+                    sector_map,
+                    stability_scores,
+                )
+            )
 
     print(f"  Running {len(jobs)} jobs on {args.workers} workers...")
     t0 = time.time()
@@ -293,7 +333,9 @@ def main():
             if result["error"]:
                 errors += 1
                 if errors <= 3:
-                    print(f"  ERROR [{result['strategy']} E{result['epoch_id']}]: {result['error']}")
+                    print(
+                        f"  ERROR [{result['strategy']} E{result['epoch_id']}]: {result['error']}"
+                    )
             else:
                 all_trades.extend(result["enriched_trades"])
                 strat = result["strategy"]
@@ -346,7 +388,9 @@ def main():
         print()
 
         # Stability bucket analysis
-        print(f"  {'Stability':>12} {'Trades':>8} {'WR%':>8} {'Above WR%':>10} {'Above Trades':>13}")
+        print(
+            f"  {'Stability':>12} {'Trades':>8} {'WR%':>8} {'Above WR%':>10} {'Above Trades':>13}"
+        )
         print(f"  {'-' * 55}")
 
         for bucket_min in STABILITY_BUCKETS:
@@ -354,11 +398,23 @@ def main():
             in_bucket = [t for t in strat_trades if bucket_min <= t["stability"] < bucket_max]
             above = [t for t in strat_trades if t["stability"] >= bucket_min]
 
-            bucket_wr = (sum(1 for t in in_bucket if t["is_win"]) / len(in_bucket) * 100) if in_bucket else 0
+            bucket_wr = (
+                (sum(1 for t in in_bucket if t["is_win"]) / len(in_bucket) * 100)
+                if in_bucket
+                else 0
+            )
             above_wr = (sum(1 for t in above if t["is_win"]) / len(above) * 100) if above else 0
 
-            marker = " <--" if bucket_min > 0 and above_wr >= TARGET_WIN_RATE and len(above) >= MIN_TRADES_PER_BUCKET else ""
-            print(f"  {bucket_min:>9}+ {len(in_bucket):>8} {bucket_wr:>7.1f}% {above_wr:>9.1f}% {len(above):>12}{marker}")
+            marker = (
+                " <--"
+                if bucket_min > 0
+                and above_wr >= TARGET_WIN_RATE
+                and len(above) >= MIN_TRADES_PER_BUCKET
+                else ""
+            )
+            print(
+                f"  {bucket_min:>9}+ {len(in_bucket):>8} {bucket_wr:>7.1f}% {above_wr:>9.1f}% {len(above):>12}{marker}"
+            )
 
         print()
 
@@ -457,7 +513,9 @@ def main():
             continue
         results["strategies"][strategy] = {
             "total_trades": len(strat_trades),
-            "overall_wr": round(sum(1 for t in strat_trades if t["is_win"]) / len(strat_trades) * 100, 1),
+            "overall_wr": round(
+                sum(1 for t in strat_trades if t["is_win"]) / len(strat_trades) * 100, 1
+            ),
             "thresholds": new_thresholds.get(strategy, {}),
         }
 

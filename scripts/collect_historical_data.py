@@ -60,11 +60,13 @@ from src.config.watchlist_loader import WatchlistLoader, get_watchlist_loader
 # Configuration
 # =============================================================================
 
+
 @dataclass
 class QuotaConfig:
     """API Quota Konfiguration"""
+
     requests_per_minute: int = 90  # Unter 100 bleiben für Sicherheit
-    requests_per_day: int = 9000   # Unter 10000 bleiben für Sicherheit
+    requests_per_day: int = 9000  # Unter 10000 bleiben für Sicherheit
     min_delay_seconds: float = 0.7  # ~85 req/min
     max_delay_seconds: float = 2.0
     pause_on_rate_limit_seconds: float = 60.0
@@ -78,6 +80,7 @@ class QuotaConfig:
 @dataclass
 class SessionState:
     """Zustand einer Sammlungssession für Resume"""
+
     session_id: str
     started_at: str
     last_updated: str
@@ -91,31 +94,31 @@ class SessionState:
 
     def to_dict(self) -> Dict:
         return {
-            'session_id': self.session_id,
-            'started_at': self.started_at,
-            'last_updated': self.last_updated,
-            'symbols_requested': self.symbols_requested,
-            'symbols_completed': list(self.symbols_completed),
-            'symbols_failed': list(self.symbols_failed),
-            'total_requests': self.total_requests,
-            'total_bars': self.total_bars,
-            'vix_collected': self.vix_collected,
-            'current_delay': self.current_delay,
+            "session_id": self.session_id,
+            "started_at": self.started_at,
+            "last_updated": self.last_updated,
+            "symbols_requested": self.symbols_requested,
+            "symbols_completed": list(self.symbols_completed),
+            "symbols_failed": list(self.symbols_failed),
+            "total_requests": self.total_requests,
+            "total_bars": self.total_bars,
+            "vix_collected": self.vix_collected,
+            "current_delay": self.current_delay,
         }
 
     @classmethod
-    def from_dict(cls, data: Dict) -> 'SessionState':
+    def from_dict(cls, data: Dict) -> "SessionState":
         return cls(
-            session_id=data['session_id'],
-            started_at=data['started_at'],
-            last_updated=data['last_updated'],
-            symbols_requested=data['symbols_requested'],
-            symbols_completed=set(data['symbols_completed']),
-            symbols_failed=set(data['symbols_failed']),
-            total_requests=data['total_requests'],
-            total_bars=data['total_bars'],
-            vix_collected=data.get('vix_collected', False),
-            current_delay=data.get('current_delay', 0.7),
+            session_id=data["session_id"],
+            started_at=data["started_at"],
+            last_updated=data["last_updated"],
+            symbols_requested=data["symbols_requested"],
+            symbols_completed=set(data["symbols_completed"]),
+            symbols_failed=set(data["symbols_failed"]),
+            total_requests=data["total_requests"],
+            total_bars=data["total_bars"],
+            vix_collected=data.get("vix_collected", False),
+            current_delay=data.get("current_delay", 0.7),
         )
 
     @property
@@ -134,6 +137,7 @@ class SessionState:
 # =============================================================================
 # Adaptive Rate Limiter
 # =============================================================================
+
 
 class AdaptiveRateLimiter:
     """
@@ -194,7 +198,7 @@ class AdaptiveRateLimiter:
         if self.consecutive_success >= self.config.min_consecutive_success:
             self.current_delay = max(
                 self.config.min_delay_seconds,
-                self.current_delay - self.config.decrease_delay_on_success
+                self.current_delay - self.config.decrease_delay_on_success,
             )
 
     def record_error(self, is_rate_limit: bool = False):
@@ -206,26 +210,28 @@ class AdaptiveRateLimiter:
         else:
             self.current_delay = min(
                 self.config.max_delay_seconds,
-                self.current_delay + self.config.increase_delay_on_error
+                self.current_delay + self.config.increase_delay_on_error,
             )
 
     def get_status(self) -> Dict:
         return {
-            'current_delay': round(self.current_delay, 2),
-            'requests_this_minute': self.requests_this_minute,
-            'requests_today': self.requests_today,
-            'consecutive_success': self.consecutive_success,
+            "current_delay": round(self.current_delay, 2),
+            "requests_this_minute": self.requests_this_minute,
+            "requests_today": self.requests_today,
+            "consecutive_success": self.consecutive_success,
         }
 
 
 class QuotaExhaustedError(Exception):
     """Quota erschöpft"""
+
     pass
 
 
 # =============================================================================
 # Historical Data Collector
 # =============================================================================
+
 
 class HistoricalDataCollector:
     """
@@ -269,7 +275,7 @@ class HistoricalDataCollector:
         """Lädt gespeicherten Session-State"""
         if self.STATE_FILE.exists():
             try:
-                with open(self.STATE_FILE, 'r') as f:
+                with open(self.STATE_FILE, "r") as f:
                     data = json.load(f)
                 return SessionState.from_dict(data)
             except Exception as e:
@@ -281,7 +287,7 @@ class HistoricalDataCollector:
         if self.state:
             self.state.last_updated = datetime.now().isoformat()
             self.STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
-            with open(self.STATE_FILE, 'w') as f:
+            with open(self.STATE_FILE, "w") as f:
                 json.dump(self.state.to_dict(), f, indent=2)
 
     def _clear_state(self):
@@ -357,9 +363,7 @@ class HistoricalDataCollector:
                     if progress_callback:
                         progress_callback(symbol, i, total, "collecting")
 
-                    bars_count = await self._collect_symbol(
-                        tracker, symbol, lookback_days
-                    )
+                    bars_count = await self._collect_symbol(tracker, symbol, lookback_days)
 
                     self.rate_limiter.record_success()
                     self.state.symbols_completed.add(symbol)
@@ -433,15 +437,19 @@ class HistoricalDataCollector:
 
         price_bars = []
         for bar in bars:
-            bar_date = bar.date if isinstance(bar.date, date) else date.fromisoformat(str(bar.date)[:10])
-            price_bars.append(PriceBar(
-                date=bar_date,
-                open=bar.open,
-                high=bar.high,
-                low=bar.low,
-                close=bar.close,
-                volume=bar.volume,
-            ))
+            bar_date = (
+                bar.date if isinstance(bar.date, date) else date.fromisoformat(str(bar.date)[:10])
+            )
+            price_bars.append(
+                PriceBar(
+                    date=bar_date,
+                    open=bar.open,
+                    high=bar.high,
+                    low=bar.low,
+                    close=bar.close,
+                    volume=bar.volume,
+                )
+            )
 
         count = tracker.store_price_data(symbol, price_bars, merge=True)
         return count
@@ -465,7 +473,9 @@ class HistoricalDataCollector:
 
         vix_points = []
         for bar in bars:
-            bar_date = bar.date if isinstance(bar.date, date) else date.fromisoformat(str(bar.date)[:10])
+            bar_date = (
+                bar.date if isinstance(bar.date, date) else date.fromisoformat(str(bar.date)[:10])
+            )
             vix_points.append(VixDataPoint(date=bar_date, value=bar.close))
 
         count = tracker.store_vix_data(vix_points)
@@ -478,26 +488,27 @@ class HistoricalDataCollector:
 # CLI
 # =============================================================================
 
+
 def setup_logging(verbose: bool = False):
     """Logging konfigurieren"""
     level = logging.DEBUG if verbose else logging.INFO
     logging.basicConfig(
         level=level,
-        format='%(asctime)s - %(levelname)s - %(message)s',
-        datefmt='%H:%M:%S',
+        format="%(asctime)s - %(levelname)s - %(message)s",
+        datefmt="%H:%M:%S",
     )
 
 
 def get_api_key() -> str:
     """API Key aus Environment oder Config laden"""
-    api_key = os.environ.get('MARKETDATA_API_KEY')
+    api_key = os.environ.get("MARKETDATA_API_KEY")
 
     if not api_key:
         config_file = Path.home() / ".optionplay" / "config.json"
         if config_file.exists():
             with open(config_file) as f:
                 config = json.load(f)
-                api_key = config.get('marketdata_api_key')
+                api_key = config.get("marketdata_api_key")
 
     if not api_key:
         print("ERROR: No API key found!")
@@ -510,17 +521,17 @@ def get_api_key() -> str:
 def get_symbols_by_sector(sector: str) -> List[str]:
     """Lädt Symbole für einen Sektor"""
     sector_map = {
-        'tech': 'information_technology',
-        'health': 'health_care',
-        'finance': 'financials',
-        'consumer': 'consumer_discretionary',
-        'communication': 'communication_services',
-        'industrial': 'industrials',
-        'staples': 'consumer_staples',
-        'energy': 'energy',
-        'utilities': 'utilities',
-        'materials': 'materials',
-        'realestate': 'real_estate',
+        "tech": "information_technology",
+        "health": "health_care",
+        "finance": "financials",
+        "consumer": "consumer_discretionary",
+        "communication": "communication_services",
+        "industrial": "industrials",
+        "staples": "consumer_staples",
+        "energy": "energy",
+        "utilities": "utilities",
+        "materials": "materials",
+        "realestate": "real_estate",
     }
 
     full_sector = sector_map.get(sector.lower(), sector)
@@ -577,7 +588,7 @@ class ProgressTracker:
         pct = (current / total) * 100
         bar_width = 25
         filled = int(bar_width * current / total)
-        bar = '█' * filled + '░' * (bar_width - filled)
+        bar = "█" * filled + "░" * (bar_width - filled)
 
         # ETA berechnen
         if current > 0 and elapsed > 0:
@@ -602,7 +613,11 @@ class ProgressTracker:
         status_short = status[:20] if len(status) > 20 else status
 
         # Ausgabe
-        print(f"\r[{bar}] {pct:5.1f}% | {symbol:6s} | {status_short:20s} | {metrics}", end='', flush=True)
+        print(
+            f"\r[{bar}] {pct:5.1f}% | {symbol:6s} | {status_short:20s} | {metrics}",
+            end="",
+            flush=True,
+        )
 
         # Summary nur am Ende und nur bei "done" Status (nicht bei "collecting")
         if current == total and "done" in status:
@@ -685,14 +700,18 @@ def show_status():
         print(f"\nPending Session:")
         print(f"  Started: {state['started_at']}")
         print(f"  Progress: {len(state['symbols_completed'])}/{len(state['symbols_requested'])}")
-        print(f"  Remaining: {len(state['symbols_requested']) - len(state['symbols_completed']) - len(state['symbols_failed'])}")
+        print(
+            f"  Remaining: {len(state['symbols_requested']) - len(state['symbols_completed']) - len(state['symbols_failed'])}"
+        )
         print(f"\n  Use --resume to continue")
 
     # Sample von Symbolen
     if symbols:
         print(f"\nSample Symbols:")
         for s in symbols[:10]:
-            print(f"  {s['symbol']:6s}: {s['start_date']} to {s['end_date']} ({s['bar_count']} bars)")
+            print(
+                f"  {s['symbol']:6s}: {s['start_date']} to {s['end_date']} ({s['bar_count']} bars)"
+            )
         if len(symbols) > 10:
             print(f"  ... and {len(symbols) - 10} more")
 
@@ -701,40 +720,38 @@ def show_status():
 
 async def main():
     parser = argparse.ArgumentParser(
-        description='Collect historical market data for OptionPlay training',
+        description="Collect historical market data for OptionPlay training",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=__doc__
+        epilog=__doc__,
     )
 
     # Modes
-    parser.add_argument('--status', action='store_true',
-                        help='Show collection status')
-    parser.add_argument('--resume', action='store_true',
-                        help='Resume previous collection session')
-    parser.add_argument('--test', action='store_true',
-                        help='Test mode with 10 symbols')
+    parser.add_argument("--status", action="store_true", help="Show collection status")
+    parser.add_argument("--resume", action="store_true", help="Resume previous collection session")
+    parser.add_argument("--test", action="store_true", help="Test mode with 10 symbols")
 
     # Symbol Selection
-    parser.add_argument('--symbols', type=str,
-                        help='Comma-separated list of symbols')
-    parser.add_argument('--sector', type=str,
-                        help='Collect single sector (tech, health, finance, etc.)')
-    parser.add_argument('--all', action='store_true',
-                        help='Collect all 275 symbols')
+    parser.add_argument("--symbols", type=str, help="Comma-separated list of symbols")
+    parser.add_argument(
+        "--sector", type=str, help="Collect single sector (tech, health, finance, etc.)"
+    )
+    parser.add_argument("--all", action="store_true", help="Collect all 275 symbols")
 
     # Rate Limiting
-    parser.add_argument('--delay', type=float, default=0.7,
-                        help='Delay between requests (default: 0.7s)')
-    parser.add_argument('--rpm', type=int, default=90,
-                        help='Requests per minute limit (default: 90)')
+    parser.add_argument(
+        "--delay", type=float, default=0.7, help="Delay between requests (default: 0.7s)"
+    )
+    parser.add_argument(
+        "--rpm", type=int, default=90, help="Requests per minute limit (default: 90)"
+    )
 
     # Data Options
-    parser.add_argument('--days', type=int, default=260,
-                        help='Days of history to collect (default: 260)')
+    parser.add_argument(
+        "--days", type=int, default=260, help="Days of history to collect (default: 260)"
+    )
 
     # Output
-    parser.add_argument('-v', '--verbose', action='store_true',
-                        help='Verbose output')
+    parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
 
     args = parser.parse_args()
 
@@ -748,11 +765,10 @@ async def main():
 
     # Symbole bestimmen
     if args.test:
-        symbols = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA',
-                   'META', 'TSLA', 'JPM', 'V', 'JNJ']
+        symbols = ["AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA", "JPM", "V", "JNJ"]
         logger.info("Test mode: 10 symbols")
     elif args.symbols:
-        symbols = [s.strip().upper() for s in args.symbols.split(',')]
+        symbols = [s.strip().upper() for s in args.symbols.split(",")]
         logger.info(f"Custom symbols: {len(symbols)}")
     elif args.sector:
         symbols = get_symbols_by_sector(args.sector)
@@ -828,5 +844,5 @@ async def main():
         await collector.disconnect()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     asyncio.run(main())

@@ -26,13 +26,9 @@ def ensure_columns(conn: sqlite3.Connection) -> None:
     columns = {row[1] for row in cursor.fetchall()}
 
     if "delisted" not in columns:
-        conn.execute(
-            "ALTER TABLE symbol_fundamentals ADD COLUMN delisted INTEGER DEFAULT 0"
-        )
+        conn.execute("ALTER TABLE symbol_fundamentals ADD COLUMN delisted INTEGER DEFAULT 0")
     if "delisted_date" not in columns:
-        conn.execute(
-            "ALTER TABLE symbol_fundamentals ADD COLUMN delisted_date TEXT"
-        )
+        conn.execute("ALTER TABLE symbol_fundamentals ADD COLUMN delisted_date TEXT")
     conn.commit()
 
 

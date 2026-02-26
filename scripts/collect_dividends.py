@@ -30,10 +30,7 @@ from typing import Dict, List, Any
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 DB_PATH = Path.home() / ".optionplay" / "trades.db"
@@ -85,11 +82,13 @@ def fetch_dividends_from_yfinance(symbol: str) -> List[Dict[str, Any]]:
 
         results = []
         for dt, amount in dividends.items():
-            ex_date = dt.date() if hasattr(dt, 'date') else dt
-            results.append({
-                "ex_date": ex_date.isoformat(),
-                "amount": round(float(amount), 4),
-            })
+            ex_date = dt.date() if hasattr(dt, "date") else dt
+            results.append(
+                {
+                    "ex_date": ex_date.isoformat(),
+                    "amount": round(float(amount), 4),
+                }
+            )
 
         return results
 
@@ -102,7 +101,9 @@ def main():
     parser = argparse.ArgumentParser(description="Collect dividend history from yfinance")
     parser.add_argument("--symbols", nargs="+", help="Specific symbols to collect")
     parser.add_argument("--payers-only", action="store_true", help="Only dividend-paying symbols")
-    parser.add_argument("--delay", type=float, default=0.3, help="Delay between API calls (seconds)")
+    parser.add_argument(
+        "--delay", type=float, default=0.3, help="Delay between API calls (seconds)"
+    )
     args = parser.parse_args()
 
     # Determine symbols
@@ -121,6 +122,7 @@ def main():
 
     # Import manager
     from src.cache.dividend_history import get_dividend_history_manager
+
     manager = get_dividend_history_manager()
 
     total = len(symbols)

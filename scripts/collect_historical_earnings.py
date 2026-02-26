@@ -42,10 +42,7 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from src.config import WatchlistLoader
-from src.cache.earnings_history import (
-    EarningsHistoryManager,
-    get_earnings_history_manager
-)
+from src.cache.earnings_history import EarningsHistoryManager, get_earnings_history_manager
 from src.data_providers.marketdata import MarketDataProvider
 
 # =============================================================================
@@ -62,11 +59,11 @@ BATCH_PAUSE = 5  # Sekunden Pause zwischen Batches
 # Logging Setup
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
+    format="%(asctime)s - %(levelname)s - %(message)s",
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler(project_root / "logs" / "earnings_collection.log", mode='a')
-    ]
+        logging.FileHandler(project_root / "logs" / "earnings_collection.log", mode="a"),
+    ],
 )
 logger = logging.getLogger(__name__)
 
@@ -74,6 +71,7 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 # STATE MANAGEMENT
 # =============================================================================
+
 
 class CollectionState:
     """Verwaltet den Fortschritt der Sammlung"""
@@ -86,7 +84,7 @@ class CollectionState:
         """Lädt State aus Datei"""
         if self.state_file.exists():
             try:
-                with open(self.state_file, 'r') as f:
+                with open(self.state_file, "r") as f:
                     return json.load(f)
             except Exception as e:
                 logger.warning(f"Konnte State nicht laden: {e}")
@@ -102,7 +100,7 @@ class CollectionState:
             "failed_symbols": {},
             "total_symbols": 0,
             "total_earnings_collected": 0,
-            "requests_made": 0
+            "requests_made": 0,
         }
 
     def save(self) -> None:
@@ -110,7 +108,7 @@ class CollectionState:
         self.state_file.parent.mkdir(parents=True, exist_ok=True)
         self.state["last_updated"] = datetime.now().isoformat()
 
-        with open(self.state_file, 'w') as f:
+        with open(self.state_file, "w") as f:
             json.dump(self.state, f, indent=2)
 
     def reset(self) -> None:
@@ -161,11 +159,11 @@ class CollectionState:
         print(f"Earnings gesammelt:   {self.state['total_earnings_collected']}")
         print(f"API Requests:         {self.state['requests_made']}")
 
-        if self.state['failed_symbols']:
+        if self.state["failed_symbols"]:
             print(f"\nFehlgeschlagene Symbole:")
-            for sym, err in list(self.state['failed_symbols'].items())[:10]:
+            for sym, err in list(self.state["failed_symbols"].items())[:10]:
                 print(f"  - {sym}: {err}")
-            if len(self.state['failed_symbols']) > 10:
+            if len(self.state["failed_symbols"]) > 10:
                 print(f"  ... und {len(self.state['failed_symbols']) - 10} weitere")
 
         print("=" * 60 + "\n")
@@ -175,6 +173,7 @@ class CollectionState:
 # COLLECTOR
 # =============================================================================
 
+
 class HistoricalEarningsCollector:
     """Sammelt historische Earnings für alle Symbole"""
 
@@ -183,7 +182,7 @@ class HistoricalEarningsCollector:
         api_key: str,
         from_date: str = DEFAULT_FROM_DATE,
         to_date: Optional[str] = None,
-        dry_run: bool = False
+        dry_run: bool = False,
     ):
         self.api_key = api_key
         self.from_date = from_date
@@ -223,9 +222,7 @@ class HistoricalEarningsCollector:
         """
         try:
             earnings = await self.provider.get_historical_earnings(
-                symbol,
-                from_date=self.from_date,
-                to_date=self.to_date
+                symbol, from_date=self.from_date, to_date=self.to_date
             )
 
             if not earnings:
@@ -248,11 +245,7 @@ class HistoricalEarningsCollector:
             self.state.mark_failed(symbol, str(e))
             return 0
 
-    async def collect_all(
-        self,
-        symbols: List[str],
-        resume: bool = False
-    ) -> Dict[str, int]:
+    async def collect_all(self, symbols: List[str], resume: bool = False) -> Dict[str, int]:
         """
         Sammelt Earnings für alle Symbole.
 
@@ -269,9 +262,7 @@ class HistoricalEarningsCollector:
         # Bestimme zu verarbeitende Symbole
         if resume:
             remaining = self.state.get_remaining_symbols(symbols)
-            logger.info(
-                f"Resume: {len(remaining)} von {len(symbols)} Symbolen verbleiben"
-            )
+            logger.info(f"Resume: {len(remaining)} von {len(symbols)} Symbolen verbleiben")
             symbols = remaining
         else:
             logger.info(f"Starte neue Collection für {len(symbols)} Symbole")
@@ -320,52 +311,33 @@ class HistoricalEarningsCollector:
 # MAIN
 # =============================================================================
 
+
 async def main():
-    parser = argparse.ArgumentParser(
-        description="Sammelt historische Earnings-Daten"
-    )
+    parser = argparse.ArgumentParser(description="Sammelt historische Earnings-Daten")
+    parser.add_argument("--resume", "-r", action="store_true", help="Setzt bei letztem Symbol fort")
     parser.add_argument(
-        "--resume", "-r",
-        action="store_true",
-        help="Setzt bei letztem Symbol fort"
-    )
-    parser.add_argument(
-        "--symbols", "-s",
+        "--symbols",
+        "-s",
         type=str,
-        help="Komma-separierte Liste von Symbolen (z.B. AAPL,MSFT,GOOGL)"
+        help="Komma-separierte Liste von Symbolen (z.B. AAPL,MSFT,GOOGL)",
     )
     parser.add_argument(
-        "--dry-run", "-n",
-        action="store_true",
-        help="Keine DB-Schreibung, nur Test"
+        "--dry-run", "-n", action="store_true", help="Keine DB-Schreibung, nur Test"
     )
-    parser.add_argument(
-        "--status",
-        action="store_true",
-        help="Zeigt aktuellen Status"
-    )
-    parser.add_argument(
-        "--reset",
-        action="store_true",
-        help="Löscht alle Daten und startet neu"
-    )
+    parser.add_argument("--status", action="store_true", help="Zeigt aktuellen Status")
+    parser.add_argument("--reset", action="store_true", help="Löscht alle Daten und startet neu")
     parser.add_argument(
         "--from-date",
         type=str,
         default=DEFAULT_FROM_DATE,
-        help=f"Start-Datum (default: {DEFAULT_FROM_DATE})"
+        help=f"Start-Datum (default: {DEFAULT_FROM_DATE})",
     )
-    parser.add_argument(
-        "--to-date",
-        type=str,
-        default=None,
-        help="End-Datum (default: heute)"
-    )
+    parser.add_argument("--to-date", type=str, default=None, help="End-Datum (default: heute)")
     parser.add_argument(
         "--watchlist",
         type=str,
         default=None,
-        help="Watchlist Name (z.B. default_275, sp500_complete)"
+        help="Watchlist Name (z.B. default_275, sp500_complete)",
     )
 
     args = parser.parse_args()
@@ -381,7 +353,9 @@ async def main():
         print("DATENBANK STATUS:")
         print(f"  Symbole mit Daten:  {stats['total_symbols']}")
         print(f"  Earnings gesamt:    {stats['total_earnings']}")
-        print(f"  Datumsbereich:      {stats['date_range']['from']} bis {stats['date_range']['to']}")
+        print(
+            f"  Datumsbereich:      {stats['date_range']['from']} bis {stats['date_range']['to']}"
+        )
         return
 
     # Reset
@@ -422,10 +396,7 @@ async def main():
 
     # Collector starten
     collector = HistoricalEarningsCollector(
-        api_key=api_key,
-        from_date=args.from_date,
-        to_date=args.to_date,
-        dry_run=args.dry_run
+        api_key=api_key, from_date=args.from_date, to_date=args.to_date, dry_run=args.dry_run
     )
 
     try:

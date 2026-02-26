@@ -122,7 +122,8 @@ async def morning_workflow(save: bool = False) -> str:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="OptionPlay Morning Workflow")
     parser.add_argument(
-        "--save", action="store_true",
+        "--save",
+        action="store_true",
         help="Save report to ~/.optionplay/logs/morning_YYYY-MM-DD.md",
     )
     args = parser.parse_args()

@@ -41,6 +41,7 @@ def get_all_watchlist_symbols() -> list[str]:
 
     # Fallback: load from YAML directly
     import yaml
+
     config_path = Path(__file__).resolve().parent.parent / "config" / "watchlists.yaml"
     with open(config_path) as f:
         data = yaml.safe_load(f)
@@ -59,9 +60,13 @@ def get_all_watchlist_symbols() -> list[str]:
 def main():
     parser = argparse.ArgumentParser(description="Backfill IV cache from historical data")
     parser.add_argument("--force", action="store_true", help="Force update even if cache is fresh")
-    parser.add_argument("--symbols", type=str, help="Comma-separated symbols (default: full watchlist)")
+    parser.add_argument(
+        "--symbols", type=str, help="Comma-separated symbols (default: full watchlist)"
+    )
     parser.add_argument("--days", type=int, default=252, help="Days of history (default: 252)")
-    parser.add_argument("--delay", type=float, default=0.3, help="Delay between API calls in seconds")
+    parser.add_argument(
+        "--delay", type=float, default=0.3, help="Delay between API calls in seconds"
+    )
     args = parser.parse_args()
 
     cache = IVCache()
@@ -75,11 +80,17 @@ def main():
 
     # Show current cache state
     stats = cache.stats()
-    logger.info(f"Current cache: {stats['total_symbols']} symbols, {stats['with_sufficient_data']} with ≥20 points")
+    logger.info(
+        f"Current cache: {stats['total_symbols']} symbols, {stats['with_sufficient_data']} with ≥20 points"
+    )
 
     # Filter to only symbols needing update (unless --force)
     if not args.force:
-        need_update = [s for s in symbols if s not in cache or cache.get_history(s) == [] or len(cache.get_history(s)) < 50]
+        need_update = [
+            s
+            for s in symbols
+            if s not in cache or cache.get_history(s) == [] or len(cache.get_history(s)) < 50
+        ]
         logger.info(f"Symbols needing update: {len(need_update)} of {len(symbols)}")
         symbols = need_update
 
@@ -127,7 +138,9 @@ def main():
         logger.info(f"Failed: {', '.join(failed)}")
 
     stats = cache.stats()
-    logger.info(f"Cache now: {stats['total_symbols']} symbols, {stats['with_sufficient_data']} with ≥20 points")
+    logger.info(
+        f"Cache now: {stats['total_symbols']} symbols, {stats['with_sufficient_data']} with ≥20 points"
+    )
 
 
 if __name__ == "__main__":

@@ -25,6 +25,7 @@ from datetime import datetime, date
 
 # Fix für nested event loops
 import nest_asyncio
+
 nest_asyncio.apply()
 
 project_root = Path(__file__).parent.parent
@@ -59,7 +60,7 @@ def collect_vix(port: int = 7497, days: int = 260) -> int:
     print(f"Verbinde zu TWS auf Port {port}...")
 
     try:
-        ib.connect('127.0.0.1', port, clientId=99, timeout=20)
+        ib.connect("127.0.0.1", port, clientId=99, timeout=20)
         print("✓ TWS verbunden")
     except Exception as e:
         print(f"✗ TWS Verbindung fehlgeschlagen: {e}")
@@ -71,7 +72,7 @@ def collect_vix(port: int = 7497, days: int = 260) -> int:
 
     try:
         # VIX Index Contract
-        vix = Index('VIX', 'CBOE')
+        vix = Index("VIX", "CBOE")
         ib.qualifyContracts(vix)
         print(f"✓ VIX Contract qualifiziert: {vix}")
 
@@ -87,12 +88,12 @@ def collect_vix(port: int = 7497, days: int = 260) -> int:
         # Historische Daten anfordern (synchron)
         bars = ib.reqHistoricalData(
             vix,
-            endDateTime='',  # Bis jetzt
+            endDateTime="",  # Bis jetzt
             durationStr=duration,
-            barSizeSetting='1 day',
-            whatToShow='TRADES',
+            barSizeSetting="1 day",
+            whatToShow="TRADES",
             useRTH=True,
-            formatDate=1
+            formatDate=1,
         )
 
         if not bars:
@@ -107,11 +108,10 @@ def collect_vix(port: int = 7497, days: int = 260) -> int:
         vix_points = []
         for bar in bars:
             # bar.date ist bereits ein date/datetime Objekt
-            bar_date = bar.date if isinstance(bar.date, date) else date.fromisoformat(str(bar.date)[:10])
-            vix_points.append(VixDataPoint(
-                date=bar_date,
-                value=bar.close
-            ))
+            bar_date = (
+                bar.date if isinstance(bar.date, date) else date.fromisoformat(str(bar.date)[:10])
+            )
+            vix_points.append(VixDataPoint(date=bar_date, value=bar.close))
 
         # In Datenbank speichern
         tracker = TradeTracker()
@@ -132,13 +132,9 @@ def collect_vix(port: int = 7497, days: int = 260) -> int:
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description='Collect historical VIX data from IBKR TWS'
-    )
-    parser.add_argument('--port', type=int, default=7497,
-                        help='TWS Port (7497=Paper, 7496=Live)')
-    parser.add_argument('--days', type=int, default=260,
-                        help='Days of history (default: 260)')
+    parser = argparse.ArgumentParser(description="Collect historical VIX data from IBKR TWS")
+    parser.add_argument("--port", type=int, default=7497, help="TWS Port (7497=Paper, 7496=Live)")
+    parser.add_argument("--days", type=int, default=260, help="Days of history (default: 260)")
 
     args = parser.parse_args()
 
@@ -162,5 +158,5 @@ def main():
         sys.exit(1)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

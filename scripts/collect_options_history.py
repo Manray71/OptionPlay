@@ -38,10 +38,7 @@ from src.backtesting.tracking import TradeTracker, OptionBar
 from src.config.watchlist_loader import get_watchlist_loader
 
 # Logging setup
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -58,10 +55,7 @@ async def get_available_expirations(
     today = date.today()
 
     # Filter nach DTE
-    filtered = [
-        exp for exp in expirations
-        if min_dte <= (exp - today).days <= max_dte
-    ]
+    filtered = [exp for exp in expirations if min_dte <= (exp - today).days <= max_dte]
 
     return sorted(filtered)
 
@@ -132,9 +126,7 @@ async def collect_option_history_for_symbol(
 
     for expiry in expirations:
         # Strikes für diesen Verfall
-        strikes = await get_strikes_for_expiry(
-            provider, symbol, expiry, current_price, otm_range
-        )
+        strikes = await get_strikes_for_expiry(provider, symbol, expiry, current_price, otm_range)
 
         if not strikes:
             continue
@@ -153,19 +145,21 @@ async def collect_option_history_for_symbol(
                     # Konvertiere zu OptionBar
                     option_bars = []
                     for bar in bars:
-                        option_bars.append(OptionBar(
-                            occ_symbol=occ_symbol,
-                            underlying=symbol,
-                            strike=strike,
-                            expiry=expiry,
-                            option_type="P",
-                            trade_date=bar.date,
-                            open=bar.open,
-                            high=bar.high,
-                            low=bar.low,
-                            close=bar.close,
-                            volume=bar.volume,
-                        ))
+                        option_bars.append(
+                            OptionBar(
+                                occ_symbol=occ_symbol,
+                                underlying=symbol,
+                                strike=strike,
+                                expiry=expiry,
+                                option_type="P",
+                                trade_date=bar.date,
+                                open=bar.open,
+                                high=bar.high,
+                                low=bar.low,
+                                close=bar.close,
+                                volume=bar.volume,
+                            )
+                        )
 
                     # In DB speichern
                     count = tracker.store_option_bars(option_bars)
@@ -226,10 +220,10 @@ async def collect_all_options(
             await asyncio.sleep(0.5)
 
     return {
-        'symbols_processed': len(symbols),
-        'symbols_failed': failed_symbols,
-        'total_options': total_options,
-        'total_bars': total_bars,
+        "symbols_processed": len(symbols),
+        "symbols_failed": failed_symbols,
+        "total_options": total_options,
+        "total_bars": total_bars,
     }
 
 
@@ -247,13 +241,32 @@ def get_default_symbols() -> List[str]:
     """Standard-Symbole für Options-Datensammlung."""
     return [
         # Mega Cap Tech
-        "AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA",
+        "AAPL",
+        "MSFT",
+        "GOOGL",
+        "AMZN",
+        "META",
+        "NVDA",
+        "TSLA",
         # Large Cap
-        "JPM", "V", "MA", "HD", "UNH", "JNJ", "PG",
+        "JPM",
+        "V",
+        "MA",
+        "HD",
+        "UNH",
+        "JNJ",
+        "PG",
         # ETFs
-        "SPY", "QQQ", "IWM", "DIA",
+        "SPY",
+        "QQQ",
+        "IWM",
+        "DIA",
         # Volatile/Popular
-        "AMD", "CRM", "NFLX", "ADBE", "PYPL",
+        "AMD",
+        "CRM",
+        "NFLX",
+        "ADBE",
+        "PYPL",
     ]
 
 
@@ -261,94 +274,197 @@ def get_extended_symbols() -> List[str]:
     """Erweiterte Symbol-Liste für maximale Datensammlung."""
     return [
         # ===== MEGA CAP TECH (20) =====
-        "AAPL", "MSFT", "GOOGL", "GOOG", "AMZN", "META", "NVDA", "TSLA",
-        "AVGO", "ORCL", "CRM", "ADBE", "AMD", "CSCO", "ACN", "INTC",
-        "IBM", "INTU", "TXN", "QCOM",
-
+        "AAPL",
+        "MSFT",
+        "GOOGL",
+        "GOOG",
+        "AMZN",
+        "META",
+        "NVDA",
+        "TSLA",
+        "AVGO",
+        "ORCL",
+        "CRM",
+        "ADBE",
+        "AMD",
+        "CSCO",
+        "ACN",
+        "INTC",
+        "IBM",
+        "INTU",
+        "TXN",
+        "QCOM",
         # ===== FINANCIALS (20) =====
-        "JPM", "V", "MA", "BAC", "WFC", "GS", "MS", "C",
-        "AXP", "BLK", "SCHW", "PGR", "CB", "CME", "ICE", "USB",
-        "PNC", "MET", "AIG", "COF",
-
+        "JPM",
+        "V",
+        "MA",
+        "BAC",
+        "WFC",
+        "GS",
+        "MS",
+        "C",
+        "AXP",
+        "BLK",
+        "SCHW",
+        "PGR",
+        "CB",
+        "CME",
+        "ICE",
+        "USB",
+        "PNC",
+        "MET",
+        "AIG",
+        "COF",
         # ===== HEALTHCARE (15) =====
-        "UNH", "JNJ", "LLY", "ABBV", "MRK", "PFE", "TMO", "ABT",
-        "DHR", "AMGN", "BMY", "ISRG", "GILD", "VRTX", "MDT",
-
+        "UNH",
+        "JNJ",
+        "LLY",
+        "ABBV",
+        "MRK",
+        "PFE",
+        "TMO",
+        "ABT",
+        "DHR",
+        "AMGN",
+        "BMY",
+        "ISRG",
+        "GILD",
+        "VRTX",
+        "MDT",
         # ===== CONSUMER (15) =====
-        "HD", "MCD", "NKE", "LOW", "SBUX", "TJX", "BKNG", "CMG",
-        "MAR", "GM", "F", "TGT", "COST", "WMT", "DG",
-
+        "HD",
+        "MCD",
+        "NKE",
+        "LOW",
+        "SBUX",
+        "TJX",
+        "BKNG",
+        "CMG",
+        "MAR",
+        "GM",
+        "F",
+        "TGT",
+        "COST",
+        "WMT",
+        "DG",
         # ===== INDUSTRIALS (15) =====
-        "GE", "CAT", "RTX", "HON", "UNP", "UPS", "BA", "DE",
-        "LMT", "ADP", "ETN", "GD", "NOC", "WM", "CSX",
-
+        "GE",
+        "CAT",
+        "RTX",
+        "HON",
+        "UNP",
+        "UPS",
+        "BA",
+        "DE",
+        "LMT",
+        "ADP",
+        "ETN",
+        "GD",
+        "NOC",
+        "WM",
+        "CSX",
         # ===== COMMUNICATION (10) =====
-        "NFLX", "DIS", "CMCSA", "VZ", "T", "TMUS", "EA", "TTWO",
-        "SNAP", "PINS",
-
+        "NFLX",
+        "DIS",
+        "CMCSA",
+        "VZ",
+        "T",
+        "TMUS",
+        "EA",
+        "TTWO",
+        "SNAP",
+        "PINS",
         # ===== ENERGY (10) =====
-        "XOM", "CVX", "COP", "SLB", "EOG", "MPC", "PSX", "VLO",
-        "OXY", "HAL",
-
+        "XOM",
+        "CVX",
+        "COP",
+        "SLB",
+        "EOG",
+        "MPC",
+        "PSX",
+        "VLO",
+        "OXY",
+        "HAL",
         # ===== MATERIALS & UTILITIES (10) =====
-        "LIN", "APD", "SHW", "FCX", "NUE", "NEE", "SO", "DUK",
-        "AEP", "D",
-
+        "LIN",
+        "APD",
+        "SHW",
+        "FCX",
+        "NUE",
+        "NEE",
+        "SO",
+        "DUK",
+        "AEP",
+        "D",
         # ===== REAL ESTATE (5) =====
-        "PLD", "AMT", "EQIX", "CCI", "PSA",
-
+        "PLD",
+        "AMT",
+        "EQIX",
+        "CCI",
+        "PSA",
         # ===== ETFS (15) =====
-        "SPY", "QQQ", "IWM", "DIA", "XLK", "XLF", "XLE", "XLV",
-        "XLI", "XLY", "XLP", "XLB", "XLU", "XLRE", "SMH",
-
+        "SPY",
+        "QQQ",
+        "IWM",
+        "DIA",
+        "XLK",
+        "XLF",
+        "XLE",
+        "XLV",
+        "XLI",
+        "XLY",
+        "XLP",
+        "XLB",
+        "XLU",
+        "XLRE",
+        "SMH",
         # ===== HIGH VOLATILITY / POPULAR (25) =====
-        "PYPL", "SQ", "COIN", "SHOP", "ROKU", "ZM", "DKNG",
-        "SOFI", "RIVN", "LCID", "NIO", "BABA", "MARA", "MSTR",
-        "ARM", "CRWD", "SNOW", "NET", "MDB", "PANW", "ZS",
-        "PLTR", "UBER", "ABNB", "DASH",
+        "PYPL",
+        "SQ",
+        "COIN",
+        "SHOP",
+        "ROKU",
+        "ZM",
+        "DKNG",
+        "SOFI",
+        "RIVN",
+        "LCID",
+        "NIO",
+        "BABA",
+        "MARA",
+        "MSTR",
+        "ARM",
+        "CRWD",
+        "SNOW",
+        "NET",
+        "MDB",
+        "PANW",
+        "ZS",
+        "PLTR",
+        "UBER",
+        "ABNB",
+        "DASH",
     ]
 
 
 async def main():
-    parser = argparse.ArgumentParser(
-        description="Collect historical options data from Tradier"
+    parser = argparse.ArgumentParser(description="Collect historical options data from Tradier")
+    parser.add_argument(
+        "--symbols", type=str, help="Comma-separated list of symbols (e.g., AAPL,MSFT,GOOGL)"
+    )
+    parser.add_argument("--watchlist", type=str, help="Path to watchlist YAML file")
+    parser.add_argument("--all", action="store_true", help="Use default symbol list")
+    parser.add_argument(
+        "--days", type=int, default=90, help="Days of history to collect (default: 90)"
     )
     parser.add_argument(
-        "--symbols",
-        type=str,
-        help="Comma-separated list of symbols (e.g., AAPL,MSFT,GOOGL)"
+        "--max-expirations", type=int, default=4, help="Max expirations per symbol (default: 4)"
     )
     parser.add_argument(
-        "--watchlist",
-        type=str,
-        help="Path to watchlist YAML file"
+        "--api-key", type=str, help="Tradier API key (or set TRADIER_API_KEY env var)"
     )
     parser.add_argument(
-        "--all",
-        action="store_true",
-        help="Use default symbol list"
-    )
-    parser.add_argument(
-        "--days",
-        type=int,
-        default=90,
-        help="Days of history to collect (default: 90)"
-    )
-    parser.add_argument(
-        "--max-expirations",
-        type=int,
-        default=4,
-        help="Max expirations per symbol (default: 4)"
-    )
-    parser.add_argument(
-        "--api-key",
-        type=str,
-        help="Tradier API key (or set TRADIER_API_KEY env var)"
-    )
-    parser.add_argument(
-        "--status",
-        action="store_true",
-        help="Show current options data status and exit"
+        "--status", action="store_true", help="Show current options data status and exit"
     )
 
     args = parser.parse_args()
@@ -369,9 +485,11 @@ async def main():
             print("\nBy underlying:")
             print("-" * 50)
             for u in underlyings:
-                print(f"  {u['underlying']:6s}: {u['bar_count']:6,} bars, "
-                      f"{u['option_count']:3} options, "
-                      f"{u['first_date']} to {u['last_date']}")
+                print(
+                    f"  {u['underlying']:6s}: {u['bar_count']:6,} bars, "
+                    f"{u['option_count']:3} options, "
+                    f"{u['first_date']} to {u['last_date']}"
+                )
 
         return
 
@@ -409,7 +527,9 @@ async def main():
         logger.error("No symbols to process")
         sys.exit(1)
 
-    logger.info(f"Processing {len(symbols)} symbols: {', '.join(symbols[:10])}{'...' if len(symbols) > 10 else ''}")
+    logger.info(
+        f"Processing {len(symbols)} symbols: {', '.join(symbols[:10])}{'...' if len(symbols) > 10 else ''}"
+    )
 
     # Daten sammeln
     result = await collect_all_options(
@@ -428,7 +548,7 @@ async def main():
     print(f"Total options: {result['total_options']}")
     print(f"Total bars collected: {result['total_bars']:,}")
 
-    if result['symbols_failed']:
+    if result["symbols_failed"]:
         print(f"\nFailed symbols: {', '.join(result['symbols_failed'])}")
 
 

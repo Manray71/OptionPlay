@@ -27,10 +27,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 from backtesting.trade_tracker import TradeTracker
 
 # Logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -40,34 +37,36 @@ logger = logging.getLogger(__name__)
 
 # Exit Strategy (from training)
 EXIT_STRATEGY = {
-    'profit_target_pct': 75,  # Close at 75% of max profit
-    'stop_loss_pct': 100,     # Close at 100% of max loss (full spread)
-    'dte_exit': 7,            # Close at 7 DTE
+    "profit_target_pct": 75,  # Close at 75% of max profit
+    "stop_loss_pct": 100,  # Close at 100% of max loss (full spread)
+    "dte_exit": 7,  # Close at 7 DTE
 }
 
 # Baseline (no exit management)
 BASELINE_EXIT = {
-    'profit_target_pct': 100,  # Hold to expiration
-    'stop_loss_pct': 200,      # No stop loss
-    'dte_exit': 0,
+    "profit_target_pct": 100,  # Hold to expiration
+    "stop_loss_pct": 200,  # No stop loss
+    "dte_exit": 0,
 }
+
 
 # Load cluster data
 def load_cluster_data() -> Dict:
     """Load symbol cluster mappings"""
-    cluster_path = Path.home() / '.optionplay' / 'models' / 'SYMBOL_CLUSTERS.json'
+    cluster_path = Path.home() / ".optionplay" / "models" / "SYMBOL_CLUSTERS.json"
     if cluster_path.exists():
-        with open(cluster_path, 'r') as f:
+        with open(cluster_path, "r") as f:
             data = json.load(f)
-            return data.get('symbol_to_cluster', {})
+            return data.get("symbol_to_cluster", {})
     return {}
+
 
 # Load ensemble data
 def load_ensemble_data() -> Dict:
     """Load ensemble symbol preferences"""
-    ensemble_path = Path.home() / '.optionplay' / 'models' / 'ENSEMBLE_V2_TRAINED.json'
+    ensemble_path = Path.home() / ".optionplay" / "models" / "ENSEMBLE_V2_TRAINED.json"
     if ensemble_path.exists():
-        with open(ensemble_path, 'r') as f:
+        with open(ensemble_path, "r") as f:
             return json.load(f)
     return {}
 
@@ -76,11 +75,12 @@ def load_ensemble_data() -> Dict:
 # STRATEGY SIGNALS
 # =============================================================================
 
+
 def calculate_rsi(prices: np.ndarray, period: int = 14) -> float:
     """Calculate RSI"""
     if len(prices) < period + 1:
         return 50
-    deltas = np.diff(prices[-period-1:])
+    deltas = np.diff(prices[-period - 1 :])
     gains = np.maximum(deltas, 0)
     losses = np.maximum(-deltas, 0)
     avg_gain = np.mean(gains)
@@ -106,16 +106,16 @@ def get_strategy_signal(
         return False, 0
 
     current_price = prices[idx]
-    rsi = calculate_rsi(prices[:idx+1])
-    sma20 = np.mean(prices[idx-19:idx+1])
-    sma50 = np.mean(prices[idx-49:idx+1])
-    sma200 = np.mean(prices[idx-199:idx+1])
-    high_52w = np.max(prices[max(0,idx-251):idx+1])
-    low_20d = np.min(lows[idx-19:idx+1])
+    rsi = calculate_rsi(prices[: idx + 1])
+    sma20 = np.mean(prices[idx - 19 : idx + 1])
+    sma50 = np.mean(prices[idx - 49 : idx + 1])
+    sma200 = np.mean(prices[idx - 199 : idx + 1])
+    high_52w = np.max(prices[max(0, idx - 251) : idx + 1])
+    low_20d = np.min(lows[idx - 19 : idx + 1])
 
     score = 0
 
-    if strategy == 'pullback':
+    if strategy == "pullback":
         # RSI < 40, above SMA200, below SMA20
         if rsi < 40 and current_price > sma200 and current_price < sma20:
             score = 3.0 if rsi < 30 else 2.0 if rsi < 35 else 1.0
@@ -127,7 +127,7 @@ def get_strategy_signal(
                 score += 1.0
             return score >= 4.0, score
 
-    elif strategy == 'bounce':
+    elif strategy == "bounce":
         # Near support (within 3% of 20-day low), above SMA200
         support_dist = (current_price - low_20d) / low_20d * 100
         if support_dist < 3 and current_price > sma200:
@@ -141,7 +141,7 @@ def get_strategy_signal(
             score += 0.5
             return score >= 4.0, score
 
-    elif strategy == 'ath_breakout':
+    elif strategy == "ath_breakout":
         # Within 5% of 52-week high, above all MAs
         ath_dist = (high_52w - current_price) / high_52w * 100
         if ath_dist < 5 and current_price > sma20 > sma50:
@@ -153,9 +153,9 @@ def get_strategy_signal(
                 score += 1.0
             return score >= 5.0, score
 
-    elif strategy == 'earnings_dip':
+    elif strategy == "earnings_dip":
         # 5-15% below recent high, above SMA200
-        recent_high = np.max(prices[max(0,idx-20):idx+1])
+        recent_high = np.max(prices[max(0, idx - 20) : idx + 1])
         drop_pct = (recent_high - current_price) / recent_high * 100
         if 5 <= drop_pct <= 15 and current_price > sma200:
             score = 3.0 if 8 <= drop_pct <= 12 else 2.0
@@ -163,7 +163,7 @@ def get_strategy_signal(
             if sma50 > sma200:
                 score += 1.5
             # Recovery signs
-            if prices[idx] > prices[idx-1]:
+            if prices[idx] > prices[idx - 1]:
                 score += 1.0
             return score >= 5.0, score
 
@@ -183,7 +183,7 @@ def select_best_strategy(
     Select best strategy for symbol at index.
     Returns (strategy, score) or None if no signal.
     """
-    strategies = ['pullback', 'bounce', 'ath_breakout', 'earnings_dip']
+    strategies = ["pullback", "bounce", "ath_breakout", "earnings_dip"]
 
     # Get signals for all strategies
     signals = {}
@@ -198,8 +198,8 @@ def select_best_strategy(
     if use_trained and symbol in cluster_data:
         # Use cluster-based selection
         cluster_info = cluster_data[symbol]
-        best_strat = cluster_info.get('best_strategy')
-        cluster_wr = cluster_info.get('strategy_win_rate', 50)
+        best_strat = cluster_info.get("best_strategy")
+        cluster_wr = cluster_info.get("strategy_win_rate", 50)
 
         # If cluster's best strategy has signal and good win rate, use it
         if best_strat in signals and cluster_wr >= 60:
@@ -214,9 +214,11 @@ def select_best_strategy(
 # TRADE SIMULATION
 # =============================================================================
 
+
 @dataclass
 class Trade:
     """Represents a single trade"""
+
     symbol: str
     strategy: str
     entry_date: date
@@ -259,9 +261,9 @@ def simulate_trade(
     max_loss = spread_width - premium
 
     # Exit parameters
-    profit_target = max_profit * (exit_params['profit_target_pct'] / 100)
-    stop_loss = max_loss * (exit_params['stop_loss_pct'] / 100)
-    dte_exit = exit_params['dte_exit']
+    profit_target = max_profit * (exit_params["profit_target_pct"] / 100)
+    stop_loss = max_loss * (exit_params["stop_loss_pct"] / 100)
+    dte_exit = exit_params["dte_exit"]
 
     n = len(prices)
     exit_idx = min(entry_idx + dte, n - 1)
@@ -312,9 +314,11 @@ def simulate_trade(
 # BACKTEST ENGINE
 # =============================================================================
 
+
 @dataclass
 class BacktestResults:
     """Backtest results summary"""
+
     name: str
     total_trades: int
     wins: int
@@ -333,17 +337,17 @@ class BacktestResults:
 
     def to_dict(self) -> Dict:
         return {
-            'name': self.name,
-            'total_trades': self.total_trades,
-            'wins': self.wins,
-            'losses': self.losses,
-            'win_rate': round(self.win_rate, 2),
-            'total_pnl_pct': round(self.total_pnl_pct, 2),
-            'avg_pnl_pct': round(self.avg_pnl_pct, 2),
-            'avg_win_pct': round(self.avg_win_pct, 2),
-            'avg_loss_pct': round(self.avg_loss_pct, 2),
-            'profit_factor': round(self.profit_factor, 2),
-            'strategy_results': self.strategy_results,
+            "name": self.name,
+            "total_trades": self.total_trades,
+            "wins": self.wins,
+            "losses": self.losses,
+            "win_rate": round(self.win_rate, 2),
+            "total_pnl_pct": round(self.total_pnl_pct, 2),
+            "avg_pnl_pct": round(self.avg_pnl_pct, 2),
+            "avg_win_pct": round(self.avg_win_pct, 2),
+            "avg_loss_pct": round(self.avg_loss_pct, 2),
+            "profit_factor": round(self.profit_factor, 2),
+            "strategy_results": self.strategy_results,
         }
 
 
@@ -373,9 +377,9 @@ def run_backtest(
     strategy_trades = defaultdict(list)
 
     for symbol, data in symbol_data.items():
-        prices = data['prices']
-        highs = data['highs']
-        lows = data['lows']
+        prices = data["prices"]
+        highs = data["highs"]
+        lows = data["lows"]
 
         n = len(prices)
         if n < 300:
@@ -387,9 +391,7 @@ def run_backtest(
         # Scan for signals every 5 days
         i = test_start
         while i < n - 50:  # Need 50 days for trade
-            result = select_best_strategy(
-                symbol, prices, highs, lows, i, cluster_data, use_trained
-            )
+            result = select_best_strategy(symbol, prices, highs, lows, i, cluster_data, use_trained)
 
             if result:
                 strategy, score = result
@@ -401,14 +403,14 @@ def run_backtest(
                 )
 
                 trade = {
-                    'symbol': symbol,
-                    'strategy': strategy,
-                    'score': score,
-                    'entry_price': entry_price,
-                    'pnl_pct': pnl_pct,
-                    'exit_reason': exit_reason,
-                    'days_held': days_held,
-                    'is_win': pnl_pct > 0,
+                    "symbol": symbol,
+                    "strategy": strategy,
+                    "score": score,
+                    "entry_price": entry_price,
+                    "pnl_pct": pnl_pct,
+                    "exit_reason": exit_reason,
+                    "days_held": days_held,
+                    "is_win": pnl_pct > 0,
                 }
 
                 all_trades.append(trade)
@@ -423,44 +425,52 @@ def run_backtest(
     if not all_trades:
         return BacktestResults(
             name=name,
-            total_trades=0, wins=0, losses=0, win_rate=0,
-            total_pnl_pct=0, avg_pnl_pct=0, avg_win_pct=0, avg_loss_pct=0,
-            profit_factor=0, max_drawdown_pct=0, sharpe_ratio=0,
+            total_trades=0,
+            wins=0,
+            losses=0,
+            win_rate=0,
+            total_pnl_pct=0,
+            avg_pnl_pct=0,
+            avg_win_pct=0,
+            avg_loss_pct=0,
+            profit_factor=0,
+            max_drawdown_pct=0,
+            sharpe_ratio=0,
             strategy_results={},
         )
 
-    wins = [t for t in all_trades if t['is_win']]
-    losses = [t for t in all_trades if not t['is_win']]
+    wins = [t for t in all_trades if t["is_win"]]
+    losses = [t for t in all_trades if not t["is_win"]]
 
-    total_pnl = sum(t['pnl_pct'] for t in all_trades)
+    total_pnl = sum(t["pnl_pct"] for t in all_trades)
     avg_pnl = total_pnl / len(all_trades)
-    avg_win = np.mean([t['pnl_pct'] for t in wins]) if wins else 0
-    avg_loss = np.mean([t['pnl_pct'] for t in losses]) if losses else 0
+    avg_win = np.mean([t["pnl_pct"] for t in wins]) if wins else 0
+    avg_loss = np.mean([t["pnl_pct"] for t in losses]) if losses else 0
 
-    gross_profit = sum(t['pnl_pct'] for t in wins) if wins else 0
-    gross_loss = abs(sum(t['pnl_pct'] for t in losses)) if losses else 0
-    profit_factor = gross_profit / gross_loss if gross_loss > 0 else float('inf')
+    gross_profit = sum(t["pnl_pct"] for t in wins) if wins else 0
+    gross_loss = abs(sum(t["pnl_pct"] for t in losses)) if losses else 0
+    profit_factor = gross_profit / gross_loss if gross_loss > 0 else float("inf")
 
     # Max drawdown (simplified)
-    running_pnl = np.cumsum([t['pnl_pct'] for t in all_trades])
+    running_pnl = np.cumsum([t["pnl_pct"] for t in all_trades])
     peak = np.maximum.accumulate(running_pnl)
     drawdown = peak - running_pnl
     max_dd = np.max(drawdown) if len(drawdown) > 0 else 0
 
     # Sharpe (simplified)
-    pnls = [t['pnl_pct'] for t in all_trades]
+    pnls = [t["pnl_pct"] for t in all_trades]
     sharpe = np.mean(pnls) / np.std(pnls) if np.std(pnls) > 0 else 0
 
     # Strategy breakdown
     strategy_results = {}
     for strat, trades in strategy_trades.items():
-        strat_wins = [t for t in trades if t['is_win']]
+        strat_wins = [t for t in trades if t["is_win"]]
         strategy_results[strat] = {
-            'trades': len(trades),
-            'wins': len(strat_wins),
-            'win_rate': len(strat_wins) / len(trades) * 100 if trades else 0,
-            'total_pnl': sum(t['pnl_pct'] for t in trades),
-            'avg_pnl': np.mean([t['pnl_pct'] for t in trades]) if trades else 0,
+            "trades": len(trades),
+            "wins": len(strat_wins),
+            "win_rate": len(strat_wins) / len(trades) * 100 if trades else 0,
+            "total_pnl": sum(t["pnl_pct"] for t in trades),
+            "avg_pnl": np.mean([t["pnl_pct"] for t in trades]) if trades else 0,
         }
 
     return BacktestResults(
@@ -484,6 +494,7 @@ def run_backtest(
 # MAIN
 # =============================================================================
 
+
 def main():
     logger.info("=" * 70)
     logger.info("  COMPREHENSIVE BACKTEST - Trained System vs Baseline")
@@ -494,7 +505,7 @@ def main():
     tracker = TradeTracker()
 
     symbol_list = tracker.list_symbols_with_price_data()
-    symbols = [s['symbol'] for s in symbol_list if not s['symbol'].startswith('^')]
+    symbols = [s["symbol"] for s in symbol_list if not s["symbol"].startswith("^")]
     logger.info("  Symbols available: %d", len(symbols))
 
     # Load trained models
@@ -507,9 +518,9 @@ def main():
         price_data = tracker.get_price_data(symbol)
         if price_data and price_data.bars and len(price_data.bars) >= 300:
             symbol_data[symbol] = {
-                'prices': np.array([b.close for b in price_data.bars]),
-                'highs': np.array([b.high for b in price_data.bars]),
-                'lows': np.array([b.low for b in price_data.bars]),
+                "prices": np.array([b.close for b in price_data.bars]),
+                "highs": np.array([b.high for b in price_data.bars]),
+                "lows": np.array([b.low for b in price_data.bars]),
             }
 
     logger.info("  Symbols with sufficient data: %d", len(symbol_data))
@@ -518,18 +529,16 @@ def main():
     # Run backtests
     logger.info("\nRunning Baseline Backtest (no exit management, no clustering)...")
     baseline_results = run_backtest(
-        symbol_data, cluster_data,
-        exit_params=BASELINE_EXIT,
-        use_trained=False,
-        name="Baseline"
+        symbol_data, cluster_data, exit_params=BASELINE_EXIT, use_trained=False, name="Baseline"
     )
 
     logger.info("Running Trained System Backtest...")
     trained_results = run_backtest(
-        symbol_data, cluster_data,
+        symbol_data,
+        cluster_data,
         exit_params=EXIT_STRATEGY,
         use_trained=True,
-        name="Trained System"
+        name="Trained System",
     )
 
     # Print comparison
@@ -543,15 +552,15 @@ def main():
     print("-" * 80)
 
     metrics = [
-        ('Total Trades', baseline_results.total_trades, trained_results.total_trades),
-        ('Win Rate (%)', baseline_results.win_rate, trained_results.win_rate),
-        ('Avg P&L (%)', baseline_results.avg_pnl_pct, trained_results.avg_pnl_pct),
-        ('Total P&L (%)', baseline_results.total_pnl_pct, trained_results.total_pnl_pct),
-        ('Avg Win (%)', baseline_results.avg_win_pct, trained_results.avg_win_pct),
-        ('Avg Loss (%)', baseline_results.avg_loss_pct, trained_results.avg_loss_pct),
-        ('Profit Factor', baseline_results.profit_factor, trained_results.profit_factor),
-        ('Max Drawdown (%)', baseline_results.max_drawdown_pct, trained_results.max_drawdown_pct),
-        ('Sharpe Ratio', baseline_results.sharpe_ratio, trained_results.sharpe_ratio),
+        ("Total Trades", baseline_results.total_trades, trained_results.total_trades),
+        ("Win Rate (%)", baseline_results.win_rate, trained_results.win_rate),
+        ("Avg P&L (%)", baseline_results.avg_pnl_pct, trained_results.avg_pnl_pct),
+        ("Total P&L (%)", baseline_results.total_pnl_pct, trained_results.total_pnl_pct),
+        ("Avg Win (%)", baseline_results.avg_win_pct, trained_results.avg_win_pct),
+        ("Avg Loss (%)", baseline_results.avg_loss_pct, trained_results.avg_loss_pct),
+        ("Profit Factor", baseline_results.profit_factor, trained_results.profit_factor),
+        ("Max Drawdown (%)", baseline_results.max_drawdown_pct, trained_results.max_drawdown_pct),
+        ("Sharpe Ratio", baseline_results.sharpe_ratio, trained_results.sharpe_ratio),
     ]
 
     for name, baseline_val, trained_val in metrics:
@@ -572,24 +581,32 @@ def main():
     print(f"{'Strategy':<15} {'Trades':>10} {'WinRate':>10} {'AvgP&L':>10} {'TotalP&L':>12}")
     print("-" * 60)
 
-    for strat, data in sorted(trained_results.strategy_results.items(),
-                               key=lambda x: x[1]['win_rate'], reverse=True):
-        print(f"{strat:<15} {data['trades']:>10} {data['win_rate']:>10.1f}% "
-              f"{data['avg_pnl']:>10.2f}% {data['total_pnl']:>12.1f}%")
+    for strat, data in sorted(
+        trained_results.strategy_results.items(), key=lambda x: x[1]["win_rate"], reverse=True
+    ):
+        print(
+            f"{strat:<15} {data['trades']:>10} {data['win_rate']:>10.1f}% "
+            f"{data['avg_pnl']:>10.2f}% {data['total_pnl']:>12.1f}%"
+        )
 
     # Save results
-    output_path = Path.home() / '.optionplay' / 'models' / 'BACKTEST_RESULTS.json'
-    with open(output_path, 'w') as f:
-        json.dump({
-            'generated_at': datetime.now().isoformat(),
-            'baseline': baseline_results.to_dict(),
-            'trained': trained_results.to_dict(),
-            'improvement': {
-                'win_rate_delta': trained_results.win_rate - baseline_results.win_rate,
-                'avg_pnl_delta': trained_results.avg_pnl_pct - baseline_results.avg_pnl_pct,
-                'profit_factor_delta': trained_results.profit_factor - baseline_results.profit_factor,
-            }
-        }, f, indent=2)
+    output_path = Path.home() / ".optionplay" / "models" / "BACKTEST_RESULTS.json"
+    with open(output_path, "w") as f:
+        json.dump(
+            {
+                "generated_at": datetime.now().isoformat(),
+                "baseline": baseline_results.to_dict(),
+                "trained": trained_results.to_dict(),
+                "improvement": {
+                    "win_rate_delta": trained_results.win_rate - baseline_results.win_rate,
+                    "avg_pnl_delta": trained_results.avg_pnl_pct - baseline_results.avg_pnl_pct,
+                    "profit_factor_delta": trained_results.profit_factor
+                    - baseline_results.profit_factor,
+                },
+            },
+            f,
+            indent=2,
+        )
 
     logger.info(f"\nResults saved to {output_path}")
 
@@ -599,5 +616,5 @@ def main():
     logger.info("=" * 70)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

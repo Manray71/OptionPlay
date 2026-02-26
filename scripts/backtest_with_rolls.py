@@ -42,10 +42,7 @@ import yfinance as yf
 from tqdm import tqdm
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -55,16 +52,17 @@ logger = logging.getLogger(__name__)
 
 # Delta targets (from PLAYBOOK)
 from src.constants.trading_rules import SPREAD_SHORT_DELTA_TARGET, SPREAD_LONG_DELTA_TARGET
+
 SHORT_DELTA_TARGET = SPREAD_SHORT_DELTA_TARGET
 LONG_DELTA_TARGET = SPREAD_LONG_DELTA_TARGET
-HOLDING_DAYS = 75           # Target DTE
-RISK_FREE_RATE = 0.05       # 5% annualized
+HOLDING_DAYS = 75  # Target DTE
+RISK_FREE_RATE = 0.05  # 5% annualized
 
 # Roll thresholds
 ROLL_LOSS_THRESHOLD = 0.25  # Roll when loss > 25% of max profit
 ROLL_PRICE_PROXIMITY = 1.03  # Roll when price within 3% of short strike
-ROLL_MIN_DTE = 30           # Roll Out when DTE < 30 days
-MAX_ROLLS_PER_TRADE = 2     # Maximum rolls allowed
+ROLL_MIN_DTE = 30  # Roll Out when DTE < 30 days
+MAX_ROLLS_PER_TRADE = 2  # Maximum rolls allowed
 
 # Database path
 DB_PATH = Path.home() / ".optionplay" / "backtest_rolls.db"
@@ -74,8 +72,10 @@ DB_PATH = Path.home() / ".optionplay" / "backtest_rolls.db"
 # Enums
 # =============================================================================
 
+
 class RollType(Enum):
     """Type of roll maneuver"""
+
     NONE = "none"
     ROLL_DOWN = "roll_down"
     ROLL_OUT = "roll_out"
@@ -84,6 +84,7 @@ class RollType(Enum):
 
 class TradeOutcome(Enum):
     """Trade outcome"""
+
     WIN = "win"
     LOSS = "loss"
     MAX_LOSS = "max_loss"
@@ -93,9 +94,11 @@ class TradeOutcome(Enum):
 # Data Classes
 # =============================================================================
 
+
 @dataclass
 class RollEvent:
     """A single roll event"""
+
     roll_day: int  # Day of trade when roll occurred
     roll_type: RollType
     old_short_strike: float
@@ -110,11 +113,12 @@ class RollEvent:
 @dataclass
 class TradeResult:
     """Complete result of a simulated trade"""
+
     symbol: str
     entry_date: date
     exit_date: date
     entry_price: float  # Stock price at entry
-    exit_price: float   # Stock price at exit
+    exit_price: float  # Stock price at exit
 
     # Strike info
     initial_short_strike: float
@@ -124,7 +128,7 @@ class TradeResult:
 
     # P&L
     initial_credit: float  # Credit received at entry
-    final_pnl: float       # Total P&L including rolls
+    final_pnl: float  # Total P&L including rolls
     outcome: TradeOutcome
 
     # Roll info
@@ -139,43 +143,44 @@ class TradeResult:
 
     def to_dict(self) -> Dict[str, Any]:
         return {
-            'symbol': self.symbol,
-            'entry_date': self.entry_date.isoformat(),
-            'exit_date': self.exit_date.isoformat(),
-            'entry_price': self.entry_price,
-            'exit_price': self.exit_price,
-            'initial_short_strike': self.initial_short_strike,
-            'initial_long_strike': self.initial_long_strike,
-            'final_short_strike': self.final_short_strike,
-            'final_long_strike': self.final_long_strike,
-            'initial_credit': self.initial_credit,
-            'final_pnl': self.final_pnl,
-            'outcome': self.outcome.value,
-            'roll_count': self.roll_count,
-            'roll_events': [
+            "symbol": self.symbol,
+            "entry_date": self.entry_date.isoformat(),
+            "exit_date": self.exit_date.isoformat(),
+            "entry_price": self.entry_price,
+            "exit_price": self.exit_price,
+            "initial_short_strike": self.initial_short_strike,
+            "initial_long_strike": self.initial_long_strike,
+            "final_short_strike": self.final_short_strike,
+            "final_long_strike": self.final_long_strike,
+            "initial_credit": self.initial_credit,
+            "final_pnl": self.final_pnl,
+            "outcome": self.outcome.value,
+            "roll_count": self.roll_count,
+            "roll_events": [
                 {
-                    'roll_day': r.roll_day,
-                    'roll_type': r.roll_type.value,
-                    'old_short_strike': r.old_short_strike,
-                    'new_short_strike': r.new_short_strike,
-                    'old_long_strike': r.old_long_strike,
-                    'new_long_strike': r.new_long_strike,
-                    'roll_cost': r.roll_cost,
-                    'stock_price_at_roll': r.stock_price_at_roll,
-                    'dte_at_roll': r.dte_at_roll,
+                    "roll_day": r.roll_day,
+                    "roll_type": r.roll_type.value,
+                    "old_short_strike": r.old_short_strike,
+                    "new_short_strike": r.new_short_strike,
+                    "old_long_strike": r.old_long_strike,
+                    "new_long_strike": r.new_long_strike,
+                    "roll_cost": r.roll_cost,
+                    "stock_price_at_roll": r.stock_price_at_roll,
+                    "dte_at_roll": r.dte_at_roll,
                 }
                 for r in self.roll_events
             ],
-            'total_roll_cost': self.total_roll_cost,
-            'max_drawdown': self.max_drawdown,
-            'holding_days': self.holding_days,
-            'iv_at_entry': self.iv_at_entry,
+            "total_roll_cost": self.total_roll_cost,
+            "max_drawdown": self.max_drawdown,
+            "holding_days": self.holding_days,
+            "iv_at_entry": self.iv_at_entry,
         }
 
 
 # =============================================================================
 # Black-Scholes Functions (Standalone - no scipy dependency)
 # =============================================================================
+
 
 def norm_cdf(x: float) -> float:
     """Standard normal CDF using error function"""
@@ -205,7 +210,7 @@ def black_scholes_put(S: float, K: float, T: float, r: float, sigma: float) -> f
         # Intrinsic value for edge cases
         return max(K - S, 0)
 
-    d1 = (math.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * math.sqrt(T))
+    d1 = (math.log(S / K) + (r + 0.5 * sigma**2) * T) / (sigma * math.sqrt(T))
     d2 = d1 - sigma * math.sqrt(T)
 
     put_price = K * math.exp(-r * T) * norm_cdf(-d2) - S * norm_cdf(-d1)
@@ -222,7 +227,7 @@ def black_scholes_delta(S: float, K: float, T: float, r: float, sigma: float) ->
     if T <= 0 or sigma <= 0 or S <= 0 or K <= 0:
         return -1.0 if K > S else 0.0
 
-    d1 = (math.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * math.sqrt(T))
+    d1 = (math.log(S / K) + (r + 0.5 * sigma**2) * T) / (sigma * math.sqrt(T))
     return norm_cdf(d1) - 1.0  # Put delta
 
 
@@ -249,7 +254,7 @@ def find_strike_for_delta(
         Strike price rounded to nearest strike_step
     """
     # Bisection search
-    low = S * 0.50   # Deep ITM
+    low = S * 0.50  # Deep ITM
     high = S * 1.20  # OTM
 
     for _ in range(50):  # Max iterations
@@ -278,7 +283,7 @@ def estimate_iv_from_history(prices: np.ndarray, days: int = 30) -> float:
     if len(prices) < days + 1:
         return 0.30  # Default 30% IV
 
-    returns = np.diff(np.log(prices[-days-1:]))
+    returns = np.diff(np.log(prices[-days - 1 :]))
     daily_vol = np.std(returns)
     annual_vol = daily_vol * math.sqrt(252)
 
@@ -290,6 +295,7 @@ def estimate_iv_from_history(prices: np.ndarray, days: int = 30) -> float:
 # =============================================================================
 # Trade Simulation
 # =============================================================================
+
 
 def simulate_trade(
     prices: np.ndarray,
@@ -320,7 +326,7 @@ def simulate_trade(
 
     # Estimate IV from recent history
     lookback = min(60, entry_idx)
-    recent_prices = prices[entry_idx - lookback:entry_idx + 1]
+    recent_prices = prices[entry_idx - lookback : entry_idx + 1]
     iv = estimate_iv_from_history(recent_prices)
 
     # Time to expiry in years
@@ -408,7 +414,11 @@ def simulate_trade(
 
             if roll_type != RollType.NONE:
                 # Calculate new strikes
-                new_T = T_remaining + (30 / 365.0) if roll_type in [RollType.ROLL_OUT, RollType.ROLL_DOWN_AND_OUT] else T_remaining
+                new_T = (
+                    T_remaining + (30 / 365.0)
+                    if roll_type in [RollType.ROLL_OUT, RollType.ROLL_DOWN_AND_OUT]
+                    else T_remaining
+                )
 
                 if roll_type in [RollType.ROLL_DOWN, RollType.ROLL_DOWN_AND_OUT]:
                     new_short = find_strike_for_delta(
@@ -426,12 +436,20 @@ def simulate_trade(
                     new_long = new_short - strike_step
 
                 # Calculate roll cost
-                close_short = black_scholes_put(current_price, current_short, T_remaining, RISK_FREE_RATE, iv)
-                close_long = black_scholes_put(current_price, current_long, T_remaining, RISK_FREE_RATE, iv)
+                close_short = black_scholes_put(
+                    current_price, current_short, T_remaining, RISK_FREE_RATE, iv
+                )
+                close_long = black_scholes_put(
+                    current_price, current_long, T_remaining, RISK_FREE_RATE, iv
+                )
                 close_cost = close_short - close_long  # Cost to close current
 
-                new_short_premium = black_scholes_put(current_price, new_short, new_T, RISK_FREE_RATE, iv)
-                new_long_premium = black_scholes_put(current_price, new_long, new_T, RISK_FREE_RATE, iv)
+                new_short_premium = black_scholes_put(
+                    current_price, new_short, new_T, RISK_FREE_RATE, iv
+                )
+                new_long_premium = black_scholes_put(
+                    current_price, new_long, new_T, RISK_FREE_RATE, iv
+                )
                 open_credit = new_short_premium - new_long_premium
 
                 roll_net_cost = close_cost - open_credit  # Positive = debit
@@ -440,7 +458,9 @@ def simulate_trade(
                 new_strike_gives_room = new_short < current_short * 0.98
                 can_roll_for_credit = roll_net_cost <= 0
                 small_debit_acceptable = roll_net_cost > 0 and roll_net_cost < (net_credit * 0.10)
-                roll_is_worthwhile = (can_roll_for_credit or small_debit_acceptable) and new_strike_gives_room
+                roll_is_worthwhile = (
+                    can_roll_for_credit or small_debit_acceptable
+                ) and new_strike_gives_room
 
                 if roll_is_worthwhile:
                     # Execute roll
@@ -515,6 +535,7 @@ def simulate_trade(
 # =============================================================================
 # Database Management
 # =============================================================================
+
 
 class BacktestDatabase:
     """SQLite database for backtest results with roll tracking"""
@@ -624,7 +645,7 @@ class BacktestDatabase:
             """)
             cursor.execute(
                 "INSERT OR REPLACE INTO meta (key, value) VALUES ('schema_version', ?)",
-                (str(self.SCHEMA_VERSION),)
+                (str(self.SCHEMA_VERSION),),
             )
 
     def create_run(
@@ -639,19 +660,22 @@ class BacktestDatabase:
             cursor = conn.cursor()
             now = datetime.now().isoformat()
 
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT INTO backtest_runs (
                     run_name, run_date, total_symbols, total_trades,
                     win_rate, total_pnl, rolls_enabled, config_json, created_at
                 ) VALUES (?, ?, ?, 0, 0, 0, ?, ?, ?)
-            """, (
-                run_name,
-                now[:10],
-                total_symbols,
-                1 if rolls_enabled else 0,
-                json.dumps(config),
-                now,
-            ))
+            """,
+                (
+                    run_name,
+                    now[:10],
+                    total_symbols,
+                    1 if rolls_enabled else 0,
+                    json.dumps(config),
+                    now,
+                ),
+            )
 
             return cursor.lastrowid
 
@@ -661,7 +685,8 @@ class BacktestDatabase:
             cursor = conn.cursor()
             now = datetime.now().isoformat()
 
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT INTO trades (
                     run_id, symbol, entry_date, exit_date,
                     entry_price, exit_price,
@@ -672,33 +697,36 @@ class BacktestDatabase:
                     max_drawdown, holding_days, iv_at_entry,
                     created_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                run_id,
-                trade.symbol,
-                trade.entry_date.isoformat(),
-                trade.exit_date.isoformat(),
-                trade.entry_price,
-                trade.exit_price,
-                trade.initial_short_strike,
-                trade.initial_long_strike,
-                trade.final_short_strike,
-                trade.final_long_strike,
-                trade.initial_credit,
-                trade.final_pnl,
-                trade.outcome.value,
-                trade.roll_count,
-                trade.total_roll_cost,
-                trade.max_drawdown,
-                trade.holding_days,
-                trade.iv_at_entry,
-                now,
-            ))
+            """,
+                (
+                    run_id,
+                    trade.symbol,
+                    trade.entry_date.isoformat(),
+                    trade.exit_date.isoformat(),
+                    trade.entry_price,
+                    trade.exit_price,
+                    trade.initial_short_strike,
+                    trade.initial_long_strike,
+                    trade.final_short_strike,
+                    trade.final_long_strike,
+                    trade.initial_credit,
+                    trade.final_pnl,
+                    trade.outcome.value,
+                    trade.roll_count,
+                    trade.total_roll_cost,
+                    trade.max_drawdown,
+                    trade.holding_days,
+                    trade.iv_at_entry,
+                    now,
+                ),
+            )
 
             trade_id = cursor.lastrowid
 
             # Add roll events
             for roll in trade.roll_events:
-                cursor.execute("""
+                cursor.execute(
+                    """
                     INSERT INTO roll_events (
                         trade_id, roll_day, roll_type,
                         old_short_strike, new_short_strike,
@@ -706,19 +734,21 @@ class BacktestDatabase:
                         roll_cost, stock_price_at_roll, dte_at_roll,
                         created_at
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    trade_id,
-                    roll.roll_day,
-                    roll.roll_type.value,
-                    roll.old_short_strike,
-                    roll.new_short_strike,
-                    roll.old_long_strike,
-                    roll.new_long_strike,
-                    roll.roll_cost,
-                    roll.stock_price_at_roll,
-                    roll.dte_at_roll,
-                    now,
-                ))
+                """,
+                    (
+                        trade_id,
+                        roll.roll_day,
+                        roll.roll_type.value,
+                        roll.old_short_strike,
+                        roll.new_short_strike,
+                        roll.old_long_strike,
+                        roll.new_long_strike,
+                        roll.roll_cost,
+                        roll.stock_price_at_roll,
+                        roll.dte_at_roll,
+                        now,
+                    ),
+                )
 
             return trade_id
 
@@ -727,27 +757,33 @@ class BacktestDatabase:
         with self._get_connection() as conn:
             cursor = conn.cursor()
 
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT
                     COUNT(*) as total_trades,
                     SUM(CASE WHEN outcome = 'win' THEN 1 ELSE 0 END) as wins,
                     SUM(final_pnl) as total_pnl
                 FROM trades WHERE run_id = ?
-            """, (run_id,))
+            """,
+                (run_id,),
+            )
 
             row = cursor.fetchone()
-            total_trades = row['total_trades'] or 0
-            wins = row['wins'] or 0
-            total_pnl = row['total_pnl'] or 0
+            total_trades = row["total_trades"] or 0
+            wins = row["wins"] or 0
+            total_pnl = row["total_pnl"] or 0
             win_rate = (wins / total_trades * 100) if total_trades > 0 else 0
 
-            cursor.execute("""
+            cursor.execute(
+                """
                 UPDATE backtest_runs SET
                     total_trades = ?,
                     win_rate = ?,
                     total_pnl = ?
                 WHERE id = ?
-            """, (total_trades, win_rate, total_pnl, run_id))
+            """,
+                (total_trades, win_rate, total_pnl, run_id),
+            )
 
     def get_roll_statistics(self, run_id: Optional[int] = None) -> Dict[str, Any]:
         """Get comprehensive roll statistics"""
@@ -759,7 +795,8 @@ class BacktestDatabase:
             params = (run_id,) if run_id else ()
 
             # Total trades and rolled trades
-            cursor.execute(f"""
+            cursor.execute(
+                f"""
                 SELECT
                     COUNT(*) as total_trades,
                     SUM(CASE WHEN roll_count > 0 THEN 1 ELSE 0 END) as rolled_trades,
@@ -767,19 +804,22 @@ class BacktestDatabase:
                     AVG(roll_count) as avg_rolls_per_trade,
                     SUM(total_roll_cost) as total_roll_cost
                 FROM trades t {run_filter}
-            """, params)
+            """,
+                params,
+            )
             row = cursor.fetchone()
 
             stats = {
-                'total_trades': row['total_trades'] or 0,
-                'rolled_trades': row['rolled_trades'] or 0,
-                'total_rolls': row['total_rolls'] or 0,
-                'avg_rolls_per_trade': row['avg_rolls_per_trade'] or 0,
-                'total_roll_cost': row['total_roll_cost'] or 0,
+                "total_trades": row["total_trades"] or 0,
+                "rolled_trades": row["rolled_trades"] or 0,
+                "total_rolls": row["total_rolls"] or 0,
+                "avg_rolls_per_trade": row["avg_rolls_per_trade"] or 0,
+                "total_roll_cost": row["total_roll_cost"] or 0,
             }
 
             # Win rate for rolled vs non-rolled
-            cursor.execute(f"""
+            cursor.execute(
+                f"""
                 SELECT
                     CASE WHEN roll_count > 0 THEN 'rolled' ELSE 'not_rolled' END as category,
                     COUNT(*) as trades,
@@ -788,40 +828,48 @@ class BacktestDatabase:
                     SUM(final_pnl) as total_pnl
                 FROM trades t {run_filter}
                 GROUP BY category
-            """, params)
+            """,
+                params,
+            )
 
-            stats['by_roll_status'] = {}
+            stats["by_roll_status"] = {}
             for row in cursor.fetchall():
-                cat = row['category']
-                trades = row['trades']
-                stats['by_roll_status'][cat] = {
-                    'trades': trades,
-                    'wins': row['wins'],
-                    'win_rate': (row['wins'] / trades * 100) if trades > 0 else 0,
-                    'avg_pnl': row['avg_pnl'] or 0,
-                    'total_pnl': row['total_pnl'] or 0,
+                cat = row["category"]
+                trades = row["trades"]
+                stats["by_roll_status"][cat] = {
+                    "trades": trades,
+                    "wins": row["wins"],
+                    "win_rate": (row["wins"] / trades * 100) if trades > 0 else 0,
+                    "avg_pnl": row["avg_pnl"] or 0,
+                    "total_pnl": row["total_pnl"] or 0,
                 }
 
             # Roll type distribution
-            roll_filter = f"WHERE r.trade_id IN (SELECT id FROM trades t {run_filter})" if run_id else ""
-            cursor.execute(f"""
+            roll_filter = (
+                f"WHERE r.trade_id IN (SELECT id FROM trades t {run_filter})" if run_id else ""
+            )
+            cursor.execute(
+                f"""
                 SELECT
                     r.roll_type,
                     COUNT(*) as count,
                     AVG(r.roll_cost) as avg_cost
                 FROM roll_events r {roll_filter}
                 GROUP BY r.roll_type
-            """, params if run_id else ())
+            """,
+                params if run_id else (),
+            )
 
-            stats['by_roll_type'] = {}
+            stats["by_roll_type"] = {}
             for row in cursor.fetchall():
-                stats['by_roll_type'][row['roll_type']] = {
-                    'count': row['count'],
-                    'avg_cost': row['avg_cost'] or 0,
+                stats["by_roll_type"][row["roll_type"]] = {
+                    "count": row["count"],
+                    "avg_cost": row["avg_cost"] or 0,
                 }
 
             # Outcome after roll (did roll save the trade?)
-            cursor.execute(f"""
+            cursor.execute(
+                f"""
                 SELECT
                     t.outcome,
                     COUNT(*) as count,
@@ -829,13 +877,15 @@ class BacktestDatabase:
                 FROM trades t
                 {run_filter.replace('WHERE', 'WHERE t.roll_count > 0 AND') if run_filter else 'WHERE t.roll_count > 0'}
                 GROUP BY t.outcome
-            """, params)
+            """,
+                params,
+            )
 
-            stats['rolled_outcomes'] = {}
+            stats["rolled_outcomes"] = {}
             for row in cursor.fetchall():
-                stats['rolled_outcomes'][row['outcome']] = {
-                    'count': row['count'],
-                    'avg_pnl': row['avg_pnl'] or 0,
+                stats["rolled_outcomes"][row["outcome"]] = {
+                    "count": row["count"],
+                    "avg_pnl": row["avg_pnl"] or 0,
                 }
 
             return stats
@@ -846,12 +896,16 @@ class BacktestDatabase:
             cursor = conn.cursor()
 
             if run_id:
-                cursor.execute("""
+                cursor.execute(
+                    """
                     SELECT * FROM backtest_runs WHERE id = ?
-                """, (run_id,))
+                """,
+                    (run_id,),
+                )
                 run = cursor.fetchone()
 
-                cursor.execute("""
+                cursor.execute(
+                    """
                     SELECT
                         COUNT(*) as total,
                         SUM(CASE WHEN outcome = 'win' THEN 1 ELSE 0 END) as wins,
@@ -862,7 +916,9 @@ class BacktestDatabase:
                         AVG(holding_days) as avg_holding,
                         AVG(iv_at_entry) as avg_iv
                     FROM trades WHERE run_id = ?
-                """, (run_id,))
+                """,
+                    (run_id,),
+                )
             else:
                 run = None
                 cursor.execute("""
@@ -881,22 +937,23 @@ class BacktestDatabase:
             stats = cursor.fetchone()
 
             return {
-                'run': dict(run) if run else None,
-                'total_trades': stats['total'] or 0,
-                'wins': stats['wins'] or 0,
-                'losses': stats['losses'] or 0,
-                'max_losses': stats['max_losses'] or 0,
-                'win_rate': (stats['wins'] / stats['total'] * 100) if stats['total'] else 0,
-                'avg_pnl': stats['avg_pnl'] or 0,
-                'total_pnl': stats['total_pnl'] or 0,
-                'avg_holding_days': stats['avg_holding'] or 0,
-                'avg_iv': stats['avg_iv'] or 0,
+                "run": dict(run) if run else None,
+                "total_trades": stats["total"] or 0,
+                "wins": stats["wins"] or 0,
+                "losses": stats["losses"] or 0,
+                "max_losses": stats["max_losses"] or 0,
+                "win_rate": (stats["wins"] / stats["total"] * 100) if stats["total"] else 0,
+                "avg_pnl": stats["avg_pnl"] or 0,
+                "total_pnl": stats["total_pnl"] or 0,
+                "avg_holding_days": stats["avg_holding"] or 0,
+                "avg_iv": stats["avg_iv"] or 0,
             }
 
 
 # =============================================================================
 # Data Fetching
 # =============================================================================
+
 
 def fetch_price_data(symbol: str, start_date: str, end_date: str) -> Optional[pd.DataFrame]:
     """Fetch historical price data from Yahoo Finance"""
@@ -923,18 +980,19 @@ def get_watchlist_symbols(watchlist_name: str) -> List[str]:
 
     try:
         import yaml
+
         with open(watchlist_path) as f:
             config = yaml.safe_load(f)
 
-        watchlists = config.get('watchlists', {})
+        watchlists = config.get("watchlists", {})
 
         if watchlist_name in watchlists:
-            return watchlists[watchlist_name].get('symbols', [])
+            return watchlists[watchlist_name].get("symbols", [])
 
         # Try to find partial match
         for name, data in watchlists.items():
             if watchlist_name.lower() in name.lower():
-                return data.get('symbols', [])
+                return data.get("symbols", [])
 
         return []
     except Exception as e:
@@ -951,40 +1009,42 @@ def get_all_symbols() -> List[str]:
 
     try:
         import yaml
+
         with open(watchlist_path) as f:
             config = yaml.safe_load(f)
 
         all_symbols = set()
 
         # Handle both top-level watchlists and nested formats
-        watchlists = config.get('watchlists', config)
+        watchlists = config.get("watchlists", config)
 
         for wl_name, wl_data in watchlists.items():
             if not isinstance(wl_data, dict):
                 continue
 
             # Direct symbols list
-            if 'symbols' in wl_data:
-                symbols = wl_data.get('symbols', [])
+            if "symbols" in wl_data:
+                symbols = wl_data.get("symbols", [])
                 if isinstance(symbols, list):
                     all_symbols.update(s for s in symbols if isinstance(s, str))
 
             # Nested sectors structure
-            if 'sectors' in wl_data:
-                sectors = wl_data.get('sectors', {})
+            if "sectors" in wl_data:
+                sectors = wl_data.get("sectors", {})
                 if isinstance(sectors, dict):
                     for sector_data in sectors.values():
-                        if isinstance(sector_data, dict) and 'symbols' in sector_data:
-                            symbols = sector_data.get('symbols', [])
+                        if isinstance(sector_data, dict) and "symbols" in sector_data:
+                            symbols = sector_data.get("symbols", [])
                             if isinstance(symbols, list):
                                 all_symbols.update(s for s in symbols if isinstance(s, str))
 
         # Filter out invalid symbols
-        valid_symbols = [s for s in all_symbols if s and len(s) <= 6 and not s.startswith('#')]
+        valid_symbols = [s for s in all_symbols if s and len(s) <= 6 and not s.startswith("#")]
         return sorted(valid_symbols)
     except Exception as e:
         logger.warning(f"Failed to load watchlists: {e}")
         import traceback
+
         traceback.print_exc()
         return []
 
@@ -992,6 +1052,7 @@ def get_all_symbols() -> List[str]:
 # =============================================================================
 # Backtest Runner
 # =============================================================================
+
 
 def backtest_symbol(
     symbol: str,
@@ -1018,7 +1079,7 @@ def backtest_symbol(
     if df is None:
         return []
 
-    prices = df['Close'].values
+    prices = df["Close"].values
     dates = df.index.date
 
     results = []
@@ -1084,16 +1145,16 @@ def run_backtest(
 
     # Create run record
     config = {
-        'short_delta': SHORT_DELTA_TARGET,
-        'long_delta': LONG_DELTA_TARGET,
-        'holding_days': HOLDING_DAYS,
-        'roll_loss_threshold': ROLL_LOSS_THRESHOLD,
-        'roll_price_proximity': ROLL_PRICE_PROXIMITY,
-        'roll_min_dte': ROLL_MIN_DTE,
-        'max_rolls': MAX_ROLLS_PER_TRADE,
-        'entry_interval': entry_interval,
-        'start_date': start_date,
-        'end_date': end_date,
+        "short_delta": SHORT_DELTA_TARGET,
+        "long_delta": LONG_DELTA_TARGET,
+        "holding_days": HOLDING_DAYS,
+        "roll_loss_threshold": ROLL_LOSS_THRESHOLD,
+        "roll_price_proximity": ROLL_PRICE_PROXIMITY,
+        "roll_min_dte": ROLL_MIN_DTE,
+        "max_rolls": MAX_ROLLS_PER_TRADE,
+        "entry_interval": entry_interval,
+        "start_date": start_date,
+        "end_date": end_date,
     }
 
     run_name = run_name or f"backtest_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
@@ -1105,8 +1166,7 @@ def run_backtest(
 
     # Prepare work items
     work_items = [
-        (symbol, start_date, end_date, enable_rolls, entry_interval)
-        for symbol in symbols
+        (symbol, start_date, end_date, enable_rolls, entry_interval) for symbol in symbols
     ]
 
     # Process with multiprocessing
@@ -1116,7 +1176,7 @@ def run_backtest(
         for results in tqdm(
             pool.imap_unordered(worker_process, work_items),
             total=len(work_items),
-            desc="Backtesting"
+            desc="Backtesting",
         ):
             for result in results:
                 db.add_trade(run_id, result)
@@ -1142,7 +1202,7 @@ def print_results(run_id: int):
     print("=" * 60)
 
     print(f"\nRun ID: {run_id}")
-    if summary.get('run'):
+    if summary.get("run"):
         print(f"Name: {summary['run'].get('run_name', 'N/A')}")
         print(f"Rolls Enabled: {'Yes' if summary['run'].get('rolls_enabled') else 'No'}")
 
@@ -1161,27 +1221,29 @@ def print_results(run_id: int):
     print("-" * 60)
 
     print(f"\nTotal Rolls: {roll_stats['total_rolls']:,}")
-    print(f"Trades with Rolls: {roll_stats['rolled_trades']:,} ({roll_stats['rolled_trades']/max(roll_stats['total_trades'],1)*100:.1f}%)")
+    print(
+        f"Trades with Rolls: {roll_stats['rolled_trades']:,} ({roll_stats['rolled_trades']/max(roll_stats['total_trades'],1)*100:.1f}%)"
+    )
     print(f"Avg Rolls per Trade: {roll_stats['avg_rolls_per_trade']:.2f}")
     print(f"Total Roll Cost: ${roll_stats['total_roll_cost']:,.2f}")
 
-    if roll_stats.get('by_roll_status'):
+    if roll_stats.get("by_roll_status"):
         print("\nPerformance by Roll Status:")
-        for status, data in roll_stats['by_roll_status'].items():
+        for status, data in roll_stats["by_roll_status"].items():
             print(f"  {status.upper()}:")
             print(f"    Trades: {data['trades']:,}")
             print(f"    Win Rate: {data['win_rate']:.1f}%")
             print(f"    Avg P&L: ${data['avg_pnl']:,.2f}")
             print(f"    Total P&L: ${data['total_pnl']:,.2f}")
 
-    if roll_stats.get('by_roll_type'):
+    if roll_stats.get("by_roll_type"):
         print("\nRoll Type Distribution:")
-        for roll_type, data in roll_stats['by_roll_type'].items():
+        for roll_type, data in roll_stats["by_roll_type"].items():
             print(f"  {roll_type}: {data['count']} rolls (avg cost: ${data['avg_cost']:.2f})")
 
-    if roll_stats.get('rolled_outcomes'):
+    if roll_stats.get("rolled_outcomes"):
         print("\nOutcomes for Rolled Trades:")
-        for outcome, data in roll_stats['rolled_outcomes'].items():
+        for outcome, data in roll_stats["rolled_outcomes"].items():
             print(f"  {outcome}: {data['count']} trades (avg P&L: ${data['avg_pnl']:.2f})")
 
     print("\n" + "=" * 60)
@@ -1191,78 +1253,33 @@ def print_results(run_id: int):
 # Main
 # =============================================================================
 
+
 def main():
-    parser = argparse.ArgumentParser(
-        description="OptionPlay Backtest with Roll Maneuvers"
-    )
+    parser = argparse.ArgumentParser(description="OptionPlay Backtest with Roll Maneuvers")
 
     # Symbol selection
+    parser.add_argument("--symbols", "-s", type=str, help="Comma-separated list of symbols")
+    parser.add_argument("--watchlist", "-w", type=str, help="Watchlist name from config")
     parser.add_argument(
-        '--symbols', '-s',
-        type=str,
-        help='Comma-separated list of symbols'
-    )
-    parser.add_argument(
-        '--watchlist', '-w',
-        type=str,
-        help='Watchlist name from config'
-    )
-    parser.add_argument(
-        '--all', '-a',
-        action='store_true',
-        help='Use all symbols from all watchlists'
+        "--all", "-a", action="store_true", help="Use all symbols from all watchlists"
     )
 
     # Date range
-    parser.add_argument(
-        '--start',
-        type=str,
-        default='2020-01-01',
-        help='Start date (YYYY-MM-DD)'
-    )
-    parser.add_argument(
-        '--end',
-        type=str,
-        default='2024-12-31',
-        help='End date (YYYY-MM-DD)'
-    )
+    parser.add_argument("--start", type=str, default="2020-01-01", help="Start date (YYYY-MM-DD)")
+    parser.add_argument("--end", type=str, default="2024-12-31", help="End date (YYYY-MM-DD)")
 
     # Options
+    parser.add_argument("--no-rolls", action="store_true", help="Disable roll maneuvers")
     parser.add_argument(
-        '--no-rolls',
-        action='store_true',
-        help='Disable roll maneuvers'
+        "--entry-interval", type=int, default=30, help="Days between trade entries (default: 30)"
     )
-    parser.add_argument(
-        '--entry-interval',
-        type=int,
-        default=30,
-        help='Days between trade entries (default: 30)'
-    )
-    parser.add_argument(
-        '--workers',
-        type=int,
-        default=4,
-        help='Number of parallel workers'
-    )
-    parser.add_argument(
-        '--name',
-        type=str,
-        help='Name for this backtest run'
-    )
+    parser.add_argument("--workers", type=int, default=4, help="Number of parallel workers")
+    parser.add_argument("--name", type=str, help="Name for this backtest run")
 
     # Analysis
+    parser.add_argument("--results", type=int, help="Print results for existing run ID")
     parser.add_argument(
-        '--results',
-        type=int,
-        help='Print results for existing run ID'
-    )
-    parser.add_argument(
-        '--compare',
-        nargs=2,
-        type=int,
-        metavar=('RUN1', 'RUN2'),
-        help='Compare two backtest runs'
+        "--compare", nargs=2, type=int, metavar=("RUN1", "RUN2"), help="Compare two backtest runs"
     )
 
     args = parser.parse_args()
@@ -1295,7 +1312,7 @@ def main():
     # Get symbols
     symbols = []
     if args.symbols:
-        symbols = [s.strip().upper() for s in args.symbols.split(',')]
+        symbols = [s.strip().upper() for s in args.symbols.split(",")]
     elif args.watchlist:
         symbols = get_watchlist_symbols(args.watchlist)
     elif args.all:
@@ -1327,5 +1344,5 @@ def main():
     print(f"View results anytime: python {__file__} --results {run_id}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

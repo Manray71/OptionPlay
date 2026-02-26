@@ -28,29 +28,29 @@ def load_price_data(symbol: str, conn: sqlite3.Connection) -> pd.DataFrame:
         ORDER BY quote_date
     """
     df = pd.read_sql_query(query, conn, params=(symbol,))
-    df['date'] = pd.to_datetime(df['date'])
-    df = df.set_index('date')
+    df["date"] = pd.to_datetime(df["date"])
+    df = df.set_index("date")
     return df
 
 
 def calculate_smas(df: pd.DataFrame) -> pd.DataFrame:
     """Berechnet SMA 12, 24, 36, 120."""
     df = df.copy()
-    df['sma_12'] = df['close'].rolling(window=12).mean()
-    df['sma_24'] = df['close'].rolling(window=24).mean()
-    df['sma_36'] = df['close'].rolling(window=36).mean()
-    df['sma_120'] = df['close'].rolling(window=120).mean()
+    df["sma_12"] = df["close"].rolling(window=12).mean()
+    df["sma_24"] = df["close"].rolling(window=24).mean()
+    df["sma_36"] = df["close"].rolling(window=36).mean()
+    df["sma_120"] = df["close"].rolling(window=120).mean()
     return df
 
 
 def calculate_rsi(df: pd.DataFrame, period: int = 14) -> pd.DataFrame:
     """Berechnet RSI."""
     df = df.copy()
-    delta = df['close'].diff()
+    delta = df["close"].diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
     rs = gain / loss
-    df['rsi'] = 100 - (100 / (1 + rs))
+    df["rsi"] = 100 - (100 / (1 + rs))
     return df
 
 
@@ -63,32 +63,31 @@ def calculate_convergence(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
 
     # Maximale Spreizung zwischen allen SMAs
-    sma_cols = ['sma_12', 'sma_24', 'sma_36', 'sma_120']
-    df['sma_max'] = df[sma_cols].max(axis=1)
-    df['sma_min'] = df[sma_cols].min(axis=1)
+    sma_cols = ["sma_12", "sma_24", "sma_36", "sma_120"]
+    df["sma_max"] = df[sma_cols].max(axis=1)
+    df["sma_min"] = df[sma_cols].min(axis=1)
 
     # Spreizung als % des Preises
-    df['sma_spread_pct'] = (df['sma_max'] - df['sma_min']) / df['close'] * 100
+    df["sma_spread_pct"] = (df["sma_max"] - df["sma_min"]) / df["close"] * 100
 
     # Konvergenz-Score: Je geringer die Spreizung, desto höher
     # Typische Spreizung: 2-15%, Konvergenz wenn < 3%
-    df['convergence_score'] = 100 - (df['sma_spread_pct'] * 10)
-    df['convergence_score'] = df['convergence_score'].clip(0, 100)
+    df["convergence_score"] = 100 - (df["sma_spread_pct"] * 10)
+    df["convergence_score"] = df["convergence_score"].clip(0, 100)
 
     # RSI steigend (über 3 Tage)
-    df['rsi_rising'] = df['rsi'] > df['rsi'].shift(3)
+    df["rsi_rising"] = df["rsi"] > df["rsi"].shift(3)
 
     # RSI beschleunigt (aktuelle Änderung > vorherige Änderung)
-    df['rsi_change'] = df['rsi'] - df['rsi'].shift(1)
-    df['rsi_accelerating'] = df['rsi_change'] > df['rsi_change'].shift(1)
+    df["rsi_change"] = df["rsi"] - df["rsi"].shift(1)
+    df["rsi_accelerating"] = df["rsi_change"] > df["rsi_change"].shift(1)
 
     return df
 
 
-def find_convergence_signals(df: pd.DataFrame,
-                             max_spread_pct: float = 3.0,
-                             min_rsi: float = 40,
-                             max_rsi: float = 60) -> pd.DataFrame:
+def find_convergence_signals(
+    df: pd.DataFrame, max_spread_pct: float = 3.0, min_rsi: float = 40, max_rsi: float = 60
+) -> pd.DataFrame:
     """
     Findet Konvergenz-Signale.
 
@@ -98,18 +97,18 @@ def find_convergence_signals(df: pd.DataFrame,
     - RSI steigend über 3 Tage
     """
     signals = df[
-        (df['sma_spread_pct'] < max_spread_pct) &
-        (df['rsi'] >= min_rsi) &
-        (df['rsi'] <= max_rsi) &
-        (df['rsi_rising'] == True)
+        (df["sma_spread_pct"] < max_spread_pct)
+        & (df["rsi"] >= min_rsi)
+        & (df["rsi"] <= max_rsi)
+        & (df["rsi_rising"] == True)
     ].copy()
 
     return signals
 
 
-def analyze_breakout_after_signal(df: pd.DataFrame,
-                                  signal_date: pd.Timestamp,
-                                  holding_days: list = [5, 10, 20, 30]) -> dict:
+def analyze_breakout_after_signal(
+    df: pd.DataFrame, signal_date: pd.Timestamp, holding_days: list = [5, 10, 20, 30]
+) -> dict:
     """
     Analysiert Performance nach einem Signal.
 
@@ -117,40 +116,39 @@ def analyze_breakout_after_signal(df: pd.DataFrame,
     """
     try:
         signal_idx = df.index.get_loc(signal_date)
-        entry_price = df.iloc[signal_idx]['close']
+        entry_price = df.iloc[signal_idx]["close"]
 
         results = {
-            'signal_date': signal_date,
-            'entry_price': entry_price,
-            'rsi_at_signal': df.iloc[signal_idx]['rsi'],
-            'spread_at_signal': df.iloc[signal_idx]['sma_spread_pct'],
+            "signal_date": signal_date,
+            "entry_price": entry_price,
+            "rsi_at_signal": df.iloc[signal_idx]["rsi"],
+            "spread_at_signal": df.iloc[signal_idx]["sma_spread_pct"],
         }
 
         for days in holding_days:
             exit_idx = signal_idx + days
             if exit_idx < len(df):
-                exit_price = df.iloc[exit_idx]['close']
+                exit_price = df.iloc[exit_idx]["close"]
                 return_pct = (exit_price - entry_price) / entry_price * 100
-                results[f'return_{days}d'] = return_pct
+                results[f"return_{days}d"] = return_pct
 
                 # Max Drawdown in der Periode
-                period_data = df.iloc[signal_idx:exit_idx+1]
-                max_price = period_data['close'].cummax()
-                drawdown = (period_data['close'] - max_price) / max_price * 100
-                results[f'max_dd_{days}d'] = drawdown.min()
+                period_data = df.iloc[signal_idx : exit_idx + 1]
+                max_price = period_data["close"].cummax()
+                drawdown = (period_data["close"] - max_price) / max_price * 100
+                results[f"max_dd_{days}d"] = drawdown.min()
             else:
-                results[f'return_{days}d'] = None
-                results[f'max_dd_{days}d'] = None
+                results[f"return_{days}d"] = None
+                results[f"max_dd_{days}d"] = None
 
         return results
     except Exception as e:
         return None
 
 
-def run_analysis(symbols: list = None,
-                 max_spread_pct: float = 3.0,
-                 min_rsi: float = 40,
-                 max_rsi: float = 60):
+def run_analysis(
+    symbols: list = None, max_spread_pct: float = 3.0, min_rsi: float = 40, max_rsi: float = 60
+):
     """Hauptanalyse über alle Symbole."""
 
     conn = sqlite3.connect(DB_PATH)
@@ -158,7 +156,7 @@ def run_analysis(symbols: list = None,
     # Alle Symbole laden wenn nicht spezifiziert
     if symbols is None:
         query = "SELECT DISTINCT underlying FROM options_prices"
-        symbols = pd.read_sql_query(query, conn)['underlying'].tolist()
+        symbols = pd.read_sql_query(query, conn)["underlying"].tolist()
 
     print(f"Analysiere {len(symbols)} Symbole...")
     print(f"Parameter: max_spread={max_spread_pct}%, RSI={min_rsi}-{max_rsi}")
@@ -184,7 +182,7 @@ def run_analysis(symbols: list = None,
             for signal_date in signals.index:
                 result = analyze_breakout_after_signal(df, signal_date)
                 if result:
-                    result['symbol'] = symbol
+                    result["symbol"] = symbol
                     all_results.append(result)
 
         except Exception as e:
@@ -208,7 +206,7 @@ def run_analysis(symbols: list = None,
     print()
 
     for days in [5, 10, 20, 30]:
-        col = f'return_{days}d'
+        col = f"return_{days}d"
         if col in results_df.columns:
             valid = results_df[col].dropna()
             if len(valid) > 0:
@@ -219,7 +217,7 @@ def run_analysis(symbols: list = None,
                 max_return = valid.max()
                 min_return = valid.min()
 
-                dd_col = f'max_dd_{days}d'
+                dd_col = f"max_dd_{days}d"
                 avg_dd = results_df[dd_col].dropna().mean()
 
                 print(f"--- {days}-Tage Holding ---")
@@ -234,11 +232,13 @@ def run_analysis(symbols: list = None,
                 print()
 
     # Top Symbole
-    symbol_stats = results_df.groupby('symbol').agg({
-        'return_20d': ['count', 'mean', lambda x: (x > 0).mean() * 100]
-    }).round(2)
-    symbol_stats.columns = ['signals', 'avg_return_20d', 'win_rate_20d']
-    symbol_stats = symbol_stats.sort_values('avg_return_20d', ascending=False)
+    symbol_stats = (
+        results_df.groupby("symbol")
+        .agg({"return_20d": ["count", "mean", lambda x: (x > 0).mean() * 100]})
+        .round(2)
+    )
+    symbol_stats.columns = ["signals", "avg_return_20d", "win_rate_20d"]
+    symbol_stats = symbol_stats.sort_values("avg_return_20d", ascending=False)
 
     print(f"\n{'='*60}")
     print("TOP 15 SYMBOLE (nach 20-Tage Return)")
@@ -255,30 +255,38 @@ def run_analysis(symbols: list = None,
     print("ANALYSE NACH KONVERGENZ-STÄRKE")
     print(f"{'='*60}")
 
-    results_df['spread_bucket'] = pd.cut(results_df['spread_at_signal'],
-                                         bins=[0, 1, 2, 3, 5, 10],
-                                         labels=['<1%', '1-2%', '2-3%', '3-5%', '5-10%'])
+    results_df["spread_bucket"] = pd.cut(
+        results_df["spread_at_signal"],
+        bins=[0, 1, 2, 3, 5, 10],
+        labels=["<1%", "1-2%", "2-3%", "3-5%", "5-10%"],
+    )
 
-    for bucket in results_df['spread_bucket'].dropna().unique():
-        bucket_data = results_df[results_df['spread_bucket'] == bucket]['return_20d'].dropna()
+    for bucket in results_df["spread_bucket"].dropna().unique():
+        bucket_data = results_df[results_df["spread_bucket"] == bucket]["return_20d"].dropna()
         if len(bucket_data) > 5:
             print(f"\nSpread {bucket}:")
-            print(f"  Trades: {len(bucket_data)}, Win Rate: {(bucket_data > 0).mean()*100:.1f}%, Avg: {bucket_data.mean():+.2f}%")
+            print(
+                f"  Trades: {len(bucket_data)}, Win Rate: {(bucket_data > 0).mean()*100:.1f}%, Avg: {bucket_data.mean():+.2f}%"
+            )
 
     # RSI-Level Analyse
     print(f"\n{'='*60}")
     print("ANALYSE NACH RSI-LEVEL")
     print(f"{'='*60}")
 
-    results_df['rsi_bucket'] = pd.cut(results_df['rsi_at_signal'],
-                                      bins=[30, 40, 50, 60, 70],
-                                      labels=['30-40', '40-50', '50-60', '60-70'])
+    results_df["rsi_bucket"] = pd.cut(
+        results_df["rsi_at_signal"],
+        bins=[30, 40, 50, 60, 70],
+        labels=["30-40", "40-50", "50-60", "60-70"],
+    )
 
-    for bucket in results_df['rsi_bucket'].dropna().unique():
-        bucket_data = results_df[results_df['rsi_bucket'] == bucket]['return_20d'].dropna()
+    for bucket in results_df["rsi_bucket"].dropna().unique():
+        bucket_data = results_df[results_df["rsi_bucket"] == bucket]["return_20d"].dropna()
         if len(bucket_data) > 5:
             print(f"\nRSI {bucket}:")
-            print(f"  Trades: {len(bucket_data)}, Win Rate: {(bucket_data > 0).mean()*100:.1f}%, Avg: {bucket_data.mean():+.2f}%")
+            print(
+                f"  Trades: {len(bucket_data)}, Win Rate: {(bucket_data > 0).mean()*100:.1f}%, Avg: {bucket_data.mean():+.2f}%"
+            )
 
     return results_df
 
@@ -286,9 +294,9 @@ def run_analysis(symbols: list = None,
 def run_parameter_optimization():
     """Optimiert die Parameter für die Strategie."""
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("PARAMETER-OPTIMIERUNG")
-    print("="*60)
+    print("=" * 60)
 
     best_sharpe = -999
     best_params = None
@@ -305,20 +313,19 @@ def run_parameter_optimization():
                 # Leise Analyse durchführen
                 import io
                 import sys
+
                 old_stdout = sys.stdout
                 sys.stdout = io.StringIO()
 
                 try:
                     results = run_analysis(
-                        max_spread_pct=max_spread,
-                        min_rsi=min_rsi,
-                        max_rsi=max_rsi
+                        max_spread_pct=max_spread, min_rsi=min_rsi, max_rsi=max_rsi
                     )
                 finally:
                     sys.stdout = old_stdout
 
                 if results is not None and len(results) > 20:
-                    valid_returns = results['return_20d'].dropna()
+                    valid_returns = results["return_20d"].dropna()
                     if len(valid_returns) > 10:
                         avg_return = valid_returns.mean()
                         std_return = valid_returns.std()
@@ -327,17 +334,21 @@ def run_parameter_optimization():
                         # Sharpe-ähnliche Metrik (ohne risk-free rate)
                         sharpe = avg_return / std_return if std_return > 0 else 0
 
-                        results_summary.append({
-                            'max_spread': max_spread,
-                            'min_rsi': min_rsi,
-                            'max_rsi': max_rsi,
-                            'trades': len(valid_returns),
-                            'win_rate': win_rate,
-                            'avg_return': avg_return,
-                            'sharpe': sharpe
-                        })
+                        results_summary.append(
+                            {
+                                "max_spread": max_spread,
+                                "min_rsi": min_rsi,
+                                "max_rsi": max_rsi,
+                                "trades": len(valid_returns),
+                                "win_rate": win_rate,
+                                "avg_return": avg_return,
+                                "sharpe": sharpe,
+                            }
+                        )
 
-                        print(f"n={len(valid_returns)}, WR={win_rate:.1f}%, Avg={avg_return:+.2f}%, Sharpe={sharpe:.2f}")
+                        print(
+                            f"n={len(valid_returns)}, WR={win_rate:.1f}%, Avg={avg_return:+.2f}%, Sharpe={sharpe:.2f}"
+                        )
 
                         if sharpe > best_sharpe:
                             best_sharpe = sharpe
@@ -356,7 +367,7 @@ def run_parameter_optimization():
     # Zusammenfassung als DataFrame
     if results_summary:
         summary_df = pd.DataFrame(results_summary)
-        summary_df = summary_df.sort_values('sharpe', ascending=False)
+        summary_df = summary_df.sort_values("sharpe", ascending=False)
         print(f"\n{'='*60}")
         print("TOP 10 PARAMETER-KOMBINATIONEN")
         print(f"{'='*60}")
@@ -368,12 +379,12 @@ def run_parameter_optimization():
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description='SMA Convergence Strategy Analysis')
-    parser.add_argument('--optimize', action='store_true', help='Run parameter optimization')
-    parser.add_argument('--spread', type=float, default=3.0, help='Max SMA spread in %%')
-    parser.add_argument('--rsi-min', type=float, default=40, help='Min RSI')
-    parser.add_argument('--rsi-max', type=float, default=60, help='Max RSI')
-    parser.add_argument('--symbols', nargs='+', help='Specific symbols to analyze')
+    parser = argparse.ArgumentParser(description="SMA Convergence Strategy Analysis")
+    parser.add_argument("--optimize", action="store_true", help="Run parameter optimization")
+    parser.add_argument("--spread", type=float, default=3.0, help="Max SMA spread in %%")
+    parser.add_argument("--rsi-min", type=float, default=40, help="Min RSI")
+    parser.add_argument("--rsi-max", type=float, default=60, help="Max RSI")
+    parser.add_argument("--symbols", nargs="+", help="Specific symbols to analyze")
 
     args = parser.parse_args()
 
@@ -387,5 +398,5 @@ if __name__ == "__main__":
             symbols=args.symbols,
             max_spread_pct=args.spread,
             min_rsi=args.rsi_min,
-            max_rsi=args.rsi_max
+            max_rsi=args.rsi_max,
         )

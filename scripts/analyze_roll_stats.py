@@ -48,7 +48,8 @@ def analyze_roll_effectiveness(run_id: Optional[int] = None) -> Dict[str, Any]:
     print("ROLL EFFECTIVENESS ANALYSIS")
     print("=" * 70)
 
-    cursor.execute(f"""
+    cursor.execute(
+        f"""
         SELECT
             CASE WHEN roll_count > 0 THEN 'Rolled' ELSE 'Not Rolled' END as category,
             COUNT(*) as trades,
@@ -61,21 +62,28 @@ def analyze_roll_effectiveness(run_id: Optional[int] = None) -> Dict[str, Any]:
         FROM trades t
         {run_filter.replace('WHERE t.roll_count > 0', '')}
         GROUP BY category
-    """, params)
+    """,
+        params,
+    )
 
     print("\n1. OVERALL PERFORMANCE BY ROLL STATUS")
     print("-" * 70)
-    print(f"{'Category':<15} {'Trades':>8} {'Win Rate':>10} {'Max Loss':>10} {'Avg P&L':>12} {'Total P&L':>14}")
+    print(
+        f"{'Category':<15} {'Trades':>8} {'Win Rate':>10} {'Max Loss':>10} {'Avg P&L':>12} {'Total P&L':>14}"
+    )
     print("-" * 70)
 
     for row in cursor.fetchall():
-        win_rate = (row['wins'] / row['trades'] * 100) if row['trades'] > 0 else 0
-        ml_rate = (row['max_losses'] / row['trades'] * 100) if row['trades'] > 0 else 0
-        print(f"{row['category']:<15} {row['trades']:>8,} {win_rate:>9.1f}% {ml_rate:>9.1f}% ${row['avg_pnl']:>10.2f} ${row['total_pnl']:>12,.2f}")
+        win_rate = (row["wins"] / row["trades"] * 100) if row["trades"] > 0 else 0
+        ml_rate = (row["max_losses"] / row["trades"] * 100) if row["trades"] > 0 else 0
+        print(
+            f"{row['category']:<15} {row['trades']:>8,} {win_rate:>9.1f}% {ml_rate:>9.1f}% ${row['avg_pnl']:>10.2f} ${row['total_pnl']:>12,.2f}"
+        )
 
     # 2. Roll Type Analysis
     if run_id:
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT
                 r.roll_type,
                 COUNT(*) as roll_count,
@@ -86,7 +94,9 @@ def analyze_roll_effectiveness(run_id: Optional[int] = None) -> Dict[str, Any]:
             JOIN trades t ON r.trade_id = t.id
             WHERE t.run_id = ?
             GROUP BY r.roll_type
-        """, (run_id,))
+        """,
+            (run_id,),
+        )
     else:
         cursor.execute("""
             SELECT
@@ -105,11 +115,14 @@ def analyze_roll_effectiveness(run_id: Optional[int] = None) -> Dict[str, Any]:
     print("-" * 70)
 
     for row in cursor.fetchall():
-        print(f"{row['roll_type']:<20} {row['roll_count']:>8,} ${row['avg_cost']:>10.2f} ${row['total_cost']:>12,.2f} {row['avg_dte']:>9.1f}")
+        print(
+            f"{row['roll_type']:<20} {row['roll_count']:>8,} ${row['avg_cost']:>10.2f} ${row['total_cost']:>12,.2f} {row['avg_dte']:>9.1f}"
+        )
 
     # 3. Roll Timing Analysis
     if run_id:
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT
                 CASE
                     WHEN r.dte_at_roll >= 40 THEN '40+ DTE'
@@ -125,7 +138,9 @@ def analyze_roll_effectiveness(run_id: Optional[int] = None) -> Dict[str, Any]:
             WHERE t.run_id = ?
             GROUP BY dte_bucket
             ORDER BY r.dte_at_roll DESC
-        """, (run_id,))
+        """,
+            (run_id,),
+        )
     else:
         cursor.execute("""
             SELECT
@@ -148,11 +163,14 @@ def analyze_roll_effectiveness(run_id: Optional[int] = None) -> Dict[str, Any]:
     print("-" * 70)
 
     for row in cursor.fetchall():
-        print(f"{row['dte_bucket']:<15} {row['rolls']:>8,} {row['trades_affected']:>8,} ${row['avg_cost']:>10.2f}")
+        print(
+            f"{row['dte_bucket']:<15} {row['rolls']:>8,} {row['trades_affected']:>8,} ${row['avg_cost']:>10.2f}"
+        )
 
     # 4. Outcome after rolls
     if run_id:
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT
                 t.outcome,
                 t.roll_count,
@@ -163,7 +181,9 @@ def analyze_roll_effectiveness(run_id: Optional[int] = None) -> Dict[str, Any]:
             WHERE t.run_id = ? AND t.roll_count > 0
             GROUP BY t.outcome, t.roll_count
             ORDER BY t.roll_count, t.outcome
-        """, (run_id,))
+        """,
+            (run_id,),
+        )
     else:
         cursor.execute("""
             SELECT
@@ -184,7 +204,9 @@ def analyze_roll_effectiveness(run_id: Optional[int] = None) -> Dict[str, Any]:
     print("-" * 70)
 
     for row in cursor.fetchall():
-        print(f"{row['outcome']:<12} {row['roll_count']:>6} {row['count']:>8,} ${row['avg_pnl']:>10.2f} ${row['avg_roll_cost']:>12.2f}")
+        print(
+            f"{row['outcome']:<12} {row['roll_count']:>6} {row['count']:>8,} ${row['avg_pnl']:>10.2f} ${row['avg_roll_cost']:>12.2f}"
+        )
 
     # 5. Recovery Analysis - Did rolls save the trade?
     print("\n5. ROLL RECOVERY ANALYSIS")
@@ -192,7 +214,8 @@ def analyze_roll_effectiveness(run_id: Optional[int] = None) -> Dict[str, Any]:
 
     if run_id:
         # Calculate how many trades that were rolled ended up as wins vs max_loss
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT
                 SUM(CASE WHEN outcome = 'win' THEN 1 ELSE 0 END) as wins,
                 SUM(CASE WHEN outcome = 'loss' THEN 1 ELSE 0 END) as partial_loss,
@@ -200,7 +223,9 @@ def analyze_roll_effectiveness(run_id: Optional[int] = None) -> Dict[str, Any]:
                 COUNT(*) as total
             FROM trades
             WHERE run_id = ? AND roll_count > 0
-        """, (run_id,))
+        """,
+            (run_id,),
+        )
     else:
         cursor.execute("""
             SELECT
@@ -213,11 +238,13 @@ def analyze_roll_effectiveness(run_id: Optional[int] = None) -> Dict[str, Any]:
         """)
 
     row = cursor.fetchone()
-    if row and row['total'] > 0:
-        total = row['total']
+    if row and row["total"] > 0:
+        total = row["total"]
         print(f"Total Rolled Trades: {total:,}")
         print(f"  - Recovered to Win: {row['wins']:,} ({row['wins']/total*100:.1f}%)")
-        print(f"  - Partial Loss:     {row['partial_loss']:,} ({row['partial_loss']/total*100:.1f}%)")
+        print(
+            f"  - Partial Loss:     {row['partial_loss']:,} ({row['partial_loss']/total*100:.1f}%)"
+        )
         print(f"  - Max Loss:         {row['max_loss']:,} ({row['max_loss']/total*100:.1f}%)")
 
         # Calculate if rolls were "worth it"
@@ -231,7 +258,8 @@ def analyze_roll_effectiveness(run_id: Optional[int] = None) -> Dict[str, Any]:
     print("-" * 70)
 
     if run_id:
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT
                 t.symbol,
                 COUNT(*) as trades,
@@ -245,7 +273,9 @@ def analyze_roll_effectiveness(run_id: Optional[int] = None) -> Dict[str, Any]:
             HAVING rolled_trades > 5
             ORDER BY total_rolls DESC
             LIMIT 15
-        """, (run_id,))
+        """,
+            (run_id,),
+        )
     else:
         cursor.execute("""
             SELECT
@@ -262,20 +292,25 @@ def analyze_roll_effectiveness(run_id: Optional[int] = None) -> Dict[str, Any]:
             LIMIT 15
         """)
 
-    print(f"{'Symbol':<8} {'Trades':>8} {'Rolled':>8} {'Rolls':>8} {'Avg Rolled P&L':>15} {'Avg Normal P&L':>15}")
+    print(
+        f"{'Symbol':<8} {'Trades':>8} {'Rolled':>8} {'Rolls':>8} {'Avg Rolled P&L':>15} {'Avg Normal P&L':>15}"
+    )
     print("-" * 70)
 
     for row in cursor.fetchall():
-        rolled_pnl = row['avg_rolled_pnl'] or 0
-        normal_pnl = row['avg_unrolled_pnl'] or 0
-        print(f"{row['symbol']:<8} {row['trades']:>8,} {row['rolled_trades']:>8,} {row['total_rolls']:>8,} ${rolled_pnl:>13.2f} ${normal_pnl:>13.2f}")
+        rolled_pnl = row["avg_rolled_pnl"] or 0
+        normal_pnl = row["avg_unrolled_pnl"] or 0
+        print(
+            f"{row['symbol']:<8} {row['trades']:>8,} {row['rolled_trades']:>8,} {row['total_rolls']:>8,} ${rolled_pnl:>13.2f} ${normal_pnl:>13.2f}"
+        )
 
     # 7. IV Analysis - Do high IV trades need more rolls?
     print("\n7. IV ANALYSIS (IV at Entry)")
     print("-" * 70)
 
     if run_id:
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT
                 CASE
                     WHEN iv_at_entry * 100 < 30 THEN 'Low (<30%)'
@@ -290,7 +325,9 @@ def analyze_roll_effectiveness(run_id: Optional[int] = None) -> Dict[str, Any]:
             FROM trades
             WHERE run_id = ?
             GROUP BY iv_bucket
-        """, (run_id,))
+        """,
+            (run_id,),
+        )
     else:
         cursor.execute("""
             SELECT
@@ -308,12 +345,16 @@ def analyze_roll_effectiveness(run_id: Optional[int] = None) -> Dict[str, Any]:
             GROUP BY iv_bucket
         """)
 
-    print(f"{'IV Bucket':<20} {'Trades':>8} {'Rolled':>8} {'Roll %':>8} {'Avg Rolls':>10} {'Avg P&L':>12}")
+    print(
+        f"{'IV Bucket':<20} {'Trades':>8} {'Rolled':>8} {'Roll %':>8} {'Avg Rolls':>10} {'Avg P&L':>12}"
+    )
     print("-" * 70)
 
     for row in cursor.fetchall():
-        roll_pct = (row['rolled'] / row['trades'] * 100) if row['trades'] > 0 else 0
-        print(f"{row['iv_bucket']:<20} {row['trades']:>8,} {row['rolled']:>8,} {roll_pct:>7.1f}% {row['avg_rolls']:>9.2f} ${row['avg_pnl']:>10.2f}")
+        roll_pct = (row["rolled"] / row["trades"] * 100) if row["trades"] > 0 else 0
+        print(
+            f"{row['iv_bucket']:<20} {row['trades']:>8,} {row['rolled']:>8,} {roll_pct:>7.1f}% {row['avg_rolls']:>9.2f} ${row['avg_pnl']:>10.2f}"
+        )
 
     # 8. Summary Statistics
     print("\n" + "=" * 70)
@@ -321,7 +362,8 @@ def analyze_roll_effectiveness(run_id: Optional[int] = None) -> Dict[str, Any]:
     print("=" * 70)
 
     if run_id:
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT
                 COUNT(*) as total_trades,
                 SUM(CASE WHEN roll_count > 0 THEN 1 ELSE 0 END) as rolled_trades,
@@ -331,7 +373,9 @@ def analyze_roll_effectiveness(run_id: Optional[int] = None) -> Dict[str, Any]:
                 AVG(final_pnl) as avg_pnl
             FROM trades
             WHERE run_id = ?
-        """, (run_id,))
+        """,
+            (run_id,),
+        )
     else:
         cursor.execute("""
             SELECT
@@ -346,7 +390,9 @@ def analyze_roll_effectiveness(run_id: Optional[int] = None) -> Dict[str, Any]:
 
     row = cursor.fetchone()
     print(f"\nTotal Trades:        {row['total_trades']:,}")
-    print(f"Rolled Trades:       {row['rolled_trades']:,} ({row['rolled_trades']/row['total_trades']*100:.1f}%)")
+    print(
+        f"Rolled Trades:       {row['rolled_trades']:,} ({row['rolled_trades']/row['total_trades']*100:.1f}%)"
+    )
     print(f"Total Rolls:         {row['total_rolls']:,}")
     print(f"Total Roll Cost:     ${row['total_roll_cost']:,.2f}")
     print(f"Total P&L:           ${row['total_pnl']:,.2f}")
@@ -354,19 +400,26 @@ def analyze_roll_effectiveness(run_id: Optional[int] = None) -> Dict[str, Any]:
 
     # Calculate net impact
     if run_id:
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT SUM(final_pnl) as rolled_pnl
             FROM trades WHERE run_id = ? AND roll_count > 0
-        """, (run_id,))
+        """,
+            (run_id,),
+        )
     else:
         cursor.execute("""
             SELECT SUM(final_pnl) as rolled_pnl
             FROM trades WHERE roll_count > 0
         """)
-    rolled_pnl = cursor.fetchone()['rolled_pnl'] or 0
+    rolled_pnl = cursor.fetchone()["rolled_pnl"] or 0
 
     print(f"\nP&L from Rolled Trades:  ${rolled_pnl:,.2f}")
-    print(f"Roll Cost as % of P&L:   {abs(row['total_roll_cost']/row['total_pnl']*100):.1f}%" if row['total_pnl'] != 0 else "N/A")
+    print(
+        f"Roll Cost as % of P&L:   {abs(row['total_roll_cost']/row['total_pnl']*100):.1f}%"
+        if row["total_pnl"] != 0
+        else "N/A"
+    )
 
     conn.close()
 
@@ -376,7 +429,7 @@ def analyze_roll_effectiveness(run_id: Optional[int] = None) -> Dict[str, Any]:
 
 def main():
     parser = argparse.ArgumentParser(description="Analyze Roll Statistics from Backtest Database")
-    parser.add_argument('--run-id', type=int, help='Specific run ID to analyze')
+    parser.add_argument("--run-id", type=int, help="Specific run ID to analyze")
     args = parser.parse_args()
 
     if not DB_PATH.exists():
@@ -387,5 +440,5 @@ def main():
     analyze_roll_effectiveness(args.run_id)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

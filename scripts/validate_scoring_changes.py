@@ -135,8 +135,10 @@ def report_overall_stats(df: pd.DataFrame) -> None:
     )
     stats["win_rate"] = stats["win_rate"] * 100
 
-    print(f"\n{'Strategy':<22} {'Trades':>7} {'WR%':>7} {'Avg Score':>10} "
-          f"{'Median':>8} {'P25':>6} {'P75':>6} {'Avg PnL%':>9}")
+    print(
+        f"\n{'Strategy':<22} {'Trades':>7} {'WR%':>7} {'Avg Score':>10} "
+        f"{'Median':>8} {'P25':>6} {'P75':>6} {'Avg PnL%':>9}"
+    )
     print("-" * 80)
 
     for _, row in stats.iterrows():
@@ -171,15 +173,19 @@ def report_strong_signals(df: pd.DataFrame) -> None:
         pct_strong = (n_strong / total * 100) if total > 0 else 0
 
         print(f"\n  {strategy}:")
-        print(f"    Total: {total} | Strong: {n_strong} ({pct_strong:.1f}%) | "
-              f"Moderate: {len(moderate)} | Weak: {len(weak)}")
+        print(
+            f"    Total: {total} | Strong: {n_strong} ({pct_strong:.1f}%) | "
+            f"Moderate: {len(moderate)} | Weak: {len(weak)}"
+        )
 
         if n_strong > 0:
             wr = strong["was_profitable"].mean() * 100
             print(f"    Strong WR: {wr:.1f}% ({int(strong['was_profitable'].sum())}/{n_strong})")
         if len(moderate) > 0:
             wr = moderate["was_profitable"].mean() * 100
-            print(f"    Moderate WR: {wr:.1f}% ({int(moderate['was_profitable'].sum())}/{len(moderate)})")
+            print(
+                f"    Moderate WR: {wr:.1f}% ({int(moderate['was_profitable'].sum())}/{len(moderate)})"
+            )
 
 
 def report_vix_regime(df: pd.DataFrame) -> None:
@@ -205,7 +211,9 @@ def report_vix_regime(df: pd.DataFrame) -> None:
             .reset_index()
         )
         for _, row in by_strat.iterrows():
-            print(f"    {row['strategy']:<20} {int(row['trades']):>5} trades  WR {row['wr']*100:.1f}%")
+            print(
+                f"    {row['strategy']:<20} {int(row['trades']):>5} trades  WR {row['wr']*100:.1f}%"
+            )
 
 
 def report_score_distributions(df: pd.DataFrame) -> None:
@@ -214,8 +222,10 @@ def report_score_distributions(df: pd.DataFrame) -> None:
     print("4. SCORE DISTRIBUTION COMPARISON")
     print("=" * 80)
 
-    print(f"\n{'Strategy':<22} {'Min':>6} {'P10':>6} {'P25':>6} {'P50':>6} "
-          f"{'P75':>6} {'P90':>6} {'Max':>6} {'StdDev':>7}")
+    print(
+        f"\n{'Strategy':<22} {'Min':>6} {'P10':>6} {'P25':>6} {'P50':>6} "
+        f"{'P75':>6} {'P90':>6} {'Max':>6} {'StdDev':>7}"
+    )
     print("-" * 80)
 
     for strategy in sorted(df["strategy"].unique()):

@@ -30,14 +30,12 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from dotenv import load_dotenv
+
 load_dotenv()
 
 from src.analyzers.trend_continuation import TrendContinuationAnalyzer, TrendContinuationConfig
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 TRADES_DB = Path.home() / ".optionplay" / "trades.db"
@@ -55,7 +53,9 @@ def main():
     # Load all trades
     conn = sqlite3.connect(str(OUTCOMES_DB))
     cursor = conn.cursor()
-    query = "SELECT id, symbol, entry_date, entry_price FROM trade_outcomes ORDER BY symbol, entry_date"
+    query = (
+        "SELECT id, symbol, entry_date, entry_price FROM trade_outcomes ORDER BY symbol, entry_date"
+    )
     if args.limit:
         query += f" LIMIT {args.limit}"
     cursor.execute(query)
@@ -99,12 +99,15 @@ def main():
 
     for sym_idx, (symbol, sym_trades_list) in enumerate(sorted(symbol_trades.items())):
         if sym_idx % 50 == 0:
-            logger.info(f"  [{sym_idx}/{len(symbol_trades)}] {symbol} ({len(sym_trades_list)} trades)")
+            logger.info(
+                f"  [{sym_idx}/{len(symbol_trades)}] {symbol} ({len(sym_trades_list)} trades)"
+            )
 
         # Load ALL price history for this symbol
         tconn = sqlite3.connect(f"file:{TRADES_DB}?mode=ro", uri=True)
         tcursor = tconn.cursor()
-        tcursor.execute("""
+        tcursor.execute(
+            """
             SELECT quote_date, underlying_price
             FROM (
                 SELECT DISTINCT quote_date, underlying_price
@@ -112,7 +115,9 @@ def main():
                 WHERE underlying = ?
                 ORDER BY quote_date
             )
-        """, (symbol,))
+        """,
+            (symbol,),
+        )
         price_rows = tcursor.fetchall()
         tconn.close()
 
@@ -140,7 +145,7 @@ def main():
                     skipped_data += 1
                     continue
 
-                closes = price_values[:idx + 1]
+                closes = price_values[: idx + 1]
                 highs = [p * 1.005 for p in closes]
                 lows = [p * 0.995 for p in closes]
                 volumes = [1_000_000] * len(closes)
@@ -160,25 +165,27 @@ def main():
 
                 # Extract component scores from signal.details
                 components = {}
-                if hasattr(signal, 'details') and signal.details:
-                    comp_dict = signal.details.get('components', {})
+                if hasattr(signal, "details") and signal.details:
+                    comp_dict = signal.details.get("components", {})
                     components = {
-                        'tc_sma_alignment_score': comp_dict.get('sma_alignment', 0.0),
-                        'tc_stability_score': comp_dict.get('trend_stability', 0.0),
-                        'tc_buffer_score': comp_dict.get('trend_buffer', 0.0),
-                        'tc_momentum_score': comp_dict.get('momentum_health', 0.0),
-                        'tc_volatility_score': comp_dict.get('volatility', 0.0),
+                        "tc_sma_alignment_score": comp_dict.get("sma_alignment", 0.0),
+                        "tc_stability_score": comp_dict.get("trend_stability", 0.0),
+                        "tc_buffer_score": comp_dict.get("trend_buffer", 0.0),
+                        "tc_momentum_score": comp_dict.get("momentum_health", 0.0),
+                        "tc_volatility_score": comp_dict.get("volatility", 0.0),
                     }
 
-                updates.append((
-                    tc_score,
-                    components.get('tc_sma_alignment_score', 0.0),
-                    components.get('tc_stability_score', 0.0),
-                    components.get('tc_buffer_score', 0.0),
-                    components.get('tc_momentum_score', 0.0),
-                    components.get('tc_volatility_score', 0.0),
-                    trade_id,
-                ))
+                updates.append(
+                    (
+                        tc_score,
+                        components.get("tc_sma_alignment_score", 0.0),
+                        components.get("tc_stability_score", 0.0),
+                        components.get("tc_buffer_score", 0.0),
+                        components.get("tc_momentum_score", 0.0),
+                        components.get("tc_volatility_score", 0.0),
+                        trade_id,
+                    )
+                )
                 scored += 1
 
             except Exception as e:
@@ -201,6 +208,7 @@ def main():
         logger.info(f"\nScore distribution (non-zero):")
         if non_zero:
             import statistics
+
             logger.info(f"  Count:  {len(non_zero)}")
             logger.info(f"  Mean:   {statistics.mean(non_zero):.2f}")
             logger.info(f"  Median: {statistics.median(non_zero):.2f}")
@@ -220,7 +228,7 @@ def main():
                 tc_momentum_score = ?,
                 tc_volatility_score = ?
             WHERE id = ?""",
-            updates
+            updates,
         )
         conn.commit()
         conn.close()

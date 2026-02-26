@@ -44,6 +44,7 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from dotenv import load_dotenv
+
 load_dotenv(project_root / ".env")
 
 from src.backtesting import TradeTracker
@@ -73,6 +74,7 @@ DB_PATH = Path.home() / ".optionplay" / "trades.db"
 @dataclass
 class WFConfig:
     """Walk-Forward configuration"""
+
     train_months: int = 18
     test_months: int = 6
     step_months: int = 6
@@ -99,6 +101,7 @@ class WFConfig:
 @dataclass
 class EpochResult:
     """Single epoch result for one strategy"""
+
     epoch_id: int
     strategy: str
     min_score: float
@@ -138,6 +141,7 @@ class EpochResult:
 # EPOCH GENERATION
 # ===========================================================================
 
+
 def generate_epochs(
     data_start: date, data_end: date, config: WFConfig
 ) -> List[Tuple[date, date, date, date]]:
@@ -164,6 +168,7 @@ def generate_epochs(
 # ===========================================================================
 # REAL OPTION CHAIN ENTRY
 # ===========================================================================
+
 
 def _find_real_spread(spread_finder, symbol, entry_date, config):
     """
@@ -230,10 +235,15 @@ def _find_simulated_spread(symbol, entry_date, current_price, config):
     contracts = max(1, int(max_risk / max_loss_per))
     commission = config.commission_per_contract * contracts * 2
     return {
-        "symbol": symbol, "entry_date": entry_date, "entry_price": current_price,
-        "short_strike": short_strike, "long_strike": long_strike,
-        "spread_width": spread_width, "net_credit": net_credit,
-        "contracts": contracts, "max_profit": net_credit * 100 * contracts - commission,
+        "symbol": symbol,
+        "entry_date": entry_date,
+        "entry_price": current_price,
+        "short_strike": short_strike,
+        "long_strike": long_strike,
+        "spread_width": spread_width,
+        "net_credit": net_credit,
+        "contracts": contracts,
+        "max_profit": net_credit * 100 * contracts - commission,
         "max_loss": max_loss_per * contracts + commission,
         "dte_at_entry": config.dte_max,
         "expiry_date": entry_date + timedelta(days=config.dte_max),
@@ -244,6 +254,7 @@ def _find_simulated_spread(symbol, entry_date, current_price, config):
 # ===========================================================================
 # ANALYZER INIT
 # ===========================================================================
+
 
 def _init_analyzer(strategy: str):
     """Initialize a strategy analyzer (called per-process)"""
@@ -271,6 +282,7 @@ def _init_analyzer(strategy: str):
 # EXIT LOGIC + P&L
 # ===========================================================================
 
+
 def _check_exit(pos, current_date, symbol_data, config):
     """Check if position should exit. Returns (reason, exit_price) or None."""
     price_data = None
@@ -297,7 +309,11 @@ def _check_exit(pos, current_date, symbol_data, config):
     days_held = (current_date - pos["entry_date"]).days
     if days_held > 0 and dte > 0:
         tdf = days_held / pos["dte_at_entry"]
-        buf = ((current_price - pos["short_strike"]) / pos["short_strike"]) * 100 if pos["short_strike"] > 0 else 0
+        buf = (
+            ((current_price - pos["short_strike"]) / pos["short_strike"]) * 100
+            if pos["short_strike"] > 0
+            else 0
+        )
         est_profit = min((tdf * 50) + (buf * 5), 100)
         if est_profit >= config.profit_target_pct:
             return (ExitReason.PROFIT_TARGET_HIT, current_price)
@@ -308,7 +324,11 @@ def _check_exit(pos, current_date, symbol_data, config):
 
     # Stop loss
     if current_price < pos["short_strike"]:
-        loss = ((pos["short_strike"] - current_price) / pos["net_credit"]) * 100 if pos["net_credit"] > 0 else 0
+        loss = (
+            ((pos["short_strike"] - current_price) / pos["net_credit"]) * 100
+            if pos["net_credit"] > 0
+            else 0
+        )
         if loss >= config.stop_loss_pct:
             return (ExitReason.STOP_LOSS_HIT, current_price)
 
@@ -336,10 +356,15 @@ def _close_position(pos, exit_date, reason, exit_price, strategy, config):
         is_win = pnl > 0
 
     return {
-        "symbol": pos["symbol"], "strategy": strategy,
-        "entry_date": pos["entry_date"], "exit_date": exit_date,
-        "entry_price": pos["entry_price"], "exit_price": exit_price,
-        "score": pos.get("score", 0), "pnl": pnl, "is_win": is_win,
+        "symbol": pos["symbol"],
+        "strategy": strategy,
+        "entry_date": pos["entry_date"],
+        "exit_date": exit_date,
+        "entry_price": pos["entry_price"],
+        "exit_price": exit_price,
+        "score": pos.get("score", 0),
+        "pnl": pnl,
+        "is_win": is_win,
         "hold_days": max(1, (exit_date - pos["entry_date"]).days),
         "score_breakdown": pos.get("score_breakdown"),
         "is_real": pos.get("is_real", False),
@@ -350,6 +375,7 @@ def _close_position(pos, exit_date, reason, exit_price, strategy, config):
 # ===========================================================================
 # BACKTEST PERIOD
 # ===========================================================================
+
 
 def _get_history_up_to(symbol_data, target_date, lookback=260):
     bars = []
@@ -415,7 +441,9 @@ def _run_backtest_period(
             if exit_info:
                 reason, exit_price = exit_info
                 trade = _close_position(pos, current_date, reason, exit_price, strategy, config)
-                vix_val = vix_by_date.get(str(current_date), vix_by_date.get(str(pos["entry_date"]), 20))
+                vix_val = vix_by_date.get(
+                    str(current_date), vix_by_date.get(str(pos["entry_date"]), 20)
+                )
                 trade["vix_regime"] = _get_regime(vix_val)
                 trades.append(trade)
                 current_risk -= pos.get("max_loss", 0)
@@ -440,8 +468,11 @@ def _run_backtest_period(
 
             try:
                 signal = analyzer.analyze(
-                    symbol=symbol, prices=prices, volumes=volumes,
-                    highs=highs, lows=lows,
+                    symbol=symbol,
+                    prices=prices,
+                    volumes=volumes,
+                    highs=highs,
+                    lows=lows,
                 )
             except Exception:
                 continue
@@ -458,17 +489,25 @@ def _run_backtest_period(
                 components = breakdown.get("components", {})
                 if isinstance(components, dict):
                     for comp, comp_data in components.items():
-                        score_val = comp_data.get("score") if isinstance(comp_data, dict) else comp_data
+                        score_val = (
+                            comp_data.get("score") if isinstance(comp_data, dict) else comp_data
+                        )
                         if isinstance(score_val, (int, float)):
-                            component_scores[comp].append({
-                                "score": float(score_val), "total_score": signal.score,
-                            })
+                            component_scores[comp].append(
+                                {
+                                    "score": float(score_val),
+                                    "total_score": signal.score,
+                                }
+                            )
                 # Also record top-level numeric fields
                 for key in ("total_score", "max_possible"):
                     if key in breakdown and isinstance(breakdown[key], (int, float)):
-                        component_scores[key].append({
-                            "score": float(breakdown[key]), "total_score": signal.score,
-                        })
+                        component_scores[key].append(
+                            {
+                                "score": float(breakdown[key]),
+                                "total_score": signal.score,
+                            }
+                        )
 
             # --- ENTRY: Try real option chain first, fallback to simulated ---
             current_price = prices[-1]
@@ -515,15 +554,24 @@ def _run_backtest_period(
 # PARALLEL WORKER FUNCTION
 # ===========================================================================
 
+
 def worker_run_epoch(args):
     """
     Worker function for multiprocessing.
     Each worker creates its own DB connection for real option chain queries.
     """
     (
-        epoch_id, strategy, min_score,
-        train_start_str, train_end_str, test_start_str, test_end_str,
-        historical_data, vix_by_date, config_dict, sector_map,
+        epoch_id,
+        strategy,
+        min_score,
+        train_start_str,
+        train_end_str,
+        test_start_str,
+        test_end_str,
+        historical_data,
+        vix_by_date,
+        config_dict,
+        sector_map,
     ) = args
 
     config = WFConfig(**config_dict)
@@ -540,21 +588,36 @@ def worker_run_epoch(args):
         if config.pricing_mode == "real":
             from src.backtesting.core.database import OptionsDatabase
             from src.backtesting.core.spread_engine import SpreadFinder
+
             db = OptionsDatabase(DB_PATH)
             spread_finder = SpreadFinder(db)
 
         # In-sample backtest
         is_trades, is_components, is_real = _run_backtest_period(
-            analyzer, strategy, historical_data, vix_by_date,
-            train_start, train_end, min_score, config,
-            spread_finder=spread_finder, sector_map=sector_map,
+            analyzer,
+            strategy,
+            historical_data,
+            vix_by_date,
+            train_start,
+            train_end,
+            min_score,
+            config,
+            spread_finder=spread_finder,
+            sector_map=sector_map,
         )
 
         # Out-of-sample backtest
         oos_trades, _, oos_real = _run_backtest_period(
-            analyzer, strategy, historical_data, vix_by_date,
-            test_start, test_end, min_score, config,
-            spread_finder=spread_finder, sector_map=sector_map,
+            analyzer,
+            strategy,
+            historical_data,
+            vix_by_date,
+            test_start,
+            test_end,
+            min_score,
+            config,
+            spread_finder=spread_finder,
+            sector_map=sector_map,
         )
 
         # Clean up DB connection
@@ -599,19 +662,29 @@ def worker_run_epoch(args):
                     comp_corr[comp] = round(corr, 4)
 
         result = EpochResult(
-            epoch_id=epoch_id, strategy=strategy, min_score=min_score,
-            train_start=train_start_str, train_end=train_end_str,
-            test_start=test_start_str, test_end=test_end_str,
-            is_trades=len(is_trades), is_wins=is_wins, is_win_rate=is_wr,
+            epoch_id=epoch_id,
+            strategy=strategy,
+            min_score=min_score,
+            train_start=train_start_str,
+            train_end=train_end_str,
+            test_start=test_start_str,
+            test_end=test_end_str,
+            is_trades=len(is_trades),
+            is_wins=is_wins,
+            is_win_rate=is_wr,
             is_pnl=sum(t["pnl"] for t in is_trades),
             is_real_entries=is_real,
-            oos_trades=len(oos_trades), oos_wins=oos_wins, oos_win_rate=oos_wr,
+            oos_trades=len(oos_trades),
+            oos_wins=oos_wins,
+            oos_win_rate=oos_wr,
             oos_pnl=sum(t["pnl"] for t in oos_trades),
             oos_real_entries=oos_real,
             degradation=is_wr - oos_wr,
-            regime_trades=dict(regime_trades), regime_wins=dict(regime_wins),
+            regime_trades=dict(regime_trades),
+            regime_wins=dict(regime_wins),
             regime_pnl=dict(regime_pnl),
-            sector_trades=dict(sector_trades_agg), sector_wins=dict(sector_wins_agg),
+            sector_trades=dict(sector_trades_agg),
+            sector_wins=dict(sector_wins_agg),
             sector_pnl=dict(sector_pnl_agg),
             component_correlations=comp_corr,
             is_valid=len(is_trades) >= config.min_trades_per_epoch,
@@ -620,11 +693,17 @@ def worker_run_epoch(args):
 
     except Exception as e:
         import traceback
+
         return EpochResult(
-            epoch_id=epoch_id, strategy=strategy, min_score=min_score,
-            train_start=train_start_str, train_end=train_end_str,
-            test_start=test_start_str, test_end=test_end_str,
-            is_valid=False, error=f"{e}\n{traceback.format_exc()[-200:]}",
+            epoch_id=epoch_id,
+            strategy=strategy,
+            min_score=min_score,
+            train_start=train_start_str,
+            train_end=train_end_str,
+            test_start=test_start_str,
+            test_end=test_end_str,
+            is_valid=False,
+            error=f"{e}\n{traceback.format_exc()[-200:]}",
         )
 
 
@@ -632,9 +711,8 @@ def worker_run_epoch(args):
 # AGGREGATION
 # ===========================================================================
 
-def aggregate_strategy_results(
-    strategy: str, results: List[EpochResult]
-) -> Dict[str, Any]:
+
+def aggregate_strategy_results(strategy: str, results: List[EpochResult]) -> Dict[str, Any]:
     """Aggregate epoch results for one strategy across all score thresholds."""
 
     by_score = defaultdict(list)
@@ -690,8 +768,10 @@ def aggregate_strategy_results(
         if data["trades"] > 0:
             wr = data["wins"] / data["trades"] * 100
             regime_performance[regime] = {
-                "trades": data["trades"], "wins": data["wins"],
-                "win_rate": round(wr, 2), "pnl": round(data["pnl"], 2),
+                "trades": data["trades"],
+                "wins": data["wins"],
+                "win_rate": round(wr, 2),
+                "pnl": round(data["pnl"], 2),
             }
             if wr >= 70:
                 regime_adjustments[regime] = -0.5
@@ -721,7 +801,11 @@ def aggregate_strategy_results(
     else:
         avg_is_wr = avg_oos_wr = avg_degrad = max_degrad = total_real = 0
 
-    severity = "NONE" if avg_degrad < 5 else "MILD" if avg_degrad < 10 else "MODERATE" if avg_degrad < 15 else "SEVERE"
+    severity = (
+        "NONE"
+        if avg_degrad < 5
+        else "MILD" if avg_degrad < 10 else "MODERATE" if avg_degrad < 15 else "SEVERE"
+    )
 
     return {
         "recommended_min_score": best_score,
@@ -746,21 +830,26 @@ def aggregate_strategy_results(
 # MAIN
 # ===========================================================================
 
+
 def main():
     parser = argparse.ArgumentParser(
         description="Full Walk-Forward Training with real analyzers + real option chains",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--strategy", choices=STRATEGIES + ["all"], default="all")
-    parser.add_argument("--workers", type=int, default=0,
-                        help="Number of parallel workers (0=all CPUs)")
+    parser.add_argument(
+        "--workers", type=int, default=0, help="Number of parallel workers (0=all CPUs)"
+    )
     parser.add_argument("--train-months", type=int, default=18)
     parser.add_argument("--test-months", type=int, default=6)
     parser.add_argument("--step-months", type=int, default=6)
-    parser.add_argument("--mode", choices=["real", "simulated"], default="real",
-                        help="Pricing mode: 'real' (option chains) or 'simulated' (formula)")
-    parser.add_argument("--dry-run", action="store_true",
-                        help="Show epoch plan without running")
+    parser.add_argument(
+        "--mode",
+        choices=["real", "simulated"],
+        default="real",
+        help="Pricing mode: 'real' (option chains) or 'simulated' (formula)",
+    )
+    parser.add_argument("--dry-run", action="store_true", help="Show epoch plan without running")
     parser.add_argument("-v", "--verbose", action="store_true")
     args = parser.parse_args()
 
@@ -780,8 +869,7 @@ def main():
         pricing_mode=args.mode,
     )
     config_dict = {
-        f.name: getattr(wf_config, f.name)
-        for f in wf_config.__dataclass_fields__.values()
+        f.name: getattr(wf_config, f.name) for f in wf_config.__dataclass_fields__.values()
     }
 
     print("=" * 70)
@@ -789,16 +877,22 @@ def main():
     print("=" * 70)
     print(f"  Workers:     {num_workers} CPU cores")
     print(f"  Strategies:  {', '.join(strategies)}")
-    print(f"  Walk-Forward: {wf_config.train_months}/{wf_config.test_months}/{wf_config.step_months} months")
+    print(
+        f"  Walk-Forward: {wf_config.train_months}/{wf_config.test_months}/{wf_config.step_months} months"
+    )
     print(f"  Thresholds:  {SCORE_THRESHOLDS}")
-    print(f"  Pricing:     {args.mode.upper()} {'(real option chains from DB)' if args.mode == 'real' else '(formula-based)'}")
+    print(
+        f"  Pricing:     {args.mode.upper()} {'(real option chains from DB)' if args.mode == 'real' else '(formula-based)'}"
+    )
     print()
 
     # Load data
     print("  Loading data from price_data...")
     tracker = TradeTracker()
     stats = tracker.get_storage_stats()
-    print(f"  Database: {stats['symbols_with_price_data']} symbols, {stats['total_price_bars']:,} bars")
+    print(
+        f"  Database: {stats['symbols_with_price_data']} symbols, {stats['total_price_bars']:,} bars"
+    )
 
     symbol_info = tracker.list_symbols_with_price_data()
     symbols = [s["symbol"] for s in symbol_info]
@@ -810,8 +904,11 @@ def main():
             historical_data[symbol] = [
                 {
                     "date": bar.date.isoformat() if isinstance(bar.date, date) else bar.date,
-                    "open": bar.open, "high": bar.high, "low": bar.low,
-                    "close": bar.close, "volume": bar.volume,
+                    "open": bar.open,
+                    "high": bar.high,
+                    "low": bar.low,
+                    "close": bar.close,
+                    "volume": bar.volume,
                 }
                 for bar in pd_obj.bars
             ]
@@ -821,8 +918,11 @@ def main():
     # Check options data availability
     if args.mode == "real":
         import sqlite3
+
         conn = sqlite3.connect(str(DB_PATH))
-        row = conn.execute("SELECT COUNT(DISTINCT underlying), COUNT(*) FROM options_prices").fetchone()
+        row = conn.execute(
+            "SELECT COUNT(DISTINCT underlying), COUNT(*) FROM options_prices"
+        ).fetchone()
         conn.close()
         print(f"  Options DB: {row[0]} symbols, {row[1]:,} option quotes")
 
@@ -837,10 +937,14 @@ def main():
 
     # Load sector mapping
     import sqlite3
+
     _conn = sqlite3.connect(str(DB_PATH))
-    sector_map = {row[0]: row[1] for row in _conn.execute(
-        "SELECT symbol, sector FROM symbol_fundamentals WHERE sector IS NOT NULL"
-    ).fetchall()}
+    sector_map = {
+        row[0]: row[1]
+        for row in _conn.execute(
+            "SELECT symbol, sector FROM symbol_fundamentals WHERE sector IS NOT NULL"
+        ).fetchall()
+    }
     _conn.close()
     print(f"  Sectors: {len(sector_map)} symbols mapped to {len(set(sector_map.values()))} sectors")
 
@@ -862,7 +966,9 @@ def main():
         print(f"    Epoch {i}: Train {ts} - {te} | Test {vs} - {ve}")
 
     total_jobs = len(strategies) * len(epochs) * len(SCORE_THRESHOLDS)
-    print(f"\n  Total jobs: {total_jobs} ({len(strategies)} strategies x {len(epochs)} epochs x {len(SCORE_THRESHOLDS)} thresholds)")
+    print(
+        f"\n  Total jobs: {total_jobs} ({len(strategies)} strategies x {len(epochs)} epochs x {len(SCORE_THRESHOLDS)} thresholds)"
+    )
 
     if args.mode == "real":
         print(f"\n  NOTE: Real option chain mode. Each job queries options_prices DB.")
@@ -878,11 +984,21 @@ def main():
     for strategy in strategies:
         for epoch_id, (ts, te, vs, ve) in enumerate(epochs):
             for min_score in SCORE_THRESHOLDS:
-                jobs.append((
-                    epoch_id, strategy, min_score,
-                    ts.isoformat(), te.isoformat(), vs.isoformat(), ve.isoformat(),
-                    historical_data, vix_by_date, config_dict, sector_map,
-                ))
+                jobs.append(
+                    (
+                        epoch_id,
+                        strategy,
+                        min_score,
+                        ts.isoformat(),
+                        te.isoformat(),
+                        vs.isoformat(),
+                        ve.isoformat(),
+                        historical_data,
+                        vix_by_date,
+                        config_dict,
+                        sector_map,
+                    )
+                )
 
     # Execute
     print(f"\n  Running {total_jobs} jobs on {num_workers} cores...")
@@ -900,13 +1016,19 @@ def main():
                 errors += 1
                 # Print first 3 errors in detail for debugging
                 if errors <= 3:
-                    print(f"\n  ERROR [{result.strategy}@{result.min_score} E{result.epoch_id}]: {result.error[:500]}\n")
+                    print(
+                        f"\n  ERROR [{result.strategy}@{result.min_score} E{result.epoch_id}]: {result.error[:500]}\n"
+                    )
 
             if completed % 10 == 0 or completed == total_jobs:
                 elapsed = time.time() - t_start
                 rate = completed / elapsed if elapsed > 0 else 0
                 eta = (total_jobs - completed) / rate if rate > 0 else 0
-                real_tag = f" R:{result.is_real_entries + result.oos_real_entries}" if result.is_real_entries or result.oos_real_entries else ""
+                real_tag = (
+                    f" R:{result.is_real_entries + result.oos_real_entries}"
+                    if result.is_real_entries or result.oos_real_entries
+                    else ""
+                )
                 err_tag = f" [{errors} errors]" if errors else ""
                 print(
                     f"  [{completed}/{total_jobs}] "
@@ -964,7 +1086,9 @@ def main():
 
         if agg["score_analysis"]:
             print(f"\n  Score Threshold Analysis:")
-            print(f"  {'Score':>6} {'OOS WR%':>10} {'OOS Trades':>12} {'OOS P&L':>14} {'Degrad':>8} {'Real':>6}")
+            print(
+                f"  {'Score':>6} {'OOS WR%':>10} {'OOS Trades':>12} {'OOS P&L':>14} {'Degrad':>8} {'Real':>6}"
+            )
             print(f"  {'-' * 58}")
             for sc in sorted(agg["score_analysis"]):
                 sa = agg["score_analysis"][sc]
@@ -981,7 +1105,11 @@ def main():
             component_weights_all[strategy] = {
                 "component_weights": agg["component_weights"],
                 "validation": {
-                    "train_trades": sum(r.is_trades for r in strat_results if r.is_valid and r.min_score == agg["recommended_min_score"]),
+                    "train_trades": sum(
+                        r.is_trades
+                        for r in strat_results
+                        if r.is_valid and r.min_score == agg["recommended_min_score"]
+                    ),
                     "test_trades": v["total_oos_trades"],
                     "train_win_rate": v["avg_is_win_rate"],
                     "test_win_rate": v["avg_oos_win_rate"],
@@ -1059,19 +1187,23 @@ def main():
         epoch_details = []
         for r in all_results:
             if r.strategy == strategy and r.min_score == best_score and r.is_valid and not r.error:
-                epoch_details.append({
-                    "epoch_id": r.epoch_id,
-                    "train_period": f"{r.train_start} to {r.train_end}",
-                    "test_period": f"{r.test_start} to {r.test_end}",
-                    "is_trades": r.is_trades, "is_win_rate": round(r.is_win_rate, 2),
-                    "oos_trades": r.oos_trades, "oos_win_rate": round(r.oos_win_rate, 2),
-                    "oos_pnl": round(r.oos_pnl, 2),
-                    "degradation": round(r.degradation, 2),
-                    "real_entries": r.oos_real_entries,
-                    "regime_trades": r.regime_trades,
-                    "sector_trades": r.sector_trades,
-                    "sector_wins": r.sector_wins,
-                })
+                epoch_details.append(
+                    {
+                        "epoch_id": r.epoch_id,
+                        "train_period": f"{r.train_start} to {r.train_end}",
+                        "test_period": f"{r.test_start} to {r.test_end}",
+                        "is_trades": r.is_trades,
+                        "is_win_rate": round(r.is_win_rate, 2),
+                        "oos_trades": r.oos_trades,
+                        "oos_win_rate": round(r.oos_win_rate, 2),
+                        "oos_pnl": round(r.oos_pnl, 2),
+                        "degradation": round(r.degradation, 2),
+                        "real_entries": r.oos_real_entries,
+                        "regime_trades": r.regime_trades,
+                        "sector_trades": r.sector_trades,
+                        "sector_wins": r.sector_wins,
+                    }
+                )
         detailed_results["strategies"][strategy] = {
             **agg,
             "epoch_details": epoch_details,
@@ -1086,7 +1218,9 @@ def main():
     print(f"\n{'=' * 85}")
     print("  STRATEGY COMPARISON")
     print(f"{'=' * 85}")
-    print(f"  {'Strategy':<20} {'Score':>6} {'OOS Trades':>10} {'OOS WR%':>10} {'Degrad':>10} {'Real':>6} {'Overfit':>10}")
+    print(
+        f"  {'Strategy':<20} {'Score':>6} {'OOS Trades':>10} {'OOS WR%':>10} {'Degrad':>10} {'Real':>6} {'Overfit':>10}"
+    )
     print(f"  {'-' * 75}")
     for strategy in strategies:
         agg = strategy_results[strategy]
@@ -1108,15 +1242,17 @@ def main():
     print(f"{'=' * 85}")
 
     # Aggregate OOS trades by sector × strategy (using best score threshold)
-    sector_strategy_perf = defaultdict(lambda: defaultdict(lambda: {"trades": 0, "wins": 0, "pnl": 0.0}))
+    sector_strategy_perf = defaultdict(
+        lambda: defaultdict(lambda: {"trades": 0, "wins": 0, "pnl": 0.0})
+    )
     sector_overall = defaultdict(lambda: {"trades": 0, "wins": 0, "pnl": 0.0})
 
     for strategy in strategies:
         best_score = strategy_results[strategy]["recommended_min_score"]
         strat_results = [
-            r for r in all_results
-            if r.strategy == strategy and r.min_score == best_score
-            and r.is_valid and not r.error
+            r
+            for r in all_results
+            if r.strategy == strategy and r.min_score == best_score and r.is_valid and not r.error
         ]
         for r in strat_results:
             for sec, count in r.sector_trades.items():
@@ -1133,7 +1269,9 @@ def main():
     avg_overall_wr = (total_wins / total_trades * 100) if total_trades > 0 else 50.0
 
     print(f"\n  Overall: {total_trades} trades, {avg_overall_wr:.1f}% win rate\n")
-    print(f"  {'Sector':<25} {'Trades':>7} {'Win%':>7} {'Factor':>8} {'Best Strategy':<20} {'Best WR%':>8}")
+    print(
+        f"  {'Sector':<25} {'Trades':>7} {'Win%':>7} {'Factor':>8} {'Best Strategy':<20} {'Best WR%':>8}"
+    )
     print(f"  {'-' * 80}")
 
     # Build SECTOR_CLUSTER_WEIGHTS structure
@@ -1217,6 +1355,7 @@ def main():
     if yaml_path.exists() and sector_factors_by_strategy:
         try:
             import yaml
+
             with open(yaml_path) as f:
                 yaml_data = yaml.safe_load(f)
 
@@ -1235,7 +1374,9 @@ def main():
                         updated_count += 1
 
             with open(yaml_path, "w") as f:
-                yaml.dump(yaml_data, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
+                yaml.dump(
+                    yaml_data, f, default_flow_style=False, sort_keys=False, allow_unicode=True
+                )
             print(f"  Updated: {yaml_path} ({updated_count} sector_factors changed)")
         except ImportError:
             print("  WARNING: PyYAML not available, scoring_weights.yaml not updated")

@@ -14,6 +14,7 @@ Usage:
 
 import sys
 import os
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import argparse
@@ -29,6 +30,7 @@ import numpy as np
 @dataclass
 class VariantResult:
     """Results for one A/B variant."""
+
     variant: str
     total_trades: int
     wins: int
@@ -63,8 +65,7 @@ def load_weights(config_dir: Path, variant: str) -> Dict[str, Dict[str, float]]:
 
 
 def calculate_weighted_score(
-    component_scores: Dict[str, float],
-    weights: Dict[str, float]
+    component_scores: Dict[str, float], weights: Dict[str, float]
 ) -> float:
     """Calculate weighted score from component scores."""
     total = 0.0
@@ -90,9 +91,7 @@ def calculate_weighted_score(
 
 
 def load_trades_with_scores(
-    db_path: Path,
-    strategy: Optional[str] = None,
-    symbols: Optional[List[str]] = None
+    db_path: Path, strategy: Optional[str] = None, symbols: Optional[List[str]] = None
 ) -> List[Dict]:
     """Load trades that have component scores."""
     conn = sqlite3.connect(db_path)
@@ -126,11 +125,7 @@ def load_trades_with_scores(
     return trades
 
 
-def evaluate_variant(
-    trades: List[Dict],
-    weights: Dict[str, float],
-    variant: str
-) -> VariantResult:
+def evaluate_variant(trades: List[Dict], weights: Dict[str, float], variant: str) -> VariantResult:
     """Evaluate a weight variant on historical trades."""
     scores = []
     outcomes = []
@@ -157,7 +152,10 @@ def evaluate_variant(
         scores.append(score)
         # was_profitable is 1 for WIN, 0 for LOSS
         # Or check outcome: max_profit, partial_profit = WIN; partial_loss, max_loss = LOSS
-        is_win = trade.get("was_profitable", 0) == 1 or trade["outcome"] in ("max_profit", "partial_profit")
+        is_win = trade.get("was_profitable", 0) == 1 or trade["outcome"] in (
+            "max_profit",
+            "partial_profit",
+        )
         outcomes.append(1 if is_win else 0)
 
     scores = np.array(scores)
@@ -233,9 +231,7 @@ def compare_variants(
 
 
 def analyze_score_buckets(
-    trades: List[Dict],
-    weights: Dict[str, float],
-    variant: str
+    trades: List[Dict], weights: Dict[str, float], variant: str
 ) -> Dict[str, Tuple[int, int, float]]:
     """Analyze win rate by score bucket."""
     buckets = {
@@ -266,7 +262,10 @@ def analyze_score_buckets(
         }
 
         score = calculate_weighted_score(comp_scores, weights)
-        is_win = trade.get("was_profitable", 0) == 1 or trade["outcome"] in ("max_profit", "partial_profit")
+        is_win = trade.get("was_profitable", 0) == 1 or trade["outcome"] in (
+            "max_profit",
+            "partial_profit",
+        )
 
         # Find bucket
         if score < 4:
@@ -296,8 +295,9 @@ def analyze_score_buckets(
     return result
 
 
-def print_comparison(result_a: VariantResult, result_b: VariantResult,
-                    buckets_a: Dict = None, buckets_b: Dict = None) -> None:
+def print_comparison(
+    result_a: VariantResult, result_b: VariantResult, buckets_a: Dict = None, buckets_b: Dict = None
+) -> None:
     """Print comparison table."""
     print("\n" + "=" * 70)
     print("A/B TEST COMPARISON: Feature-Based (A) vs Outcome-Based (B)")
@@ -310,7 +310,9 @@ def print_comparison(result_a: VariantResult, result_b: VariantResult,
     def row(label: str, a: float, b: float, fmt: str = ".1f", suffix: str = ""):
         diff = b - a
         sign = "+" if diff >= 0 else ""
-        print(f"{label:<30} {a:>14{fmt}}{suffix} {b:>14{fmt}}{suffix} {sign}{diff:>10{fmt}}{suffix}")
+        print(
+            f"{label:<30} {a:>14{fmt}}{suffix} {b:>14{fmt}}{suffix} {sign}{diff:>10{fmt}}{suffix}"
+        )
 
     row("Total Trades", result_a.total_trades, result_b.total_trades, "d")
     row("Win Rate", result_a.win_rate, result_b.win_rate, ".1f", "%")
@@ -318,20 +320,30 @@ def print_comparison(result_a: VariantResult, result_b: VariantResult,
     row("Score-Win Correlation", result_a.score_correlation, result_b.score_correlation, ".3f")
     print("-" * 75)
     row("High-Score Trades (>=7)", result_a.high_score_total, result_b.high_score_total, "d")
-    row("High-Score Win Rate", result_a.high_score_win_rate, result_b.high_score_win_rate, ".1f", "%")
+    row(
+        "High-Score Win Rate",
+        result_a.high_score_win_rate,
+        result_b.high_score_win_rate,
+        ".1f",
+        "%",
+    )
 
     # Score bucket analysis
     if buckets_a and buckets_b:
         print("\n" + "-" * 75)
         print("SCORE BUCKET ANALYSIS:")
-        print(f"{'Bucket':<10} {'A: Trades':>10} {'A: WR%':>8} {'B: Trades':>10} {'B: WR%':>8} {'WR Diff':>8}")
+        print(
+            f"{'Bucket':<10} {'A: Trades':>10} {'A: WR%':>8} {'B: Trades':>10} {'B: WR%':>8} {'WR Diff':>8}"
+        )
         print("-" * 60)
         for bucket in ["0-4", "4-5", "5-6", "6-7", "7-8", "8-9", "9+"]:
             a_total, a_wins, a_wr = buckets_a.get(bucket, (0, 0, 0))
             b_total, b_wins, b_wr = buckets_b.get(bucket, (0, 0, 0))
             diff = b_wr - a_wr
             sign = "+" if diff >= 0 else ""
-            print(f"{bucket:<10} {a_total:>10} {a_wr:>7.1f}% {b_total:>10} {b_wr:>7.1f}% {sign}{diff:>6.1f}%")
+            print(
+                f"{bucket:<10} {a_total:>10} {a_wr:>7.1f}% {b_total:>10} {b_wr:>7.1f}% {sign}{diff:>6.1f}%"
+            )
 
     print("\n" + "=" * 70)
 
@@ -384,6 +396,7 @@ def main():
     except Exception as e:
         print(f"Error: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
 

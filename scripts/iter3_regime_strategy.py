@@ -53,15 +53,33 @@ def load_trades_df():
     conn = sqlite3.connect(OUTCOMES_DB)
 
     cols = [
-        "symbol", "entry_date", "was_profitable", "pnl_pct",
-        "vix_regime", "max_drawdown_pct",
-        "pullback_score", "bounce_score", "ath_breakout_score", "earnings_dip_score",
+        "symbol",
+        "entry_date",
+        "was_profitable",
+        "pnl_pct",
+        "vix_regime",
+        "max_drawdown_pct",
+        "pullback_score",
+        "bounce_score",
+        "ath_breakout_score",
+        "earnings_dip_score",
         # Component scores
-        "rsi_score", "support_score", "fibonacci_score", "ma_score",
-        "volume_score", "macd_score", "stoch_score", "keltner_score",
-        "trend_strength_score", "momentum_score", "rs_score",
-        "candlestick_score", "vwap_score", "market_context_score",
-        "sector_score", "gap_score",
+        "rsi_score",
+        "support_score",
+        "fibonacci_score",
+        "ma_score",
+        "volume_score",
+        "macd_score",
+        "stoch_score",
+        "keltner_score",
+        "trend_strength_score",
+        "momentum_score",
+        "rs_score",
+        "candlestick_score",
+        "vwap_score",
+        "market_context_score",
+        "sector_score",
+        "gap_score",
     ]
 
     query = f"SELECT {', '.join(cols)} FROM trade_outcomes WHERE pullback_score IS NOT NULL ORDER BY entry_date"
@@ -249,7 +267,9 @@ def main():
                     reverse=True,
                 )
                 for comp, diff in sorted_diffs[:3]:
-                    print(f"    {comp}: {global_weights.get(comp, 0):.3f} → {result['weights'].get(comp, 0):.3f} ({diff:+.3f})")
+                    print(
+                        f"    {comp}: {global_weights.get(comp, 0):.3f} → {result['weights'].get(comp, 0):.3f} ({diff:+.3f})"
+                    )
             else:
                 print(f"    FALLBACK: {result['metrics'].get('reason', 'unknown')}")
 
@@ -257,9 +277,11 @@ def main():
         improvement = evaluate_regime_improvement(strategy, df, regime_results, global_weights)
         print(f"\n  Improvement vs Global Weights (top-50% by score):")
         for regime, imp in improvement.items():
-            print(f"    {regime:>8s}: n={imp['n_trades']:>5}, "
-                  f"WR: {imp['global_top50_wr']:.1f}% → {imp['regime_top50_wr']:.1f}% ({imp['wr_delta']:+.1f}), "
-                  f"PnL: {imp['global_top50_pnl']:.2f} → {imp['regime_top50_pnl']:.2f} ({imp['pnl_delta']:+.2f})")
+            print(
+                f"    {regime:>8s}: n={imp['n_trades']:>5}, "
+                f"WR: {imp['global_top50_wr']:.1f}% → {imp['regime_top50_wr']:.1f}% ({imp['wr_delta']:+.1f}), "
+                f"PnL: {imp['global_top50_pnl']:.2f} → {imp['regime_top50_pnl']:.2f} ({imp['pnl_delta']:+.2f})"
+            )
 
         # Save per-strategy regime results
         output = {
@@ -275,7 +297,9 @@ def main():
 
         summary[strategy] = {
             "regimes_trained": sum(1 for r in regime_results.values() if r["source"] == "trained"),
-            "regimes_fallback": sum(1 for r in regime_results.values() if r["source"] == "fallback_global"),
+            "regimes_fallback": sum(
+                1 for r in regime_results.values() if r["source"] == "fallback_global"
+            ),
             "improvement": improvement,
         }
 
@@ -288,7 +312,9 @@ def main():
     print(f"  REGIME TRAINING COMPLETE")
     print(f"{'='*60}")
     for strategy, stats in summary.items():
-        print(f"  {strategy:>15s}: trained={stats['regimes_trained']}/4, fallback={stats['regimes_fallback']}/4")
+        print(
+            f"  {strategy:>15s}: trained={stats['regimes_trained']}/4, fallback={stats['regimes_fallback']}/4"
+        )
         for regime, imp in stats.get("improvement", {}).items():
             wr_d = imp.get("wr_delta", "N/A")
             pnl_d = imp.get("pnl_delta", "N/A")

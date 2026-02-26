@@ -29,6 +29,7 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from dotenv import load_dotenv
+
 load_dotenv()
 
 from src.backtesting import TradeTracker
@@ -65,12 +66,12 @@ def load_historical_data(tracker: TradeTracker, symbols: List[str]) -> Dict[str,
         if price_data and price_data.bars:
             data[symbol] = [
                 {
-                    'date': bar.date,
-                    'open': bar.open,
-                    'high': bar.high,
-                    'low': bar.low,
-                    'close': bar.close,
-                    'volume': bar.volume,
+                    "date": bar.date,
+                    "open": bar.open,
+                    "high": bar.high,
+                    "low": bar.low,
+                    "close": bar.close,
+                    "volume": bar.volume,
                 }
                 for bar in price_data.bars
             ]
@@ -85,17 +86,19 @@ def load_vix_data(tracker: TradeTracker) -> Dict[date, float]:
     return {p.date: p.value for p in vix_points}
 
 
-def get_history_up_to(symbol_data: List[Dict], target_date: date, lookback: int = 260) -> List[Dict]:
+def get_history_up_to(
+    symbol_data: List[Dict], target_date: date, lookback: int = 260
+) -> List[Dict]:
     """Get historical bars up to target date"""
     bars_before = []
     for bar in symbol_data:
-        d = bar['date']
+        d = bar["date"]
         if isinstance(d, str):
             d = date.fromisoformat(d)
         if d < target_date:
-            bars_before.append({**bar, 'date': d})
+            bars_before.append({**bar, "date": d})
 
-    bars_before.sort(key=lambda x: x['date'])
+    bars_before.sort(key=lambda x: x["date"])
     return bars_before[-lookback:] if len(bars_before) > lookback else bars_before
 
 
@@ -129,17 +132,17 @@ def simulate_trade_outcome(
     # Get future bars
     future_bars = []
     for bar in symbol_data:
-        d = bar['date']
+        d = bar["date"]
         if isinstance(d, str):
             d = date.fromisoformat(d)
         if d > entry_date:
-            future_bars.append({**bar, 'date': d})
+            future_bars.append({**bar, "date": d})
 
-    future_bars.sort(key=lambda x: x['date'])
+    future_bars.sort(key=lambda x: x["date"])
 
     for i, bar in enumerate(future_bars[:max_days]):
-        bar_date = bar['date']
-        bar_close = bar['close']
+        bar_date = bar["date"]
+        bar_close = bar["close"]
 
         # Check for profit target (price stayed above short strike)
         if bar_close >= short_strike:
@@ -171,7 +174,11 @@ def simulate_trade_outcome(
     else:
         # Partial outcome
         intrinsic = max(0, short_strike - exit_price)
-        pnl_pct = ((credit_per_spread - intrinsic) / credit_per_spread) * 100 if credit_per_spread > 0 else 0
+        pnl_pct = (
+            ((credit_per_spread - intrinsic) / credit_per_spread) * 100
+            if credit_per_spread > 0
+            else 0
+        )
         outcome = "WIN" if pnl_pct > 0 else "LOSS"
         return (outcome, exit_date, exit_price, pnl_pct, max(days_held, 1))
 
@@ -193,7 +200,7 @@ def run_backtest_with_details(
     all_dates = set()
     for sym_data in historical_data.values():
         for bar in sym_data:
-            d = bar['date']
+            d = bar["date"]
             if isinstance(d, str):
                 d = date.fromisoformat(d)
             all_dates.add(d)
@@ -227,18 +234,14 @@ def run_backtest_with_details(
                 continue
 
             # Prepare arrays for analyzer
-            prices = [bar['close'] for bar in history]
-            volumes = [bar['volume'] for bar in history]
-            highs = [bar['high'] for bar in history]
-            lows = [bar['low'] for bar in history]
+            prices = [bar["close"] for bar in history]
+            volumes = [bar["volume"] for bar in history]
+            highs = [bar["high"] for bar in history]
+            lows = [bar["low"] for bar in history]
 
             try:
                 signal = analyzer.analyze(
-                    symbol=symbol,
-                    prices=prices,
-                    volumes=volumes,
-                    highs=highs,
-                    lows=lows
+                    symbol=symbol, prices=prices, volumes=volumes, highs=highs, lows=lows
                 )
             except Exception as e:
                 continue
@@ -267,47 +270,51 @@ def run_backtest_with_details(
 
             # Extract score breakdown - flatten the nested structure
             score_breakdown = {}
-            if signal.details and 'score_breakdown' in signal.details:
-                breakdown = signal.details['score_breakdown']
+            if signal.details and "score_breakdown" in signal.details:
+                breakdown = signal.details["score_breakdown"]
 
                 # Check if it's a ScoreBreakdown object or dict
-                if hasattr(breakdown, 'to_dict'):
+                if hasattr(breakdown, "to_dict"):
                     breakdown = breakdown.to_dict()
 
                 # Handle nested 'components' structure
-                if isinstance(breakdown, dict) and 'components' in breakdown:
-                    for comp, data in breakdown['components'].items():
+                if isinstance(breakdown, dict) and "components" in breakdown:
+                    for comp, data in breakdown["components"].items():
                         if isinstance(data, dict):
-                            score_breakdown[f"{comp}_score"] = data.get('score', data.get('value', 0))
+                            score_breakdown[f"{comp}_score"] = data.get(
+                                "score", data.get("value", 0)
+                            )
                         else:
                             score_breakdown[f"{comp}_score"] = data
                 elif isinstance(breakdown, dict):
                     # Flat structure
                     for comp, data in breakdown.items():
-                        if comp in ['total_score', 'max_possible', 'qualified', 'components']:
+                        if comp in ["total_score", "max_possible", "qualified", "components"]:
                             continue  # Skip metadata
                         if isinstance(data, dict):
-                            key = comp if comp.endswith('_score') else f"{comp}_score"
-                            score_breakdown[key] = data.get('score', data.get('value', 0))
+                            key = comp if comp.endswith("_score") else f"{comp}_score"
+                            score_breakdown[key] = data.get("score", data.get("value", 0))
                         elif isinstance(data, (int, float)):
-                            key = comp if comp.endswith('_score') else f"{comp}_score"
+                            key = comp if comp.endswith("_score") else f"{comp}_score"
                             score_breakdown[key] = data
 
-            trades.append({
-                "symbol": symbol,
-                "strategy": strategy,
-                "signal_date": current_date,
-                "exit_date": exit_date,
-                "signal_score": signal.score,
-                "score_breakdown": score_breakdown,
-                "outcome": outcome,
-                "pnl_percent": pnl_pct,
-                "pnl_amount": pnl_pct * 10,  # Simplified
-                "holding_days": holding_days,
-                "vix_at_signal": vix_at_signal,
-                "entry_price": entry_price,
-                "exit_price": exit_price,
-            })
+            trades.append(
+                {
+                    "symbol": symbol,
+                    "strategy": strategy,
+                    "signal_date": current_date,
+                    "exit_date": exit_date,
+                    "signal_score": signal.score,
+                    "score_breakdown": score_breakdown,
+                    "outcome": outcome,
+                    "pnl_percent": pnl_pct,
+                    "pnl_amount": pnl_pct * 10,  # Simplified
+                    "holding_days": holding_days,
+                    "vix_at_signal": vix_at_signal,
+                    "entry_price": entry_price,
+                    "exit_price": exit_price,
+                }
+            )
 
             signals_per_day[current_date] = day_count + 1
 
@@ -316,19 +323,32 @@ def run_backtest_with_details(
 
 def save_trades_for_training(trades: List[Dict[str, Any]], output_path: str):
     """Save trades to JSON for training scripts"""
-    with open(output_path, 'w') as f:
-        json.dump({
-            "timestamp": datetime.now().isoformat(),
-            "total_trades": len(trades),
-            "trades": [
-                {
-                    **t,
-                    "signal_date": t["signal_date"].isoformat() if isinstance(t["signal_date"], date) else t["signal_date"],
-                    "exit_date": t["exit_date"].isoformat() if isinstance(t["exit_date"], date) else t["exit_date"],
-                }
-                for t in trades
-            ]
-        }, f, indent=2, default=str)
+    with open(output_path, "w") as f:
+        json.dump(
+            {
+                "timestamp": datetime.now().isoformat(),
+                "total_trades": len(trades),
+                "trades": [
+                    {
+                        **t,
+                        "signal_date": (
+                            t["signal_date"].isoformat()
+                            if isinstance(t["signal_date"], date)
+                            else t["signal_date"]
+                        ),
+                        "exit_date": (
+                            t["exit_date"].isoformat()
+                            if isinstance(t["exit_date"], date)
+                            else t["exit_date"]
+                        ),
+                    }
+                    for t in trades
+                ],
+            },
+            f,
+            indent=2,
+            default=str,
+        )
 
     print(f"  Saved {len(trades)} trades to {output_path}")
 
@@ -340,23 +360,24 @@ def main():
     )
 
     parser.add_argument(
-        "--strategies", nargs="+",
+        "--strategies",
+        nargs="+",
         choices=STRATEGIES + ["all"],
         default=["all"],
-        help="Strategies to backtest (default: all)"
+        help="Strategies to backtest (default: all)",
     )
     parser.add_argument(
-        "--max-trades", type=int, default=2000,
-        help="Max trades per strategy (default: 2000)"
+        "--max-trades", type=int, default=2000, help="Max trades per strategy (default: 2000)"
     )
     parser.add_argument(
-        "--min-score", type=float, default=5.0,
-        help="Minimum signal score (default: 5.0)"
+        "--min-score", type=float, default=5.0, help="Minimum signal score (default: 5.0)"
     )
     parser.add_argument(
-        "--output", "-o", type=str,
+        "--output",
+        "-o",
+        type=str,
         default=str(Path.home() / ".optionplay" / "training_trades.json"),
-        help="Output JSON path"
+        help="Output JSON path",
     )
     parser.add_argument("-v", "--verbose", action="store_true")
 
@@ -378,14 +399,14 @@ def main():
     tracker = TradeTracker()
     stats = tracker.get_storage_stats()
 
-    if stats['symbols_with_price_data'] == 0:
+    if stats["symbols_with_price_data"] == 0:
         print("❌ No historical data found!")
         sys.exit(1)
 
     print(f"  Database: {stats['symbols_with_price_data']} symbols")
 
     symbol_info = tracker.list_symbols_with_price_data()
-    symbols = [s['symbol'] for s in symbol_info]
+    symbols = [s["symbol"] for s in symbol_info]
 
     print(f"  Loading historical data...")
     historical_data = load_historical_data(tracker, symbols)

@@ -46,15 +46,17 @@ def collect_symbol(symbol: str, days: int, tracker: TradeTracker) -> int:
 
         bars = []
         for idx, row in hist.iterrows():
-            bar_date = idx.date() if hasattr(idx, 'date') else idx
-            bars.append(PriceBar(
-                date=bar_date,
-                open=float(row['Open']),
-                high=float(row['High']),
-                low=float(row['Low']),
-                close=float(row['Close']),
-                volume=int(row['Volume']),
-            ))
+            bar_date = idx.date() if hasattr(idx, "date") else idx
+            bars.append(
+                PriceBar(
+                    date=bar_date,
+                    open=float(row["Open"]),
+                    high=float(row["High"]),
+                    low=float(row["Low"]),
+                    close=float(row["Close"]),
+                    volume=int(row["Volume"]),
+                )
+            )
 
         if bars:
             tracker.store_price_data(symbol, bars)
@@ -68,15 +70,12 @@ def collect_symbol(symbol: str, days: int, tracker: TradeTracker) -> int:
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description='Collect historical data from Yahoo Finance'
+    parser = argparse.ArgumentParser(description="Collect historical data from Yahoo Finance")
+    parser.add_argument(
+        "--days", type=int, default=780, help="Days of history (default: 780 = ~3 years)"
     )
-    parser.add_argument('--days', type=int, default=780,
-                        help='Days of history (default: 780 = ~3 years)')
-    parser.add_argument('--years', type=int,
-                        help='Years of history (overrides --days)')
-    parser.add_argument('--symbols', type=str,
-                        help='Comma-separated symbols (default: watchlist)')
+    parser.add_argument("--years", type=int, help="Years of history (overrides --days)")
+    parser.add_argument("--symbols", type=str, help="Comma-separated symbols (default: watchlist)")
 
     args = parser.parse_args()
 
@@ -89,7 +88,7 @@ def main():
 
     # Symbole laden
     if args.symbols:
-        symbols = [s.strip().upper() for s in args.symbols.split(',')]
+        symbols = [s.strip().upper() for s in args.symbols.split(",")]
     else:
         loader = get_watchlist_loader()
         symbols = sorted(set(loader.get_all_symbols()))
@@ -107,19 +106,19 @@ def main():
         pct = (i / len(symbols)) * 100
         bar_width = 25
         filled = int(bar_width * i / len(symbols))
-        bar = '█' * filled + '░' * (bar_width - filled)
+        bar = "█" * filled + "░" * (bar_width - filled)
 
-        print(f"\r[{bar}] {pct:5.1f}% | {symbol:<6} | ", end='', flush=True)
+        print(f"\r[{bar}] {pct:5.1f}% | {symbol:<6} | ", end="", flush=True)
 
         count = collect_symbol(symbol, days, tracker)
 
         if count > 0:
             total_bars += count
             successful += 1
-            print(f"✓ {count} bars", end='', flush=True)
+            print(f"✓ {count} bars", end="", flush=True)
         else:
             failed += 1
-            print(f"✗ failed", end='', flush=True)
+            print(f"✗ failed", end="", flush=True)
 
     print()
     print()
@@ -131,8 +130,10 @@ def main():
 
     # Status anzeigen
     stats = tracker.get_storage_stats()
-    print(f"\n  Database: {stats['symbols_with_price_data']} symbols, {stats['total_price_bars']:,} bars")
+    print(
+        f"\n  Database: {stats['symbols_with_price_data']} symbols, {stats['total_price_bars']:,} bars"
+    )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

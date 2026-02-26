@@ -40,7 +40,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 import numpy as np
 import pandas as pd
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -49,20 +49,21 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 
 from src.constants.trading_rules import SPREAD_SHORT_DELTA_TARGET, SPREAD_LONG_DELTA_TARGET
+
 SHORT_DELTA_TARGET = SPREAD_SHORT_DELTA_TARGET
 LONG_DELTA_TARGET = SPREAD_LONG_DELTA_TARGET
 HOLDING_DAYS = 75
 RISK_FREE_RATE = 0.05
 
 # Roll Thresholds - KONSERVATIVER als vorher
-ROLL_LOSS_THRESHOLD = 0.30      # Roll erst bei 30% Verlust (vorher 25%)
-ROLL_PRICE_PROXIMITY = 1.02     # Roll wenn Preis innerhalb 2% (vorher 3%)
-ROLL_MIN_DTE = 21               # Roll Out bei DTE < 21 (vorher 30)
-MAX_ROLLS_PER_TRADE = 1         # Nur 1 Roll erlaubt (vorher 2)
+ROLL_LOSS_THRESHOLD = 0.30  # Roll erst bei 30% Verlust (vorher 25%)
+ROLL_PRICE_PROXIMITY = 1.02  # Roll wenn Preis innerhalb 2% (vorher 3%)
+ROLL_MIN_DTE = 21  # Roll Out bei DTE < 21 (vorher 30)
+MAX_ROLLS_PER_TRADE = 1  # Nur 1 Roll erlaubt (vorher 2)
 
 # Qualitäts-Filter
-MIN_SIGNAL_SCORE = 7.0          # Nur hochwertige Signale
-REQUIRE_SUPPORT_INTACT = True   # Roll nur wenn Support noch hält
+MIN_SIGNAL_SCORE = 7.0  # Nur hochwertige Signale
+REQUIRE_SUPPORT_INTACT = True  # Roll nur wenn Support noch hält
 
 DB_PATH = Path.home() / ".optionplay" / "backtest_signals.db"
 
@@ -70,6 +71,7 @@ DB_PATH = Path.home() / ".optionplay" / "backtest_signals.db"
 # =============================================================================
 # Enums & Data Classes
 # =============================================================================
+
 
 class RollType(Enum):
     NONE = "none"
@@ -87,6 +89,7 @@ class TradeOutcome(Enum):
 @dataclass
 class SignalTrade:
     """Ein Trade basierend auf einem echten Scanner-Signal"""
+
     symbol: str
     strategy: str
     signal_date: date
@@ -120,6 +123,7 @@ class SignalTrade:
 # Black-Scholes (Standalone)
 # =============================================================================
 
+
 def norm_cdf(x: float) -> float:
     return 0.5 * (1.0 + math.erf(x / math.sqrt(2.0)))
 
@@ -127,7 +131,7 @@ def norm_cdf(x: float) -> float:
 def black_scholes_put(S: float, K: float, T: float, r: float, sigma: float) -> float:
     if T <= 0 or sigma <= 0 or S <= 0 or K <= 0:
         return max(K - S, 0)
-    d1 = (math.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * math.sqrt(T))
+    d1 = (math.log(S / K) + (r + 0.5 * sigma**2) * T) / (sigma * math.sqrt(T))
     d2 = d1 - sigma * math.sqrt(T)
     return max(K * math.exp(-r * T) * norm_cdf(-d2) - S * norm_cdf(-d1), 0)
 
@@ -135,11 +139,13 @@ def black_scholes_put(S: float, K: float, T: float, r: float, sigma: float) -> f
 def black_scholes_delta(S: float, K: float, T: float, r: float, sigma: float) -> float:
     if T <= 0 or sigma <= 0 or S <= 0 or K <= 0:
         return -1.0 if K > S else 0.0
-    d1 = (math.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * math.sqrt(T))
+    d1 = (math.log(S / K) + (r + 0.5 * sigma**2) * T) / (sigma * math.sqrt(T))
     return norm_cdf(d1) - 1.0
 
 
-def find_strike_for_delta(S: float, T: float, r: float, sigma: float, target_delta: float, strike_step: float = 1.0) -> float:
+def find_strike_for_delta(
+    S: float, T: float, r: float, sigma: float, target_delta: float, strike_step: float = 1.0
+) -> float:
     """
     Findet Strike für gegebenes Put-Delta.
 
@@ -154,11 +160,11 @@ def find_strike_for_delta(S: float, T: float, r: float, sigma: float, target_del
     """
     # Für Puts: niedriger Strike = weniger negatives Delta (näher an 0)
     # Suche im Bereich von tief OTM bis leicht OTM
-    low = S * 0.70   # tief OTM
+    low = S * 0.70  # tief OTM
     high = S * 1.05  # nahe ATM
 
     best_strike = S * 0.90  # default
-    best_diff = float('inf')
+    best_diff = float("inf")
 
     for _ in range(100):
         mid = (low + high) / 2
@@ -184,13 +190,14 @@ def find_strike_for_delta(S: float, T: float, r: float, sigma: float, target_del
 def estimate_iv(prices: np.ndarray, days: int = 30) -> float:
     if len(prices) < days + 1:
         return 0.30
-    returns = np.diff(np.log(prices[-days-1:]))
+    returns = np.diff(np.log(prices[-days - 1 :]))
     return min(max(np.std(returns) * math.sqrt(252) * 1.20, 0.15), 1.50)
 
 
 # =============================================================================
 # Signal-basierte Trade-Simulation
 # =============================================================================
+
 
 def simulate_signal_trade(
     trade: SignalTrade,
@@ -216,7 +223,7 @@ def simulate_signal_trade(
 
     # IV schätzen
     lookback = min(60, entry_idx)
-    recent_prices = prices[entry_idx - lookback:entry_idx + 1]
+    recent_prices = prices[entry_idx - lookback : entry_idx + 1]
     iv = estimate_iv(recent_prices)
 
     T = HOLDING_DAYS / 365.0
@@ -230,8 +237,12 @@ def simulate_signal_trade(
         strike_step = 5.0
 
     # Strikes berechnen
-    short_strike = find_strike_for_delta(entry_price, T, RISK_FREE_RATE, iv, SHORT_DELTA_TARGET, strike_step)
-    long_strike = find_strike_for_delta(entry_price, T, RISK_FREE_RATE, iv, LONG_DELTA_TARGET, strike_step)
+    short_strike = find_strike_for_delta(
+        entry_price, T, RISK_FREE_RATE, iv, SHORT_DELTA_TARGET, strike_step
+    )
+    long_strike = find_strike_for_delta(
+        entry_price, T, RISK_FREE_RATE, iv, LONG_DELTA_TARGET, strike_step
+    )
 
     if long_strike >= short_strike:
         long_strike = short_strike - strike_step
@@ -302,8 +313,12 @@ def simulate_signal_trade(
                 new_T = T_remaining + (30 / 365.0)
 
                 # Neue Strikes basierend auf aktuellem Preis (diagonal down and out)
-                new_short = find_strike_for_delta(current_price, new_T, RISK_FREE_RATE, iv, SHORT_DELTA_TARGET, strike_step)
-                new_long = find_strike_for_delta(current_price, new_T, RISK_FREE_RATE, iv, LONG_DELTA_TARGET, strike_step)
+                new_short = find_strike_for_delta(
+                    current_price, new_T, RISK_FREE_RATE, iv, SHORT_DELTA_TARGET, strike_step
+                )
+                new_long = find_strike_for_delta(
+                    current_price, new_T, RISK_FREE_RATE, iv, LONG_DELTA_TARGET, strike_step
+                )
 
                 if new_long >= new_short:
                     new_long = new_short - strike_step
@@ -312,8 +327,12 @@ def simulate_signal_trade(
                 # close_cost = Kosten um aktuelle Position zu schließen (Debit)
                 # new_credit = Credit aus neuer Position
                 close_cost = spread_value  # Was wir zahlen müssen um zu schließen
-                new_short_prem = black_scholes_put(current_price, new_short, new_T, RISK_FREE_RATE, iv)
-                new_long_prem = black_scholes_put(current_price, new_long, new_T, RISK_FREE_RATE, iv)
+                new_short_prem = black_scholes_put(
+                    current_price, new_short, new_T, RISK_FREE_RATE, iv
+                )
+                new_long_prem = black_scholes_put(
+                    current_price, new_long, new_T, RISK_FREE_RATE, iv
+                )
                 new_credit = new_short_prem - new_long_prem
 
                 # Net Roll Cost: positiv = Debit, negativ = Credit
@@ -383,6 +402,7 @@ def simulate_signal_trade(
 # Signal Generator (vereinfacht für Backtest)
 # =============================================================================
 
+
 def find_support_level(prices: np.ndarray, lookback: int = 60) -> float:
     """Findet das nächste Support-Level (vereinfacht: 20-Tage-Tief)"""
     if len(prices) < lookback:
@@ -404,7 +424,7 @@ def generate_pullback_signal(prices: np.ndarray, idx: int) -> Optional[Tuple[flo
     if idx < 60:
         return None
 
-    lookback = prices[idx-60:idx+1]
+    lookback = prices[idx - 60 : idx + 1]
 
     # Trend: Preis über 50-SMA
     sma50 = np.mean(lookback[-50:])
@@ -504,6 +524,7 @@ def find_signals_for_symbol(
 # Database
 # =============================================================================
 
+
 class SignalBacktestDB:
     def __init__(self, db_path: Path = DB_PATH):
         self.db_path = db_path
@@ -568,72 +589,106 @@ class SignalBacktestDB:
                 )
             """)
 
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_signal_trades_run ON signal_trades(run_id)")
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_signal_trades_outcome ON signal_trades(outcome)")
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_signal_trades_score ON signal_trades(signal_score)")
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_signal_trades_run ON signal_trades(run_id)"
+            )
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_signal_trades_outcome ON signal_trades(outcome)"
+            )
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_signal_trades_score ON signal_trades(signal_score)"
+            )
 
     def create_run(self, name: str, strategy: str, min_score: float, rolls_enabled: bool) -> int:
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT INTO runs (name, strategy, min_score, rolls_enabled, created_at)
                 VALUES (?, ?, ?, ?, ?)
-            """, (name, strategy, min_score, 1 if rolls_enabled else 0, datetime.now().isoformat()))
+            """,
+                (name, strategy, min_score, 1 if rolls_enabled else 0, datetime.now().isoformat()),
+            )
             return cursor.lastrowid
 
     def add_trade(self, run_id: int, trade: SignalTrade):
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT INTO signal_trades (
                     run_id, symbol, strategy, signal_date, signal_score,
                     entry_price, exit_price, support_level, short_strike, long_strike,
                     initial_credit, final_pnl, outcome, roll_count, roll_type,
                     roll_cost, rolled_at_price, max_drawdown, holding_days, created_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                run_id, trade.symbol, trade.strategy,
-                trade.signal_date.isoformat() if trade.signal_date else None,
-                trade.signal_score, trade.entry_price, trade.exit_price, trade.support_level,
-                trade.short_strike, trade.long_strike, trade.initial_credit, trade.final_pnl,
-                trade.outcome.value if trade.outcome else None, trade.roll_count,
-                trade.roll_type.value if trade.roll_type else None, trade.roll_cost,
-                trade.rolled_at_price, trade.max_drawdown, trade.holding_days,
-                datetime.now().isoformat()
-            ))
+            """,
+                (
+                    run_id,
+                    trade.symbol,
+                    trade.strategy,
+                    trade.signal_date.isoformat() if trade.signal_date else None,
+                    trade.signal_score,
+                    trade.entry_price,
+                    trade.exit_price,
+                    trade.support_level,
+                    trade.short_strike,
+                    trade.long_strike,
+                    trade.initial_credit,
+                    trade.final_pnl,
+                    trade.outcome.value if trade.outcome else None,
+                    trade.roll_count,
+                    trade.roll_type.value if trade.roll_type else None,
+                    trade.roll_cost,
+                    trade.rolled_at_price,
+                    trade.max_drawdown,
+                    trade.holding_days,
+                    datetime.now().isoformat(),
+                ),
+            )
 
     def update_run_stats(self, run_id: int):
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT COUNT(*) as total,
                        SUM(CASE WHEN outcome = 'win' THEN 1 ELSE 0 END) as wins,
                        SUM(final_pnl) as pnl
                 FROM signal_trades WHERE run_id = ?
-            """, (run_id,))
+            """,
+                (run_id,),
+            )
             row = cursor.fetchone()
 
-            total = row['total'] or 0
-            wins = row['wins'] or 0
-            pnl = row['pnl'] or 0
+            total = row["total"] or 0
+            wins = row["wins"] or 0
+            pnl = row["pnl"] or 0
 
-            cursor.execute("""
+            cursor.execute(
+                """
                 UPDATE runs SET total_trades = ?, win_rate = ?, total_pnl = ?
                 WHERE id = ?
-            """, (total, (wins / total * 100) if total > 0 else 0, pnl, run_id))
+            """,
+                (total, (wins / total * 100) if total > 0 else 0, pnl, run_id),
+            )
 
     def get_statistics(self, run_id: int) -> Dict[str, Any]:
         with self._get_connection() as conn:
             cursor = conn.cursor()
 
             # Allgemeine Stats
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT * FROM runs WHERE id = ?
-            """, (run_id,))
+            """,
+                (run_id,),
+            )
             run = dict(cursor.fetchone())
 
             # Nach Roll-Status
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT
                     CASE WHEN roll_count > 0 THEN 'rolled' ELSE 'not_rolled' END as category,
                     COUNT(*) as trades,
@@ -643,14 +698,17 @@ class SignalBacktestDB:
                     SUM(final_pnl) as total_pnl
                 FROM signal_trades WHERE run_id = ?
                 GROUP BY category
-            """, (run_id,))
+            """,
+                (run_id,),
+            )
 
             by_roll_status = {}
             for row in cursor.fetchall():
-                by_roll_status[row['category']] = dict(row)
+                by_roll_status[row["category"]] = dict(row)
 
             # Nach Score-Bucket
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT
                     CASE
                         WHEN signal_score >= 9.0 THEN '9.0+'
@@ -663,16 +721,18 @@ class SignalBacktestDB:
                     AVG(final_pnl) as avg_pnl
                 FROM signal_trades WHERE run_id = ?
                 GROUP BY score_bucket
-            """, (run_id,))
+            """,
+                (run_id,),
+            )
 
             by_score = {}
             for row in cursor.fetchall():
-                by_score[row['score_bucket']] = dict(row)
+                by_score[row["score_bucket"]] = dict(row)
 
             return {
-                'run': run,
-                'by_roll_status': by_roll_status,
-                'by_score': by_score,
+                "run": run,
+                "by_roll_status": by_roll_status,
+                "by_score": by_score,
             }
 
 
@@ -680,16 +740,18 @@ class SignalBacktestDB:
 # Data Fetching
 # =============================================================================
 
+
 def fetch_data(symbol: str, start: str, end: str) -> Optional[Tuple[np.ndarray, List[date]]]:
     try:
         import yfinance as yf
+
         ticker = yf.Ticker(symbol)
         df = ticker.history(start=start, end=end)
 
         if df.empty or len(df) < 200:
             return None
 
-        prices = df['Close'].values
+        prices = df["Close"].values
         dates = [d.date() for d in df.index]
 
         return prices, dates
@@ -703,39 +765,41 @@ def get_symbols() -> List[str]:
     watchlist_path = PROJECT_ROOT / "config" / "watchlists.yaml"
 
     if not watchlist_path.exists():
-        return ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'NVDA']
+        return ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA"]
 
     try:
         import yaml
+
         with open(watchlist_path) as f:
             config = yaml.safe_load(f)
 
         symbols = set()
-        watchlists = config.get('watchlists', config)
+        watchlists = config.get("watchlists", config)
 
         for wl_data in watchlists.values():
             if not isinstance(wl_data, dict):
                 continue
-            if 'symbols' in wl_data:
-                syms = wl_data.get('symbols', [])
+            if "symbols" in wl_data:
+                syms = wl_data.get("symbols", [])
                 if isinstance(syms, list):
                     symbols.update(s for s in syms if isinstance(s, str))
-            if 'sectors' in wl_data:
-                for sector in wl_data.get('sectors', {}).values():
-                    if isinstance(sector, dict) and 'symbols' in sector:
-                        syms = sector.get('symbols', [])
+            if "sectors" in wl_data:
+                for sector in wl_data.get("sectors", {}).values():
+                    if isinstance(sector, dict) and "symbols" in sector:
+                        syms = sector.get("symbols", [])
                         if isinstance(syms, list):
                             symbols.update(s for s in syms if isinstance(s, str))
 
         return sorted([s for s in symbols if s and len(s) <= 6])
     except Exception as e:
         logger.warning(f"Failed to load watchlist: {e}")
-        return ['AAPL', 'MSFT', 'GOOGL']
+        return ["AAPL", "MSFT", "GOOGL"]
 
 
 # =============================================================================
 # Main Backtest Runner
 # =============================================================================
+
 
 def run_signal_backtest(
     symbols: List[str],
@@ -791,7 +855,7 @@ def print_results(run_id: int):
     db = SignalBacktestDB()
     stats = db.get_statistics(run_id)
 
-    run = stats['run']
+    run = stats["run"]
 
     print("\n" + "=" * 70)
     print("SIGNAL-BASED BACKTEST RESULTS")
@@ -811,33 +875,37 @@ def print_results(run_id: int):
     print("BY ROLL STATUS")
     print("-" * 70)
 
-    for cat, data in stats.get('by_roll_status', {}).items():
-        trades = data['trades']
-        win_rate = (data['wins'] / trades * 100) if trades > 0 else 0
-        ml_rate = (data['max_losses'] / trades * 100) if trades > 0 else 0
-        print(f"{cat.upper():<15} Trades: {trades:>5}  WR: {win_rate:>5.1f}%  MaxLoss: {ml_rate:>5.1f}%  P&L: ${data['total_pnl']:>10,.2f}")
+    for cat, data in stats.get("by_roll_status", {}).items():
+        trades = data["trades"]
+        win_rate = (data["wins"] / trades * 100) if trades > 0 else 0
+        ml_rate = (data["max_losses"] / trades * 100) if trades > 0 else 0
+        print(
+            f"{cat.upper():<15} Trades: {trades:>5}  WR: {win_rate:>5.1f}%  MaxLoss: {ml_rate:>5.1f}%  P&L: ${data['total_pnl']:>10,.2f}"
+        )
 
     print("\n" + "-" * 70)
     print("BY SIGNAL SCORE")
     print("-" * 70)
 
-    for bucket, data in sorted(stats.get('by_score', {}).items(), reverse=True):
-        trades = data['trades']
-        win_rate = (data['wins'] / trades * 100) if trades > 0 else 0
-        print(f"Score {bucket:<10} Trades: {trades:>5}  WR: {win_rate:>5.1f}%  Avg P&L: ${data['avg_pnl']:>8.2f}")
+    for bucket, data in sorted(stats.get("by_score", {}).items(), reverse=True):
+        trades = data["trades"]
+        win_rate = (data["wins"] / trades * 100) if trades > 0 else 0
+        print(
+            f"Score {bucket:<10} Trades: {trades:>5}  WR: {win_rate:>5.1f}%  Avg P&L: ${data['avg_pnl']:>8.2f}"
+        )
 
     print("\n" + "=" * 70)
 
 
 def main():
     parser = argparse.ArgumentParser(description="Signal-Based Backtest with Rolls")
-    parser.add_argument('--min-score', type=float, default=7.0, help='Minimum signal score')
-    parser.add_argument('--no-rolls', action='store_true', help='Disable rolls')
-    parser.add_argument('--start', default='2020-01-01', help='Start date')
-    parser.add_argument('--end', default='2024-12-31', help='End date')
-    parser.add_argument('--name', type=str, help='Run name')
-    parser.add_argument('--results', type=int, help='Show results for run ID')
-    parser.add_argument('--compare', nargs=2, type=int, help='Compare two runs')
+    parser.add_argument("--min-score", type=float, default=7.0, help="Minimum signal score")
+    parser.add_argument("--no-rolls", action="store_true", help="Disable rolls")
+    parser.add_argument("--start", default="2020-01-01", help="Start date")
+    parser.add_argument("--end", default="2024-12-31", help="End date")
+    parser.add_argument("--name", type=str, help="Run name")
+    parser.add_argument("--results", type=int, help="Show results for run ID")
+    parser.add_argument("--compare", nargs=2, type=int, help="Compare two runs")
 
     args = parser.parse_args()
 
@@ -873,5 +941,5 @@ def main():
     print(f"View: python {__file__} --results {run_id}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

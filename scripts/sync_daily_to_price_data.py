@@ -37,7 +37,7 @@ def main():
         SELECT DISTINCT symbol FROM daily_prices
         ORDER BY symbol
     """)
-    symbols = [row['symbol'] for row in cursor.fetchall()]
+    symbols = [row["symbol"] for row in cursor.fetchall()]
     print(f"\n  Symbols in daily_prices: {len(symbols)}")
 
     synced = 0
@@ -46,24 +46,27 @@ def main():
 
     for i, symbol in enumerate(symbols, 1):
         try:
-            rows = conn.execute("""
+            rows = conn.execute(
+                """
                 SELECT quote_date, open, high, low, close, volume
                 FROM daily_prices
                 WHERE symbol = ?
                 ORDER BY quote_date ASC
-            """, (symbol,)).fetchall()
+            """,
+                (symbol,),
+            ).fetchall()
 
             if not rows:
                 continue
 
             bars = [
                 PriceBar(
-                    date=date.fromisoformat(row['quote_date']),
-                    open=float(row['open']),
-                    high=float(row['high']),
-                    low=float(row['low']),
-                    close=float(row['close']),
-                    volume=int(row['volume']),
+                    date=date.fromisoformat(row["quote_date"]),
+                    open=float(row["open"]),
+                    high=float(row["high"]),
+                    low=float(row["low"]),
+                    close=float(row["close"]),
+                    volume=int(row["volume"]),
                 )
                 for row in rows
             ]

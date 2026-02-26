@@ -39,6 +39,7 @@ from src.indicators.gap_analysis import (
 @dataclass
 class GapEvent:
     """Ein einzelnes Gap-Event mit Forward-Returns."""
+
     symbol: str
     date: date
     gap_type: str
@@ -56,6 +57,7 @@ class GapEvent:
 @dataclass
 class ThesisValidationResult:
     """Ergebnis der Gap-These-Validierung."""
+
     # Datenbasis
     total_symbols: int
     symbols_with_data: int
@@ -125,13 +127,13 @@ def collect_gap_events(
         Tuple: (List[GapEvent], stats_dict)
     """
     symbol_info = tracker.list_symbols_with_price_data()
-    symbols = [s['symbol'] for s in symbol_info]
+    symbols = [s["symbol"] for s in symbol_info]
 
     all_events: List[GapEvent] = []
     stats = {
-        'total_symbols': len(symbols),
-        'symbols_with_data': 0,
-        'total_days': 0,
+        "total_symbols": len(symbols),
+        "symbols_with_data": 0,
+        "total_days": 0,
     }
 
     for symbol in symbols:
@@ -141,8 +143,8 @@ def collect_gap_events(
             continue
 
         price_data = symbol_data.bars
-        stats['symbols_with_data'] += 1
-        stats['total_days'] += len(price_data)
+        stats["symbols_with_data"] += 1
+        stats["total_days"] += len(price_data)
 
         # Konvertiere zu Listen
         opens = [bar.open for bar in price_data]
@@ -154,10 +156,10 @@ def collect_gap_events(
         # Scanne nach Gaps
         for i in range(1, len(price_data) - forward_days):
             gap_type, gap_size, _, is_filled, fill_pct = detect_gap(
-                prev_open=opens[i-1],
-                prev_high=highs[i-1],
-                prev_low=lows[i-1],
-                prev_close=closes[i-1],
+                prev_open=opens[i - 1],
+                prev_high=highs[i - 1],
+                prev_low=lows[i - 1],
+                prev_close=closes[i - 1],
                 curr_open=opens[i],
                 curr_high=highs[i],
                 curr_low=lows[i],
@@ -165,7 +167,7 @@ def collect_gap_events(
                 min_gap_pct=min_gap_pct,
             )
 
-            if gap_type == 'none':
+            if gap_type == "none":
                 continue
 
             # Forward-Returns berechnen
@@ -205,10 +207,10 @@ def analyze_gap_events(
     Analysiert Gap-Events und validiert die These.
     """
     # Gruppiere nach Gap-Typ
-    up_gaps = [e for e in events if e.gap_type == 'up']
-    down_gaps = [e for e in events if e.gap_type == 'down']
-    partial_up = [e for e in events if e.gap_type == 'partial_up']
-    partial_down = [e for e in events if e.gap_type == 'partial_down']
+    up_gaps = [e for e in events if e.gap_type == "up"]
+    down_gaps = [e for e in events if e.gap_type == "down"]
+    partial_up = [e for e in events if e.gap_type == "partial_up"]
+    partial_down = [e for e in events if e.gap_type == "partial_down"]
 
     # Kombiniere für Hauptanalyse
     all_up = up_gaps + partial_up
@@ -274,17 +276,15 @@ def analyze_gap_events(
         period = "N/A"
 
     return ThesisValidationResult(
-        total_symbols=stats['total_symbols'],
-        symbols_with_data=stats['symbols_with_data'],
-        total_trading_days=stats['total_days'],
+        total_symbols=stats["total_symbols"],
+        symbols_with_data=stats["symbols_with_data"],
+        total_trading_days=stats["total_days"],
         analysis_period=period,
-
         total_gaps=len(events),
         up_gaps=len(up_gaps),
         down_gaps=len(down_gaps),
         partial_up_gaps=len(partial_up),
         partial_down_gaps=len(partial_down),
-
         avg_return_1d_after_up_gap=safe_mean(up_returns_1d),
         avg_return_1d_after_down_gap=safe_mean(down_returns_1d),
         avg_return_5d_after_up_gap=safe_mean(up_returns_5d),
@@ -295,7 +295,6 @@ def analyze_gap_events(
         avg_return_30d_after_down_gap=safe_mean(down_returns_30d),
         avg_return_60d_after_up_gap=safe_mean(up_returns_60d),
         avg_return_60d_after_down_gap=safe_mean(down_returns_60d),
-
         win_rate_1d_after_up_gap=win_rate(up_returns_1d),
         win_rate_1d_after_down_gap=win_rate(down_returns_1d),
         win_rate_5d_after_up_gap=win_rate(up_returns_5d),
@@ -306,20 +305,16 @@ def analyze_gap_events(
         win_rate_30d_after_down_gap=win_rate(down_returns_30d),
         win_rate_60d_after_up_gap=win_rate(up_returns_60d),
         win_rate_60d_after_down_gap=win_rate(down_returns_60d),
-
         up_gap_fill_rate_intraday=up_fill_rate,
         down_gap_fill_rate_intraday=down_fill_rate,
-
         avg_up_gap_size=avg_up_size,
         avg_down_gap_size=avg_down_size,
-
         thesis_supported_1d=thesis_1d,
         thesis_supported_5d=thesis_5d,
         thesis_supported_10d=thesis_10d,
         thesis_supported_30d=thesis_30d,
         thesis_supported_60d=thesis_60d,
         confidence_score=confidence,
-
         recommended_gap_weight=recommended_weight,
     )
 
@@ -354,20 +349,40 @@ def print_results(result: ThesisValidationResult, events: List[GapEvent]):
     print(f"\n{'FORWARD RETURNS (Avg)':^70}")
     print("-" * 70)
     print(f"  {'':20} {'After Up-Gap':>15} {'After Down-Gap':>15} {'Diff':>10}")
-    print(f"  {'1-Day Return':20} {result.avg_return_1d_after_up_gap:>+14.3f}% {result.avg_return_1d_after_down_gap:>+14.3f}% {result.avg_return_1d_after_down_gap - result.avg_return_1d_after_up_gap:>+9.3f}%")
-    print(f"  {'5-Day Return':20} {result.avg_return_5d_after_up_gap:>+14.3f}% {result.avg_return_5d_after_down_gap:>+14.3f}% {result.avg_return_5d_after_down_gap - result.avg_return_5d_after_up_gap:>+9.3f}%")
-    print(f"  {'10-Day Return':20} {result.avg_return_10d_after_up_gap:>+14.3f}% {result.avg_return_10d_after_down_gap:>+14.3f}% {result.avg_return_10d_after_down_gap - result.avg_return_10d_after_up_gap:>+9.3f}%")
-    print(f"  {'30-Day Return':20} {result.avg_return_30d_after_up_gap:>+14.3f}% {result.avg_return_30d_after_down_gap:>+14.3f}% {result.avg_return_30d_after_down_gap - result.avg_return_30d_after_up_gap:>+9.3f}%")
-    print(f"  {'60-Day Return':20} {result.avg_return_60d_after_up_gap:>+14.3f}% {result.avg_return_60d_after_down_gap:>+14.3f}% {result.avg_return_60d_after_down_gap - result.avg_return_60d_after_up_gap:>+9.3f}%")
+    print(
+        f"  {'1-Day Return':20} {result.avg_return_1d_after_up_gap:>+14.3f}% {result.avg_return_1d_after_down_gap:>+14.3f}% {result.avg_return_1d_after_down_gap - result.avg_return_1d_after_up_gap:>+9.3f}%"
+    )
+    print(
+        f"  {'5-Day Return':20} {result.avg_return_5d_after_up_gap:>+14.3f}% {result.avg_return_5d_after_down_gap:>+14.3f}% {result.avg_return_5d_after_down_gap - result.avg_return_5d_after_up_gap:>+9.3f}%"
+    )
+    print(
+        f"  {'10-Day Return':20} {result.avg_return_10d_after_up_gap:>+14.3f}% {result.avg_return_10d_after_down_gap:>+14.3f}% {result.avg_return_10d_after_down_gap - result.avg_return_10d_after_up_gap:>+9.3f}%"
+    )
+    print(
+        f"  {'30-Day Return':20} {result.avg_return_30d_after_up_gap:>+14.3f}% {result.avg_return_30d_after_down_gap:>+14.3f}% {result.avg_return_30d_after_down_gap - result.avg_return_30d_after_up_gap:>+9.3f}%"
+    )
+    print(
+        f"  {'60-Day Return':20} {result.avg_return_60d_after_up_gap:>+14.3f}% {result.avg_return_60d_after_down_gap:>+14.3f}% {result.avg_return_60d_after_down_gap - result.avg_return_60d_after_up_gap:>+9.3f}%"
+    )
 
     print(f"\n{'WIN RATES (% positive returns)':^70}")
     print("-" * 70)
     print(f"  {'':20} {'After Up-Gap':>15} {'After Down-Gap':>15} {'Diff':>10}")
-    print(f"  {'1-Day Win Rate':20} {result.win_rate_1d_after_up_gap:>14.1%} {result.win_rate_1d_after_down_gap:>14.1%} {(result.win_rate_1d_after_down_gap - result.win_rate_1d_after_up_gap)*100:>+9.1f}pp")
-    print(f"  {'5-Day Win Rate':20} {result.win_rate_5d_after_up_gap:>14.1%} {result.win_rate_5d_after_down_gap:>14.1%} {(result.win_rate_5d_after_down_gap - result.win_rate_5d_after_up_gap)*100:>+9.1f}pp")
-    print(f"  {'10-Day Win Rate':20} {result.win_rate_10d_after_up_gap:>14.1%} {result.win_rate_10d_after_down_gap:>14.1%} {(result.win_rate_10d_after_down_gap - result.win_rate_10d_after_up_gap)*100:>+9.1f}pp")
-    print(f"  {'30-Day Win Rate':20} {result.win_rate_30d_after_up_gap:>14.1%} {result.win_rate_30d_after_down_gap:>14.1%} {(result.win_rate_30d_after_down_gap - result.win_rate_30d_after_up_gap)*100:>+9.1f}pp")
-    print(f"  {'60-Day Win Rate':20} {result.win_rate_60d_after_up_gap:>14.1%} {result.win_rate_60d_after_down_gap:>14.1%} {(result.win_rate_60d_after_down_gap - result.win_rate_60d_after_up_gap)*100:>+9.1f}pp")
+    print(
+        f"  {'1-Day Win Rate':20} {result.win_rate_1d_after_up_gap:>14.1%} {result.win_rate_1d_after_down_gap:>14.1%} {(result.win_rate_1d_after_down_gap - result.win_rate_1d_after_up_gap)*100:>+9.1f}pp"
+    )
+    print(
+        f"  {'5-Day Win Rate':20} {result.win_rate_5d_after_up_gap:>14.1%} {result.win_rate_5d_after_down_gap:>14.1%} {(result.win_rate_5d_after_down_gap - result.win_rate_5d_after_up_gap)*100:>+9.1f}pp"
+    )
+    print(
+        f"  {'10-Day Win Rate':20} {result.win_rate_10d_after_up_gap:>14.1%} {result.win_rate_10d_after_down_gap:>14.1%} {(result.win_rate_10d_after_down_gap - result.win_rate_10d_after_up_gap)*100:>+9.1f}pp"
+    )
+    print(
+        f"  {'30-Day Win Rate':20} {result.win_rate_30d_after_up_gap:>14.1%} {result.win_rate_30d_after_down_gap:>14.1%} {(result.win_rate_30d_after_down_gap - result.win_rate_30d_after_up_gap)*100:>+9.1f}pp"
+    )
+    print(
+        f"  {'60-Day Win Rate':20} {result.win_rate_60d_after_up_gap:>14.1%} {result.win_rate_60d_after_down_gap:>14.1%} {(result.win_rate_60d_after_down_gap - result.win_rate_60d_after_up_gap)*100:>+9.1f}pp"
+    )
 
     print(f"\n{'THESIS VALIDATION':^70}")
     print("-" * 70)
@@ -398,23 +413,41 @@ def print_results(result: ThesisValidationResult, events: List[GapEvent]):
     ]
 
     for bucket_name, min_size, max_size in size_buckets:
-        up_in_bucket = [e for e in events if e.gap_type in ('up', 'partial_up')
-                       and min_size <= abs(e.gap_size_pct) < max_size]
-        down_in_bucket = [e for e in events if e.gap_type in ('down', 'partial_down')
-                        and min_size <= abs(e.gap_size_pct) < max_size]
+        up_in_bucket = [
+            e
+            for e in events
+            if e.gap_type in ("up", "partial_up") and min_size <= abs(e.gap_size_pct) < max_size
+        ]
+        down_in_bucket = [
+            e
+            for e in events
+            if e.gap_type in ("down", "partial_down") and min_size <= abs(e.gap_size_pct) < max_size
+        ]
 
         if up_in_bucket or down_in_bucket:
             up_ret = np.mean([e.return_5d for e in up_in_bucket]) if up_in_bucket else 0
             down_ret = np.mean([e.return_5d for e in down_in_bucket]) if down_in_bucket else 0
-            print(f"  {bucket_name:20} Up(n={len(up_in_bucket):3}): {up_ret:+.2f}%  Down(n={len(down_in_bucket):3}): {down_ret:+.2f}%")
+            print(
+                f"  {bucket_name:20} Up(n={len(up_in_bucket):3}): {up_ret:+.2f}%  Down(n={len(down_in_bucket):3}): {down_ret:+.2f}%"
+            )
 
     print("\n" + "=" * 70)
 
     # Fazit
-    supported_count = sum([result.thesis_supported_1d, result.thesis_supported_5d, result.thesis_supported_10d, result.thesis_supported_30d, result.thesis_supported_60d])
+    supported_count = sum(
+        [
+            result.thesis_supported_1d,
+            result.thesis_supported_5d,
+            result.thesis_supported_10d,
+            result.thesis_supported_30d,
+            result.thesis_supported_60d,
+        ]
+    )
     if supported_count >= 2 and result.confidence_score >= 0.5:
         print("FAZIT: Die Gap-These wird durch die Daten UNTERSTÜTZT.")
-        print(f"       Empfehlung: Gap-Score mit Gewicht {result.recommended_gap_weight:.2f} integrieren.")
+        print(
+            f"       Empfehlung: Gap-Score mit Gewicht {result.recommended_gap_weight:.2f} integrieren."
+        )
     elif supported_count >= 1:
         print("FAZIT: Die Gap-These wird TEILWEISE unterstützt.")
         print("       Empfehlung: Gap-Score mit reduziertem Gewicht testen.")
@@ -426,15 +459,15 @@ def print_results(result: ThesisValidationResult, events: List[GapEvent]):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Validate Gap Trading Thesis')
-    parser.add_argument('--min-gap-pct', type=float, default=0.5,
-                        help='Minimum gap size in %% (default: 0.5)')
-    parser.add_argument('--min-samples', type=int, default=10,
-                        help='Minimum samples per category (default: 10)')
-    parser.add_argument('--output', type=str,
-                        help='Save results to JSON file')
-    parser.add_argument('--verbose', '-v', action='store_true',
-                        help='Show detailed output')
+    parser = argparse.ArgumentParser(description="Validate Gap Trading Thesis")
+    parser.add_argument(
+        "--min-gap-pct", type=float, default=0.5, help="Minimum gap size in %% (default: 0.5)"
+    )
+    parser.add_argument(
+        "--min-samples", type=int, default=10, help="Minimum samples per category (default: 10)"
+    )
+    parser.add_argument("--output", type=str, help="Save results to JSON file")
+    parser.add_argument("--verbose", "-v", action="store_true", help="Show detailed output")
 
     args = parser.parse_args()
 
@@ -455,7 +488,9 @@ def main():
     print(f"Found {len(events):,} gap events across {stats['symbols_with_data']} symbols")
 
     if len(events) < args.min_samples * 2:
-        print(f"\nERROR: Not enough gap events ({len(events)}). Need at least {args.min_samples * 2}.")
+        print(
+            f"\nERROR: Not enough gap events ({len(events)}). Need at least {args.min_samples * 2}."
+        )
         print("Try collecting more historical data or reducing --min-gap-pct")
         sys.exit(1)
 
@@ -469,10 +504,10 @@ def main():
     # Optional: JSON speichern
     if args.output:
         output_path = Path(args.output)
-        with open(output_path, 'w') as f:
+        with open(output_path, "w") as f:
             json.dump(asdict(result), f, indent=2, default=str)
         print(f"Results saved to {output_path}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

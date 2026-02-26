@@ -33,10 +33,7 @@ from src.backtesting import TradeTracker, BacktestEngine, BacktestConfig, Backte
 from src.config.watchlist_loader import get_watchlist_loader
 
 
-def load_historical_data(
-    tracker: TradeTracker,
-    symbols: List[str]
-) -> Dict[str, List[Dict]]:
+def load_historical_data(tracker: TradeTracker, symbols: List[str]) -> Dict[str, List[Dict]]:
     """
     Lädt historische Preisdaten aus der Datenbank.
 
@@ -78,26 +75,23 @@ def load_vix_data(tracker: TradeTracker) -> List[Dict]:
     if not vix_points:
         return []
 
-    return [
-        {"date": p.date, "close": p.value}
-        for p in vix_points
-    ]
+    return [{"date": p.date, "close": p.value} for p in vix_points]
 
 
 def get_symbols_by_sector(sector: str) -> List[str]:
     """Lädt Symbole für einen Sektor"""
     sector_map = {
-        'tech': 'information_technology',
-        'health': 'health_care',
-        'finance': 'financials',
-        'consumer': 'consumer_discretionary',
-        'communication': 'communication_services',
-        'industrial': 'industrials',
-        'staples': 'consumer_staples',
-        'energy': 'energy',
-        'utilities': 'utilities',
-        'materials': 'materials',
-        'realestate': 'real_estate',
+        "tech": "information_technology",
+        "health": "health_care",
+        "finance": "financials",
+        "consumer": "consumer_discretionary",
+        "communication": "communication_services",
+        "industrial": "industrials",
+        "staples": "consumer_staples",
+        "energy": "energy",
+        "utilities": "utilities",
+        "materials": "materials",
+        "realestate": "real_estate",
     }
 
     full_sector = sector_map.get(sector.lower(), sector)
@@ -172,7 +166,9 @@ def print_monthly_breakdown(result: BacktestResult):
 
     print("-" * 60)
     total_pnl = sum(t.realized_pnl for t in result.trades)
-    print(f"{'GESAMT':<10} {len(result.trades):>8} {result.winning_trades:>10} ${total_pnl:>+10,.0f} {result.win_rate:>9.1f}%")
+    print(
+        f"{'GESAMT':<10} {len(result.trades):>8} {result.winning_trades:>10} ${total_pnl:>+10,.0f} {result.win_rate:>9.1f}%"
+    )
 
 
 def print_symbol_breakdown(result: BacktestResult, top_n: int = 10):
@@ -193,8 +189,7 @@ def print_symbol_breakdown(result: BacktestResult, top_n: int = 10):
 
     # Sortiere nach P&L
     symbol_pnl = [
-        (sym, sum(t.realized_pnl for t in trades), len(trades))
-        for sym, trades in by_symbol.items()
+        (sym, sum(t.realized_pnl for t in trades), len(trades)) for sym, trades in by_symbol.items()
     ]
     symbol_pnl.sort(key=lambda x: x[1], reverse=True)
 
@@ -211,41 +206,42 @@ def print_symbol_breakdown(result: BacktestResult, top_n: int = 10):
 def save_results(result: BacktestResult, output_path: Path):
     """Speichert Ergebnisse als JSON"""
     data = result.to_dict()
-    with open(output_path, 'w') as f:
+    with open(output_path, "w") as f:
         json.dump(data, f, indent=2, default=str)
     print(f"\nErgebnisse gespeichert: {output_path}")
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Run backtest with historical data',
+        description="Run backtest with historical data",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=__doc__
+        epilog=__doc__,
     )
 
     # Symbol-Auswahl
-    parser.add_argument('--symbols', type=str,
-                        help='Comma-separated list of symbols')
-    parser.add_argument('--sector', type=str,
-                        help='Test single sector (tech, health, etc.)')
-    parser.add_argument('--all', action='store_true', default=True,
-                        help='Test all available symbols (default)')
+    parser.add_argument("--symbols", type=str, help="Comma-separated list of symbols")
+    parser.add_argument("--sector", type=str, help="Test single sector (tech, health, etc.)")
+    parser.add_argument(
+        "--all", action="store_true", default=True, help="Test all available symbols (default)"
+    )
 
     # Backtest-Parameter
-    parser.add_argument('--capital', type=float, default=100000,
-                        help='Initial capital (default: 100000)')
-    parser.add_argument('--profit-target', type=float, default=50,
-                        help='Profit target %% (default: 50)')
-    parser.add_argument('--stop-loss', type=float, default=100,
-                        help='Stop loss %% (default: 100)')
-    parser.add_argument('--min-score', type=float, default=5.0,
-                        help='Minimum pullback score (default: 5.0)')
+    parser.add_argument(
+        "--capital", type=float, default=100000, help="Initial capital (default: 100000)"
+    )
+    parser.add_argument(
+        "--profit-target", type=float, default=50, help="Profit target %% (default: 50)"
+    )
+    parser.add_argument("--stop-loss", type=float, default=100, help="Stop loss %% (default: 100)")
+    parser.add_argument(
+        "--min-score", type=float, default=5.0, help="Minimum pullback score (default: 5.0)"
+    )
 
     # Output
-    parser.add_argument('-v', '--verbose', action='store_true',
-                        help='Verbose output with trade details')
-    parser.add_argument('--output', type=str,
-                        help='Save results to JSON file')
+    parser.add_argument(
+        "-v", "--verbose", action="store_true", help="Verbose output with trade details"
+    )
+    parser.add_argument("--output", type=str, help="Save results to JSON file")
 
     args = parser.parse_args()
 
@@ -258,12 +254,14 @@ def main():
 
     # Status prüfen
     stats = tracker.get_storage_stats()
-    if stats['symbols_with_price_data'] == 0:
+    if stats["symbols_with_price_data"] == 0:
         print("\n❌ Keine historischen Daten gefunden!")
         print("   Führe zuerst aus: python scripts/collect_historical_data.py --all")
         sys.exit(1)
 
-    print(f"\n  Datenbank: {stats['symbols_with_price_data']} Symbole, {stats['total_price_bars']:,} Bars")
+    print(
+        f"\n  Datenbank: {stats['symbols_with_price_data']} Symbole, {stats['total_price_bars']:,} Bars"
+    )
 
     # VIX-Daten prüfen
     vix_range = tracker.get_vix_range()
@@ -274,14 +272,14 @@ def main():
 
     # Symbole bestimmen
     if args.symbols:
-        symbols = [s.strip().upper() for s in args.symbols.split(',')]
+        symbols = [s.strip().upper() for s in args.symbols.split(",")]
     elif args.sector:
         symbols = get_symbols_by_sector(args.sector)
         print(f"\n  Sektor: {args.sector} ({len(symbols)} Symbole)")
     else:
         # Alle Symbole mit Daten
         symbol_info = tracker.list_symbols_with_price_data()
-        symbols = [s['symbol'] for s in symbol_info]
+        symbols = [s["symbol"] for s in symbol_info]
 
     print(f"  Symbole: {len(symbols)}")
 
@@ -301,7 +299,7 @@ def main():
     all_dates = []
     for sym_data in historical_data.values():
         for bar in sym_data:
-            d = bar['date']
+            d = bar["date"]
             if isinstance(d, str):
                 d = date.fromisoformat(d)
             all_dates.append(d)
@@ -356,9 +354,11 @@ def main():
     # Kurze Zusammenfassung
     print("\n" + "═" * 70)
     roi = (result.total_pnl / config.initial_capital) * 100
-    print(f"  ROI: {roi:+.2f}%  |  Win Rate: {result.win_rate:.1f}%  |  Profit Factor: {result.profit_factor:.2f}")
+    print(
+        f"  ROI: {roi:+.2f}%  |  Win Rate: {result.win_rate:.1f}%  |  Profit Factor: {result.profit_factor:.2f}"
+    )
     print("═" * 70)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

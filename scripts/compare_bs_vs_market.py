@@ -35,13 +35,14 @@ from src.pricing.black_scholes import (
     estimate_iv_calibrated,
 )
 
-logging.basicConfig(level=logging.INFO, format='%(message)s')
+logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
 
 
 @dataclass
 class ComparisonResult:
     """Einzelner Vergleichspunkt"""
+
     symbol: str
     occ_symbol: str
     trade_date: date
@@ -102,20 +103,15 @@ def get_spot_prices(tracker: TradeTracker, symbols: List[str]) -> Dict[str, pd.D
     for symbol in symbols:
         price_data = tracker.get_price_data(symbol)
         if price_data and price_data.bars:
-            df = pd.DataFrame([
-                {'date': bar.date, 'close': bar.close}
-                for bar in price_data.bars
-            ])
-            df['date'] = pd.to_datetime(df['date']).dt.date
-            spot_data[symbol] = df.set_index('date')['close'].to_dict()
+            df = pd.DataFrame([{"date": bar.date, "close": bar.close} for bar in price_data.bars])
+            df["date"] = pd.to_datetime(df["date"]).dt.date
+            spot_data[symbol] = df.set_index("date")["close"].to_dict()
 
     return spot_data
 
 
 def calculate_hv_for_date(
-    spot_prices: Dict[date, float],
-    target_date: date,
-    window: int = 20
+    spot_prices: Dict[date, float], target_date: date, window: int = 20
 ) -> Optional[float]:
     """
     Berechnet Historical Volatility für ein bestimmtes Datum.
@@ -126,7 +122,7 @@ def calculate_hv_for_date(
     if len(dates) < window + 1:
         return None
 
-    prices = np.array([spot_prices[d] for d in dates[:window + 1]])
+    prices = np.array([spot_prices[d] for d in dates[: window + 1]])
 
     # Log-Returns
     returns = np.log(prices[:-1] / prices[1:])
@@ -140,7 +136,7 @@ def calculate_hv_for_date(
 def run_comparison(
     df: pd.DataFrame,
     spot_data: Dict[str, Dict[date, float]],
-    vix_data: Optional[Dict[date, float]] = None
+    vix_data: Optional[Dict[date, float]] = None,
 ) -> List[ComparisonResult]:
     """
     Führt den Vergleich zwischen Black-Scholes und Marktpreisen durch.
@@ -148,8 +144,8 @@ def run_comparison(
     results = []
 
     # Konvertiere Datumsformate
-    df['trade_date'] = pd.to_datetime(df['trade_date']).dt.date
-    df['expiry'] = pd.to_datetime(df['expiry']).dt.date
+    df["trade_date"] = pd.to_datetime(df["trade_date"]).dt.date
+    df["expiry"] = pd.to_datetime(df["expiry"]).dt.date
 
     total = len(df)
     processed = 0
@@ -158,11 +154,11 @@ def run_comparison(
     logger.info(f"Running comparison for {total} option prices...")
 
     for idx, row in df.iterrows():
-        symbol = row['underlying']
-        trade_date = row['trade_date']
-        expiry = row['expiry']
-        strike = row['strike']
-        market_price = row['option_close']
+        symbol = row["underlying"]
+        trade_date = row["trade_date"]
+        expiry = row["expiry"]
+        strike = row["strike"]
+        market_price = row["option_close"]
 
         # Skip wenn keine Spot-Daten
         if symbol not in spot_data:
@@ -209,30 +205,30 @@ def run_comparison(
         bs_price = black_scholes_put(spot_price, strike, T, 0.05, iv_estimate)
 
         # Market IV berechnen (Newton-Raphson)
-        market_iv = implied_volatility(
-            market_price, spot_price, strike, T, 0.05, "P"
-        )
+        market_iv = implied_volatility(market_price, spot_price, strike, T, 0.05, "P")
 
         # Error berechnen
         error = bs_price - market_price
         pct_error = (error / market_price * 100) if market_price > 0 else 0
 
-        results.append(ComparisonResult(
-            symbol=symbol,
-            occ_symbol=row['occ_symbol'],
-            trade_date=trade_date,
-            expiry=expiry,
-            strike=strike,
-            spot_price=spot_price,
-            dte=dte,
-            moneyness=moneyness,
-            market_price=market_price,
-            bs_price=bs_price,
-            bs_iv_used=iv_estimate,
-            market_iv=market_iv,
-            error=error,
-            pct_error=pct_error,
-        ))
+        results.append(
+            ComparisonResult(
+                symbol=symbol,
+                occ_symbol=row["occ_symbol"],
+                trade_date=trade_date,
+                expiry=expiry,
+                strike=strike,
+                spot_price=spot_price,
+                dte=dte,
+                moneyness=moneyness,
+                market_price=market_price,
+                bs_price=bs_price,
+                bs_iv_used=iv_estimate,
+                market_iv=market_iv,
+                error=error,
+                pct_error=pct_error,
+            )
+        )
 
         processed += 1
 
@@ -253,18 +249,18 @@ def analyze_results(results: List[ComparisonResult]) -> Dict:
     df = pd.DataFrame([r.__dict__ for r in results])
 
     # Grundlegende Metriken
-    errors = df['error'].values
-    pct_errors = df['pct_error'].values
+    errors = df["error"].values
+    pct_errors = df["pct_error"].values
 
     mae = np.mean(np.abs(errors))
-    rmse = np.sqrt(np.mean(errors ** 2))
+    rmse = np.sqrt(np.mean(errors**2))
     mape = np.mean(np.abs(pct_errors))
     bias = np.mean(errors)
 
     # IV Vergleich
-    iv_df = df[df['market_iv'].notna()]
+    iv_df = df[df["market_iv"].notna()]
     if len(iv_df) > 0:
-        iv_diff = iv_df['bs_iv_used'] - iv_df['market_iv']
+        iv_diff = iv_df["bs_iv_used"] - iv_df["market_iv"]
         iv_mae = np.mean(np.abs(iv_diff))
         iv_bias = np.mean(iv_diff)
     else:
@@ -272,52 +268,57 @@ def analyze_results(results: List[ComparisonResult]) -> Dict:
         iv_bias = None
 
     # Nach Moneyness
-    df['moneyness_bucket'] = pd.cut(
-        df['moneyness'],
+    df["moneyness_bucket"] = pd.cut(
+        df["moneyness"],
         bins=[0, 0.90, 0.95, 1.00, 1.05, 10.0],
-        labels=['Deep OTM (<90%)', 'OTM (90-95%)', 'ATM (95-100%)', 'ITM (100-105%)', 'Deep ITM (>105%)']
+        labels=[
+            "Deep OTM (<90%)",
+            "OTM (90-95%)",
+            "ATM (95-100%)",
+            "ITM (100-105%)",
+            "Deep ITM (>105%)",
+        ],
     )
-    by_moneyness = df.groupby('moneyness_bucket').agg({
-        'error': ['mean', 'std', 'count'],
-        'pct_error': 'mean'
-    }).round(4)
+    by_moneyness = (
+        df.groupby("moneyness_bucket")
+        .agg({"error": ["mean", "std", "count"], "pct_error": "mean"})
+        .round(4)
+    )
 
     # Nach DTE
-    df['dte_bucket'] = pd.cut(
-        df['dte'],
-        bins=[0, 14, 30, 45, 60, 500],
-        labels=['0-14', '15-30', '31-45', '46-60', '>60']
+    df["dte_bucket"] = pd.cut(
+        df["dte"], bins=[0, 14, 30, 45, 60, 500], labels=["0-14", "15-30", "31-45", "46-60", ">60"]
     )
-    by_dte = df.groupby('dte_bucket').agg({
-        'error': ['mean', 'std', 'count'],
-        'pct_error': 'mean'
-    }).round(4)
+    by_dte = (
+        df.groupby("dte_bucket")
+        .agg({"error": ["mean", "std", "count"], "pct_error": "mean"})
+        .round(4)
+    )
 
     # Nach Symbol
-    by_symbol = df.groupby('symbol').agg({
-        'error': ['mean', 'std', 'count'],
-        'pct_error': 'mean'
-    }).round(4)
-    by_symbol.columns = ['mean_error', 'std_error', 'count', 'mean_pct_error']
-    by_symbol = by_symbol.sort_values('count', ascending=False)
+    by_symbol = (
+        df.groupby("symbol").agg({"error": ["mean", "std", "count"], "pct_error": "mean"}).round(4)
+    )
+    by_symbol.columns = ["mean_error", "std_error", "count", "mean_pct_error"]
+    by_symbol = by_symbol.sort_values("count", ascending=False)
 
     return {
-        'total_comparisons': len(results),
-        'overall': {
-            'mae': mae,
-            'rmse': rmse,
-            'mape': mape,
-            'bias': bias,
+        "total_comparisons": len(results),
+        "overall": {
+            "mae": mae,
+            "rmse": rmse,
+            "mape": mape,
+            "bias": bias,
         },
-        'iv_comparison': {
-            'iv_mae': iv_mae,
-            'iv_bias': iv_bias,
-            'samples_with_market_iv': len(iv_df),
+        "iv_comparison": {
+            "iv_mae": iv_mae,
+            "iv_bias": iv_bias,
+            "samples_with_market_iv": len(iv_df),
         },
-        'by_moneyness': by_moneyness,
-        'by_dte': by_dte,
-        'by_symbol': by_symbol,
-        'df': df,  # Für weitere Analyse
+        "by_moneyness": by_moneyness,
+        "by_dte": by_dte,
+        "by_symbol": by_symbol,
+        "df": df,  # Für weitere Analyse
     }
 
 
@@ -334,69 +335,77 @@ def print_report(analysis: Dict):
     print("\n" + "-" * 70)
     print("OVERALL ACCURACY")
     print("-" * 70)
-    overall = analysis['overall']
+    overall = analysis["overall"]
     print(f"  Mean Absolute Error (MAE):     ${overall['mae']:.4f}")
     print(f"  Root Mean Square Error (RMSE): ${overall['rmse']:.4f}")
     print(f"  Mean Absolute % Error (MAPE):  {overall['mape']:.2f}%")
     print(f"  Bias (avg error):              ${overall['bias']:.4f}")
     print(f"    {'(BS overprices)' if overall['bias'] > 0 else '(BS underprices)'}")
 
-    iv = analysis['iv_comparison']
+    iv = analysis["iv_comparison"]
     print("\n" + "-" * 70)
     print("IMPLIED VOLATILITY COMPARISON")
     print("-" * 70)
     print(f"  Samples with Market IV:        {iv['samples_with_market_iv']:,}")
-    if iv['iv_mae'] is not None:
+    if iv["iv_mae"] is not None:
         print(f"  IV MAE:                        {iv['iv_mae'] * 100:.2f}%")
         print(f"  IV Bias:                       {iv['iv_bias'] * 100:.2f}%")
-        print(f"    {'(BS IV estimate too high)' if iv['iv_bias'] > 0 else '(BS IV estimate too low)'}")
+        print(
+            f"    {'(BS IV estimate too high)' if iv['iv_bias'] > 0 else '(BS IV estimate too low)'}"
+        )
 
     print("\n" + "-" * 70)
     print("BY MONEYNESS (Strike / Spot)")
     print("-" * 70)
     print(f"{'Category':<22} {'Mean Err':>10} {'Std Err':>10} {'% Err':>10} {'Count':>8}")
     print("-" * 70)
-    by_money = analysis['by_moneyness']
+    by_money = analysis["by_moneyness"]
     for bucket in by_money.index:
         row = by_money.loc[bucket]
-        mean_err = row[('error', 'mean')]
-        std_err = row[('error', 'std')]
-        pct_err = row[('pct_error', 'mean')]
-        count = row[('error', 'count')]
-        print(f"{str(bucket):<22} ${mean_err:>9.4f} ${std_err:>9.4f} {pct_err:>9.1f}% {count:>8.0f}")
+        mean_err = row[("error", "mean")]
+        std_err = row[("error", "std")]
+        pct_err = row[("pct_error", "mean")]
+        count = row[("error", "count")]
+        print(
+            f"{str(bucket):<22} ${mean_err:>9.4f} ${std_err:>9.4f} {pct_err:>9.1f}% {count:>8.0f}"
+        )
 
     print("\n" + "-" * 70)
     print("BY DAYS TO EXPIRATION")
     print("-" * 70)
     print(f"{'DTE Range':<12} {'Mean Err':>10} {'Std Err':>10} {'% Err':>10} {'Count':>8}")
     print("-" * 70)
-    by_dte = analysis['by_dte']
+    by_dte = analysis["by_dte"]
     for bucket in by_dte.index:
         row = by_dte.loc[bucket]
-        mean_err = row[('error', 'mean')]
-        std_err = row[('error', 'std')]
-        pct_err = row[('pct_error', 'mean')]
-        count = row[('error', 'count')]
-        print(f"{str(bucket):<12} ${mean_err:>9.4f} ${std_err:>9.4f} {pct_err:>9.1f}% {count:>8.0f}")
+        mean_err = row[("error", "mean")]
+        std_err = row[("error", "std")]
+        pct_err = row[("pct_error", "mean")]
+        count = row[("error", "count")]
+        print(
+            f"{str(bucket):<12} ${mean_err:>9.4f} ${std_err:>9.4f} {pct_err:>9.1f}% {count:>8.0f}"
+        )
 
     print("\n" + "-" * 70)
     print("TOP 15 SYMBOLS BY DATA VOLUME")
     print("-" * 70)
     print(f"{'Symbol':<8} {'Mean Err':>10} {'Std Err':>10} {'% Err':>10} {'Count':>8}")
     print("-" * 70)
-    by_symbol = analysis['by_symbol'].head(15)
+    by_symbol = analysis["by_symbol"].head(15)
     for symbol in by_symbol.index:
         row = by_symbol.loc[symbol]
-        print(f"{symbol:<8} ${row['mean_error']:>9.4f} ${row['std_error']:>9.4f} "
-              f"{row['mean_pct_error']:>9.1f}% {row['count']:>8.0f}")
+        print(
+            f"{symbol:<8} ${row['mean_error']:>9.4f} ${row['std_error']:>9.4f} "
+            f"{row['mean_pct_error']:>9.1f}% {row['count']:>8.0f}"
+        )
 
     print("\n" + "-" * 70)
     print("INTERPRETATION")
     print("-" * 70)
 
-    mae = overall['mae']
-    mape = overall['mape']
-    bias = overall['bias']
+    mae = overall["mae"]
+    mape = overall["mape"]
+    bias = overall["bias"]
 
     if mape < 10:
         accuracy_rating = "EXCELLENT"
@@ -425,7 +434,7 @@ def print_report(analysis: Dict):
     print("  Moneyness Analysis:")
     for bucket in by_money.index:
         row = by_money.loc[bucket]
-        pct_err = row[('pct_error', 'mean')]
+        pct_err = row[("pct_error", "mean")]
         if abs(pct_err) > 20:
             print(f"    - {bucket}: {pct_err:.1f}% error - needs calibration")
 
@@ -445,7 +454,7 @@ def main():
         return
 
     # Unique symbols
-    symbols = df['underlying'].unique().tolist()
+    symbols = df["underlying"].unique().tolist()
     logger.info(f"Found {len(symbols)} unique symbols")
 
     # Spot-Preise laden
@@ -473,10 +482,10 @@ def main():
     print_report(analysis)
 
     # Optional: DataFrame für weitere Analyse speichern
-    if 'df' in analysis:
-        output_path = Path(__file__).parent.parent / 'reports' / 'bs_comparison.csv'
+    if "df" in analysis:
+        output_path = Path(__file__).parent.parent / "reports" / "bs_comparison.csv"
         output_path.parent.mkdir(exist_ok=True)
-        analysis['df'].to_csv(output_path, index=False)
+        analysis["df"].to_csv(output_path, index=False)
         logger.info(f"\nDetailed results saved to: {output_path}")
 
 

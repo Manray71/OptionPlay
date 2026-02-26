@@ -31,16 +31,18 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from dotenv import load_dotenv
+
 load_dotenv()
 
 # Suppress warnings
 import warnings
-warnings.filterwarnings('ignore')
+
+warnings.filterwarnings("ignore")
 
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(message)s',
-    datefmt='%H:%M:%S',
+    format="%(asctime)s - %(message)s",
+    datefmt="%H:%M:%S",
 )
 logger = logging.getLogger(__name__)
 
@@ -49,13 +51,13 @@ logger = logging.getLogger(__name__)
 # CONSTANTS
 # =============================================================================
 
-STRATEGIES = ['pullback', 'bounce', 'ath_breakout', 'earnings_dip', 'trend_continuation']
+STRATEGIES = ["pullback", "bounce", "ath_breakout", "earnings_dip", "trend_continuation"]
 
 VIX_THRESHOLDS = {
-    'low': (0, 15),
-    'normal': (15, 20),
-    'elevated': (20, 30),
-    'high': (30, 100),
+    "low": (0, 15),
+    "normal": (15, 20),
+    "elevated": (20, 30),
+    "high": (30, 100),
 }
 
 
@@ -63,9 +65,11 @@ VIX_THRESHOLDS = {
 # DATA CLASSES
 # =============================================================================
 
+
 @dataclass
 class TrainConfig:
     """Training configuration"""
+
     train_months: int = 9
     test_months: int = 3
     step_months: int = 3
@@ -77,6 +81,7 @@ class TrainConfig:
 @dataclass
 class EpochMetrics:
     """Metrics for one training epoch"""
+
     epoch: int
     train_start: date
     train_end: date
@@ -112,6 +117,7 @@ class EpochMetrics:
 @dataclass
 class StrategyTrainResult:
     """Training result for one strategy"""
+
     strategy: str
     epochs: List[EpochMetrics] = field(default_factory=list)
 
@@ -151,6 +157,7 @@ class StrategyTrainResult:
 # SIMPLIFIED BACKTESTER (for fast training)
 # =============================================================================
 
+
 class FastBacktester:
     """
     Simplified backtester for fast training iterations.
@@ -169,13 +176,16 @@ class FastBacktester:
         from src.analyzers.bounce import BounceAnalyzer, BounceConfig
         from src.analyzers.ath_breakout import ATHBreakoutAnalyzer, ATHBreakoutConfig
         from src.analyzers.earnings_dip import EarningsDipAnalyzer, EarningsDipConfig
-        from src.analyzers.trend_continuation import TrendContinuationAnalyzer, TrendContinuationConfig
+        from src.analyzers.trend_continuation import (
+            TrendContinuationAnalyzer,
+            TrendContinuationConfig,
+        )
 
-        self._analyzers['pullback'] = PullbackAnalyzer(PullbackScoringConfig())
-        self._analyzers['bounce'] = BounceAnalyzer(BounceConfig())
-        self._analyzers['ath_breakout'] = ATHBreakoutAnalyzer(ATHBreakoutConfig())
-        self._analyzers['earnings_dip'] = EarningsDipAnalyzer(EarningsDipConfig())
-        self._analyzers['trend_continuation'] = TrendContinuationAnalyzer(TrendContinuationConfig())
+        self._analyzers["pullback"] = PullbackAnalyzer(PullbackScoringConfig())
+        self._analyzers["bounce"] = BounceAnalyzer(BounceConfig())
+        self._analyzers["ath_breakout"] = ATHBreakoutAnalyzer(ATHBreakoutConfig())
+        self._analyzers["earnings_dip"] = EarningsDipAnalyzer(EarningsDipConfig())
+        self._analyzers["trend_continuation"] = TrendContinuationAnalyzer(TrendContinuationConfig())
 
     def run_period(
         self,
@@ -203,7 +213,7 @@ class FastBacktester:
         all_dates = set()
         for sym_data in historical_data.values():
             for bar in sym_data:
-                d = bar['date']
+                d = bar["date"]
                 if isinstance(d, str):
                     d = date.fromisoformat(d)
                 if start_date <= d <= end_date:
@@ -219,13 +229,13 @@ class FastBacktester:
                 # Get history
                 history = []
                 for bar in sym_data:
-                    d = bar['date']
+                    d = bar["date"]
                     if isinstance(d, str):
                         d = date.fromisoformat(d)
                     if d < current_date:
-                        history.append({**bar, 'date': d})
+                        history.append({**bar, "date": d})
 
-                history.sort(key=lambda x: x['date'])
+                history.sort(key=lambda x: x["date"])
                 history = history[-250:] if len(history) > 250 else history
 
                 if len(history) < 200:
@@ -233,17 +243,13 @@ class FastBacktester:
 
                 # Analyze
                 try:
-                    prices = [bar['close'] for bar in history]
-                    volumes = [bar['volume'] for bar in history]
-                    highs = [bar['high'] for bar in history]
-                    lows = [bar['low'] for bar in history]
+                    prices = [bar["close"] for bar in history]
+                    volumes = [bar["volume"] for bar in history]
+                    highs = [bar["high"] for bar in history]
+                    lows = [bar["low"] for bar in history]
 
                     signal = analyzer.analyze(
-                        symbol=symbol,
-                        prices=prices,
-                        volumes=volumes,
-                        highs=highs,
-                        lows=lows
+                        symbol=symbol, prices=prices, volumes=volumes, highs=highs, lows=lows
                     )
                 except Exception:
                     continue
@@ -259,11 +265,11 @@ class FastBacktester:
                 # Look forward 30 days for outcome
                 future_prices = []
                 for bar in sym_data:
-                    d = bar['date']
+                    d = bar["date"]
                     if isinstance(d, str):
                         d = date.fromisoformat(d)
                     if current_date < d <= current_date + timedelta(days=45):
-                        future_prices.append(bar['close'])
+                        future_prices.append(bar["close"])
 
                 if not future_prices:
                     continue
@@ -291,11 +297,13 @@ class FastBacktester:
                 # Track by regime
                 vix = vix_data.get(current_date, 18.0)
                 regime = self._get_regime(vix)
-                regime_trades[regime].append({
-                    'win': is_win,
-                    'pnl': trade_pnl,
-                    'score': signal.score,
-                })
+                regime_trades[regime].append(
+                    {
+                        "win": is_win,
+                        "pnl": trade_pnl,
+                        "score": signal.score,
+                    }
+                )
 
         return trades, wins, pnl, dict(regime_trades)
 
@@ -303,12 +311,13 @@ class FastBacktester:
         for regime, (low, high) in VIX_THRESHOLDS.items():
             if low <= vix < high:
                 return regime
-        return 'normal'
+        return "normal"
 
 
 # =============================================================================
 # TRAINER
 # =============================================================================
+
 
 class FastTrainer:
     """Fast strategy trainer"""
@@ -330,7 +339,7 @@ class FastTrainer:
         all_dates = set()
         for sym_data in historical_data.values():
             for bar in sym_data:
-                d = bar['date']
+                d = bar["date"]
                 if isinstance(d, str):
                     d = date.fromisoformat(d)
                 all_dates.add(d)
@@ -369,8 +378,7 @@ class FastTrainer:
             for score_thresh in [4.0, 5.0, 6.0, 7.0]:
                 backtester = FastBacktester(min_score=score_thresh)
                 trades, wins, pnl, _ = backtester.run_period(
-                    strategy, historical_data, vix_data,
-                    train_start, train_end
+                    strategy, historical_data, vix_data, train_start, train_end
                 )
 
                 if trades >= self.config.min_trades_per_epoch:
@@ -386,13 +394,11 @@ class FastTrainer:
             backtester = FastBacktester(min_score=best_score)
 
             is_trades, is_wins, is_pnl, _ = backtester.run_period(
-                strategy, historical_data, vix_data,
-                train_start, train_end
+                strategy, historical_data, vix_data, train_start, train_end
             )
 
             oos_trades, oos_wins, oos_pnl, oos_regime = backtester.run_period(
-                strategy, historical_data, vix_data,
-                test_start, test_end
+                strategy, historical_data, vix_data, test_start, test_end
             )
 
             epoch_metrics = EpochMetrics(
@@ -425,14 +431,14 @@ class FastTrainer:
         # Calculate regime-specific metrics
         for regime, trades_list in all_regime_trades.items():
             if trades_list:
-                wins = sum(1 for t in trades_list if t['win'])
-                total_pnl = sum(t['pnl'] for t in trades_list)
+                wins = sum(1 for t in trades_list if t["win"])
+                total_pnl = sum(t["pnl"] for t in trades_list)
                 result.regime_metrics[regime] = {
-                    'trades': len(trades_list),
-                    'wins': wins,
-                    'win_rate': wins / len(trades_list) * 100,
-                    'pnl': total_pnl,
-                    'avg_score': statistics.mean(t['score'] for t in trades_list),
+                    "trades": len(trades_list),
+                    "wins": wins,
+                    "win_rate": wins / len(trades_list) * 100,
+                    "pnl": total_pnl,
+                    "avg_score": statistics.mean(t["score"] for t in trades_list),
                 }
 
                 # Regime adjustments
@@ -452,6 +458,7 @@ class FastTrainer:
 # =============================================================================
 # OUTPUT
 # =============================================================================
+
 
 def print_result(result: StrategyTrainResult):
     """Print training result"""
@@ -480,7 +487,9 @@ def print_result(result: StrategyTrainResult):
 
         for regime, metrics in sorted(result.regime_metrics.items()):
             adj = result.regime_adjustments.get(regime, 0)
-            emoji = "🟢" if metrics['win_rate'] >= 60 else "🟡" if metrics['win_rate'] >= 50 else "🔴"
+            emoji = (
+                "🟢" if metrics["win_rate"] >= 60 else "🟡" if metrics["win_rate"] >= 50 else "🔴"
+            )
             print(
                 f"  {regime:<12} "
                 f"{metrics['trades']:>8} "
@@ -508,26 +517,22 @@ def save_models(results: List[StrategyTrainResult], output_dir: Path):
     """Save trained models"""
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    models = {
-        'version': '1.0.0',
-        'created_at': datetime.now().isoformat(),
-        'strategies': {}
-    }
+    models = {"version": "1.0.0", "created_at": datetime.now().isoformat(), "strategies": {}}
 
     for r in results:
-        models['strategies'][r.strategy] = {
-            'recommended_min_score': r.recommended_min_score,
-            'regime_adjustments': r.regime_adjustments,
-            'validation': {
-                'total_oos_trades': r.total_oos_trades,
-                'avg_oos_win_rate': r.avg_oos_win_rate,
-                'avg_degradation': r.avg_degradation,
+        models["strategies"][r.strategy] = {
+            "recommended_min_score": r.recommended_min_score,
+            "regime_adjustments": r.regime_adjustments,
+            "validation": {
+                "total_oos_trades": r.total_oos_trades,
+                "avg_oos_win_rate": r.avg_oos_win_rate,
+                "avg_degradation": r.avg_degradation,
             },
-            'regime_performance': r.regime_metrics,
+            "regime_performance": r.regime_metrics,
         }
 
-    path = output_dir / 'trained_models.json'
-    with open(path, 'w') as f:
+    path = output_dir / "trained_models.json"
+    with open(path, "w") as f:
         json.dump(models, f, indent=2, default=str)
 
     print(f"\n  Models saved to: {path}")
@@ -537,12 +542,13 @@ def save_models(results: List[StrategyTrainResult], output_dir: Path):
 # MAIN
 # =============================================================================
 
+
 def main():
-    parser = argparse.ArgumentParser(description='Fast strategy training')
-    parser.add_argument('--strategy', choices=STRATEGIES + ['all'], default='all')
-    parser.add_argument('--epochs', type=int, default=5, help='Max epochs per strategy')
-    parser.add_argument('--train-months', type=int, default=9)
-    parser.add_argument('--test-months', type=int, default=3)
+    parser = argparse.ArgumentParser(description="Fast strategy training")
+    parser.add_argument("--strategy", choices=STRATEGIES + ["all"], default="all")
+    parser.add_argument("--epochs", type=int, default=5, help="Max epochs per strategy")
+    parser.add_argument("--train-months", type=int, default=9)
+    parser.add_argument("--test-months", type=int, default=3)
 
     args = parser.parse_args()
 
@@ -556,7 +562,7 @@ def main():
     tracker = TradeTracker()
     stats = tracker.get_storage_stats()
 
-    if stats['symbols_with_price_data'] == 0:
+    if stats["symbols_with_price_data"] == 0:
         print("\n  ❌ No historical data found!")
         sys.exit(1)
 
@@ -565,7 +571,7 @@ def main():
 
     # Load historical data
     symbol_info = tracker.list_symbols_with_price_data()
-    symbols = [s['symbol'] for s in symbol_info]
+    symbols = [s["symbol"] for s in symbol_info]
 
     historical_data = {}
     for symbol in symbols:
@@ -573,12 +579,12 @@ def main():
         if price_data and price_data.bars:
             historical_data[symbol] = [
                 {
-                    'date': bar.date,
-                    'open': bar.open,
-                    'high': bar.high,
-                    'low': bar.low,
-                    'close': bar.close,
-                    'volume': bar.volume,
+                    "date": bar.date,
+                    "open": bar.open,
+                    "high": bar.high,
+                    "low": bar.low,
+                    "close": bar.close,
+                    "volume": bar.volume,
                 }
                 for bar in price_data.bars
             ]
@@ -606,7 +612,7 @@ def main():
     trainer = FastTrainer(config)
     results: List[StrategyTrainResult] = []
 
-    strategies = [args.strategy] if args.strategy != 'all' else STRATEGIES
+    strategies = [args.strategy] if args.strategy != "all" else STRATEGIES
 
     print("\n" + "═" * 70)
     print("  TRAINING...")
@@ -619,6 +625,7 @@ def main():
         except Exception as e:
             logger.error(f"  Error training {strategy}: {e}")
             import traceback
+
             traceback.print_exc()
 
     # Print results
@@ -630,7 +637,9 @@ def main():
         print("\n" + "═" * 80)
         print("  STRATEGY COMPARISON")
         print("═" * 80)
-        print(f"\n  {'Strategy':<15} {'OOS Trades':>12} {'OOS Win%':>10} {'OOS P&L':>12} {'Degrad':>10} {'Score':>8}")
+        print(
+            f"\n  {'Strategy':<15} {'OOS Trades':>12} {'OOS Win%':>10} {'OOS P&L':>12} {'Degrad':>10} {'Score':>8}"
+        )
         print("  " + "-" * 70)
 
         for r in sorted(results, key=lambda x: x.total_oos_pnl, reverse=True):
@@ -645,7 +654,7 @@ def main():
             )
 
     # Save models
-    output_dir = Path.home() / '.optionplay' / 'models'
+    output_dir = Path.home() / ".optionplay" / "models"
     save_models(results, output_dir)
 
     print("\n" + "═" * 70)
@@ -653,5 +662,5 @@ def main():
     print("═" * 70)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

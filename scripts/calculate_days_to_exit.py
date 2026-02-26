@@ -45,9 +45,7 @@ def add_columns(conn_out):
     for col, dtype in columns.items():
         if col not in existing:
             print(f"  ALTER TABLE: +{col} {dtype}")
-            cursor.execute(
-                f"ALTER TABLE trade_outcomes ADD COLUMN {col} {dtype}"
-            )
+            cursor.execute(f"ALTER TABLE trade_outcomes ADD COLUMN {col} {dtype}")
         else:
             print(f"  Spalte {col} existiert bereits")
     conn_out.commit()
@@ -222,9 +220,15 @@ def main():
     print(f"\n{'='*50}")
     print(f"Fertig in {elapsed:.1f}s")
     print(f"  Total Trades:          {total_trades}")
-    print(f"  days_to_50pct gefunden: {results_summary['found_50']} ({results_summary['found_50']/total_trades*100:.1f}%)")
-    print(f"  days_to_30pct gefunden: {results_summary['found_30']} ({results_summary['found_30']/total_trades*100:.1f}%)")
-    print(f"  days_to_playbook_exit:  {results_summary['found_pb']} ({results_summary['found_pb']/total_trades*100:.1f}%)")
+    print(
+        f"  days_to_50pct gefunden: {results_summary['found_50']} ({results_summary['found_50']/total_trades*100:.1f}%)"
+    )
+    print(
+        f"  days_to_30pct gefunden: {results_summary['found_30']} ({results_summary['found_30']/total_trades*100:.1f}%)"
+    )
+    print(
+        f"  days_to_playbook_exit:  {results_summary['found_pb']} ({results_summary['found_pb']/total_trades*100:.1f}%)"
+    )
     print(f"  Keine Preisdaten:       {results_summary['no_data']}")
 
     # Schnelle Statistik
@@ -242,8 +246,12 @@ def main():
     row = cursor_out.fetchone()
     print(f"\n  Avg days_to_playbook_exit: {row[0]:.1f}")
     print(f"  Min: {row[1]}, Max: {row[2]}")
-    print(f"  Avg bei VIX<20 (50% target):  {row[3]:.1f} Tage" if row[3] else "  Avg bei VIX<20: n/a")
-    print(f"  Avg bei VIX>=20 (30% target): {row[4]:.1f} Tage" if row[4] else "  Avg bei VIX>=20: n/a")
+    print(
+        f"  Avg bei VIX<20 (50% target):  {row[3]:.1f} Tage" if row[3] else "  Avg bei VIX<20: n/a"
+    )
+    print(
+        f"  Avg bei VIX>=20 (30% target): {row[4]:.1f} Tage" if row[4] else "  Avg bei VIX>=20: n/a"
+    )
 
     conn_out.close()
     conn_trades.close()

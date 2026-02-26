@@ -32,10 +32,7 @@ import numpy as np
 import pandas as pd
 
 # Setup logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 # Database path
@@ -99,7 +96,7 @@ def load_stability_scores() -> Dict[str, float]:
     try:
         query = "SELECT symbol, stability_score FROM symbol_fundamentals WHERE stability_score IS NOT NULL"
         df = pd.read_sql_query(query, conn)
-        stability = dict(zip(df['symbol'], df['stability_score']))
+        stability = dict(zip(df["symbol"], df["stability_score"]))
         logger.info(f"Loaded stability scores for {len(stability)} symbols")
         return stability
     except Exception as e:
@@ -113,17 +110,30 @@ def calculate_correlations(df: pd.DataFrame) -> pd.DataFrame:
     """Calculate correlations between features and trade success."""
 
     feature_cols = [
-        'rsi_score', 'support_score', 'fibonacci_score', 'ma_score',
-        'volume_score', 'macd_score', 'stoch_score', 'keltner_score',
-        'trend_strength_score', 'momentum_score', 'market_context_score',
-        'vwap_score', 'gap_score', 'pullback_score', 'bounce_score',
-        'ath_breakout_score', 'vix_at_entry', 'rsi_value',
-        'distance_to_support_pct'
+        "rsi_score",
+        "support_score",
+        "fibonacci_score",
+        "ma_score",
+        "volume_score",
+        "macd_score",
+        "stoch_score",
+        "keltner_score",
+        "trend_strength_score",
+        "momentum_score",
+        "market_context_score",
+        "vwap_score",
+        "gap_score",
+        "pullback_score",
+        "bounce_score",
+        "ath_breakout_score",
+        "vix_at_entry",
+        "rsi_value",
+        "distance_to_support_pct",
     ]
 
     # Add stability if available
-    if 'stability_score' in df.columns:
-        feature_cols.append('stability_score')
+    if "stability_score" in df.columns:
+        feature_cols.append("stability_score")
 
     correlations = []
 
@@ -132,21 +142,21 @@ def calculate_correlations(df: pd.DataFrame) -> pd.DataFrame:
             continue
 
         # Drop NaN for this feature
-        valid = df[[col, 'was_profitable', 'pnl_pct']].dropna()
+        valid = df[[col, "was_profitable", "pnl_pct"]].dropna()
 
         if len(valid) < 100:
             continue
 
         # Pearson correlation with win/loss
-        corr_win = valid[col].corr(valid['was_profitable'])
+        corr_win = valid[col].corr(valid["was_profitable"])
 
         # Pearson correlation with P&L %
-        corr_pnl = valid[col].corr(valid['pnl_pct'])
+        corr_pnl = valid[col].corr(valid["pnl_pct"])
 
         # Win rate by feature quartiles
         try:
-            valid['quartile'] = pd.qcut(valid[col], q=4, labels=False, duplicates='drop')
-            wr_by_quartile = valid.groupby('quartile')['was_profitable'].mean()
+            valid["quartile"] = pd.qcut(valid[col], q=4, labels=False, duplicates="drop")
+            wr_by_quartile = valid.groupby("quartile")["was_profitable"].mean()
 
             # Q4 - Q1 spread (does higher score mean better performance?)
             if len(wr_by_quartile) >= 2:
@@ -156,18 +166,20 @@ def calculate_correlations(df: pd.DataFrame) -> pd.DataFrame:
         except (ValueError, IndexError):
             q4_q1_spread = 0
 
-        correlations.append({
-            'feature': col,
-            'corr_win': round(corr_win, 4),
-            'corr_pnl': round(corr_pnl, 4),
-            'q4_q1_spread': round(q4_q1_spread, 4),
-            'n_samples': len(valid),
-            'mean_value': round(valid[col].mean(), 2),
-            'std_value': round(valid[col].std(), 2),
-        })
+        correlations.append(
+            {
+                "feature": col,
+                "corr_win": round(corr_win, 4),
+                "corr_pnl": round(corr_pnl, 4),
+                "q4_q1_spread": round(q4_q1_spread, 4),
+                "n_samples": len(valid),
+                "mean_value": round(valid[col].mean(), 2),
+                "std_value": round(valid[col].std(), 2),
+            }
+        )
 
     result = pd.DataFrame(correlations)
-    result = result.sort_values('corr_win', ascending=False)
+    result = result.sort_values("corr_win", ascending=False)
 
     return result
 
@@ -184,22 +196,32 @@ def train_xgboost_model(df: pd.DataFrame) -> Tuple:
 
     try:
         feature_cols = [
-            'rsi_score', 'support_score', 'fibonacci_score', 'ma_score',
-            'volume_score', 'macd_score', 'stoch_score', 'keltner_score',
-            'trend_strength_score', 'momentum_score', 'market_context_score',
-            'vwap_score', 'gap_score', 'vix_at_entry'
+            "rsi_score",
+            "support_score",
+            "fibonacci_score",
+            "ma_score",
+            "volume_score",
+            "macd_score",
+            "stoch_score",
+            "keltner_score",
+            "trend_strength_score",
+            "momentum_score",
+            "market_context_score",
+            "vwap_score",
+            "gap_score",
+            "vix_at_entry",
         ]
 
         # Add stability if available
-        if 'stability_score' in df.columns:
-            feature_cols.append('stability_score')
+        if "stability_score" in df.columns:
+            feature_cols.append("stability_score")
 
         # Filter to available columns
         available_cols = [c for c in feature_cols if c in df.columns]
 
         # Prepare data
         X = df[available_cols].copy()
-        y = df['was_profitable'].copy()
+        y = df["was_profitable"].copy()
 
         # Drop rows with NaN
         mask = X.notna().all(axis=1) & y.notna()
@@ -215,7 +237,7 @@ def train_xgboost_model(df: pd.DataFrame) -> Tuple:
             learning_rate=0.1,
             random_state=42,
             use_label_encoder=False,
-            eval_metric='logloss'
+            eval_metric="logloss",
         )
 
         model.fit(X, y)
@@ -225,12 +247,14 @@ def train_xgboost_model(df: pd.DataFrame) -> Tuple:
         shap_values = explainer.shap_values(X)
 
         # Feature importance
-        importance = pd.DataFrame({
-            'feature': available_cols,
-            'importance': model.feature_importances_,
-            'shap_mean_abs': np.abs(shap_values).mean(axis=0)
-        })
-        importance = importance.sort_values('shap_mean_abs', ascending=False)
+        importance = pd.DataFrame(
+            {
+                "feature": available_cols,
+                "importance": model.feature_importances_,
+                "shap_mean_abs": np.abs(shap_values).mean(axis=0),
+            }
+        )
+        importance = importance.sort_values("shap_mean_abs", ascending=False)
 
         return model, shap_values, importance
 
@@ -240,51 +264,46 @@ def train_xgboost_model(df: pd.DataFrame) -> Tuple:
 
 
 def generate_weight_recommendations(
-    correlations: pd.DataFrame,
-    importance: pd.DataFrame
+    correlations: pd.DataFrame, importance: pd.DataFrame
 ) -> Dict[str, float]:
     """Generate recommended weights based on analysis."""
 
     # Merge correlation and importance data
     if importance is not None:
         merged = correlations.merge(
-            importance[['feature', 'shap_mean_abs']],
-            on='feature',
-            how='left'
+            importance[["feature", "shap_mean_abs"]], on="feature", how="left"
         )
     else:
         merged = correlations.copy()
-        merged['shap_mean_abs'] = merged['corr_win'].abs()
+        merged["shap_mean_abs"] = merged["corr_win"].abs()
 
     # Calculate combined score
     # Higher = more important for predicting wins
-    merged['combined_score'] = (
-        merged['corr_win'].fillna(0) * 0.3 +
-        merged['q4_q1_spread'].fillna(0) * 0.3 +
-        merged['shap_mean_abs'].fillna(0) / merged['shap_mean_abs'].max() * 0.4
+    merged["combined_score"] = (
+        merged["corr_win"].fillna(0) * 0.3
+        + merged["q4_q1_spread"].fillna(0) * 0.3
+        + merged["shap_mean_abs"].fillna(0) / merged["shap_mean_abs"].max() * 0.4
     )
 
     # Normalize to weights (0.5 to 3.0 range)
     min_weight = 0.5
     max_weight = 3.0
 
-    min_score = merged['combined_score'].min()
-    max_score = merged['combined_score'].max()
+    min_score = merged["combined_score"].min()
+    max_score = merged["combined_score"].max()
 
     if max_score > min_score:
-        merged['recommended_weight'] = (
-            min_weight +
-            (merged['combined_score'] - min_score) / (max_score - min_score) *
-            (max_weight - min_weight)
-        )
+        merged["recommended_weight"] = min_weight + (merged["combined_score"] - min_score) / (
+            max_score - min_score
+        ) * (max_weight - min_weight)
     else:
-        merged['recommended_weight'] = 1.0
+        merged["recommended_weight"] = 1.0
 
     # Round to 2 decimals
-    merged['recommended_weight'] = merged['recommended_weight'].round(2)
+    merged["recommended_weight"] = merged["recommended_weight"].round(2)
 
     # Create weight dict
-    weights = dict(zip(merged['feature'], merged['recommended_weight']))
+    weights = dict(zip(merged["feature"], merged["recommended_weight"]))
 
     return weights, merged
 
@@ -294,32 +313,32 @@ def save_results(
     importance: pd.DataFrame,
     recommendations: pd.DataFrame,
     weights: Dict[str, float],
-    output_dir: Path
+    output_dir: Path,
 ):
     """Save analysis results."""
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     # Save correlations
-    corr_file = output_dir / f'correlations_{timestamp}.csv'
+    corr_file = output_dir / f"correlations_{timestamp}.csv"
     correlations.to_csv(corr_file, index=False)
     logger.info(f"Saved correlations to {corr_file}")
 
     # Save importance
     if importance is not None:
-        imp_file = output_dir / f'feature_importance_{timestamp}.csv'
+        imp_file = output_dir / f"feature_importance_{timestamp}.csv"
         importance.to_csv(imp_file, index=False)
         logger.info(f"Saved feature importance to {imp_file}")
 
     # Save recommendations
-    rec_file = output_dir / f'recommendations_{timestamp}.csv'
+    rec_file = output_dir / f"recommendations_{timestamp}.csv"
     recommendations.to_csv(rec_file, index=False)
     logger.info(f"Saved recommendations to {rec_file}")
 
     # Save weights as YAML
-    weights_file = output_dir / f'recommended_weights_{timestamp}.yaml'
-    with open(weights_file, 'w') as f:
+    weights_file = output_dir / f"recommended_weights_{timestamp}.yaml"
+    with open(weights_file, "w") as f:
         f.write("# Recommended weights based on SHAP analysis\n")
         f.write(f"# Generated: {datetime.now().isoformat()}\n\n")
         f.write("score_weights:\n")
@@ -329,9 +348,7 @@ def save_results(
 
 
 def print_summary(
-    correlations: pd.DataFrame,
-    importance: pd.DataFrame,
-    recommendations: pd.DataFrame
+    correlations: pd.DataFrame, importance: pd.DataFrame, recommendations: pd.DataFrame
 ):
     """Print analysis summary."""
     print("\n" + "=" * 70)
@@ -339,34 +356,44 @@ def print_summary(
     print("=" * 70)
 
     print("\n### Top Correlations with Trade Success ###\n")
-    print(correlations[['feature', 'corr_win', 'corr_pnl', 'q4_q1_spread']].head(10).to_string(index=False))
+    print(
+        correlations[["feature", "corr_win", "corr_pnl", "q4_q1_spread"]]
+        .head(10)
+        .to_string(index=False)
+    )
 
     if importance is not None:
         print("\n### SHAP Feature Importance ###\n")
-        print(importance[['feature', 'shap_mean_abs', 'importance']].head(10).to_string(index=False))
+        print(
+            importance[["feature", "shap_mean_abs", "importance"]].head(10).to_string(index=False)
+        )
 
     print("\n### Recommended Weights ###\n")
-    print(recommendations[['feature', 'corr_win', 'shap_mean_abs', 'recommended_weight']].head(15).to_string(index=False))
+    print(
+        recommendations[["feature", "corr_win", "shap_mean_abs", "recommended_weight"]]
+        .head(15)
+        .to_string(index=False)
+    )
 
     # Key insights
     print("\n### Key Insights ###")
 
     # Best predictors
-    top_3 = recommendations.head(3)['feature'].tolist()
+    top_3 = recommendations.head(3)["feature"].tolist()
     print(f"\n1. Top predictors: {', '.join(top_3)}")
 
     # Weak predictors
-    weak = correlations[correlations['corr_win'].abs() < 0.05]['feature'].tolist()
+    weak = correlations[correlations["corr_win"].abs() < 0.05]["feature"].tolist()
     if weak:
         print(f"2. Weak predictors (|r| < 0.05): {', '.join(weak[:5])}")
 
     # Negative correlations (bad signals)
-    negative = correlations[correlations['corr_win'] < -0.05]['feature'].tolist()
+    negative = correlations[correlations["corr_win"] < -0.05]["feature"].tolist()
     if negative:
         print(f"3. Negative correlation (higher score = worse): {', '.join(negative)}")
 
     # Overall correlation of pullback_score
-    pullback_corr = correlations[correlations['feature'] == 'pullback_score']['corr_win'].values
+    pullback_corr = correlations[correlations["feature"] == "pullback_score"]["corr_win"].values
     if len(pullback_corr) > 0:
         print(f"\n4. Overall pullback_score correlation: r = {pullback_corr[0]:.4f}")
         if abs(pullback_corr[0]) < 0.1:
@@ -377,8 +404,9 @@ def print_summary(
 
 def main():
     parser = argparse.ArgumentParser(description="Analyze score predictivity with SHAP")
-    parser.add_argument("--output-dir", type=str, default="reports/shap",
-                       help="Output directory for results")
+    parser.add_argument(
+        "--output-dir", type=str, default="reports/shap", help="Output directory for results"
+    )
     args = parser.parse_args()
 
     output_dir = Path(args.output_dir)
@@ -397,7 +425,7 @@ def main():
     # Add stability scores
     stability = load_stability_scores()
     if stability:
-        df['stability_score'] = df['symbol'].map(stability)
+        df["stability_score"] = df["symbol"].map(stability)
         logger.info(f"Added stability scores for {df['stability_score'].notna().sum()} trades")
 
     # Calculate correlations

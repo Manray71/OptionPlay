@@ -53,9 +53,7 @@ from src.pricing.black_scholes import (
 
 # Logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    datefmt='%H:%M:%S'
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s", datefmt="%H:%M:%S"
 )
 logger = logging.getLogger(__name__)
 
@@ -63,6 +61,7 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 # DATABASE
 # =============================================================================
+
 
 def get_db_path() -> str:
     return str(Path.home() / ".optionplay" / "trades.db")
@@ -105,7 +104,9 @@ def ensure_greeks_table(db_path: str):
     logger.info("Greeks table schema verified/created")
 
 
-def get_options_without_greeks(db_path: str, symbols: List[str] = None, limit: int = None) -> List[Tuple]:
+def get_options_without_greeks(
+    db_path: str, symbols: List[str] = None, limit: int = None
+) -> List[Tuple]:
     """Holt Options-Preise ohne berechnete Greeks"""
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
@@ -120,7 +121,7 @@ def get_options_without_greeks(db_path: str, symbols: List[str] = None, limit: i
 
     params = []
     if symbols:
-        placeholders = ','.join('?' * len(symbols))
+        placeholders = ",".join("?" * len(symbols))
         query += f" AND p.underlying IN ({placeholders})"
         params.extend(symbols)
 
@@ -145,22 +146,25 @@ def store_greeks_batch(db_path: str, greeks_data: List[Dict]) -> int:
     inserted = 0
     for g in greeks_data:
         try:
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT OR REPLACE INTO options_greeks (
                     options_price_id, occ_symbol, quote_date,
                     iv_calculated, iv_method, delta, gamma, theta, vega
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                g['price_id'],
-                g['occ_symbol'],
-                g['quote_date'],
-                g['iv'],
-                g['iv_method'],
-                g['delta'],
-                g['gamma'],
-                g['theta'],
-                g['vega'],
-            ))
+            """,
+                (
+                    g["price_id"],
+                    g["occ_symbol"],
+                    g["quote_date"],
+                    g["iv"],
+                    g["iv_method"],
+                    g["delta"],
+                    g["gamma"],
+                    g["theta"],
+                    g["vega"],
+                ),
+            )
             inserted += 1
         except Exception as e:
             pass
@@ -173,6 +177,7 @@ def store_greeks_batch(db_path: str, greeks_data: List[Dict]) -> int:
 # =============================================================================
 # GREEKS CALCULATOR
 # =============================================================================
+
 
 def calculate_iv_from_price(
     mid_price: float,
@@ -189,10 +194,10 @@ def calculate_iv_from_price(
         (iv, method) - IV und die verwendete Methode
     """
     if mid_price <= 0 or spot <= 0 or tte <= 0:
-        return None, 'invalid_input'
+        return None, "invalid_input"
 
     # Konvertiere option_type
-    opt_type = option_type.upper() if option_type in ['c', 'p', 'C', 'P'] else option_type
+    opt_type = option_type.upper() if option_type in ["c", "p", "C", "P"] else option_type
 
     # Versuche Newton-Raphson
     try:
@@ -206,7 +211,7 @@ def calculate_iv_from_price(
         )
 
         if iv is not None and 0.01 <= iv <= 5.0:
-            return iv, 'newton_raphson'
+            return iv, "newton_raphson"
 
     except Exception:
         pass
@@ -219,7 +224,7 @@ def calculate_iv_from_price(
         base_iv = 0.25
 
         # OTM Optionen haben höhere IV (Volatility Smile)
-        if opt_type == 'P':
+        if opt_type == "P":
             # Put: Moneyness < 1 ist OTM
             skew_adj = 1 + max(0, (1 - moneyness) * 0.5)
         else:
@@ -229,12 +234,12 @@ def calculate_iv_from_price(
         iv_est = base_iv * skew_adj
 
         if 0.05 <= iv_est <= 2.0:
-            return iv_est, 'estimated'
+            return iv_est, "estimated"
 
     except Exception:
         pass
 
-    return None, 'failed'
+    return None, "failed"
 
 
 def calculate_greeks_for_option(
@@ -275,7 +280,7 @@ def calculate_greeks_for_option(
     # Greeks berechnen
     try:
         # option_type für black_scholes_greeks: 'C' oder 'P'
-        opt_type = option_type.upper() if option_type in ['c', 'p', 'C', 'P'] else option_type
+        opt_type = option_type.upper() if option_type in ["c", "p", "C", "P"] else option_type
 
         greeks = black_scholes_greeks(
             S=underlying_price,
@@ -287,15 +292,15 @@ def calculate_greeks_for_option(
         )
 
         return {
-            'price_id': price_id,
-            'occ_symbol': occ_symbol,
-            'quote_date': quote_date,
-            'iv': iv_adjusted,
-            'iv_method': iv_method,
-            'delta': greeks.delta,
-            'gamma': greeks.gamma,
-            'theta': greeks.theta,
-            'vega': greeks.vega,
+            "price_id": price_id,
+            "occ_symbol": occ_symbol,
+            "quote_date": quote_date,
+            "iv": iv_adjusted,
+            "iv_method": iv_method,
+            "delta": greeks.delta,
+            "gamma": greeks.gamma,
+            "theta": greeks.theta,
+            "vega": greeks.vega,
         }
 
     except Exception as e:
@@ -307,8 +312,18 @@ def process_batch(batch: List[Tuple]) -> List[Dict]:
     results = []
 
     for row in batch:
-        (price_id, occ_symbol, underlying, strike, option_type,
-         quote_date, expiration, mid_price, underlying_price, dte) = row
+        (
+            price_id,
+            occ_symbol,
+            underlying,
+            strike,
+            option_type,
+            quote_date,
+            expiration,
+            mid_price,
+            underlying_price,
+            dte,
+        ) = row
 
         result = calculate_greeks_for_option(
             price_id=price_id,
@@ -332,6 +347,7 @@ def process_batch(batch: List[Tuple]) -> List[Dict]:
 # =============================================================================
 # MAIN CALCULATOR
 # =============================================================================
+
 
 def calculate_all_greeks(
     db_path: str,
@@ -360,11 +376,11 @@ def calculate_all_greeks(
 
     # Verarbeite in Batches
     for batch_start in range(0, total, batch_size):
-        batch = options[batch_start:batch_start + batch_size]
+        batch = options[batch_start : batch_start + batch_size]
 
         # Teile Batch für Worker auf
         chunk_size = max(1, len(batch) // workers)
-        chunks = [batch[i:i + chunk_size] for i in range(0, len(batch), chunk_size)]
+        chunks = [batch[i : i + chunk_size] for i in range(0, len(batch), chunk_size)]
 
         results = []
 
@@ -410,7 +426,7 @@ def show_status(db_path: str):
     """)
     tables = [r[0] for r in cursor.fetchall()]
 
-    if 'options_prices' not in tables:
+    if "options_prices" not in tables:
         print("\nNo options_prices table found. Run collect_options_prices.py first.")
         conn.close()
         return
@@ -420,7 +436,7 @@ def show_status(db_path: str):
     total_prices = cursor.fetchone()[0]
 
     # Greeks count
-    if 'options_greeks' in tables:
+    if "options_greeks" in tables:
         cursor.execute("SELECT COUNT(*) FROM options_greeks")
         total_greeks = cursor.fetchone()[0]
     else:
@@ -476,12 +492,12 @@ def show_status(db_path: str):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Calculate Greeks for historical options')
-    parser.add_argument('--all', action='store_true', help='Calculate for all options')
-    parser.add_argument('--symbols', type=str, help='Comma-separated symbols')
-    parser.add_argument('--workers', type=int, default=4, help='Worker processes (default: 4)')
-    parser.add_argument('--batch-size', type=int, default=10000, help='Batch size (default: 10000)')
-    parser.add_argument('--status', action='store_true', help='Show calculation status')
+    parser = argparse.ArgumentParser(description="Calculate Greeks for historical options")
+    parser.add_argument("--all", action="store_true", help="Calculate for all options")
+    parser.add_argument("--symbols", type=str, help="Comma-separated symbols")
+    parser.add_argument("--workers", type=int, default=4, help="Worker processes (default: 4)")
+    parser.add_argument("--batch-size", type=int, default=10000, help="Batch size (default: 10000)")
+    parser.add_argument("--status", action="store_true", help="Show calculation status")
 
     args = parser.parse_args()
     db_path = get_db_path()
@@ -496,7 +512,7 @@ def main():
 
     symbols = None
     if args.symbols:
-        symbols = [s.strip().upper() for s in args.symbols.split(',')]
+        symbols = [s.strip().upper() for s in args.symbols.split(",")]
 
     calculate_all_greeks(
         db_path=db_path,
@@ -508,5 +524,5 @@ def main():
     show_status(db_path)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

@@ -30,9 +30,11 @@ import yaml
 
 try:
     from scipy.stats import norm
+
     SCIPY_AVAILABLE = True
 except ImportError:
     SCIPY_AVAILABLE = False
+
     # Fallback: approximate norm.ppf(0.80) ≈ 0.84
     class norm:
         @staticmethod
@@ -45,26 +47,27 @@ except ImportError:
             else:
                 return 0.25
 
+
 # Add src to path
-sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 try:
     from tqdm import tqdm
 except ImportError:
+
     def tqdm(iterable, **kwargs):
         return iterable
+
 
 # Import EarningsHistoryManager
 try:
     from cache.earnings_history import get_earnings_history_manager
+
     EARNINGS_HISTORY_AVAILABLE = True
 except ImportError:
     EARNINGS_HISTORY_AVAILABLE = False
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 # =============================================================================
@@ -81,15 +84,16 @@ EARNINGS_EXCLUSION_DAYS_AFTER = 7
 # =============================================================================
 # PUT CREDIT SPREAD PARAMETERS
 # =============================================================================
-SPREAD_WIDTH = 5.0          # $5 spread width
-TARGET_DELTA = 0.20         # 20 Delta short put
-CONTRACTS = 1               # 1 contract = 100 shares
-DTE = 75                    # Days to expiration (60-90 range, using midpoint)
+SPREAD_WIDTH = 5.0  # $5 spread width
+TARGET_DELTA = 0.20  # 20 Delta short put
+CONTRACTS = 1  # 1 contract = 100 shares
+DTE = 75  # Days to expiration (60-90 range, using midpoint)
 
 
 # =============================================================================
 # DATA CLASSES
 # =============================================================================
+
 
 @dataclass
 class PriceBar:
@@ -148,6 +152,7 @@ class BacktestResult:
 # LOAD CONFIG
 # =============================================================================
 
+
 def load_config() -> dict:
     """Load v3.8.1 configuration."""
     with open(CONFIG_PATH) as f:
@@ -158,21 +163,16 @@ def load_config() -> dict:
 # DATA LOADING
 # =============================================================================
 
+
 def load_all_symbols(conn: sqlite3.Connection) -> List[str]:
     """Load all symbols from database."""
     cursor = conn.execute("SELECT DISTINCT symbol FROM price_data")
     return [row[0] for row in cursor]
 
 
-def load_price_data(
-    conn: sqlite3.Connection,
-    symbol: str
-) -> List[PriceBar]:
+def load_price_data(conn: sqlite3.Connection, symbol: str) -> List[PriceBar]:
     """Load price data for a symbol."""
-    cursor = conn.execute(
-        "SELECT data_compressed FROM price_data WHERE symbol = ?",
-        (symbol,)
-    )
+    cursor = conn.execute("SELECT data_compressed FROM price_data WHERE symbol = ?", (symbol,))
     row = cursor.fetchone()
 
     if not row:
@@ -194,15 +194,21 @@ def load_price_data(
     bars = []
     for bar in data:
         try:
-            d = datetime.strptime(bar["date"], "%Y-%m-%d").date() if isinstance(bar["date"], str) else bar["date"]
-            bars.append(PriceBar(
-                date=d,
-                open=float(bar["open"]),
-                high=float(bar["high"]),
-                low=float(bar["low"]),
-                close=float(bar["close"]),
-                volume=int(bar.get("volume", 0))
-            ))
+            d = (
+                datetime.strptime(bar["date"], "%Y-%m-%d").date()
+                if isinstance(bar["date"], str)
+                else bar["date"]
+            )
+            bars.append(
+                PriceBar(
+                    date=d,
+                    open=float(bar["open"]),
+                    high=float(bar["high"]),
+                    low=float(bar["low"]),
+                    close=float(bar["close"]),
+                    volume=int(bar.get("volume", 0)),
+                )
+            )
         except:
             continue
 
@@ -247,17 +253,16 @@ def load_earnings_data(symbols: List[str]) -> Dict[str, Set[date]]:
 # METRICS CALCULATION
 # =============================================================================
 
+
 def calculate_metrics(
-    symbol: str,
-    bars: List[PriceBar],
-    spy_returns: List[float]
+    symbol: str, bars: List[PriceBar], spy_returns: List[float]
 ) -> Optional[SymbolMetrics]:
     """Calculate volatility and beta for a symbol."""
     if len(bars) < 252:
         return None
 
     closes = [b.close for b in bars[-252:]]
-    returns = [(closes[i] - closes[i-1]) / closes[i-1] for i in range(1, len(closes))]
+    returns = [(closes[i] - closes[i - 1]) / closes[i - 1] for i in range(1, len(closes))]
 
     if len(returns) < 60:
         return None
@@ -267,7 +272,7 @@ def calculate_metrics(
 
     # Beta vs SPY
     if len(spy_returns) >= len(returns):
-        spy_ret = spy_returns[-len(returns):]
+        spy_ret = spy_returns[-len(returns) :]
         if len(spy_ret) == len(returns):
             cov = np.cov(returns, spy_ret)[0][1]
             var = np.var(spy_ret)
@@ -281,23 +286,16 @@ def calculate_metrics(
     beta = max(0.1, min(4.0, beta))
     avg_volume = np.mean([b.volume for b in bars[-60:]])
 
-    return SymbolMetrics(
-        symbol=symbol,
-        volatility=volatility,
-        beta=beta,
-        avg_volume=avg_volume
-    )
+    return SymbolMetrics(symbol=symbol, volatility=volatility, beta=beta, avg_volume=avg_volume)
 
 
 # =============================================================================
 # SCORING
 # =============================================================================
 
+
 def calculate_entry_score(
-    bars: List[PriceBar],
-    idx: int,
-    weights: Dict[str, float],
-    strategy: str
+    bars: List[PriceBar], idx: int, weights: Dict[str, float], strategy: str
 ) -> float:
     """Calculate entry score for a position."""
     if idx < 50:
@@ -307,7 +305,7 @@ def calculate_entry_score(
     close = bars[idx].close
 
     # RSI component
-    deltas = [bars[i].close - bars[i-1].close for i in range(idx-13, idx+1)]
+    deltas = [bars[i].close - bars[i - 1].close for i in range(idx - 13, idx + 1)]
     gains = [d if d > 0 else 0 for d in deltas]
     losses = [-d if d < 0 else 0 for d in deltas]
     avg_gain = sum(gains) / 14
@@ -316,14 +314,14 @@ def calculate_entry_score(
     score += weights.get("rsi", 1.0) * (100 - rsi) / 100
 
     # Support component
-    low_20 = min(b.low for b in bars[idx-20:idx+1])
-    high_20 = max(b.high for b in bars[idx-20:idx+1])
+    low_20 = min(b.low for b in bars[idx - 20 : idx + 1])
+    high_20 = max(b.high for b in bars[idx - 20 : idx + 1])
     if high_20 > low_20:
         support_dist = (close - low_20) / (high_20 - low_20)
         score += weights.get("support", 1.0) * (1 - support_dist)
 
     # Trend component
-    ma_20 = sum(b.close for b in bars[idx-20:idx]) / 20
+    ma_20 = sum(b.close for b in bars[idx - 20 : idx]) / 20
     trend = (close - ma_20) / ma_20 if ma_20 > 0 else 0
     if strategy == "pullback":
         score += weights.get("trend", 1.0) * max(0, -trend * 10)
@@ -331,21 +329,21 @@ def calculate_entry_score(
         score += weights.get("trend", 1.0) * max(0, trend * 10)
 
     # Volume component
-    avg_vol = sum(b.volume for b in bars[idx-20:idx]) / 20
+    avg_vol = sum(b.volume for b in bars[idx - 20 : idx]) / 20
     vol_ratio = bars[idx].volume / avg_vol if avg_vol > 0 else 1
     score += weights.get("volume", 1.0) * min(vol_ratio / 2, 1.0)
 
     # Momentum component
-    mom_5 = (close - bars[idx-5].close) / bars[idx-5].close if bars[idx-5].close > 0 else 0
+    mom_5 = (close - bars[idx - 5].close) / bars[idx - 5].close if bars[idx - 5].close > 0 else 0
     score += weights.get("momentum", 1.0) * (0.5 - mom_5 * 5)
 
     # Stabilization component
-    recent_ranges = [(b.high - b.low) / b.close for b in bars[idx-5:idx+1]]
+    recent_ranges = [(b.high - b.low) / b.close for b in bars[idx - 5 : idx + 1]]
     avg_range = sum(recent_ranges) / len(recent_ranges) if recent_ranges else 0
     score += weights.get("stabilization", 1.0) * (1 - min(avg_range * 10, 1))
 
     # ATH component
-    high_252 = max(b.high for b in bars[max(0, idx-252):idx+1])
+    high_252 = max(b.high for b in bars[max(0, idx - 252) : idx + 1])
     ath_dist = (high_252 - close) / high_252 if high_252 > 0 else 0
     if strategy == "ath_breakout":
         score += weights.get("ath_breakout", 1.0) * (1 - ath_dist)
@@ -353,29 +351,35 @@ def calculate_entry_score(
         score += weights.get("ath_breakout", 1.0) * ath_dist * 0.5
 
     # MACD component
-    ema_12 = sum(b.close for b in bars[idx-12:idx]) / 12
-    ema_26 = sum(b.close for b in bars[idx-26:idx]) / 26
+    ema_12 = sum(b.close for b in bars[idx - 12 : idx]) / 12
+    ema_26 = sum(b.close for b in bars[idx - 26 : idx]) / 26
     macd = (ema_12 - ema_26) / ema_26 if ema_26 > 0 else 0
     score += weights.get("macd", 1.0) * (0.5 + macd * 10)
 
     # VWAP component
     if strategy in ["pullback", "bounce"]:
-        vwap_sum = sum(b.close * b.volume for b in bars[idx-20:idx+1])
-        vol_sum = sum(b.volume for b in bars[idx-20:idx+1])
+        vwap_sum = sum(b.close * b.volume for b in bars[idx - 20 : idx + 1])
+        vol_sum = sum(b.volume for b in bars[idx - 20 : idx + 1])
         vwap = vwap_sum / vol_sum if vol_sum > 0 else close
         vwap_dist = (close - vwap) / vwap if vwap > 0 else 0
         score += weights.get("vwap", 1.0) * (0.5 - vwap_dist * 5)
 
     # Stochastic component
-    low_14 = min(b.low for b in bars[idx-14:idx+1])
-    high_14 = max(b.high for b in bars[idx-14:idx+1])
+    low_14 = min(b.low for b in bars[idx - 14 : idx + 1])
+    high_14 = max(b.high for b in bars[idx - 14 : idx + 1])
     if high_14 > low_14:
         stoch_k = (close - low_14) / (high_14 - low_14) * 100
         score += weights.get("stochastic", 1.0) * (100 - stoch_k) / 100
 
     # Keltner channel component
-    atr_sum = sum(max(b.high - b.low, abs(b.high - bars[idx-i-1].close), abs(b.low - bars[idx-i-1].close))
-                  for i, b in enumerate(bars[idx-19:idx+1]))
+    atr_sum = sum(
+        max(
+            b.high - b.low,
+            abs(b.high - bars[idx - i - 1].close),
+            abs(b.low - bars[idx - i - 1].close),
+        )
+        for i, b in enumerate(bars[idx - 19 : idx + 1])
+    )
     atr = atr_sum / 20
     keltner_upper = ma_20 + 2 * atr
     keltner_lower = ma_20 - 2 * atr
@@ -385,12 +389,12 @@ def calculate_entry_score(
 
     # Dip magnitude component
     if strategy in ["pullback", "bounce", "earnings_dip"]:
-        recent_high = max(b.high for b in bars[idx-10:idx])
+        recent_high = max(b.high for b in bars[idx - 10 : idx])
         dip = (recent_high - close) / recent_high if recent_high > 0 else 0
         score += weights.get("dip_magnitude", 1.0) * min(dip * 5, 1.0)
 
     # Market context (simplified)
-    ma_50 = sum(b.close for b in bars[idx-50:idx]) / 50 if idx >= 50 else ma_20
+    ma_50 = sum(b.close for b in bars[idx - 50 : idx]) / 50 if idx >= 50 else ma_20
     market_trend = (ma_20 - ma_50) / ma_50 if ma_50 > 0 else 0
     score += weights.get("market_context", 1.0) * (0.5 + market_trend * 5)
 
@@ -410,6 +414,7 @@ def calculate_entry_score(
 # TRADE SIMULATION
 # =============================================================================
 
+
 def get_vix_regime(vix: float) -> str:
     """Classify VIX into regimes."""
     if vix < 15:
@@ -427,8 +432,8 @@ def calculate_historical_volatility(bars: List[PriceBar], idx: int, lookback: in
     if idx < lookback:
         return 0.30  # Default 30%
 
-    closes = [b.close for b in bars[idx-lookback:idx+1]]
-    returns = [(closes[i] - closes[i-1]) / closes[i-1] for i in range(1, len(closes))]
+    closes = [b.close for b in bars[idx - lookback : idx + 1]]
+    returns = [(closes[i] - closes[i - 1]) / closes[i - 1] for i in range(1, len(closes))]
 
     if not returns:
         return 0.30
@@ -440,10 +445,7 @@ def calculate_historical_volatility(bars: List[PriceBar], idx: int, lookback: in
 
 
 def calculate_short_strike(
-    current_price: float,
-    iv: float,
-    dte: int,
-    target_delta: float = 0.20
+    current_price: float, iv: float, dte: int, target_delta: float = 0.20
 ) -> float:
     """
     Calculate short strike price for target delta using simplified Black-Scholes.
@@ -458,6 +460,7 @@ def calculate_short_strike(
     # 20 delta put means 80% probability of expiring OTM
     # norm.ppf(0.80) ≈ 0.84
     from scipy.stats import norm
+
     z_score = norm.ppf(1 - target_delta)  # ~0.84 for 20 delta
 
     # Time to expiration in years
@@ -473,12 +476,7 @@ def calculate_short_strike(
 
 
 def calculate_premium(
-    current_price: float,
-    short_strike: float,
-    long_strike: float,
-    iv: float,
-    dte: int,
-    vix: float
+    current_price: float, short_strike: float, long_strike: float, iv: float, dte: int, vix: float
 ) -> float:
     """
     Calculate premium received for put credit spread.
@@ -523,7 +521,7 @@ def simulate_trade(
     vix_data: Dict[date, float],
     strategy: str,
     symbol_vol: float = None,
-    dte: int = DTE
+    dte: int = DTE,
 ) -> Optional[TradeResult]:
     """
     Simulate a put credit spread trade with realistic strike/premium calculation.
@@ -579,7 +577,7 @@ def simulate_trade(
     exit_price = bars[exit_idx].close
 
     # Find minimum price during trade (for drawdown calculation)
-    min_price = min(b.low for b in bars[entry_idx:exit_idx+1])
+    min_price = min(b.low for b in bars[entry_idx : exit_idx + 1])
     max_drawdown = (entry_price - min_price) / entry_price * 100
 
     # Determine win/loss based on whether short strike was breached
@@ -615,15 +613,11 @@ def simulate_trade(
         win=win,
         pnl=pnl,
         max_drawdown=max_drawdown,
-        vix_regime=vix_regime
+        vix_regime=vix_regime,
     )
 
 
-def is_near_earnings(
-    trade_date: date,
-    symbol: str,
-    earnings_data: Dict[str, Set[date]]
-) -> bool:
+def is_near_earnings(trade_date: date, symbol: str, earnings_data: Dict[str, Set[date]]) -> bool:
     """Check if date is near earnings."""
     if symbol not in earnings_data:
         return False
@@ -640,7 +634,7 @@ def is_post_earnings_dip(
     symbol: str,
     earnings_data: Dict[str, Set[date]],
     min_days: int = 1,
-    max_days: int = 21
+    max_days: int = 21,
 ) -> bool:
     """Check if date is in post-earnings dip window."""
     if symbol not in earnings_data:
@@ -663,9 +657,7 @@ HIGH_VOL_SCORE_BOOST = 1.5  # Require 1.5x higher score for high-vol symbols
 
 
 def filter_symbols_by_volatility(
-    metrics: Dict[str, SymbolMetrics],
-    strategy: str,
-    config: dict
+    metrics: Dict[str, SymbolMetrics], strategy: str, config: dict
 ) -> Tuple[List[str], List[str]]:
     """Filter symbols based on volatility limits."""
 
@@ -694,9 +686,7 @@ def filter_symbols_by_volatility(
 
 
 def get_adjusted_min_score(
-    base_score: float,
-    symbol: str,
-    metrics: Dict[str, SymbolMetrics]
+    base_score: float, symbol: str, metrics: Dict[str, SymbolMetrics]
 ) -> float:
     """
     Get volatility-adjusted minimum score for a symbol.
@@ -709,7 +699,9 @@ def get_adjusted_min_score(
 
     if vol > HIGH_VOL_THRESHOLD:
         # Linear scaling: 50% vol = 1.0x, 80% vol = 1.5x
-        vol_factor = 1.0 + (vol - HIGH_VOL_THRESHOLD) / (80 - HIGH_VOL_THRESHOLD) * (HIGH_VOL_SCORE_BOOST - 1.0)
+        vol_factor = 1.0 + (vol - HIGH_VOL_THRESHOLD) / (80 - HIGH_VOL_THRESHOLD) * (
+            HIGH_VOL_SCORE_BOOST - 1.0
+        )
         vol_factor = min(vol_factor, HIGH_VOL_SCORE_BOOST)  # Cap at 1.5x
         return base_score * vol_factor
 
@@ -720,6 +712,7 @@ def get_adjusted_min_score(
 # BACKTEST EXECUTION
 # =============================================================================
 
+
 def run_backtest(
     strategy: str,
     all_bars: Dict[str, List[PriceBar]],
@@ -727,7 +720,7 @@ def run_backtest(
     earnings_data: Dict[str, Set[date]],
     metrics: Dict[str, SymbolMetrics],
     config: dict,
-    min_score: float = 5.0
+    min_score: float = 5.0,
 ) -> BacktestResult:
     """Run backtest for a single strategy."""
 
@@ -739,10 +732,25 @@ def run_backtest(
     weights = config.get(strategy, {}).get("weights", {})
     if not weights:
         logger.warning(f"No weights found for {strategy}")
-        weights = {k: 1.0 for k in ["rsi", "support", "trend", "volume", "momentum",
-                                     "stabilization", "ath_breakout", "macd", "vwap",
-                                     "stochastic", "keltner", "dip_magnitude",
-                                     "market_context", "candlestick"]}
+        weights = {
+            k: 1.0
+            for k in [
+                "rsi",
+                "support",
+                "trend",
+                "volume",
+                "momentum",
+                "stabilization",
+                "ath_breakout",
+                "macd",
+                "vwap",
+                "stochastic",
+                "keltner",
+                "dip_magnitude",
+                "market_context",
+                "candlestick",
+            ]
+        }
 
     # Get optimal threshold if available
     perf = config.get(strategy, {}).get("performance", {})
@@ -833,7 +841,7 @@ def run_backtest(
             trades_by_vix={},
             trades_by_year={},
             filtered_symbols=len(filtered_symbols),
-            active_symbols=len(active_symbols)
+            active_symbols=len(active_symbols),
         )
 
     wins = sum(1 for t in trades if t.win)
@@ -857,7 +865,7 @@ def run_backtest(
                 "trades": len(regime_trades),
                 "wins": r_wins,
                 "win_rate": r_wins / len(regime_trades) * 100,
-                "avg_pnl": sum(r_pnls) / len(r_pnls)
+                "avg_pnl": sum(r_pnls) / len(r_pnls),
             }
 
     # Analyze by year
@@ -889,7 +897,7 @@ def run_backtest(
         trades_by_vix=trades_by_vix,
         trades_by_year=trades_by_year,
         filtered_symbols=len(filtered_symbols),
-        active_symbols=len(active_symbols)
+        active_symbols=len(active_symbols),
     )
 
 
@@ -921,7 +929,9 @@ def print_results(result: BacktestResult, detailed: bool = False):
         for regime in ["low", "normal", "elevated", "high"]:
             if regime in result.trades_by_vix:
                 r = result.trades_by_vix[regime]
-                print(f"  {regime:<12} {r['trades']:>8} {r['win_rate']:>7.1f}% ${r['avg_pnl']:>8.2f}")
+                print(
+                    f"  {regime:<12} {r['trades']:>8} {r['win_rate']:>7.1f}% ${r['avg_pnl']:>8.2f}"
+                )
 
     if detailed and result.trades_by_year:
         print(f"\n  YEARLY PERFORMANCE:")
@@ -930,21 +940,29 @@ def print_results(result: BacktestResult, detailed: bool = False):
         print(f"  {'─'*50}")
         for year in sorted(result.trades_by_year.keys()):
             y = result.trades_by_year[year]
-            print(f"  {year:<8} {y['trades']:>8} {y['win_rate']:>7.1f}% ${y['avg_pnl']:>8.2f} ${y['pnl']:>11,.2f}")
+            print(
+                f"  {year:<8} {y['trades']:>8} {y['win_rate']:>7.1f}% ${y['avg_pnl']:>8.2f} ${y['pnl']:>11,.2f}"
+            )
 
 
 # =============================================================================
 # MAIN
 # =============================================================================
 
+
 def main():
     parser = argparse.ArgumentParser(description="Full backtest with v3.8.1 weights")
-    parser.add_argument("--strategy", choices=["pullback", "bounce", "ath_breakout", "earnings_dip"],
-                        help="Run backtest for specific strategy only")
+    parser.add_argument(
+        "--strategy",
+        choices=["pullback", "bounce", "ath_breakout", "earnings_dip"],
+        help="Run backtest for specific strategy only",
+    )
     parser.add_argument("--detailed", action="store_true", help="Show detailed yearly breakdown")
     args = parser.parse_args()
 
-    strategies = [args.strategy] if args.strategy else ["pullback", "bounce", "ath_breakout", "earnings_dip"]
+    strategies = (
+        [args.strategy] if args.strategy else ["pullback", "bounce", "ath_breakout", "earnings_dip"]
+    )
 
     print("=" * 70)
     print("  FULL BACKTEST v3.8.1")
@@ -976,7 +994,9 @@ def main():
     logger.info("[4/6] Loading SPY data...")
     spy_bars = load_price_data(conn, "SPY")
     spy_closes = [b.close for b in spy_bars[-252:]]
-    spy_returns = [(spy_closes[i] - spy_closes[i-1]) / spy_closes[i-1] for i in range(1, len(spy_closes))]
+    spy_returns = [
+        (spy_closes[i] - spy_closes[i - 1]) / spy_closes[i - 1] for i in range(1, len(spy_closes))
+    ]
     print(f"  Loaded {len(spy_bars)} SPY bars")
 
     # Load VIX
@@ -1009,7 +1029,7 @@ def main():
             vix_data=vix_data,
             earnings_data=earnings_data,
             metrics=metrics,
-            config=config
+            config=config,
         )
         results.append(result)
         print_results(result, detailed=args.detailed)
@@ -1019,11 +1039,15 @@ def main():
         print(f"\n{'='*70}")
         print("  STRATEGY COMPARISON")
         print(f"{'='*70}")
-        print(f"\n  {'Strategy':<15} {'Trades':>8} {'WR':>8} {'Avg P&L':>10} {'Sharpe':>8} {'Total P&L':>12}")
+        print(
+            f"\n  {'Strategy':<15} {'Trades':>8} {'WR':>8} {'Avg P&L':>10} {'Sharpe':>8} {'Total P&L':>12}"
+        )
         print(f"  {'─'*65}")
 
         for r in results:
-            print(f"  {r.strategy:<15} {r.total_trades:>8} {r.win_rate:>7.1f}% ${r.avg_pnl:>8.2f} {r.sharpe_ratio:>8.2f} ${r.total_pnl:>11,.2f}")
+            print(
+                f"  {r.strategy:<15} {r.total_trades:>8} {r.win_rate:>7.1f}% ${r.avg_pnl:>8.2f} {r.sharpe_ratio:>8.2f} ${r.total_pnl:>11,.2f}"
+            )
 
         # Total
         total_trades = sum(r.total_trades for r in results)
@@ -1033,7 +1057,9 @@ def main():
         avg_pnl = total_pnl / total_trades if total_trades > 0 else 0
 
         print(f"  {'─'*65}")
-        print(f"  {'TOTAL':<15} {total_trades:>8} {total_wr:>7.1f}% ${avg_pnl:>8.2f} {'':>8} ${total_pnl:>11,.2f}")
+        print(
+            f"  {'TOTAL':<15} {total_trades:>8} {total_wr:>7.1f}% ${avg_pnl:>8.2f} {'':>8} ${total_pnl:>11,.2f}"
+        )
 
     print(f"\n{'='*70}")
     print("  BACKTEST COMPLETE")

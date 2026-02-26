@@ -43,6 +43,7 @@ from src.config.watchlist_loader import get_watchlist_loader
 @dataclass
 class BackfillConfig:
     """Konfiguration für Backfill"""
+
     target_years: int = 3  # Ziel: X Jahre Historie
     min_delay_seconds: float = 0.75
     min_bars_threshold: int = 500  # Symbole mit weniger als X bars werden erweitert
@@ -51,6 +52,7 @@ class BackfillConfig:
 @dataclass
 class BackfillInfo:
     """Info über benötigtes Backfill für ein Symbol"""
+
     symbol: str
     current_start: date
     current_end: date
@@ -61,9 +63,7 @@ class BackfillInfo:
 
 
 def analyze_backfill_needs(
-    tracker: TradeTracker,
-    watchlist_symbols: set,
-    config: BackfillConfig
+    tracker: TradeTracker, watchlist_symbols: set, config: BackfillConfig
 ) -> Tuple[List[BackfillInfo], Dict]:
     """Analysiert welche Symbole Backfill benötigen."""
 
@@ -71,7 +71,7 @@ def analyze_backfill_needs(
     target_start = today - timedelta(days=config.target_years * 365)
 
     db_symbols = tracker.list_symbols_with_price_data()
-    db_symbol_map = {s['symbol']: s for s in db_symbols}
+    db_symbol_map = {s["symbol"]: s for s in db_symbols}
 
     results = []
     needs_backfill_count = 0
@@ -82,36 +82,38 @@ def analyze_backfill_needs(
             continue
 
         info = db_symbol_map[symbol]
-        current_start = date.fromisoformat(info['start_date'])
-        current_end = date.fromisoformat(info['end_date'])
-        current_bars = info['bar_count']
+        current_start = date.fromisoformat(info["start_date"])
+        current_end = date.fromisoformat(info["end_date"])
+        current_bars = info["bar_count"]
 
         # Prüfe ob Backfill nötig
         needs_backfill = current_bars < config.min_bars_threshold and current_start > target_start
         days_to_backfill = (current_start - target_start).days if needs_backfill else 0
 
-        results.append(BackfillInfo(
-            symbol=symbol,
-            current_start=current_start,
-            current_end=current_end,
-            current_bars=current_bars,
-            target_start=target_start,
-            days_to_backfill=days_to_backfill,
-            needs_backfill=needs_backfill
-        ))
+        results.append(
+            BackfillInfo(
+                symbol=symbol,
+                current_start=current_start,
+                current_end=current_end,
+                current_bars=current_bars,
+                target_start=target_start,
+                days_to_backfill=days_to_backfill,
+                needs_backfill=needs_backfill,
+            )
+        )
 
         if needs_backfill:
             needs_backfill_count += 1
             total_days_to_fetch += days_to_backfill
 
     summary = {
-        'total_symbols': len(results),
-        'needs_backfill': needs_backfill_count,
-        'already_complete': len(results) - needs_backfill_count,
-        'target_start': target_start.isoformat(),
-        'target_years': config.target_years,
-        'min_bars_threshold': config.min_bars_threshold,
-        'total_days_to_fetch': total_days_to_fetch,
+        "total_symbols": len(results),
+        "needs_backfill": needs_backfill_count,
+        "already_complete": len(results) - needs_backfill_count,
+        "target_start": target_start.isoformat(),
+        "target_years": config.target_years,
+        "min_bars_threshold": config.min_bars_threshold,
+        "total_days_to_fetch": total_days_to_fetch,
     }
 
     return results, summary
@@ -161,10 +163,7 @@ class BackfillCollector:
             # Maximal 1500 Tage (API Limit)
             days_to_fetch = min(days_from_today, 1500)
 
-            bars = await self._provider.get_historical(
-                info.symbol,
-                days=days_to_fetch
-            )
+            bars = await self._provider.get_historical(info.symbol, days=days_to_fetch)
 
             if not bars:
                 return False, 0, "no data returned"
@@ -172,18 +171,24 @@ class BackfillCollector:
             # Filtere nur Bars VOR dem aktuellen Start-Datum
             price_bars = []
             for bar in bars:
-                bar_date = bar.date if isinstance(bar.date, date) else date.fromisoformat(str(bar.date)[:10])
+                bar_date = (
+                    bar.date
+                    if isinstance(bar.date, date)
+                    else date.fromisoformat(str(bar.date)[:10])
+                )
 
                 # Nur Bars vor dem aktuellen Start
                 if bar_date < info.current_start:
-                    price_bars.append(PriceBar(
-                        date=bar_date,
-                        open=bar.open,
-                        high=bar.high,
-                        low=bar.low,
-                        close=bar.close,
-                        volume=bar.volume,
-                    ))
+                    price_bars.append(
+                        PriceBar(
+                            date=bar_date,
+                            open=bar.open,
+                            high=bar.high,
+                            low=bar.low,
+                            close=bar.close,
+                            volume=bar.volume,
+                        )
+                    )
 
             if not price_bars:
                 return True, 0, "no older bars available"
@@ -224,16 +229,17 @@ class ProgressDisplay:
         pct = (self.current / self.total) * 100
         bar_width = 30
         filled = int(bar_width * self.current / self.total)
-        bar = '█' * filled + '░' * (bar_width - filled)
+        bar = "█" * filled + "░" * (bar_width - filled)
 
-        status_icon = '✓' if success else '✗'
+        status_icon = "✓" if success else "✗"
 
         print(
             f"\r[{bar}] {pct:5.1f}% | "
             f"{symbol:6s} {status_icon} | "
             f"+{self.bars_added:,} bars | "
             f"ETA {int(eta//60)}:{int(eta%60):02d}",
-            end='', flush=True
+            end="",
+            flush=True,
         )
 
     def finish(self):
@@ -252,21 +258,21 @@ def setup_logging(verbose: bool = False):
     level = logging.DEBUG if verbose else logging.INFO
     logging.basicConfig(
         level=level,
-        format='%(asctime)s - %(levelname)s - %(message)s',
-        datefmt='%H:%M:%S',
+        format="%(asctime)s - %(levelname)s - %(message)s",
+        datefmt="%H:%M:%S",
     )
 
 
 def get_api_key() -> str:
     """API Key aus Environment oder Config laden"""
-    api_key = os.environ.get('MARKETDATA_API_KEY')
+    api_key = os.environ.get("MARKETDATA_API_KEY")
 
     if not api_key:
         config_file = Path.home() / ".optionplay" / "config.json"
         if config_file.exists():
             with open(config_file) as f:
                 config = json.load(f)
-                api_key = config.get('marketdata_api_key')
+                api_key = config.get("marketdata_api_key")
 
     if not api_key:
         print("ERROR: No API key found!")
@@ -295,7 +301,9 @@ def print_status(results: List[BackfillInfo], summary: Dict):
     if needs_backfill:
         print("  SYMBOLE DIE BACKFILL BRAUCHEN:")
         for r in sorted(needs_backfill, key=lambda x: x.current_bars)[:30]:
-            print(f"    {r.symbol:6s}: {r.current_start} ({r.current_bars:3d} bars) → {r.target_start}")
+            print(
+                f"    {r.symbol:6s}: {r.current_start} ({r.current_bars:3d} bars) → {r.target_start}"
+            )
         if len(needs_backfill) > 30:
             print(f"    ... und {len(needs_backfill) - 30} weitere")
         print()
@@ -304,11 +312,7 @@ def print_status(results: List[BackfillInfo], summary: Dict):
     print()
 
 
-async def run_backfill(
-    results: List[BackfillInfo],
-    config: BackfillConfig,
-    dryrun: bool = False
-):
+async def run_backfill(results: List[BackfillInfo], config: BackfillConfig, dryrun: bool = False):
     """Führt das Backfill aus"""
     api_key = get_api_key()
     tracker = TradeTracker()
@@ -326,7 +330,9 @@ async def run_backfill(
         print("\nDRYRUN MODE - No data will be fetched")
         print("\nWould backfill:")
         for r in to_process[:20]:
-            print(f"  {r.symbol:6s}: {r.target_start} → {r.current_start} ({r.days_to_backfill} days)")
+            print(
+                f"  {r.symbol:6s}: {r.target_start} → {r.current_start} ({r.days_to_backfill} days)"
+            )
         if len(to_process) > 20:
             print(f"  ... and {len(to_process) - 20} more")
         return
@@ -350,24 +356,23 @@ async def run_backfill(
 
 async def main():
     parser = argparse.ArgumentParser(
-        description='Backfill historical data for symbols with short history',
+        description="Backfill historical data for symbols with short history",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
-    parser.add_argument('--status', action='store_true',
-                        help='Show status only')
-    parser.add_argument('--dryrun', action='store_true',
-                        help='Show what would be fetched')
-    parser.add_argument('--backfill', action='store_true',
-                        help='Perform the backfill')
-    parser.add_argument('--target-years', type=int, default=3,
-                        help='Target years of history (default: 3)')
-    parser.add_argument('--min-bars', type=int, default=500,
-                        help='Min bars threshold (default: 500)')
-    parser.add_argument('--delay', type=float, default=0.75,
-                        help='Delay between requests (default: 0.75)')
-    parser.add_argument('-v', '--verbose', action='store_true',
-                        help='Verbose output')
+    parser.add_argument("--status", action="store_true", help="Show status only")
+    parser.add_argument("--dryrun", action="store_true", help="Show what would be fetched")
+    parser.add_argument("--backfill", action="store_true", help="Perform the backfill")
+    parser.add_argument(
+        "--target-years", type=int, default=3, help="Target years of history (default: 3)"
+    )
+    parser.add_argument(
+        "--min-bars", type=int, default=500, help="Min bars threshold (default: 500)"
+    )
+    parser.add_argument(
+        "--delay", type=float, default=0.75, help="Delay between requests (default: 0.75)"
+    )
+    parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
 
     args = parser.parse_args()
 
@@ -406,5 +411,5 @@ async def main():
     print()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     asyncio.run(main())

@@ -30,7 +30,13 @@ def get_project_root() -> Path:
 def get_claude_config_path() -> Path:
     """Ermittle den Pfad zur Claude Desktop Konfiguration."""
     if sys.platform == "darwin":
-        return Path.home() / "Library" / "Application Support" / "Claude" / "claude_desktop_config.json"
+        return (
+            Path.home()
+            / "Library"
+            / "Application Support"
+            / "Claude"
+            / "claude_desktop_config.json"
+        )
     elif sys.platform == "win32":
         return Path(os.environ["APPDATA"]) / "Claude" / "claude_desktop_config.json"
     else:
@@ -50,11 +56,7 @@ def find_python() -> str:
     for python in candidates:
         if os.path.exists(python):
             try:
-                result = subprocess.run(
-                    [python, "--version"],
-                    capture_output=True,
-                    text=True
-                )
+                result = subprocess.run([python, "--version"], capture_output=True, text=True)
                 version = result.stdout.strip()
                 print(f"  Gefunden: {python} ({version})")
                 return python
@@ -87,14 +89,13 @@ def check_dependencies(python: str, project_root: Path) -> bool:
     result = subprocess.run(
         [python, "-c", "import mcp; import fastmcp; import aiohttp; import numpy"],
         capture_output=True,
-        cwd=project_root
+        cwd=project_root,
     )
 
     if result.returncode != 0:
         print("  ⚠️  Abhängigkeiten fehlen. Installiere...")
         install_result = subprocess.run(
-            [python, "-m", "pip", "install", "-e", "."],
-            cwd=project_root
+            [python, "-m", "pip", "install", "-e", "."], cwd=project_root
         )
         return install_result.returncode == 0
 
@@ -110,10 +111,7 @@ def create_config(project_root: Path, python: str, api_key: str) -> dict:
                 "command": python,
                 "args": ["-m", "src.mcp_main"],
                 "cwd": str(project_root),
-                "env": {
-                    "PYTHONPATH": str(project_root),
-                    "MARKETDATA_API_KEY": api_key
-                }
+                "env": {"PYTHONPATH": str(project_root), "MARKETDATA_API_KEY": api_key},
             }
         }
     }
@@ -203,7 +201,7 @@ def main():
         capture_output=True,
         text=True,
         cwd=project_root,
-        env={**os.environ, "PYTHONPATH": str(project_root)}
+        env={**os.environ, "PYTHONPATH": str(project_root)},
     )
 
     if result.returncode == 0:

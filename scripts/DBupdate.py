@@ -37,6 +37,7 @@ PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from dotenv import load_dotenv
+
 load_dotenv()
 
 DB_PATH = Path.home() / ".optionplay" / "trades.db"
@@ -52,11 +53,15 @@ def setup_logging(verbose=False):
     logger.handlers.clear()
     ch = logging.StreamHandler()
     ch.setLevel(level)
-    ch.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(message)s', datefmt='%H:%M:%S'))
+    ch.setFormatter(
+        logging.Formatter("%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S")
+    )
     logger.addHandler(ch)
     fh = logging.FileHandler(LOG_DIR / "dbupdate.log")
     fh.setLevel(logging.DEBUG)
-    fh.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S'))
+    fh.setFormatter(
+        logging.Formatter("%(asctime)s [%(levelname)s] %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+    )
     logger.addHandler(fh)
     return logger
 
@@ -65,7 +70,9 @@ def get_status():
     conn = sqlite3.connect(str(DB_PATH))
     cur = conn.execute("SELECT MAX(date) FROM vix_data")
     vix_max = cur.fetchone()[0]
-    cur = conn.execute("SELECT MAX(quote_date), COUNT(*), COUNT(DISTINCT underlying) FROM options_prices")
+    cur = conn.execute(
+        "SELECT MAX(quote_date), COUNT(*), COUNT(DISTINCT underlying) FROM options_prices"
+    )
     r = cur.fetchone()
     opt_max, opt_count, opt_symbols = r
     cur = conn.execute(
@@ -80,9 +87,13 @@ def get_status():
     conn.close()
     return {
         "vix_max": vix_max,
-        "opt_max": opt_max, "opt_count": opt_count, "opt_symbols": opt_symbols,
+        "opt_max": opt_max,
+        "opt_count": opt_count,
+        "opt_symbols": opt_symbols,
         "greeks_pending": greeks_pending,
-        "ohlcv_max": ohlcv_max, "ohlcv_count": ohlcv_count, "ohlcv_symbols": ohlcv_symbols,
+        "ohlcv_max": ohlcv_max,
+        "ohlcv_count": ohlcv_count,
+        "ohlcv_symbols": ohlcv_symbols,
     }
 
 
@@ -94,14 +105,19 @@ def print_status(s, logger):
         logger.info(f"  VIX:     bis {s['vix_max']}  {'[aktuell]' if d <= 1 else f'[{d}d alt]'}")
     if s["opt_max"]:
         d = (today - date.fromisoformat(s["opt_max"])).days
-        logger.info(f"  Options: bis {s['opt_max']}  {'[aktuell]' if d <= 1 else f'[{d}d alt]'}  ({s['opt_count']:,} Preise, {s['opt_symbols']} Symbole)")
+        logger.info(
+            f"  Options: bis {s['opt_max']}  {'[aktuell]' if d <= 1 else f'[{d}d alt]'}  ({s['opt_count']:,} Preise, {s['opt_symbols']} Symbole)"
+        )
     logger.info(f"  Greeks:  {s['greeks_pending']:,} ausstehend")
     if s["ohlcv_max"]:
         d = (today - date.fromisoformat(s["ohlcv_max"])).days
-        logger.info(f"  OHLCV:   bis {s['ohlcv_max']}  {'[aktuell]' if d <= 1 else f'[{d}d alt]'}  ({s['ohlcv_count']:,} Bars, {s['ohlcv_symbols']} Symbole)")
+        logger.info(
+            f"  OHLCV:   bis {s['ohlcv_max']}  {'[aktuell]' if d <= 1 else f'[{d}d alt]'}  ({s['ohlcv_count']:,} Bars, {s['ohlcv_symbols']} Symbole)"
+        )
 
 
 # -- Step 1: VIX --
+
 
 def step_vix(logger, status, dry_run=False):
     logger.info("--- STEP 1: VIX (Yahoo Finance) ---")
@@ -121,6 +137,7 @@ def step_vix(logger, status, dry_run=False):
         return True
     try:
         import yfinance as yf
+
         hist = yf.Ticker("^VIX").history(start=fetch_start, end=date.today())
         if hist.empty:
             logger.warning("  Keine Daten von Yahoo")
@@ -129,10 +146,10 @@ def step_vix(logger, status, dry_run=False):
         now = datetime.now().isoformat()
         inserted = 0
         for idx, row in hist.iterrows():
-            d = idx.date() if hasattr(idx, 'date') else date.fromisoformat(str(idx)[:10])
+            d = idx.date() if hasattr(idx, "date") else date.fromisoformat(str(idx)[:10])
             cur = conn.execute(
                 "INSERT OR IGNORE INTO vix_data (date, value, created_at) VALUES (?,?,?)",
-                (d.isoformat(), round(row['Close'], 2), now)
+                (d.isoformat(), round(row["Close"], 2), now),
             )
             if cur.rowcount > 0:
                 inserted += 1
@@ -146,6 +163,7 @@ def step_vix(logger, status, dry_run=False):
 
 
 # -- Step 2: Options + Greeks via Tradier --
+
 
 async def step_options(logger, status, dry_run=False):
     logger.info("--- STEP 2: Options + Greeks (Tradier/ORATS) ---")
@@ -202,6 +220,7 @@ async def step_options(logger, status, dry_run=False):
 
             # Reuse store logic from collect_options_tradier
             from scripts.collect_options_tradier import store_options_with_greeks, ensure_schema
+
             db_path = str(DB_PATH)
             ensure_schema(db_path)
 
@@ -219,9 +238,7 @@ async def step_options(logger, status, dry_run=False):
                             symbol, dte_min=7, dte_max=130, right="PC"
                         )
                         if chain:
-                            prices, greeks = store_options_with_greeks(
-                                db_path, chain, quote_date
-                            )
+                            prices, greeks = store_options_with_greeks(db_path, chain, quote_date)
                             total_prices += prices
                             total_greeks += greeks
                     except Exception as e:
@@ -231,18 +248,12 @@ async def step_options(logger, status, dry_run=False):
             # Process in batches of 15
             batch_size = 15
             for i in range(0, len(symbols), batch_size):
-                batch = symbols[i:i + batch_size]
+                batch = symbols[i : i + batch_size]
                 await asyncio.gather(*(collect_one(s) for s in batch))
                 pct = min(100, (i + len(batch)) / len(symbols) * 100)
-                logger.info(
-                    f"  [{pct:5.1f}%] {total_prices:,} Preise, "
-                    f"{total_greeks:,} Greeks"
-                )
+                logger.info(f"  [{pct:5.1f}%] {total_prices:,} Preise, " f"{total_greeks:,} Greeks")
 
-            logger.info(
-                f"  +{total_prices:,} Options-Preise, "
-                f"+{total_greeks:,} Greeks"
-            )
+            logger.info(f"  +{total_prices:,} Options-Preise, " f"+{total_greeks:,} Greeks")
             if errors:
                 logger.warning(f"  {errors} Fehler")
 
@@ -257,6 +268,7 @@ async def step_options(logger, status, dry_run=False):
 
 
 # -- Step 3: OHLCV Daily Prices via Tradier --
+
 
 async def step_ohlcv(logger, status, dry_run=False):
     logger.info("--- STEP 3: OHLCV Daily Prices (Tradier) ---")
@@ -335,6 +347,7 @@ async def step_ohlcv(logger, status, dry_run=False):
 
 # -- Step 4: IV Cache Backfill --
 
+
 def step_iv(logger, dry_run=False):
     logger.info("--- STEP 4: IV Cache Backfill (yfinance HV→IV) ---")
     try:
@@ -343,16 +356,17 @@ def step_iv(logger, dry_run=False):
 
         cache = IVCache()
         stats = cache.stats()
-        logger.info(f"  Cache: {stats['total_symbols']} Symbole, {stats['with_sufficient_data']} mit ≥20 Punkten")
+        logger.info(
+            f"  Cache: {stats['total_symbols']} Symbole, {stats['with_sufficient_data']} mit ≥20 Punkten"
+        )
 
         symbols = get_watchlist_loader().get_all_symbols()
 
         # Only update symbols with thin data (< 50 points) or stale cache
         need_update = [
-            s for s in symbols
-            if s not in cache
-            or cache.get_history(s) == []
-            or len(cache.get_history(s)) < 50
+            s
+            for s in symbols
+            if s not in cache or cache.get_history(s) == [] or len(cache.get_history(s)) < 50
         ]
         logger.info(f"  {len(need_update)} von {len(symbols)} brauchen Update")
 
@@ -387,7 +401,9 @@ def step_iv(logger, dry_run=False):
 
         logger.info(f"  +{success} Symbole mit IV-History, {errors} Fehler")
         stats = cache.stats()
-        logger.info(f"  Cache jetzt: {stats['total_symbols']} Symbole, {stats['with_sufficient_data']} mit ≥20 Punkten")
+        logger.info(
+            f"  Cache jetzt: {stats['total_symbols']} Symbole, {stats['with_sufficient_data']} mit ≥20 Punkten"
+        )
         return True
 
     except Exception as e:
@@ -396,6 +412,7 @@ def step_iv(logger, dry_run=False):
 
 
 # -- Step 5: Liquidity Tier Classification --
+
 
 def step_liquidity(logger, dry_run=False):
     logger.info("--- STEP 5: Liquidity Tier Classification ---")
@@ -420,6 +437,7 @@ def step_liquidity(logger, dry_run=False):
 
 
 # -- Main --
+
 
 async def run(args):
     logger = setup_logging(args.verbose)
@@ -462,13 +480,13 @@ async def run(args):
 
 
 def main():
-    p = argparse.ArgumentParser(description='OptionPlay Daily DB Update')
-    p.add_argument('--steps', nargs='+', choices=ALL_STEPS)
-    p.add_argument('--dry-run', '-n', action='store_true')
-    p.add_argument('--status', action='store_true')
-    p.add_argument('--verbose', '-v', action='store_true')
+    p = argparse.ArgumentParser(description="OptionPlay Daily DB Update")
+    p.add_argument("--steps", nargs="+", choices=ALL_STEPS)
+    p.add_argument("--dry-run", "-n", action="store_true")
+    p.add_argument("--status", action="store_true")
+    p.add_argument("--verbose", "-v", action="store_true")
     asyncio.run(run(p.parse_args()))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

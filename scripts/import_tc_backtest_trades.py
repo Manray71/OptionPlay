@@ -24,15 +24,13 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from dotenv import load_dotenv
+
 load_dotenv()
 
 from src.analyzers.trend_continuation import TrendContinuationAnalyzer, TrendContinuationConfig
 from src.models.base import SignalType
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 TRADES_DB = Path.home() / ".optionplay" / "trades.db"
@@ -95,12 +93,15 @@ def load_price_data(symbol: str) -> List[Tuple[str, float]]:
     """Load distinct closing prices for a symbol."""
     conn = sqlite3.connect(f"file:{TRADES_DB}?mode=ro", uri=True)
     cursor = conn.cursor()
-    cursor.execute("""
+    cursor.execute(
+        """
         SELECT DISTINCT quote_date, underlying_price
         FROM options_prices
         WHERE underlying = ?
         ORDER BY quote_date
-    """, (symbol,))
+    """,
+        (symbol,),
+    )
     rows = cursor.fetchall()
     conn.close()
     return rows
@@ -197,7 +198,9 @@ def simulate_trade(
         # Profit target (time decay approximation)
         if days_held > 0:
             time_decay = days_held / DTE
-            price_buffer = ((current_price - short_strike) / short_strike) * 100 if short_strike > 0 else 0
+            price_buffer = (
+                ((current_price - short_strike) / short_strike) * 100 if short_strike > 0 else 0
+            )
             est_profit_pct = min((time_decay * 50) + (price_buffer * 5), 100)
             if est_profit_pct >= PROFIT_TARGET_PCT:
                 exit_date = current_date_str
@@ -251,11 +254,11 @@ def simulate_trade(
         max_price=max_price,
         max_drawdown_pct=round(max_drawdown_pct, 2),
         tc_score=signal_score,
-        tc_sma_alignment=components.get('sma_alignment', 0.0),
-        tc_stability=components.get('trend_stability', 0.0),
-        tc_buffer=components.get('trend_buffer', 0.0),
-        tc_momentum=components.get('momentum_health', 0.0),
-        tc_volatility=components.get('volatility', 0.0),
+        tc_sma_alignment=components.get("sma_alignment", 0.0),
+        tc_stability=components.get("trend_stability", 0.0),
+        tc_buffer=components.get("trend_buffer", 0.0),
+        tc_momentum=components.get("momentum_health", 0.0),
+        tc_volatility=components.get("volatility", 0.0),
     )
 
 
@@ -295,7 +298,7 @@ def main():
             if cooldown_until and current_date < cooldown_until:
                 continue
 
-            closes = price_values[:idx + 1]
+            closes = price_values[: idx + 1]
             highs = [p * 1.005 for p in closes]
             lows = [p * 0.995 for p in closes]
             volumes = [1_000_000] * len(closes)
@@ -319,8 +322,8 @@ def main():
 
             # Extract components
             components = {}
-            if hasattr(signal, 'details') and signal.details:
-                components = signal.details.get('components', {})
+            if hasattr(signal, "details") and signal.details:
+                components = signal.details.get("components", {})
 
             # Simulate trade
             trade = simulate_trade(
@@ -338,7 +341,9 @@ def main():
             if trade:
                 all_trades.append(trade)
                 # Set cooldown: no new entry until exit_date + 1 day
-                cooldown_until = (date.fromisoformat(trade.exit_date) + timedelta(days=1)).isoformat()
+                cooldown_until = (
+                    date.fromisoformat(trade.exit_date) + timedelta(days=1)
+                ).isoformat()
 
     logger.info(f"\n{'='*60}")
     logger.info(f"Total TC trades: {len(all_trades)}")
@@ -384,15 +389,18 @@ def main():
         # Check for duplicate (same symbol + entry_date)
         cursor.execute(
             "SELECT COUNT(*) FROM trade_outcomes WHERE symbol = ? AND entry_date = ? AND trend_continuation_score >= 5.0",
-            (trade.symbol, trade.entry_date)
+            (trade.symbol, trade.entry_date),
         )
         if cursor.fetchone()[0] > 0:
             skipped += 1
             continue
 
-        expiration = (date.fromisoformat(trade.entry_date) + timedelta(days=trade.dte_at_entry)).isoformat()
+        expiration = (
+            date.fromisoformat(trade.entry_date) + timedelta(days=trade.dte_at_entry)
+        ).isoformat()
 
-        cursor.execute("""
+        cursor.execute(
+            """
             INSERT INTO trade_outcomes (
                 symbol, entry_date, exit_date, expiration,
                 entry_price, short_strike, long_strike, spread_width,
@@ -404,17 +412,37 @@ def main():
                 tc_sma_alignment_score, tc_stability_score, tc_buffer_score,
                 tc_momentum_score, tc_volatility_score
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            trade.symbol, trade.entry_date, trade.exit_date, expiration,
-            trade.entry_price, trade.short_strike, trade.long_strike, trade.spread_width,
-            trade.net_credit, trade.dte_at_entry, trade.short_otm_pct, trade.exit_price,
-            trade.outcome, trade.pnl, trade.pnl_pct, trade.was_profitable,
-            trade.min_price, trade.max_price, trade.max_drawdown_pct,
-            trade.vix_at_entry, trade.vix_regime,
-            trade.tc_score,
-            trade.tc_sma_alignment, trade.tc_stability, trade.tc_buffer,
-            trade.tc_momentum, trade.tc_volatility,
-        ))
+        """,
+            (
+                trade.symbol,
+                trade.entry_date,
+                trade.exit_date,
+                expiration,
+                trade.entry_price,
+                trade.short_strike,
+                trade.long_strike,
+                trade.spread_width,
+                trade.net_credit,
+                trade.dte_at_entry,
+                trade.short_otm_pct,
+                trade.exit_price,
+                trade.outcome,
+                trade.pnl,
+                trade.pnl_pct,
+                trade.was_profitable,
+                trade.min_price,
+                trade.max_price,
+                trade.max_drawdown_pct,
+                trade.vix_at_entry,
+                trade.vix_regime,
+                trade.tc_score,
+                trade.tc_sma_alignment,
+                trade.tc_stability,
+                trade.tc_buffer,
+                trade.tc_momentum,
+                trade.tc_volatility,
+            ),
+        )
         inserted += 1
 
     conn.commit()

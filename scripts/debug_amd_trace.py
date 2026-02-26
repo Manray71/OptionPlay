@@ -43,6 +43,7 @@ async def main():
 
     try:
         from src.cache import get_earnings_history_manager
+
         em = get_earnings_history_manager()
 
         # Direkte Safety-Prüfung
@@ -58,9 +59,11 @@ async def main():
             print(f"\n  Alle Earnings für {SYMBOL} ({len(all_earnings)} Einträge):")
             for e in all_earnings[:10]:
                 days_diff = (e.earnings_date - date.today()).days
-                print(f"    {e.earnings_date} ({e.time_of_day or '?'}) — "
-                      f"EPS: {e.eps_actual} vs {e.eps_estimate} — "
-                      f"{'ZUKUNFT' if days_diff > 0 else f'vor {abs(days_diff)} Tagen'}")
+                print(
+                    f"    {e.earnings_date} ({e.time_of_day or '?'}) — "
+                    f"EPS: {e.eps_actual} vs {e.eps_estimate} — "
+                    f"{'ZUKUNFT' if days_diff > 0 else f'vor {abs(days_diff)} Tagen'}"
+                )
         else:
             print(f"  KEINE Earnings-Daten für {SYMBOL} in der DB!")
 
@@ -68,8 +71,10 @@ async def main():
         next_e = em.get_next_future_earnings(SYMBOL, date.today())
         if next_e:
             days_to_next = (next_e.earnings_date - date.today()).days
-            print(f"\n  Nächste Future Earnings: {next_e.earnings_date} "
-                  f"({next_e.time_of_day or '?'}) — in {days_to_next} Tagen")
+            print(
+                f"\n  Nächste Future Earnings: {next_e.earnings_date} "
+                f"({next_e.time_of_day or '?'}) — in {days_to_next} Tagen"
+            )
         else:
             print(f"\n  Keine zukünftigen Earnings gefunden")
 
@@ -91,6 +96,7 @@ async def main():
     except Exception as e:
         print(f"  ERROR: {e}")
         import traceback
+
         traceback.print_exc()
 
     # =========================================================================
@@ -100,6 +106,7 @@ async def main():
 
     try:
         from src.cache import get_fundamentals_manager
+
         fm = get_fundamentals_manager()
 
         f = fm.get_fundamentals(SYMBOL)
@@ -116,7 +123,7 @@ async def main():
 
             # Simulate pre-filter
             min_stability = 50.0  # From config
-            min_win_rate = 0.0    # Default
+            min_win_rate = 0.0  # Default
             print(f"\n  Pre-Filter Check:")
             print(f"    Stability >= {min_stability}: ", end="")
             if f.stability_score is not None and f.stability_score >= min_stability:
@@ -137,6 +144,7 @@ async def main():
     except Exception as e:
         print(f"  ERROR: {e}")
         import traceback
+
         traceback.print_exc()
 
     # =========================================================================
@@ -150,6 +158,7 @@ async def main():
     # Try local DB first (like the real scanner)
     try:
         from src.data_providers.local_db import LocalDBProvider
+
         local_db = LocalDBProvider()
 
         if local_db.is_available():
@@ -195,6 +204,7 @@ async def main():
         tradier_key = os.environ.get("TRADIER_API_KEY", "")
         if tradier_key:
             from src.data_providers import TradierProvider
+
             async with TradierProvider(api_key=tradier_key, environment="production") as tradier:
                 api_data = await tradier.get_historical_for_scanner(SYMBOL, days=260)
                 if api_data:
@@ -221,6 +231,7 @@ async def main():
             mdata_key = os.environ.get("MARKETDATA_API_KEY", "")
             if mdata_key:
                 from src.data_providers import MarketDataProvider
+
                 async with MarketDataProvider(api_key=mdata_key) as mdp:
                     api_data = await mdp.get_historical_for_scanner(SYMBOL, days=260)
                     if api_data:
@@ -262,15 +273,31 @@ async def main():
         )
         print(f"  Current Price:   ${ctx.current_price:.2f}")
         print(f"  Current Volume:  {ctx.current_volume:,}")
-        print(f"  Volume Ratio:    {ctx.volume_ratio:.2f}x" if ctx.volume_ratio else "  Volume Ratio:    N/A")
-        print(f"  Avg Volume 20d:  {ctx.avg_volume_20:,.0f}" if ctx.avg_volume_20 else "  Avg Volume 20d:  N/A")
+        print(
+            f"  Volume Ratio:    {ctx.volume_ratio:.2f}x"
+            if ctx.volume_ratio
+            else "  Volume Ratio:    N/A"
+        )
+        print(
+            f"  Avg Volume 20d:  {ctx.avg_volume_20:,.0f}"
+            if ctx.avg_volume_20
+            else "  Avg Volume 20d:  N/A"
+        )
         print(f"  RSI 14:          {ctx.rsi_14:.1f}" if ctx.rsi_14 else "  RSI 14:          N/A")
         print(f"  SMA 20:          ${ctx.sma_20:.2f}" if ctx.sma_20 else "  SMA 20:          N/A")
         print(f"  SMA 50:          ${ctx.sma_50:.2f}" if ctx.sma_50 else "  SMA 50:          N/A")
         print(f"  SMA 200:         ${ctx.sma_200:.2f}" if ctx.sma_200 else "  SMA 200:         N/A")
         print(f"  Trend:           {ctx.trend}" if ctx.trend else "  Trend:           N/A")
-        print(f"  ATH:             ${ctx.all_time_high:.2f}" if ctx.all_time_high else "  ATH:             N/A")
-        print(f"  % from ATH:      {ctx.pct_from_ath:.1f}%" if ctx.pct_from_ath is not None else "  % from ATH:      N/A")
+        print(
+            f"  ATH:             ${ctx.all_time_high:.2f}"
+            if ctx.all_time_high
+            else "  ATH:             N/A"
+        )
+        print(
+            f"  % from ATH:      {ctx.pct_from_ath:.1f}%"
+            if ctx.pct_from_ath is not None
+            else "  % from ATH:      N/A"
+        )
 
         if ctx.current_volume == 0:
             print(f"\n  >>> current_volume ist 0 — Volume-Fallback hat NICHT gegriffen <<<")
@@ -279,6 +306,7 @@ async def main():
     except Exception as e:
         print(f"  ERROR: {e}")
         import traceback
+
         traceback.print_exc()
 
     # =========================================================================
@@ -291,6 +319,7 @@ async def main():
     # 5a. Pullback
     try:
         from src.analyzers import PullbackAnalyzer
+
         analyzers_to_test.append(("Pullback", PullbackAnalyzer(), {}))
     except Exception as e:
         print(f"  PullbackAnalyzer Import Error: {e}")
@@ -298,6 +327,7 @@ async def main():
     # 5b. Bounce
     try:
         from src.analyzers import BounceAnalyzer, BounceConfig
+
         analyzers_to_test.append(("Bounce", BounceAnalyzer(), {}))
     except Exception as e:
         print(f"  BounceAnalyzer Import Error: {e}")
@@ -305,6 +335,7 @@ async def main():
     # 5c. ATH Breakout
     try:
         from src.analyzers import ATHBreakoutAnalyzer, ATHBreakoutConfig
+
         analyzers_to_test.append(("ATH Breakout", ATHBreakoutAnalyzer(), {}))
     except Exception as e:
         print(f"  ATHBreakoutAnalyzer Import Error: {e}")
@@ -312,6 +343,7 @@ async def main():
     # 5d. Earnings Dip
     try:
         from src.analyzers import EarningsDipAnalyzer, EarningsDipConfig
+
         # Earnings Dip braucht extra Params
         em = get_earnings_history_manager()
         all_earnings = em.get_all_earnings(SYMBOL)
@@ -323,17 +355,17 @@ async def main():
             if past:
                 last_e = past[0]
                 days_since = (date.today() - last_e.earnings_date).days
-                earnings_kwargs['earnings_date'] = last_e.earnings_date
-                earnings_kwargs['next_earnings_days'] = None
+                earnings_kwargs["earnings_date"] = last_e.earnings_date
+                earnings_kwargs["next_earnings_days"] = None
 
                 # Pre-earnings price (10 days before)
                 if days_since <= 10 and len(prices) > days_since + 1:
-                    earnings_kwargs['pre_earnings_price'] = prices[-(days_since + 1)]
+                    earnings_kwargs["pre_earnings_price"] = prices[-(days_since + 1)]
 
         fm = get_fundamentals_manager()
         f = fm.get_fundamentals(SYMBOL)
         if f and f.stability_score:
-            earnings_kwargs['stability_score'] = f.stability_score
+            earnings_kwargs["stability_score"] = f.stability_score
 
         analyzers_to_test.append(("Earnings Dip", EarningsDipAnalyzer(), earnings_kwargs))
     except Exception as e:
@@ -342,6 +374,7 @@ async def main():
     # 5e. Trend Continuation
     try:
         from src.analyzers import TrendContinuationAnalyzer, TrendContinuationConfig
+
         analyzers_to_test.append(("Trend Continuation", TrendContinuationAnalyzer(), {}))
     except Exception as e:
         print(f"  TrendContinuationAnalyzer Import Error: {e}")
@@ -350,9 +383,7 @@ async def main():
         print(f"\n  --- {name} ---")
         try:
             signal = analyzer.analyze(
-                SYMBOL, prices, volumes, highs, lows,
-                context=ctx,
-                **extra_kwargs
+                SYMBOL, prices, volumes, highs, lows, context=ctx, **extra_kwargs
             )
 
             print(f"    Signal Type:  {signal.signal_type}")
@@ -372,25 +403,26 @@ async def main():
 
             # Details
             if signal.details:
-                vol_ratio = signal.details.get('volume_ratio')
+                vol_ratio = signal.details.get("volume_ratio")
                 if vol_ratio is not None:
                     print(f"    Volume Ratio: {vol_ratio:.2f}x")
 
-                components = signal.details.get('components', {})
+                components = signal.details.get("components", {})
                 if components:
                     print(f"    Components:")
                     for k, v in components.items():
                         print(f"      {k}: {v}")
 
-                score_bd = signal.details.get('score_breakdown')
+                score_bd = signal.details.get("score_breakdown")
                 if score_bd and isinstance(score_bd, dict):
                     print(f"    Score Breakdown:")
                     for k, v in score_bd.items():
-                        if isinstance(v, (int, float)) and not k.startswith('_'):
+                        if isinstance(v, (int, float)) and not k.startswith("_"):
                             print(f"      {k}: {v}")
 
             # Actionable?
             from src.models.base import SignalType
+
             is_actionable = signal.signal_type in (SignalType.LONG, SignalType.SHORT)
             min_score = 3.5
             print(f"    Actionable:   {is_actionable}")
@@ -401,6 +433,7 @@ async def main():
         except Exception as e:
             print(f"    ERROR: {e}")
             import traceback
+
             traceback.print_exc()
 
     # =========================================================================

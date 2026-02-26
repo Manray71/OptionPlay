@@ -36,10 +36,7 @@ import math
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 DB_PATH = Path.home() / ".optionplay" / "trades.db"
@@ -69,6 +66,7 @@ def get_symbols_from_options() -> List[str]:
 # IV RANK & IV PERCENTILE
 # =============================================================================
 
+
 def calculate_iv_metrics(symbol: str, lookback_days: int = 252) -> Optional[Dict]:
     """
     Berechnet IV Rank und IV Percentile für ein Symbol.
@@ -88,7 +86,8 @@ def calculate_iv_metrics(symbol: str, lookback_days: int = 252) -> Optional[Dict
 
     # Hole ATM IV für jeden Tag (ca. Delta -0.5 für Puts oder +0.5 für Calls)
     # Vereinfacht: Nimm die durchschnittliche IV pro Tag
-    cursor.execute("""
+    cursor.execute(
+        """
         SELECT
             og.quote_date,
             AVG(og.iv_calculated) as avg_iv
@@ -101,7 +100,9 @@ def calculate_iv_metrics(symbol: str, lookback_days: int = 252) -> Optional[Dict
           AND op.quote_date >= date('now', ?)
         GROUP BY og.quote_date
         ORDER BY og.quote_date DESC
-    """, (symbol.upper(), f'-{lookback_days} days'))
+    """,
+        (symbol.upper(), f"-{lookback_days} days"),
+    )
 
     rows = cursor.fetchall()
     conn.close()
@@ -131,7 +132,7 @@ def calculate_iv_metrics(symbol: str, lookback_days: int = 252) -> Optional[Dict
         "current_iv": round(current_iv * 100, 1),  # Als Prozent
         "min_iv": round(min_iv * 100, 1),
         "max_iv": round(max_iv * 100, 1),
-        "data_points": len(iv_values)
+        "data_points": len(iv_values),
     }
 
 
@@ -139,13 +140,15 @@ def calculate_iv_metrics(symbol: str, lookback_days: int = 252) -> Optional[Dict
 # SPY CORRELATION
 # =============================================================================
 
+
 def get_daily_prices(symbol: str, days: int = 90) -> List[Tuple[str, float]]:
     """Holt tägliche Schlusskurse aus options_prices.underlying_price"""
     conn = sqlite3.connect(str(DB_PATH))
     cursor = conn.cursor()
 
     # Hole die letzten N Tage relativ zum neuesten Datum in der DB
-    cursor.execute("""
+    cursor.execute(
+        """
         SELECT quote_date, AVG(underlying_price) as price
         FROM options_prices
         WHERE underlying = ?
@@ -153,7 +156,9 @@ def get_daily_prices(symbol: str, days: int = 90) -> List[Tuple[str, float]]:
           AND quote_date >= (SELECT date(MAX(quote_date), ?) FROM options_prices WHERE underlying = ?)
         GROUP BY quote_date
         ORDER BY quote_date ASC
-    """, (symbol.upper(), f'-{days} days', symbol.upper()))
+    """,
+        (symbol.upper(), f"-{days} days", symbol.upper()),
+    )
 
     rows = cursor.fetchall()
     conn.close()
@@ -166,14 +171,16 @@ def calculate_returns(prices: List[Tuple[str, float]]) -> Dict[str, float]:
     returns = {}
     for i in range(1, len(prices)):
         date_str = prices[i][0]
-        prev_price = prices[i-1][1]
+        prev_price = prices[i - 1][1]
         curr_price = prices[i][1]
         if prev_price > 0:
             returns[date_str] = (curr_price - prev_price) / prev_price
     return returns
 
 
-def calculate_correlation(returns1: Dict[str, float], returns2: Dict[str, float]) -> Optional[float]:
+def calculate_correlation(
+    returns1: Dict[str, float], returns2: Dict[str, float]
+) -> Optional[float]:
     """Berechnet Pearson Correlation zwischen zwei Return-Serien"""
     # Finde gemeinsame Daten
     common_dates = set(returns1.keys()) & set(returns2.keys())
@@ -188,11 +195,11 @@ def calculate_correlation(returns1: Dict[str, float], returns2: Dict[str, float]
     sum_x = sum(x)
     sum_y = sum(y)
     sum_xy = sum(x[i] * y[i] for i in range(n))
-    sum_x2 = sum(xi ** 2 for xi in x)
-    sum_y2 = sum(yi ** 2 for yi in y)
+    sum_x2 = sum(xi**2 for xi in x)
+    sum_y2 = sum(yi**2 for yi in y)
 
     numerator = n * sum_xy - sum_x * sum_y
-    denominator = math.sqrt((n * sum_x2 - sum_x ** 2) * (n * sum_y2 - sum_y ** 2))
+    denominator = math.sqrt((n * sum_x2 - sum_x**2) * (n * sum_y2 - sum_y**2))
 
     if denominator == 0:
         return None
@@ -211,12 +218,12 @@ def calculate_spy_correlation(symbol: str, days: int = 60) -> Optional[Dict]:
     Returns:
         Dict mit correlation, data_points oder None
     """
-    if symbol.upper() == 'SPY':
+    if symbol.upper() == "SPY":
         return {"correlation": 1.0, "data_points": 0}
 
     # Hole Preise für beide
     symbol_prices = get_daily_prices(symbol, days)
-    spy_prices = get_daily_prices('SPY', days)
+    spy_prices = get_daily_prices("SPY", days)
 
     if len(symbol_prices) < 20 or len(spy_prices) < 20:
         return None
@@ -233,13 +240,14 @@ def calculate_spy_correlation(symbol: str, days: int = 60) -> Optional[Dict]:
 
     return {
         "correlation": round(corr, 3),
-        "data_points": len(set(symbol_returns.keys()) & set(spy_returns.keys()))
+        "data_points": len(set(symbol_returns.keys()) & set(spy_returns.keys())),
     }
 
 
 # =============================================================================
 # HISTORICAL VOLATILITY
 # =============================================================================
+
 
 def calculate_historical_volatility(symbol: str, days: int = 30) -> Optional[Dict]:
     """
@@ -266,7 +274,7 @@ def calculate_historical_volatility(symbol: str, days: int = 30) -> Optional[Dic
         return None
 
     # Nimm die letzten verfügbaren Returns (maximal days)
-    return_values = return_values[-min(days, len(return_values)):]
+    return_values = return_values[-min(days, len(return_values)) :]
 
     # Berechne Standardabweichung
     mean = sum(return_values) / len(return_values)
@@ -276,15 +284,13 @@ def calculate_historical_volatility(symbol: str, days: int = 30) -> Optional[Dic
     # Annualisieren (252 Handelstage)
     hv = std_dev * math.sqrt(252) * 100  # Als Prozent
 
-    return {
-        "hv_30d": round(hv, 1),
-        "data_points": len(return_values)
-    }
+    return {"hv_30d": round(hv, 1), "data_points": len(return_values)}
 
 
 # =============================================================================
 # EARNINGS MOVE STATS
 # =============================================================================
+
 
 def calculate_earnings_move_stats(symbol: str) -> Optional[Dict]:
     """
@@ -304,11 +310,14 @@ def calculate_earnings_move_stats(symbol: str) -> Optional[Dict]:
     cursor = conn.cursor()
 
     # Hole alle Earnings-Dates für dieses Symbol
-    cursor.execute("""
+    cursor.execute(
+        """
         SELECT earnings_date FROM earnings_history
         WHERE symbol = ? AND earnings_date IS NOT NULL
         ORDER BY earnings_date
-    """, (symbol.upper(),))
+    """,
+        (symbol.upper(),),
+    )
     earnings_dates = [row[0] for row in cursor.fetchall()]
 
     if len(earnings_dates) < 2:
@@ -318,19 +327,25 @@ def calculate_earnings_move_stats(symbol: str) -> Optional[Dict]:
     moves = []
     for ed in earnings_dates:
         # Hole close T-1 (letzter Handelstag vor Earnings)
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT close FROM daily_prices
             WHERE symbol = ? AND quote_date < ?
             ORDER BY quote_date DESC LIMIT 1
-        """, (symbol.upper(), ed))
+        """,
+            (symbol.upper(), ed),
+        )
         row_before = cursor.fetchone()
 
         # Hole close T+1 (erster Handelstag nach Earnings)
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT close FROM daily_prices
             WHERE symbol = ? AND quote_date > ?
             ORDER BY quote_date ASC LIMIT 1
-        """, (symbol.upper(), ed))
+        """,
+            (symbol.upper(), ed),
+        )
         row_after = cursor.fetchone()
 
         if row_before and row_after and row_before[0] > 0:
@@ -361,15 +376,14 @@ def calculate_earnings_move_stats(symbol: str) -> Optional[Dict]:
 # UPDATE DATABASE
 # =============================================================================
 
+
 def _ensure_earnings_columns(cursor) -> None:
     """Adds avg_earnings_move_pct and std_earnings_move_pct columns if missing."""
     for col in ("avg_earnings_move_pct", "std_earnings_move_pct"):
         try:
             cursor.execute(f"SELECT {col} FROM symbol_fundamentals LIMIT 1")
         except sqlite3.OperationalError:
-            cursor.execute(
-                f"ALTER TABLE symbol_fundamentals ADD COLUMN {col} REAL"
-            )
+            cursor.execute(f"ALTER TABLE symbol_fundamentals ADD COLUMN {col} REAL")
             logger.info(f"Added column {col} to symbol_fundamentals")
 
 
@@ -379,7 +393,7 @@ def update_fundamentals(symbol: str, metrics: Dict) -> bool:
     cursor = conn.cursor()
 
     # Ensure new columns exist
-    if 'avg_earnings_move_pct' in metrics or 'std_earnings_move_pct' in metrics:
+    if "avg_earnings_move_pct" in metrics or "std_earnings_move_pct" in metrics:
         _ensure_earnings_columns(cursor)
         conn.commit()
 
@@ -388,33 +402,36 @@ def update_fundamentals(symbol: str, metrics: Dict) -> bool:
         cursor.execute("SELECT 1 FROM symbol_fundamentals WHERE symbol = ?", (symbol.upper(),))
         if cursor.fetchone() is None:
             # Insert neuen Eintrag
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT INTO symbol_fundamentals (symbol, updated_at)
                 VALUES (?, datetime('now'))
-            """, (symbol.upper(),))
+            """,
+                (symbol.upper(),),
+            )
 
         # Update Metriken
         updates = []
         values = []
 
-        if 'iv_rank' in metrics:
+        if "iv_rank" in metrics:
             updates.append("iv_rank_252d = ?")
-            values.append(metrics['iv_rank'])
-        if 'iv_percentile' in metrics:
+            values.append(metrics["iv_rank"])
+        if "iv_percentile" in metrics:
             updates.append("iv_percentile_252d = ?")
-            values.append(metrics['iv_percentile'])
-        if 'correlation' in metrics:
+            values.append(metrics["iv_percentile"])
+        if "correlation" in metrics:
             updates.append("spy_correlation_60d = ?")
-            values.append(metrics['correlation'])
-        if 'hv_30d' in metrics:
+            values.append(metrics["correlation"])
+        if "hv_30d" in metrics:
             updates.append("historical_volatility_30d = ?")
-            values.append(metrics['hv_30d'])
-        if 'avg_earnings_move_pct' in metrics:
+            values.append(metrics["hv_30d"])
+        if "avg_earnings_move_pct" in metrics:
             updates.append("avg_earnings_move_pct = ?")
-            values.append(metrics['avg_earnings_move_pct'])
-        if 'std_earnings_move_pct' in metrics:
+            values.append(metrics["avg_earnings_move_pct"])
+        if "std_earnings_move_pct" in metrics:
             updates.append("std_earnings_move_pct = ?")
-            values.append(metrics['std_earnings_move_pct'])
+            values.append(metrics["std_earnings_move_pct"])
 
         if updates:
             updates.append("updated_at = datetime('now')")
@@ -432,17 +449,22 @@ def update_fundamentals(symbol: str, metrics: Dict) -> bool:
         conn.close()
 
 
-def process_symbol(symbol: str, calc_iv: bool = True, calc_corr: bool = True, calc_hv: bool = True, calc_earnings: bool = True) -> Dict:
+def process_symbol(
+    symbol: str,
+    calc_iv: bool = True,
+    calc_corr: bool = True,
+    calc_hv: bool = True,
+    calc_earnings: bool = True,
+) -> Dict:
     """Berechnet alle Metriken für ein Symbol"""
     result = {"symbol": symbol}
 
     if calc_iv:
         iv_metrics = calculate_iv_metrics(symbol)
         if iv_metrics:
-            result.update({
-                "iv_rank": iv_metrics["iv_rank"],
-                "iv_percentile": iv_metrics["iv_percentile"]
-            })
+            result.update(
+                {"iv_rank": iv_metrics["iv_rank"], "iv_percentile": iv_metrics["iv_percentile"]}
+            )
 
     if calc_corr:
         corr_metrics = calculate_spy_correlation(symbol)
@@ -465,36 +487,18 @@ def process_symbol(symbol: str, calc_iv: bool = True, calc_corr: bool = True, ca
 def main():
     parser = argparse.ArgumentParser(description="Calculate Derived Metrics")
 
+    parser.add_argument("--symbols", "-s", nargs="+", help="Spezifische Symbole")
+    parser.add_argument("--iv-only", action="store_true", help="Nur IV-Metriken berechnen")
     parser.add_argument(
-        '--symbols', '-s',
-        nargs='+',
-        help='Spezifische Symbole'
+        "--correlation-only", action="store_true", help="Nur SPY Correlation berechnen"
     )
     parser.add_argument(
-        '--iv-only',
-        action='store_true',
-        help='Nur IV-Metriken berechnen'
+        "--hv-only", action="store_true", help="Nur Historical Volatility berechnen"
     )
     parser.add_argument(
-        '--correlation-only',
-        action='store_true',
-        help='Nur SPY Correlation berechnen'
+        "--earnings-move-only", action="store_true", help="Nur Earnings Move Stats berechnen"
     )
-    parser.add_argument(
-        '--hv-only',
-        action='store_true',
-        help='Nur Historical Volatility berechnen'
-    )
-    parser.add_argument(
-        '--earnings-move-only',
-        action='store_true',
-        help='Nur Earnings Move Stats berechnen'
-    )
-    parser.add_argument(
-        '--dry-run',
-        action='store_true',
-        help='Nur berechnen, nicht speichern'
-    )
+    parser.add_argument("--dry-run", action="store_true", help="Nur berechnen, nicht speichern")
 
     args = parser.parse_args()
 
@@ -520,7 +524,9 @@ def main():
         symbols = sorted(fund_symbols & opt_symbols)
 
     logger.info(f"Verarbeite {len(symbols)} Symbole")
-    logger.info(f"Berechne: IV={'✓' if calc_iv else '✗'}, Corr={'✓' if calc_corr else '✗'}, HV={'✓' if calc_hv else '✗'}, EM={'✓' if calc_earnings else '✗'}")
+    logger.info(
+        f"Berechne: IV={'✓' if calc_iv else '✗'}, Corr={'✓' if calc_corr else '✗'}, HV={'✓' if calc_hv else '✗'}, EM={'✓' if calc_earnings else '✗'}"
+    )
 
     if args.dry_run:
         logger.info("DRY RUN - keine Änderungen werden gespeichert")
@@ -531,7 +537,7 @@ def main():
         "corr_success": 0,
         "hv_success": 0,
         "em_success": 0,
-        "total": len(symbols)
+        "total": len(symbols),
     }
 
     for i, symbol in enumerate(symbols, 1):
@@ -539,16 +545,16 @@ def main():
 
         # Logging
         parts = []
-        if 'iv_rank' in metrics:
+        if "iv_rank" in metrics:
             parts.append(f"IV Rank={metrics['iv_rank']:.0f}")
             results["iv_success"] += 1
-        if 'correlation' in metrics:
+        if "correlation" in metrics:
             parts.append(f"Corr={metrics['correlation']:.2f}")
             results["corr_success"] += 1
-        if 'hv_30d' in metrics:
+        if "hv_30d" in metrics:
             parts.append(f"HV={metrics['hv_30d']:.0f}%")
             results["hv_success"] += 1
-        if 'avg_earnings_move_pct' in metrics:
+        if "avg_earnings_move_pct" in metrics:
             parts.append(f"EM={metrics['avg_earnings_move_pct']:.1f}%")
             results["em_success"] += 1
 

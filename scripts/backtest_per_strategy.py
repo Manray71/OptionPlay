@@ -38,6 +38,7 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from dotenv import load_dotenv
+
 load_dotenv()
 
 from src.backtesting import TradeTracker, TradeOutcome, ExitReason
@@ -57,9 +58,11 @@ logger = logging.getLogger(__name__)
 # DATA CLASSES
 # =============================================================================
 
+
 @dataclass
 class StrategyBacktestConfig:
     """Konfiguration für Strategy-Backtest"""
+
     initial_capital: float = 100000.0
     profit_target_pct: float = 50.0
     stop_loss_pct: float = 100.0
@@ -78,6 +81,7 @@ class StrategyBacktestConfig:
 @dataclass
 class TradeRecord:
     """Einzelner Trade-Record"""
+
     symbol: str
     strategy: str
     entry_date: date
@@ -94,6 +98,7 @@ class TradeRecord:
 @dataclass
 class StrategyResult:
     """Ergebnis für eine Strategie"""
+
     strategy: str
     trades: List[TradeRecord]
     total_trades: int = 0
@@ -155,17 +160,18 @@ class StrategyResult:
             avg_ret = statistics.mean(returns)
             std_ret = statistics.stdev(returns) if len(returns) > 1 else 0
             if std_ret > 0:
-                self.sharpe_ratio = (avg_ret * 12) / (std_ret * (12 ** 0.5))
+                self.sharpe_ratio = (avg_ret * 12) / (std_ret * (12**0.5))
 
 
 # =============================================================================
 # STRATEGY BACKTESTER
 # =============================================================================
 
+
 class StrategyBacktester:
     """Führt Backtests für einzelne Strategien durch"""
 
-    STRATEGIES = ['pullback', 'bounce', 'ath_breakout', 'earnings_dip', 'trend_continuation']
+    STRATEGIES = ["pullback", "bounce", "ath_breakout", "earnings_dip", "trend_continuation"]
 
     def __init__(self, config: StrategyBacktestConfig):
         self.config = config
@@ -176,23 +182,23 @@ class StrategyBacktester:
         """Initialisiert alle Strategy-Analyzer"""
         # Pullback
         pullback_config = PullbackScoringConfig()
-        self._analyzers['pullback'] = PullbackAnalyzer(pullback_config)
+        self._analyzers["pullback"] = PullbackAnalyzer(pullback_config)
 
         # Bounce
         bounce_config = BounceConfig()
-        self._analyzers['bounce'] = BounceAnalyzer(bounce_config)
+        self._analyzers["bounce"] = BounceAnalyzer(bounce_config)
 
         # ATH Breakout
         breakout_config = ATHBreakoutConfig()
-        self._analyzers['ath_breakout'] = ATHBreakoutAnalyzer(breakout_config)
+        self._analyzers["ath_breakout"] = ATHBreakoutAnalyzer(breakout_config)
 
         # Earnings Dip
         dip_config = EarningsDipConfig()
-        self._analyzers['earnings_dip'] = EarningsDipAnalyzer(dip_config)
+        self._analyzers["earnings_dip"] = EarningsDipAnalyzer(dip_config)
 
         # Trend Continuation
         tc_config = TrendContinuationConfig()
-        self._analyzers['trend_continuation'] = TrendContinuationAnalyzer(tc_config)
+        self._analyzers["trend_continuation"] = TrendContinuationAnalyzer(tc_config)
 
     def run_backtest(
         self,
@@ -225,7 +231,7 @@ class StrategyBacktester:
         all_dates = set()
         for sym_data in historical_data.values():
             for bar in sym_data:
-                d = bar['date']
+                d = bar["date"]
                 if isinstance(d, str):
                     d = date.fromisoformat(d)
                 all_dates.add(d)
@@ -259,7 +265,7 @@ class StrategyBacktester:
                 trade = self._close_position(pos, current_date, reason, exit_price, strategy)
                 trades.append(trade)
                 current_capital += trade.realized_pnl
-                current_risk -= pos.get('max_loss', 0)
+                current_risk -= pos.get("max_loss", 0)
                 del open_positions[symbol]
 
             # Check for new entries
@@ -269,7 +275,9 @@ class StrategyBacktester:
                     continue
 
                 # Skip if at risk limit
-                if current_risk >= self.config.initial_capital * (self.config.max_total_risk_pct / 100):
+                if current_risk >= self.config.initial_capital * (
+                    self.config.max_total_risk_pct / 100
+                ):
                     continue
 
                 # Get data up to current_date
@@ -280,18 +288,14 @@ class StrategyBacktester:
                     continue
 
                 # Prepare arrays for analyzer
-                prices = [bar['close'] for bar in history]
-                volumes = [bar['volume'] for bar in history]
-                highs = [bar['high'] for bar in history]
-                lows = [bar['low'] for bar in history]
+                prices = [bar["close"] for bar in history]
+                volumes = [bar["volume"] for bar in history]
+                highs = [bar["high"] for bar in history]
+                lows = [bar["low"] for bar in history]
 
                 try:
                     signal = analyzer.analyze(
-                        symbol=symbol,
-                        prices=prices,
-                        volumes=volumes,
-                        highs=highs,
-                        lows=lows
+                        symbol=symbol, prices=prices, volumes=volumes, highs=highs, lows=lows
                     )
                 except Exception as e:
                     logger.debug(f"Error analyzing {symbol}: {e}")
@@ -305,61 +309,63 @@ class StrategyBacktester:
 
                 # Open position
                 current_price = prices[-1]
-                max_position_risk = self.config.initial_capital * (self.config.max_position_pct / 100)
-                available_risk = (self.config.initial_capital * (self.config.max_total_risk_pct / 100)) - current_risk
+                max_position_risk = self.config.initial_capital * (
+                    self.config.max_position_pct / 100
+                )
+                available_risk = (
+                    self.config.initial_capital * (self.config.max_total_risk_pct / 100)
+                ) - current_risk
 
                 position = self._open_position(
-                    symbol, current_date, current_price, signal.score,
+                    symbol,
+                    current_date,
+                    current_price,
+                    signal.score,
                     min(max_position_risk, available_risk),
-                    signal.details.get('score_breakdown') if signal.details else None
+                    signal.details.get("score_breakdown") if signal.details else None,
                 )
 
                 if position:
                     open_positions[symbol] = position
-                    current_risk += position.get('max_loss', 0)
+                    current_risk += position.get("max_loss", 0)
 
         # Close remaining positions at end
         for symbol, pos in open_positions.items():
             symbol_data = historical_data.get(symbol, [])
-            last_price = pos['entry_price']
+            last_price = pos["entry_price"]
             for bar in symbol_data:
-                d = bar['date']
+                d = bar["date"]
                 if isinstance(d, str):
                     d = date.fromisoformat(d)
                 if d == max_date:
-                    last_price = bar['close']
+                    last_price = bar["close"]
                     break
 
-            trade = self._close_position(
-                pos, max_date, ExitReason.MANUAL, last_price, strategy
-            )
+            trade = self._close_position(pos, max_date, ExitReason.MANUAL, last_price, strategy)
             trades.append(trade)
 
         return StrategyResult(strategy=strategy, trades=trades)
 
     def _get_history_up_to(
-        self,
-        symbol_data: List[Dict],
-        target_date: date,
-        lookback: int = 260
+        self, symbol_data: List[Dict], target_date: date, lookback: int = 260
     ) -> List[Dict]:
         """Gets historical bars up to (not including) target_date"""
         bars_before = []
         for bar in symbol_data:
-            d = bar['date']
+            d = bar["date"]
             if isinstance(d, str):
                 d = date.fromisoformat(d)
             if d < target_date:
-                bars_before.append({**bar, 'date': d})
+                bars_before.append({**bar, "date": d})
 
         # Sort by date and take last N bars
-        bars_before.sort(key=lambda x: x['date'])
+        bars_before.sort(key=lambda x: x["date"])
         return bars_before[-lookback:] if len(bars_before) > lookback else bars_before
 
     def _get_price_on_date(self, symbol_data: List[Dict], target_date: date) -> Optional[Dict]:
         """Gets price data for specific date"""
         for bar in symbol_data:
-            d = bar['date']
+            d = bar["date"]
             if isinstance(d, str):
                 d = date.fromisoformat(d)
             if d == target_date:
@@ -373,7 +379,7 @@ class StrategyBacktester:
         current_price: float,
         score: float,
         max_risk: float,
-        score_breakdown: Optional[Dict] = None
+        score_breakdown: Optional[Dict] = None,
     ) -> Optional[Dict]:
         """Opens a new position"""
         otm_pct = self.config.min_otm_pct / 100
@@ -385,7 +391,7 @@ class StrategyBacktester:
 
         credit_pct = self.config.min_credit_pct / 100
         net_credit = spread_width * credit_pct
-        net_credit *= (1 - self.config.slippage_pct / 100)
+        net_credit *= 1 - self.config.slippage_pct / 100
 
         max_loss_per_contract = (spread_width - net_credit) * 100
         contracts = max(1, int(max_risk / max_loss_per_contract))
@@ -395,35 +401,32 @@ class StrategyBacktester:
         commission = self.config.commission_per_contract * contracts * 2
 
         return {
-            'symbol': symbol,
-            'entry_date': entry_date,
-            'entry_price': current_price,
-            'short_strike': short_strike,
-            'long_strike': long_strike,
-            'spread_width': spread_width,
-            'net_credit': net_credit,
-            'contracts': contracts,
-            'max_profit': total_max_profit - commission,
-            'max_loss': total_max_loss + commission,
-            'score': score,
-            'score_breakdown': score_breakdown,
-            'dte_at_entry': self.config.dte_max,
-            'expiry_date': entry_date + timedelta(days=self.config.dte_max),
+            "symbol": symbol,
+            "entry_date": entry_date,
+            "entry_price": current_price,
+            "short_strike": short_strike,
+            "long_strike": long_strike,
+            "spread_width": spread_width,
+            "net_credit": net_credit,
+            "contracts": contracts,
+            "max_profit": total_max_profit - commission,
+            "max_loss": total_max_loss + commission,
+            "score": score,
+            "score_breakdown": score_breakdown,
+            "dte_at_entry": self.config.dte_max,
+            "expiry_date": entry_date + timedelta(days=self.config.dte_max),
         }
 
     def _check_exit(
-        self,
-        position: Dict,
-        current_date: date,
-        symbol_data: List[Dict]
+        self, position: Dict, current_date: date, symbol_data: List[Dict]
     ) -> Optional[Tuple[ExitReason, float]]:
         """Checks if position should exit"""
         price_data = self._get_price_on_date(symbol_data, current_date)
-        current_price = price_data['close'] if price_data else position['entry_price']
+        current_price = price_data["close"] if price_data else position["entry_price"]
 
-        short_strike = position['short_strike']
-        net_credit = position['net_credit']
-        expiry = position['expiry_date']
+        short_strike = position["short_strike"]
+        net_credit = position["net_credit"]
+        expiry = position["expiry_date"]
         dte = (expiry - current_date).days
 
         # Expiration
@@ -433,14 +436,16 @@ class StrategyBacktester:
         # Short strike breached
         if current_price < short_strike:
             spread_value = short_strike - current_price
-            if spread_value >= position['spread_width'] * 0.8:
+            if spread_value >= position["spread_width"] * 0.8:
                 return (ExitReason.BREACH_SHORT_STRIKE, current_price)
 
         # Profit target
-        days_held = (current_date - position['entry_date']).days
+        days_held = (current_date - position["entry_date"]).days
         if days_held > 0 and dte > 0:
-            time_decay_factor = days_held / position['dte_at_entry']
-            price_buffer_pct = ((current_price - short_strike) / short_strike) * 100 if short_strike > 0 else 0
+            time_decay_factor = days_held / position["dte_at_entry"]
+            price_buffer_pct = (
+                ((current_price - short_strike) / short_strike) * 100 if short_strike > 0 else 0
+            )
             estimated_profit_pct = min((time_decay_factor * 50) + (price_buffer_pct * 5), 100)
 
             if estimated_profit_pct >= self.config.profit_target_pct:
@@ -464,19 +469,19 @@ class StrategyBacktester:
         exit_date: date,
         exit_reason: ExitReason,
         exit_price: float,
-        strategy: str
+        strategy: str,
     ) -> TradeRecord:
         """Closes position and calculates P&L"""
-        short_strike = position['short_strike']
-        long_strike = position['long_strike']
-        net_credit = position['net_credit']
-        contracts = position['contracts']
+        short_strike = position["short_strike"]
+        long_strike = position["long_strike"]
+        net_credit = position["net_credit"]
+        contracts = position["contracts"]
 
         if exit_price >= short_strike:
-            realized_pnl = position['max_profit']
+            realized_pnl = position["max_profit"]
             outcome = TradeOutcome.MAX_PROFIT
         elif exit_price <= long_strike:
-            realized_pnl = -position['max_loss']
+            realized_pnl = -position["max_loss"]
             outcome = TradeOutcome.MAX_LOSS
         else:
             intrinsic_value = short_strike - exit_price
@@ -485,32 +490,41 @@ class StrategyBacktester:
             realized_pnl = (net_credit * 100 * contracts) - spread_cost - commission
 
             if realized_pnl > 0:
-                outcome = TradeOutcome.PROFIT_TARGET if exit_reason == ExitReason.PROFIT_TARGET_HIT else TradeOutcome.PARTIAL_PROFIT
+                outcome = (
+                    TradeOutcome.PROFIT_TARGET
+                    if exit_reason == ExitReason.PROFIT_TARGET_HIT
+                    else TradeOutcome.PARTIAL_PROFIT
+                )
             elif realized_pnl < 0:
-                outcome = TradeOutcome.STOP_LOSS if exit_reason == ExitReason.STOP_LOSS_HIT else TradeOutcome.PARTIAL_LOSS
+                outcome = (
+                    TradeOutcome.STOP_LOSS
+                    if exit_reason == ExitReason.STOP_LOSS_HIT
+                    else TradeOutcome.PARTIAL_LOSS
+                )
             else:
                 outcome = TradeOutcome.PARTIAL_PROFIT
 
-        hold_days = (exit_date - position['entry_date']).days
+        hold_days = (exit_date - position["entry_date"]).days
 
         return TradeRecord(
-            symbol=position['symbol'],
+            symbol=position["symbol"],
             strategy=strategy,
-            entry_date=position['entry_date'],
+            entry_date=position["entry_date"],
             exit_date=exit_date,
-            entry_price=position['entry_price'],
+            entry_price=position["entry_price"],
             exit_price=exit_price,
-            signal_score=position['score'],
+            signal_score=position["score"],
             realized_pnl=realized_pnl,
             outcome=outcome,
             hold_days=max(1, hold_days),
-            score_breakdown=position.get('score_breakdown')
+            score_breakdown=position.get("score_breakdown"),
         )
 
 
 # =============================================================================
 # DATA LOADING
 # =============================================================================
+
 
 def load_historical_data(tracker: TradeTracker, symbols: List[str]) -> Dict[str, List[Dict]]:
     """Loads historical data from database"""
@@ -520,12 +534,12 @@ def load_historical_data(tracker: TradeTracker, symbols: List[str]) -> Dict[str,
         if price_data and price_data.bars:
             data[symbol] = [
                 {
-                    'date': bar.date,
-                    'open': bar.open,
-                    'high': bar.high,
-                    'low': bar.low,
-                    'close': bar.close,
-                    'volume': bar.volume,
+                    "date": bar.date,
+                    "open": bar.open,
+                    "high": bar.high,
+                    "low": bar.low,
+                    "close": bar.close,
+                    "volume": bar.volume,
                 }
                 for bar in price_data.bars
             ]
@@ -537,12 +551,13 @@ def load_vix_data(tracker: TradeTracker) -> List[Dict]:
     vix_points = tracker.get_vix_data()
     if not vix_points:
         return []
-    return [{'date': p.date, 'close': p.value} for p in vix_points]
+    return [{"date": p.date, "close": p.value} for p in vix_points]
 
 
 # =============================================================================
 # OUTPUT FORMATTING
 # =============================================================================
+
 
 def print_strategy_result(result: StrategyResult):
     """Prints formatted strategy result"""
@@ -572,7 +587,9 @@ def print_comparison_table(results: List[StrategyResult]):
     print("  STRATEGY COMPARISON")
     print("═" * 90)
     print()
-    print(f"{'Strategy':<15} {'Trades':>8} {'Win%':>8} {'P&L':>12} {'PF':>8} {'Sharpe':>8} {'MaxDD':>12}")
+    print(
+        f"{'Strategy':<15} {'Trades':>8} {'Win%':>8} {'P&L':>12} {'PF':>8} {'Sharpe':>8} {'MaxDD':>12}"
+    )
     print("─" * 90)
 
     for r in sorted(results, key=lambda x: x.total_pnl, reverse=True):
@@ -594,35 +611,32 @@ def print_comparison_table(results: List[StrategyResult]):
 
 def save_results(results: List[StrategyResult], output_path: Path):
     """Saves results to JSON"""
-    data = {
-        'timestamp': datetime.now().isoformat(),
-        'strategies': {}
-    }
+    data = {"timestamp": datetime.now().isoformat(), "strategies": {}}
 
     for r in results:
-        data['strategies'][r.strategy] = {
-            'total_trades': r.total_trades,
-            'winning_trades': r.winning_trades,
-            'losing_trades': r.losing_trades,
-            'total_pnl': r.total_pnl,
-            'win_rate': r.win_rate,
-            'profit_factor': r.profit_factor,
-            'max_drawdown': r.max_drawdown,
-            'sharpe_ratio': r.sharpe_ratio,
-            'trades': [
+        data["strategies"][r.strategy] = {
+            "total_trades": r.total_trades,
+            "winning_trades": r.winning_trades,
+            "losing_trades": r.losing_trades,
+            "total_pnl": r.total_pnl,
+            "win_rate": r.win_rate,
+            "profit_factor": r.profit_factor,
+            "max_drawdown": r.max_drawdown,
+            "sharpe_ratio": r.sharpe_ratio,
+            "trades": [
                 {
-                    'symbol': t.symbol,
-                    'entry_date': str(t.entry_date),
-                    'exit_date': str(t.exit_date),
-                    'realized_pnl': t.realized_pnl,
-                    'outcome': t.outcome.value,
-                    'signal_score': t.signal_score,
+                    "symbol": t.symbol,
+                    "entry_date": str(t.entry_date),
+                    "exit_date": str(t.exit_date),
+                    "realized_pnl": t.realized_pnl,
+                    "outcome": t.outcome.value,
+                    "signal_score": t.signal_score,
                 }
                 for t in r.trades
-            ]
+            ],
         }
 
-    with open(output_path, 'w') as f:
+    with open(output_path, "w") as f:
         json.dump(data, f, indent=2, default=str)
 
     print(f"\nResults saved to: {output_path}")
@@ -632,35 +646,43 @@ def save_results(results: List[StrategyResult], output_path: Path):
 # MAIN
 # =============================================================================
 
+
 def main():
     parser = argparse.ArgumentParser(
-        description='Strategy-specific backtesting and training',
+        description="Strategy-specific backtesting and training",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=__doc__
+        epilog=__doc__,
     )
 
-    parser.add_argument('--strategy', type=str, choices=['pullback', 'bounce', 'ath_breakout', 'earnings_dip', 'trend_continuation', 'all'],
-                        default='all', help='Strategy to test (default: all)')
-    parser.add_argument('--min-score', type=float, default=5.0,
-                        help='Minimum signal score (default: 5.0)')
-    parser.add_argument('--profit-target', type=float, default=50.0,
-                        help='Profit target %% (default: 50)')
-    parser.add_argument('--stop-loss', type=float, default=100.0,
-                        help='Stop loss %% (default: 100)')
-    parser.add_argument('--capital', type=float, default=100000.0,
-                        help='Initial capital (default: 100000)')
-    parser.add_argument('-v', '--verbose', action='store_true',
-                        help='Verbose output')
-    parser.add_argument('--output', type=str,
-                        help='Save results to JSON file')
+    parser.add_argument(
+        "--strategy",
+        type=str,
+        choices=["pullback", "bounce", "ath_breakout", "earnings_dip", "trend_continuation", "all"],
+        default="all",
+        help="Strategy to test (default: all)",
+    )
+    parser.add_argument(
+        "--min-score", type=float, default=5.0, help="Minimum signal score (default: 5.0)"
+    )
+    parser.add_argument(
+        "--profit-target", type=float, default=50.0, help="Profit target %% (default: 50)"
+    )
+    parser.add_argument(
+        "--stop-loss", type=float, default=100.0, help="Stop loss %% (default: 100)"
+    )
+    parser.add_argument(
+        "--capital", type=float, default=100000.0, help="Initial capital (default: 100000)"
+    )
+    parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
+    parser.add_argument("--output", type=str, help="Save results to JSON file")
 
     args = parser.parse_args()
 
     # Setup logging
     logging.basicConfig(
         level=logging.DEBUG if args.verbose else logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s',
-        datefmt='%H:%M:%S',
+        format="%(asctime)s - %(levelname)s - %(message)s",
+        datefmt="%H:%M:%S",
     )
 
     print("═" * 70)
@@ -671,15 +693,17 @@ def main():
     tracker = TradeTracker()
     stats = tracker.get_storage_stats()
 
-    if stats['symbols_with_price_data'] == 0:
+    if stats["symbols_with_price_data"] == 0:
         print("\n❌ No historical data found!")
         print("   Run first: python scripts/collect_historical_data.py --all")
         sys.exit(1)
 
-    print(f"\n  Database: {stats['symbols_with_price_data']} symbols, {stats['total_price_bars']:,} bars")
+    print(
+        f"\n  Database: {stats['symbols_with_price_data']} symbols, {stats['total_price_bars']:,} bars"
+    )
 
     symbol_info = tracker.list_symbols_with_price_data()
-    symbols = [s['symbol'] for s in symbol_info]
+    symbols = [s["symbol"] for s in symbol_info]
 
     print(f"  Loading historical data for {len(symbols)} symbols...")
     historical_data = load_historical_data(tracker, symbols)
@@ -691,7 +715,7 @@ def main():
     all_dates = []
     for sym_data in historical_data.values():
         for bar in sym_data:
-            d = bar['date']
+            d = bar["date"]
             if isinstance(d, str):
                 d = date.fromisoformat(d)
             all_dates.append(d)
@@ -718,7 +742,7 @@ def main():
     backtester = StrategyBacktester(config)
     results: List[StrategyResult] = []
 
-    strategies = [args.strategy] if args.strategy != 'all' else StrategyBacktester.STRATEGIES
+    strategies = [args.strategy] if args.strategy != "all" else StrategyBacktester.STRATEGIES
 
     print("\n" + "═" * 70)
     print("  RUNNING BACKTESTS...")
@@ -736,11 +760,14 @@ def main():
                 end_date=end_date,
             )
             results.append(result)
-            print(f"    ✓ {result.total_trades} trades, Win Rate: {result.win_rate:.1f}%, P&L: ${result.total_pnl:+,.0f}")
+            print(
+                f"    ✓ {result.total_trades} trades, Win Rate: {result.win_rate:.1f}%, P&L: ${result.total_pnl:+,.0f}"
+            )
         except Exception as e:
             print(f"    ✗ Error: {e}")
             if args.verbose:
                 import traceback
+
                 traceback.print_exc()
 
     # Print results
@@ -762,9 +789,11 @@ def main():
     if results:
         best = max(results, key=lambda x: x.total_pnl)
         print(f"  Best Strategy: {best.strategy.upper()}")
-        print(f"  P&L: ${best.total_pnl:+,.0f} | Win Rate: {best.win_rate:.1f}% | PF: {best.profit_factor:.2f}")
+        print(
+            f"  P&L: ${best.total_pnl:+,.0f} | Win Rate: {best.win_rate:.1f}% | PF: {best.profit_factor:.2f}"
+        )
     print("═" * 70)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

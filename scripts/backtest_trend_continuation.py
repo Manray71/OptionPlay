@@ -3,6 +3,7 @@
 Historical Backtest: Trend Continuation Analyzer
 Tests candidate count across different market phases.
 """
+
 import sys, os, sqlite3, time, logging
 from collections import defaultdict
 
@@ -32,17 +33,24 @@ def get_db():
 
 
 def get_vix(conn, dt):
-    r = conn.execute("SELECT value FROM vix_data WHERE date <= ? ORDER BY date DESC LIMIT 1", (dt,)).fetchone()
+    r = conn.execute(
+        "SELECT value FROM vix_data WHERE date <= ? ORDER BY date DESC LIMIT 1", (dt,)
+    ).fetchone()
     return float(r["value"]) if r else None
 
 
 def get_symbols(conn, dt):
-    rows = conn.execute("SELECT DISTINCT underlying FROM options_prices WHERE quote_date = ?", (dt,)).fetchall()
+    rows = conn.execute(
+        "SELECT DISTINCT underlying FROM options_prices WHERE quote_date = ?", (dt,)
+    ).fetchall()
     return [r["underlying"] for r in rows]
 
 
 def get_nearest_trading_day(conn, dt):
-    r = conn.execute("SELECT DISTINCT quote_date FROM options_prices WHERE quote_date <= ? ORDER BY quote_date DESC LIMIT 1", (dt,)).fetchone()
+    r = conn.execute(
+        "SELECT DISTINCT quote_date FROM options_prices WHERE quote_date <= ? ORDER BY quote_date DESC LIMIT 1",
+        (dt,),
+    ).fetchone()
     return r["quote_date"] if r else dt
 
 
@@ -50,7 +58,8 @@ def get_prices(conn, sym, dt):
     rows = conn.execute(
         "SELECT DISTINCT quote_date, underlying_price FROM options_prices "
         "WHERE underlying=? AND quote_date<=? AND quote_date>=date(?,'-' || ? || ' days') AND underlying_price>0 "
-        "ORDER BY quote_date ASC", (sym, dt, dt, str(HISTORY_DAYS))
+        "ORDER BY quote_date ASC",
+        (sym, dt, dt, str(HISTORY_DAYS)),
     ).fetchall()
     return [float(r["underlying_price"]) for r in rows]
 
@@ -63,7 +72,7 @@ def build_ohlcv(closes):
     highs, lows, vols = [], [], []
     for i in range(n):
         c, o = closes[i], opens[i]
-        ret = abs(c - closes[i-1]) / closes[i-1] if i > 0 else 0.005
+        ret = abs(c - closes[i - 1]) / closes[i - 1] if i > 0 else 0.005
         noise = max(ret * 0.5, 0.002)
         highs.append(max(o, c) * (1 + noise))
         lows.append(min(o, c) * (1 - noise))
@@ -108,13 +117,20 @@ def main():
                     candidates.append((sym, sig.score, sig.reason[:80]))
                 else:
                     r = sig.reason
-                    if "SMA" in r: dq_reasons["SMA alignment"] += 1
-                    elif "VIX" in r.upper(): dq_reasons["High VIX"] += 1
-                    elif "buffer" in r.lower(): dq_reasons["Buffer"] += 1
-                    elif "RSI" in r or "Overbought" in r: dq_reasons["Overbought"] += 1
-                    elif "ADX" in r: dq_reasons["No trend (ADX)"] += 1
-                    elif sig.score > 0 and sig.score < TREND_MIN_SCORE: dq_reasons["Score < min"] += 1
-                    else: dq_reasons["Other"] += 1
+                    if "SMA" in r:
+                        dq_reasons["SMA alignment"] += 1
+                    elif "VIX" in r.upper():
+                        dq_reasons["High VIX"] += 1
+                    elif "buffer" in r.lower():
+                        dq_reasons["Buffer"] += 1
+                    elif "RSI" in r or "Overbought" in r:
+                        dq_reasons["Overbought"] += 1
+                    elif "ADX" in r:
+                        dq_reasons["No trend (ADX)"] += 1
+                    elif sig.score > 0 and sig.score < TREND_MIN_SCORE:
+                        dq_reasons["Score < min"] += 1
+                    else:
+                        dq_reasons["Other"] += 1
             except Exception as e:
                 dq_reasons[f"Error"] += 1
 

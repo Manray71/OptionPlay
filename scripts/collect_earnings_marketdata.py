@@ -37,6 +37,7 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from dotenv import load_dotenv
+
 load_dotenv()
 
 from src.data_providers.marketdata import MarketDataProvider
@@ -45,9 +46,7 @@ from src.config.watchlist_loader import get_watchlist_loader
 
 # Logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    datefmt='%H:%M:%S'
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s", datefmt="%H:%M:%S"
 )
 logger = logging.getLogger(__name__)
 
@@ -55,6 +54,7 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 # COLLECTOR
 # =============================================================================
+
 
 async def collect_earnings(
     symbols: List[str],
@@ -139,11 +139,13 @@ async def collect_earnings(
 # STATUS
 # =============================================================================
 
+
 def show_status():
     """Zeigt Earnings-Daten-Status."""
     manager = EarningsHistoryManager()
 
     import sqlite3
+
     db_path = str(Path.home() / ".optionplay" / "trades.db")
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
@@ -157,22 +159,29 @@ def show_status():
 
     # Zukünftige Earnings
     today_str = date.today().isoformat()
-    cursor.execute("""
+    cursor.execute(
+        """
         SELECT COUNT(DISTINCT symbol), COUNT(*)
         FROM earnings_history
         WHERE earnings_date >= ?
-    """, (today_str,))
+    """,
+        (today_str,),
+    )
     future_symbols, future_records = cursor.fetchone()
 
     # Nächste 30 Tage
     from datetime import timedelta
+
     next_30 = (date.today() + timedelta(days=30)).isoformat()
-    cursor.execute("""
+    cursor.execute(
+        """
         SELECT symbol, earnings_date, time_of_day
         FROM earnings_history
         WHERE earnings_date >= ? AND earnings_date <= ?
         ORDER BY earnings_date
-    """, (today_str, next_30))
+    """,
+        (today_str, next_30),
+    )
     upcoming = cursor.fetchall()
 
     # Symbole OHNE Earnings
@@ -187,12 +196,29 @@ def show_status():
     loader = get_watchlist_loader()
     watchlist = set(loader.get_all_symbols())
     # ETFs haben keine Earnings
-    etfs = {'SPY', 'QQQ', 'IWM', 'DIA', 'XLK', 'XLF', 'XLE', 'XLV',
-            'XLI', 'XLY', 'XLP', 'XLU', 'XLRE', 'XLB', 'XLC', 'ARKK'}
+    etfs = {
+        "SPY",
+        "QQQ",
+        "IWM",
+        "DIA",
+        "XLK",
+        "XLF",
+        "XLE",
+        "XLV",
+        "XLI",
+        "XLY",
+        "XLP",
+        "XLU",
+        "XLRE",
+        "XLB",
+        "XLC",
+        "ARKK",
+    }
     stocks = watchlist - etfs
     symbols_with_data = set()
 
     import sqlite3 as sq
+
     conn2 = sq.connect(db_path)
     c2 = conn2.cursor()
     c2.execute("SELECT DISTINCT symbol FROM earnings_history")
@@ -236,24 +262,26 @@ def show_status():
 # CLI
 # =============================================================================
 
+
 def get_api_key() -> str:
-    api_key = os.environ.get('MARKETDATA_API_KEY')
+    api_key = os.environ.get("MARKETDATA_API_KEY")
 
     if not api_key:
         config_file = Path.home() / ".optionplay" / "config.json"
         if config_file.exists():
             import json
+
             with open(config_file) as f:
                 config = json.load(f)
-                api_key = config.get('marketdata_api_key')
+                api_key = config.get("marketdata_api_key")
 
     if not api_key:
         env_file = project_root / ".env"
         if env_file.exists():
             with open(env_file) as f:
                 for line in f:
-                    if line.startswith('MARKETDATA_API_KEY='):
-                        api_key = line.split('=', 1)[1].strip()
+                    if line.startswith("MARKETDATA_API_KEY="):
+                        api_key = line.split("=", 1)[1].strip()
                         break
 
     if not api_key:
@@ -266,16 +294,12 @@ def get_api_key() -> str:
 
 async def main():
     parser = argparse.ArgumentParser(
-        description='Collect future earnings dates from Marketdata.app',
+        description="Collect future earnings dates from Marketdata.app",
     )
-    parser.add_argument('--test', action='store_true',
-                        help='Test with 5 symbols')
-    parser.add_argument('--symbols', type=str,
-                        help='Comma-separated symbols')
-    parser.add_argument('--all', action='store_true',
-                        help='All watchlist symbols')
-    parser.add_argument('--status', action='store_true',
-                        help='Show earnings data status')
+    parser.add_argument("--test", action="store_true", help="Test with 5 symbols")
+    parser.add_argument("--symbols", type=str, help="Comma-separated symbols")
+    parser.add_argument("--all", action="store_true", help="All watchlist symbols")
+    parser.add_argument("--status", action="store_true", help="Show earnings data status")
 
     args = parser.parse_args()
 
@@ -285,15 +309,31 @@ async def main():
 
     # Symbole bestimmen
     if args.test:
-        symbols = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META']
+        symbols = ["AAPL", "MSFT", "GOOGL", "AMZN", "META"]
     elif args.symbols:
-        symbols = [s.strip().upper() for s in args.symbols.split(',')]
+        symbols = [s.strip().upper() for s in args.symbols.split(",")]
     elif args.all:
         loader = get_watchlist_loader()
         all_symbols = loader.get_all_symbols()
         # ETFs filtern (haben keine Earnings)
-        etfs = {'SPY', 'QQQ', 'IWM', 'DIA', 'XLK', 'XLF', 'XLE', 'XLV',
-                'XLI', 'XLY', 'XLP', 'XLU', 'XLRE', 'XLB', 'XLC', 'ARKK'}
+        etfs = {
+            "SPY",
+            "QQQ",
+            "IWM",
+            "DIA",
+            "XLK",
+            "XLF",
+            "XLE",
+            "XLV",
+            "XLI",
+            "XLY",
+            "XLP",
+            "XLU",
+            "XLRE",
+            "XLB",
+            "XLC",
+            "ARKK",
+        }
         symbols = [s for s in all_symbols if s not in etfs]
     else:
         parser.print_help()
@@ -334,5 +374,5 @@ async def main():
     show_status()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     asyncio.run(main())

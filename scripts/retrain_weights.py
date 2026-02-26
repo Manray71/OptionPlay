@@ -89,8 +89,9 @@ _SCORE_TO_YAML_KEY_BY_STRATEGY = {
 @dataclass
 class SafetyRails:
     """Safety constraints for weight updates."""
-    max_weight_change: float = 0.20        # Max 20% change per component
-    min_new_trades: int = 50               # Minimum new trades since last retrain
+
+    max_weight_change: float = 0.20  # Max 20% change per component
+    min_new_trades: int = 50  # Minimum new trades since last retrain
     min_win_rate_improvement: float = -0.02  # Max 2% WR degradation tolerated
     max_objective_degradation: float = -0.05  # Max 5% objective degradation
 
@@ -98,6 +99,7 @@ class SafetyRails:
 @dataclass
 class RetrainResult:
     """Result of a retrain attempt."""
+
     strategy: str
     regime: Optional[str]
     status: str  # "applied", "rejected", "skipped", "dry_run"
@@ -119,16 +121,38 @@ class StrategyRetrainer:
         """Load all trades from outcomes.db, enriched with sector from symbol_fundamentals."""
         conn = sqlite3.connect(OUTCOMES_DB)
         cols = [
-            "symbol", "entry_date", "was_profitable", "pnl_pct",
-            "vix_regime", "max_drawdown_pct",
-            "pullback_score", "bounce_score", "ath_breakout_score", "earnings_dip_score", "trend_continuation_score",
-            "rsi_score", "support_score", "fibonacci_score", "ma_score",
-            "volume_score", "macd_score", "stoch_score", "keltner_score",
-            "trend_strength_score", "momentum_score", "rs_score",
-            "candlestick_score", "vwap_score", "market_context_score",
-            "sector_score", "gap_score",
-            "tc_sma_alignment_score", "tc_stability_score", "tc_buffer_score",
-            "tc_momentum_score", "tc_volatility_score",
+            "symbol",
+            "entry_date",
+            "was_profitable",
+            "pnl_pct",
+            "vix_regime",
+            "max_drawdown_pct",
+            "pullback_score",
+            "bounce_score",
+            "ath_breakout_score",
+            "earnings_dip_score",
+            "trend_continuation_score",
+            "rsi_score",
+            "support_score",
+            "fibonacci_score",
+            "ma_score",
+            "volume_score",
+            "macd_score",
+            "stoch_score",
+            "keltner_score",
+            "trend_strength_score",
+            "momentum_score",
+            "rs_score",
+            "candlestick_score",
+            "vwap_score",
+            "market_context_score",
+            "sector_score",
+            "gap_score",
+            "tc_sma_alignment_score",
+            "tc_stability_score",
+            "tc_buffer_score",
+            "tc_momentum_score",
+            "tc_volatility_score",
         ]
         query = f"SELECT {', '.join(cols)} FROM trade_outcomes WHERE pullback_score IS NOT NULL ORDER BY entry_date"
         df = pd.read_sql_query(query, conn)
@@ -318,9 +342,11 @@ class StrategyRetrainer:
         overall_strategy_wr = strat_df["was_profitable"].mean()
         effective_target = max(target_win_rate, overall_strategy_wr - relative_margin)
 
-        print(f"    Stability target: strategy_wr={overall_strategy_wr*100:.1f}%, "
-              f"effective_target={effective_target*100:.1f}% "
-              f"(absolute_floor={target_win_rate*100:.0f}%, margin={relative_margin*100:.0f}pp)")
+        print(
+            f"    Stability target: strategy_wr={overall_strategy_wr*100:.1f}%, "
+            f"effective_target={effective_target*100:.1f}% "
+            f"(absolute_floor={target_win_rate*100:.0f}%, margin={relative_margin*100:.0f}pp)"
+        )
 
         ABSOLUTE_MIN = 50
         ABSOLUTE_MAX = 90
@@ -414,10 +440,14 @@ class StrategyRetrainer:
         if n_new < strategy_safety.min_new_trades and not force:
             print(f"  SKIP: {n_new} new trades < {strategy_safety.min_new_trades} minimum")
             return RetrainResult(
-                strategy=strategy, regime=None,
-                status="skipped", reason=f"Only {n_new} new trades",
-                old_weights={}, new_weights={},
-                weight_changes={}, metrics={"n_new_trades": n_new},
+                strategy=strategy,
+                regime=None,
+                status="skipped",
+                reason=f"Only {n_new} new trades",
+                old_weights={},
+                new_weights={},
+                weight_changes={},
+                metrics={"n_new_trades": n_new},
             )
 
         # Get current weights
@@ -431,10 +461,14 @@ class StrategyRetrainer:
         if not result.converged:
             print(f"  SKIP: Training did not converge")
             return RetrainResult(
-                strategy=strategy, regime=None,
-                status="skipped", reason="Training not converged",
-                old_weights=old_weights, new_weights={},
-                weight_changes={}, metrics=result.metrics,
+                strategy=strategy,
+                regime=None,
+                status="skipped",
+                reason="Training not converged",
+                old_weights=old_weights,
+                new_weights={},
+                weight_changes={},
+                metrics=result.metrics,
             )
 
         new_weights = result.weights
@@ -458,7 +492,11 @@ class StrategyRetrainer:
             print(f"    ⚠ {issue}")
 
         # Show weight changes
-        significant = [(c, d) for c, d in sorted(weight_changes.items(), key=lambda x: -abs(x[1])) if abs(d) > 0.01]
+        significant = [
+            (c, d)
+            for c, d in sorted(weight_changes.items(), key=lambda x: -abs(x[1]))
+            if abs(d) > 0.01
+        ]
         if significant:
             print(f"  Weight changes:")
             for comp, delta in significant[:5]:
@@ -470,8 +508,10 @@ class StrategyRetrainer:
         base_min_trades = wf.get("min_trades", 200)
         regime_min_trades = max(30, int(base_min_trades * 0.4))
 
-        print(f"  Regime training: min_trades={regime_min_trades} "
-              f"(base={base_min_trades}, factor=0.4)")
+        print(
+            f"  Regime training: min_trades={regime_min_trades} "
+            f"(base={base_min_trades}, factor=0.4)"
+        )
 
         regime_results = {}
         for regime in REGIMES:
@@ -503,20 +543,28 @@ class StrategyRetrainer:
         if apply and passed:
             status = "applied"
             reason = "Applied to config"
-            self._save_retrain_history(strategy, old_weights, new_weights, result.metrics, regime_results)
-            self._apply_to_yaml(strategy, new_weights, regime_results, sector_factors, stability_thresholds)
+            self._save_retrain_history(
+                strategy, old_weights, new_weights, result.metrics, regime_results
+            )
+            self._apply_to_yaml(
+                strategy, new_weights, regime_results, sector_factors, stability_thresholds
+            )
         elif apply and not passed:
             status = "rejected"
             reason = f"Safety check failed: {'; '.join(issues)}"
 
         return RetrainResult(
-            strategy=strategy, regime=None,
-            status=status, reason=reason,
+            strategy=strategy,
+            regime=None,
+            status=status,
+            reason=reason,
             old_weights={k: round(v, 4) for k, v in old_weights.items()},
             new_weights={k: round(v, 4) for k, v in new_weights.items()},
             weight_changes=weight_changes,
             metrics={
-                **{k: round(v, 4) if isinstance(v, float) else v for k, v in result.metrics.items()},
+                **{
+                    k: round(v, 4) if isinstance(v, float) else v for k, v in result.metrics.items()
+                },
                 "n_new_trades": n_new,
                 "safety_passed": passed,
                 "regime_results": regime_results,
@@ -658,7 +706,8 @@ class StrategyRetrainer:
             with os.fdopen(fd, "w") as f:
                 f.write("---\n")
                 yaml.dump(
-                    config, f,
+                    config,
+                    f,
                     default_flow_style=False,
                     sort_keys=False,
                     allow_unicode=True,
@@ -699,9 +748,7 @@ def main():
     results = {}
 
     for strategy in strategies:
-        result = retrainer.retrain_strategy(
-            strategy, df, apply=args.apply, force=args.force
-        )
+        result = retrainer.retrain_strategy(strategy, df, apply=args.apply, force=args.force)
         results[strategy] = {
             "status": result.status,
             "reason": result.reason,

@@ -45,14 +45,15 @@ from src.backtesting.tracking import TradeTracker, PriceBar, VixDataPoint
 from src.data_providers.marketdata import MarketDataProvider
 from src.config.watchlist_loader import get_watchlist_loader
 
-
 # =============================================================================
 # Configuration
 # =============================================================================
 
+
 @dataclass
 class UpdateConfig:
     """Konfiguration für das Update"""
+
     requests_per_minute: int = 85  # Unter 100 für Sicherheit
     min_delay_seconds: float = 0.75
     max_history_days: int = 780  # ~3 Jahre für neue Symbole
@@ -63,6 +64,7 @@ class UpdateConfig:
 @dataclass
 class SymbolUpdateInfo:
     """Info über benötigte Updates für ein Symbol"""
+
     symbol: str
     status: str  # 'new', 'update', 'current', 'delisted'
     db_start: Optional[date] = None
@@ -77,10 +79,9 @@ class SymbolUpdateInfo:
 # Data Analysis
 # =============================================================================
 
+
 def analyze_database(
-    tracker: TradeTracker,
-    watchlist_symbols: Set[str],
-    config: UpdateConfig
+    tracker: TradeTracker, watchlist_symbols: Set[str], config: UpdateConfig
 ) -> Tuple[List[SymbolUpdateInfo], Dict]:
     """
     Analysiert die Datenbank und bestimmt benötigte Updates.
@@ -93,7 +94,7 @@ def analyze_database(
 
     # Daten aus DB laden
     db_symbols = tracker.list_symbols_with_price_data()
-    db_symbol_map = {s['symbol']: s for s in db_symbols}
+    db_symbol_map = {s["symbol"]: s for s in db_symbols}
     db_symbol_set = set(db_symbol_map.keys())
 
     results = []
@@ -105,13 +106,15 @@ def analyze_database(
 
     # Neue Symbole - brauchen vollständige Historie
     for symbol in sorted(new_symbols):
-        results.append(SymbolUpdateInfo(
-            symbol=symbol,
-            status='new',
-            days_missing=config.max_history_days,
-            fetch_from=today - timedelta(days=config.max_history_days),
-            fetch_to=today
-        ))
+        results.append(
+            SymbolUpdateInfo(
+                symbol=symbol,
+                status="new",
+                days_missing=config.max_history_days,
+                fetch_from=today - timedelta(days=config.max_history_days),
+                fetch_to=today,
+            )
+        )
 
     # Existierende Symbole - prüfen ob Update nötig
     current_count = 0
@@ -119,23 +122,25 @@ def analyze_database(
 
     for symbol in sorted(existing_symbols):
         info = db_symbol_map[symbol]
-        db_start = date.fromisoformat(info['start_date'])
-        db_end = date.fromisoformat(info['end_date'])
-        db_bars = info['bar_count']
+        db_start = date.fromisoformat(info["start_date"])
+        db_end = date.fromisoformat(info["end_date"])
+        db_bars = info["bar_count"]
 
         # Tage seit letztem Datenpunkt (nur Werktage zählen approximiert)
         calendar_days = (today - db_end).days
 
         if db_end >= cutoff:
             # Daten sind aktuell genug
-            results.append(SymbolUpdateInfo(
-                symbol=symbol,
-                status='current',
-                db_start=db_start,
-                db_end=db_end,
-                db_bars=db_bars,
-                days_missing=0
-            ))
+            results.append(
+                SymbolUpdateInfo(
+                    symbol=symbol,
+                    status="current",
+                    db_start=db_start,
+                    db_end=db_end,
+                    db_bars=db_bars,
+                    days_missing=0,
+                )
+            )
             current_count += 1
         else:
             # Daten sind veraltet - Update nötig
@@ -143,38 +148,42 @@ def analyze_database(
             fetch_from = db_end + timedelta(days=1)
             days_missing = (today - db_end).days
 
-            results.append(SymbolUpdateInfo(
-                symbol=symbol,
-                status='update',
-                db_start=db_start,
-                db_end=db_end,
-                db_bars=db_bars,
-                days_missing=days_missing,
-                fetch_from=fetch_from,
-                fetch_to=today
-            ))
+            results.append(
+                SymbolUpdateInfo(
+                    symbol=symbol,
+                    status="update",
+                    db_start=db_start,
+                    db_end=db_end,
+                    db_bars=db_bars,
+                    days_missing=days_missing,
+                    fetch_from=fetch_from,
+                    fetch_to=today,
+                )
+            )
             update_count += 1
 
     # Entfernte Symbole (in DB aber nicht mehr in Watchlist)
     for symbol in sorted(removed_symbols):
         info = db_symbol_map[symbol]
-        results.append(SymbolUpdateInfo(
-            symbol=symbol,
-            status='delisted',
-            db_start=date.fromisoformat(info['start_date']),
-            db_end=date.fromisoformat(info['end_date']),
-            db_bars=info['bar_count']
-        ))
+        results.append(
+            SymbolUpdateInfo(
+                symbol=symbol,
+                status="delisted",
+                db_start=date.fromisoformat(info["start_date"]),
+                db_end=date.fromisoformat(info["end_date"]),
+                db_bars=info["bar_count"],
+            )
+        )
 
     summary = {
-        'total_watchlist': len(watchlist_symbols),
-        'total_in_db': len(db_symbol_set),
-        'new_symbols': len(new_symbols),
-        'update_needed': update_count,
-        'current': current_count,
-        'delisted': len(removed_symbols),
-        'today': today.isoformat(),
-        'cutoff': cutoff.isoformat(),
+        "total_watchlist": len(watchlist_symbols),
+        "total_in_db": len(db_symbol_set),
+        "new_symbols": len(new_symbols),
+        "update_needed": update_count,
+        "current": current_count,
+        "delisted": len(removed_symbols),
+        "today": today.isoformat(),
+        "cutoff": cutoff.isoformat(),
     }
 
     return results, summary
@@ -194,18 +203,19 @@ def analyze_vix(tracker: TradeTracker) -> Dict:
         needs_update = True
 
     return {
-        'has_data': vix_range is not None,
-        'start': vix_range[0].isoformat() if vix_range else None,
-        'end': vix_range[1].isoformat() if vix_range else None,
-        'count': vix_count,
-        'days_missing': days_missing,
-        'needs_update': needs_update,
+        "has_data": vix_range is not None,
+        "start": vix_range[0].isoformat() if vix_range else None,
+        "end": vix_range[1].isoformat() if vix_range else None,
+        "count": vix_count,
+        "days_missing": days_missing,
+        "needs_update": needs_update,
     }
 
 
 # =============================================================================
 # Data Collection
 # =============================================================================
+
 
 class IncrementalDataCollector:
     """Sammelt nur fehlende Daten"""
@@ -238,27 +248,23 @@ class IncrementalDataCollector:
         Returns:
             Tuple von (success, bars_added, message)
         """
-        if info.status == 'current':
+        if info.status == "current":
             return True, 0, "already current"
 
-        if info.status == 'delisted':
+        if info.status == "delisted":
             return True, 0, "skipped (delisted)"
 
         try:
-            if info.status == 'new':
+            if info.status == "new":
                 # Neue Symbole: Volle Historie
                 bars = await self._provider.get_historical(
-                    info.symbol,
-                    days=self.config.max_history_days
+                    info.symbol, days=self.config.max_history_days
                 )
             else:
                 # Update: Nur fehlende Tage
                 # Wir holen etwas mehr Tage als nötig für Überlappung
                 days_to_fetch = info.days_missing + 5
-                bars = await self._provider.get_historical(
-                    info.symbol,
-                    days=days_to_fetch
-                )
+                bars = await self._provider.get_historical(info.symbol, days=days_to_fetch)
 
             if not bars:
                 return False, 0, "no data returned"
@@ -266,21 +272,27 @@ class IncrementalDataCollector:
             # Konvertiere zu PriceBar
             price_bars = []
             for bar in bars:
-                bar_date = bar.date if isinstance(bar.date, date) else date.fromisoformat(str(bar.date)[:10])
+                bar_date = (
+                    bar.date
+                    if isinstance(bar.date, date)
+                    else date.fromisoformat(str(bar.date)[:10])
+                )
 
                 # Bei Updates: Nur Bars nach dem letzten vorhandenen
-                if info.status == 'update' and info.db_end:
+                if info.status == "update" and info.db_end:
                     if bar_date <= info.db_end:
                         continue
 
-                price_bars.append(PriceBar(
-                    date=bar_date,
-                    open=bar.open,
-                    high=bar.high,
-                    low=bar.low,
-                    close=bar.close,
-                    volume=bar.volume,
-                ))
+                price_bars.append(
+                    PriceBar(
+                        date=bar_date,
+                        open=bar.open,
+                        high=bar.high,
+                        low=bar.low,
+                        close=bar.close,
+                        volume=bar.volume,
+                    )
+                )
 
             if not price_bars:
                 return True, 0, "no new bars"
@@ -297,13 +309,13 @@ class IncrementalDataCollector:
     async def update_vix(self, tracker: TradeTracker, vix_info: Dict) -> Tuple[bool, int]:
         """Aktualisiert VIX-Daten"""
         try:
-            if not vix_info['needs_update']:
+            if not vix_info["needs_update"]:
                 return True, 0
 
             # Hole VIX-Daten
-            if vix_info['has_data']:
+            if vix_info["has_data"]:
                 # Nur fehlende Tage
-                days = vix_info['days_missing'] + 5
+                days = vix_info["days_missing"] + 5
             else:
                 # Volle Historie
                 days = self.config.max_history_days
@@ -315,10 +327,14 @@ class IncrementalDataCollector:
 
             # Konvertiere zu VixDataPoint
             vix_points = []
-            cutoff_date = date.fromisoformat(vix_info['end']) if vix_info['end'] else None
+            cutoff_date = date.fromisoformat(vix_info["end"]) if vix_info["end"] else None
 
             for bar in bars:
-                bar_date = bar.date if isinstance(bar.date, date) else date.fromisoformat(str(bar.date)[:10])
+                bar_date = (
+                    bar.date
+                    if isinstance(bar.date, date)
+                    else date.fromisoformat(str(bar.date)[:10])
+                )
 
                 # Bei Update: Nur neue Daten
                 if cutoff_date and bar_date <= cutoff_date:
@@ -340,6 +356,7 @@ class IncrementalDataCollector:
 # =============================================================================
 # Progress Display
 # =============================================================================
+
 
 class ProgressDisplay:
     """Zeigt Fortschritt an"""
@@ -367,16 +384,17 @@ class ProgressDisplay:
         pct = (self.current / self.total) * 100
         bar_width = 30
         filled = int(bar_width * self.current / self.total)
-        bar = '█' * filled + '░' * (bar_width - filled)
+        bar = "█" * filled + "░" * (bar_width - filled)
 
-        status_icon = '✓' if success else '✗'
+        status_icon = "✓" if success else "✗"
 
         print(
             f"\r[{bar}] {pct:5.1f}% | "
             f"{symbol:6s} {status_icon} | "
             f"+{self.bars_added:,} bars | "
             f"ETA {int(eta//60)}:{int(eta%60):02d}",
-            end='', flush=True
+            end="",
+            flush=True,
         )
 
     def finish(self):
@@ -395,25 +413,26 @@ class ProgressDisplay:
 # CLI
 # =============================================================================
 
+
 def setup_logging(verbose: bool = False):
     level = logging.DEBUG if verbose else logging.INFO
     logging.basicConfig(
         level=level,
-        format='%(asctime)s - %(levelname)s - %(message)s',
-        datefmt='%H:%M:%S',
+        format="%(asctime)s - %(levelname)s - %(message)s",
+        datefmt="%H:%M:%S",
     )
 
 
 def get_api_key() -> str:
     """API Key aus Environment oder Config laden"""
-    api_key = os.environ.get('MARKETDATA_API_KEY')
+    api_key = os.environ.get("MARKETDATA_API_KEY")
 
     if not api_key:
         config_file = Path.home() / ".optionplay" / "config.json"
         if config_file.exists():
             with open(config_file) as f:
                 config = json.load(f)
-                api_key = config.get('marketdata_api_key')
+                api_key = config.get("marketdata_api_key")
 
     if not api_key:
         print("ERROR: No API key found!")
@@ -444,7 +463,7 @@ def print_status(results: List[SymbolUpdateInfo], summary: Dict, vix_info: Dict)
 
     # VIX Status
     print("  VIX Data:")
-    if vix_info['has_data']:
+    if vix_info["has_data"]:
         print(f"    Range: {vix_info['start']} to {vix_info['end']}")
         print(f"    Points: {vix_info['count']}")
         print(f"    Days missing: {vix_info['days_missing']}")
@@ -455,7 +474,7 @@ def print_status(results: List[SymbolUpdateInfo], summary: Dict, vix_info: Dict)
     print()
 
     # Neue Symbole auflisten
-    new_symbols = [r for r in results if r.status == 'new']
+    new_symbols = [r for r in results if r.status == "new"]
     if new_symbols:
         print("  NEW SYMBOLS (need full history):")
         for r in new_symbols[:20]:
@@ -465,7 +484,7 @@ def print_status(results: List[SymbolUpdateInfo], summary: Dict, vix_info: Dict)
         print()
 
     # Symbole mit Updates auflisten
-    update_symbols = [r for r in results if r.status == 'update']
+    update_symbols = [r for r in results if r.status == "update"]
     if update_symbols:
         print("  SYMBOLS NEEDING UPDATE:")
         for r in update_symbols[:10]:
@@ -477,7 +496,7 @@ def print_status(results: List[SymbolUpdateInfo], summary: Dict, vix_info: Dict)
     # Geschätzte API Calls
     new_calls = len(new_symbols)
     update_calls = len(update_symbols)
-    vix_calls = 1 if vix_info['needs_update'] else 0
+    vix_calls = 1 if vix_info["needs_update"] else 0
     total_calls = new_calls + update_calls + vix_calls
 
     print(f"  ESTIMATED API CALLS:")
@@ -494,7 +513,7 @@ async def run_update(
     config: UpdateConfig,
     new_only: bool = False,
     update_only: bool = False,
-    dryrun: bool = False
+    dryrun: bool = False,
 ):
     """Führt das Update aus"""
     api_key = get_api_key()
@@ -505,30 +524,30 @@ async def run_update(
     to_process = []
 
     if new_only:
-        to_process = [r for r in results if r.status == 'new']
+        to_process = [r for r in results if r.status == "new"]
         print(f"\nProcessing {len(to_process)} NEW symbols only...")
     elif update_only:
-        to_process = [r for r in results if r.status == 'update']
+        to_process = [r for r in results if r.status == "update"]
         print(f"\nProcessing {len(to_process)} symbols needing UPDATE only...")
     else:
-        to_process = [r for r in results if r.status in ('new', 'update')]
+        to_process = [r for r in results if r.status in ("new", "update")]
         print(f"\nProcessing {len(to_process)} symbols (new + update)...")
 
     if dryrun:
         print("\nDRYRUN MODE - No data will be fetched")
         print("\nWould process:")
         for r in to_process[:20]:
-            if r.status == 'new':
+            if r.status == "new":
                 print(f"  {r.symbol:6s}: FETCH {config.max_history_days} days history")
             else:
                 print(f"  {r.symbol:6s}: UPDATE {r.db_end} → {r.fetch_to} ({r.days_missing} days)")
         if len(to_process) > 20:
             print(f"  ... and {len(to_process) - 20} more")
-        if vix_info['needs_update']:
+        if vix_info["needs_update"]:
             print(f"  VIX: UPDATE")
         return
 
-    if not to_process and not vix_info['needs_update']:
+    if not to_process and not vix_info["needs_update"]:
         print("\nNothing to update - all data is current!")
         return
 
@@ -536,7 +555,7 @@ async def run_update(
         await collector.connect()
 
         # VIX zuerst
-        if vix_info['needs_update']:
+        if vix_info["needs_update"]:
             print("\nUpdating VIX data...")
             success, count = await collector.update_vix(tracker, vix_info)
             if success:
@@ -568,30 +587,35 @@ async def run_update(
 
 async def main():
     parser = argparse.ArgumentParser(
-        description='Intelligent historical data updater for OptionPlay',
+        description="Intelligent historical data updater for OptionPlay",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=__doc__
+        epilog=__doc__,
     )
 
     # Modes
-    parser.add_argument('--status', action='store_true',
-                        help='Show status only (no data fetch)')
-    parser.add_argument('--dryrun', action='store_true',
-                        help='Show what would be fetched without actually fetching')
-    parser.add_argument('--update', action='store_true',
-                        help='Perform the update')
-    parser.add_argument('--new-only', action='store_true',
-                        help='Only fetch new symbols (full history)')
-    parser.add_argument('--update-only', action='store_true',
-                        help='Only update existing symbols (incremental)')
+    parser.add_argument("--status", action="store_true", help="Show status only (no data fetch)")
+    parser.add_argument(
+        "--dryrun", action="store_true", help="Show what would be fetched without actually fetching"
+    )
+    parser.add_argument("--update", action="store_true", help="Perform the update")
+    parser.add_argument(
+        "--new-only", action="store_true", help="Only fetch new symbols (full history)"
+    )
+    parser.add_argument(
+        "--update-only", action="store_true", help="Only update existing symbols (incremental)"
+    )
 
     # Options
-    parser.add_argument('--delay', type=float, default=0.75,
-                        help='Delay between requests in seconds (default: 0.75)')
-    parser.add_argument('--max-days', type=int, default=780,
-                        help='Max history days for new symbols (default: 780)')
-    parser.add_argument('-v', '--verbose', action='store_true',
-                        help='Verbose output')
+    parser.add_argument(
+        "--delay",
+        type=float,
+        default=0.75,
+        help="Delay between requests in seconds (default: 0.75)",
+    )
+    parser.add_argument(
+        "--max-days", type=int, default=780, help="Max history days for new symbols (default: 780)"
+    )
+    parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
 
     args = parser.parse_args()
 
@@ -620,17 +644,25 @@ async def main():
         return
 
     if args.dryrun:
-        await run_update(results, vix_info, config,
-                         new_only=args.new_only,
-                         update_only=args.update_only,
-                         dryrun=True)
+        await run_update(
+            results,
+            vix_info,
+            config,
+            new_only=args.new_only,
+            update_only=args.update_only,
+            dryrun=True,
+        )
         return
 
     if args.update or args.new_only or args.update_only:
-        await run_update(results, vix_info, config,
-                         new_only=args.new_only,
-                         update_only=args.update_only,
-                         dryrun=False)
+        await run_update(
+            results,
+            vix_info,
+            config,
+            new_only=args.new_only,
+            update_only=args.update_only,
+            dryrun=False,
+        )
         return
 
     # Wenn kein Modus angegeben, Hilfe zeigen
@@ -643,5 +675,5 @@ async def main():
     print()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     asyncio.run(main())
