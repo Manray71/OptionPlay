@@ -44,6 +44,7 @@ env/
 # Testing
 .pytest_cache/
 .coverage
+coverage.json
 htmlcov/
 .tox/
 .nox/
@@ -62,6 +63,9 @@ Thumbs.db
 
 # Backup files
 *.bak
+*.backup-*
+*.pre_wf
+config/backups/
 
 # Generated reports
 reports/
@@ -74,9 +78,8 @@ vix
 # Session context files
 CONTEXT_*.md
 
-# Retrain reports (auto-generated)
-data_inventory/retrain_report_*.json
-data_inventory/retrain_history/
+# Data inventory (auto-generated training data)
+data_inventory/
 
 # Pre-test config backups
 config/*.pre-test
@@ -87,3 +90,7 @@ BRIEFING_*.md
 # Legacy archive (dead code, pre-v4.0.0)
 archive/
 .hypothesis/
+
+# Claude Code / MCP
+.claude/
+claude_desktop_config.json
