@@ -126,7 +126,10 @@ def step_vix(logger, status, dry_run=False):
         logger.error("  Keine VIX-Daten - manuell initialisieren")
         return False
     last_date = date.fromisoformat(last)
+    # Letzten Handelstag bestimmen (Mo-Fr)
     yesterday = date.today() - timedelta(days=1)
+    while yesterday.weekday() >= 5:  # 5=Sa, 6=So
+        yesterday -= timedelta(days=1)
     if last_date >= yesterday:
         logger.info(f"  Aktuell bis {last_date} - nichts zu tun")
         return True
