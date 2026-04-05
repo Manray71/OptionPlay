@@ -147,7 +147,6 @@ watchlists:
       communication_services:
         name: "Communication Services"
         symbols:
-          - GOOG   # Alphabet Class C
           - GOOGL  # Alphabet Class A
           - META   # Meta Platforms
           - NFLX   # Netflix
@@ -323,6 +322,7 @@ watchlists:
           - XLB    # Materials Select Sector SPDR
           - XLU    # Utilities Select Sector SPDR
           - XLC    # Communication Services Select Sector SPDR
+          - XLRE   # Real Estate Select Sector SPDR
 
       # -------------------------------------------------------------------
       # ECHTGELDDEPOT - Zusätzliche Symbole
@@ -583,7 +583,6 @@ watchlists:
       - GIS
       - GM
       - GNRC
-      - GOOG
       - GOOGL
       - GPN
       - GS
@@ -896,7 +895,6 @@ watchlists:
       - GIS
       - GM
       - GNRC
-      - GOOG
       - GOOGL
       - GPN
       - GS
