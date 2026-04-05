@@ -37,7 +37,7 @@ data_sources:
 connection:
   ibkr:
     host: "127.0.0.1"
-    port: 7497                    # 7497 = TWS Paper, 7496 = TWS Live, 4001 = Gateway
+    port: 4001                    # 4001 = Gateway Live, 4002 = Gateway Paper, 7497 = TWS Paper
     client_id: 1
     timeout_seconds: 30
     max_retries: 3

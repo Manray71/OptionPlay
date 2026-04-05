@@ -9,8 +9,8 @@ werden NICHT angefasst.
 
 Schritte:
   1. VIX via Yahoo Finance
-  2. Options-Chain + Greeks via Tradier (ORATS)
-  3. OHLCV daily prices via Tradier
+  2. Options-Chain + Greeks via IBKR
+  3. OHLCV daily prices via yfinance
   4. IV Cache backfill via yfinance (HV→IV estimation)
 
 Usage:
@@ -165,11 +165,11 @@ def step_vix(logger, status, dry_run=False):
         return False
 
 
-# -- Step 2: Options + Greeks via Tradier --
+# -- Step 2: Options + Greeks via IBKR --
 
 
 async def step_options(logger, status, dry_run=False):
-    logger.info("--- STEP 2: Options + Greeks (Tradier/ORATS) ---")
+    logger.info("--- STEP 2: Options + Greeks (IBKR) ---")
     last = status["opt_max"]
     if not last:
         logger.error("  Keine Options-Daten - manuell initialisieren")
@@ -189,8 +189,7 @@ async def step_options(logger, status, dry_run=False):
 
     logger.info(f"  Letzter Stand: {last_date} ({days_since}d)")
 
-    # Tradier liefert nur aktuelle Chains (kein historisches Backfill)
-    # Daher sammeln wir die heutige Chain
+    # IBKR liefert nur aktuelle Chains (kein historisches Backfill)
     if today.weekday() >= 5:
         logger.info("  Wochenende - keine aktuellen Chains verfügbar")
         return True
@@ -199,29 +198,22 @@ async def step_options(logger, status, dry_run=False):
         logger.info("  [DRY RUN] Würde heutige Options-Chain sammeln")
         return True
 
-    api_key = os.environ.get("TRADIER_API_KEY")
-    if not api_key:
-        logger.error("  TRADIER_API_KEY nicht gesetzt!")
-        return False
-
     try:
-        from src.data_providers.tradier import TradierProvider
-        from src.data_providers.interface import OptionQuote
+        from src.data_providers.ibkr_provider import IBKRDataProvider
         from src.config.watchlist_loader import get_watchlist_loader
 
         symbols = get_watchlist_loader().get_all_symbols()
         logger.info(f"  {len(symbols)} Symbole")
 
-        provider = TradierProvider(api_key=api_key)
+        provider = IBKRDataProvider()
         try:
             connected = await provider.connect()
             if not connected:
-                logger.error("  Tradier-Verbindung fehlgeschlagen")
+                logger.error("  IBKR-Verbindung fehlgeschlagen (TWS/Gateway läuft?)")
                 return False
 
-            logger.info("  Tradier verbunden - sammle Options-Chains...")
+            logger.info("  IBKR verbunden - sammle Options-Chains...")
 
-            # Reuse store logic from collect_options_tradier
             from scripts.collect_options_tradier import store_options_with_greeks, ensure_schema
 
             db_path = str(DB_PATH)
@@ -270,17 +262,12 @@ async def step_options(logger, status, dry_run=False):
         return False
 
 
-# -- Step 3: OHLCV Daily Prices via Tradier --
+# -- Step 3: OHLCV Daily Prices via yfinance --
 
 
 async def step_ohlcv(logger, status, dry_run=False):
-    logger.info("--- STEP 3: OHLCV Daily Prices (Tradier) ---")
+    logger.info("--- STEP 3: OHLCV Daily Prices (yfinance) ---")
     last = status.get("ohlcv_max")
-
-    api_key = os.environ.get("TRADIER_API_KEY")
-    if not api_key:
-        logger.error("  TRADIER_API_KEY nicht gesetzt!")
-        return False
 
     today = date.today()
     if last:
@@ -289,10 +276,10 @@ async def step_ohlcv(logger, status, dry_run=False):
         if days_since <= 1 and today.weekday() < 5:
             logger.info(f"  Aktuell bis {last_date} - nichts zu tun")
             return True
-        backfill_days = min(days_since + 2, 10)  # Extra Puffer
-        logger.info(f"  Letzter Stand: {last_date} ({days_since}d) - hole {backfill_days} Tage")
+        fetch_start = (last_date + timedelta(days=1)).isoformat()
+        logger.info(f"  Letzter Stand: {last_date} ({days_since}d) - hole ab {fetch_start}")
     else:
-        backfill_days = 10
+        fetch_start = (today - timedelta(days=10)).isoformat()
         logger.info("  Keine OHLCV-Daten - hole letzte 10 Tage")
 
     if dry_run:
@@ -300,48 +287,59 @@ async def step_ohlcv(logger, status, dry_run=False):
         return True
 
     try:
-        from src.data_providers.tradier import TradierProvider
-        from src.data_providers.local_db import LocalDBProvider
+        import yfinance as yf
         from src.config.watchlist_loader import get_watchlist_loader
 
         symbols = get_watchlist_loader().get_all_symbols()
-        logger.info(f"  {len(symbols)} Symbole x {backfill_days} Tage")
+        logger.info(f"  {len(symbols)} Symbole ab {fetch_start}")
 
-        local_db = LocalDBProvider()
-        provider = TradierProvider(api_key=api_key)
+        conn = sqlite3.connect(str(DB_PATH))
+        saved_count = 0
+        errors = 0
 
-        try:
-            connected = await provider.connect()
-            if not connected:
-                logger.error("  Tradier-Verbindung fehlgeschlagen")
-                return False
+        for i, symbol in enumerate(symbols, 1):
+            try:
+                ticker = yf.Ticker(symbol)
+                hist = ticker.history(start=fetch_start, end=today.isoformat())
+                if hist.empty:
+                    continue
+                inserted = 0
+                for idx, row in hist.iterrows():
+                    d = idx.strftime("%Y-%m-%d")
+                    cur = conn.execute(
+                        "INSERT OR IGNORE INTO daily_prices "
+                        "(symbol, quote_date, open, high, low, close, volume, source) "
+                        "VALUES (?,?,?,?,?,?,?,?)",
+                        (
+                            symbol,
+                            d,
+                            round(row["Open"], 2),
+                            round(row["High"], 2),
+                            round(row["Low"], 2),
+                            round(row["Close"], 2),
+                            int(row["Volume"]),
+                            "yfinance",
+                        ),
+                    )
+                    if cur.rowcount > 0:
+                        inserted += 1
+                if inserted > 0:
+                    saved_count += 1
+                if i % 50 == 0:
+                    conn.commit()
+                    pct = i / len(symbols) * 100
+                    logger.info(f"  [{pct:5.1f}%] {saved_count} Symbole gespeichert")
+                time.sleep(0.15)  # Rate limit yfinance
+            except Exception as e:
+                errors += 1
+                logger.debug(f"  {symbol}: {e}")
 
-            saved_count = 0
-            errors = 0
-
-            for i, symbol in enumerate(symbols, 1):
-                try:
-                    bars = await provider.get_historical(symbol, days=backfill_days)
-                    if bars:
-                        count = await local_db.save_daily_prices(symbol, bars)
-                        if count > 0:
-                            saved_count += 1
-                    if i % 50 == 0:
-                        pct = i / len(symbols) * 100
-                        logger.info(f"  [{pct:5.1f}%] {saved_count} Symbole gespeichert")
-                    # Rate limit
-                    await asyncio.sleep(0.3)
-                except Exception as e:
-                    errors += 1
-                    logger.debug(f"  {symbol}: {e}")
-
-            logger.info(f"  +{saved_count} Symbole mit neuen OHLCV-Daten")
-            if errors:
-                logger.warning(f"  {errors} Fehler")
-            return True
-
-        finally:
-            await provider.disconnect()
+        conn.commit()
+        conn.close()
+        logger.info(f"  +{saved_count} Symbole mit neuen OHLCV-Daten")
+        if errors:
+            logger.warning(f"  {errors} Fehler")
+        return True
 
     except Exception as e:
         logger.error(f"  Fehler: {e}")
