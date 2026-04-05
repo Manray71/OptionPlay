@@ -256,11 +256,24 @@ async def handle_vix(server: Any, arguments: ToolArguments) -> str:
 
 @tool_registry.register(
     name="optionplay_regime_status",
-    description="Get current VIX regime status with WF-trained model recommendations. Shows regime, trading parameters, enabled strategies, and stability thresholds.",
-    input_schema=EMPTY_SCHEMA,
+    description="Get current VIX regime status. Use version='v2' for continuous interpolation model with term structure and trend overlays. Default shows WF-trained model recommendations.",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "version": {
+                "type": "string",
+                "description": "Regime model version: 'v1' (default, trained model) or 'v2' (continuous interpolation)",
+                "enum": ["v1", "v2"],
+                "default": "v1",
+            }
+        },
+    },
     aliases=["regime"],
 )
 async def handle_regime_status(server: Any, arguments: ToolArguments) -> str:
+    version = arguments.get("version", "v1")
+    if version == "v2":
+        return await server.handlers.vix.get_regime_status_v2()
     return await server.handlers.vix.get_regime_status()
 
 

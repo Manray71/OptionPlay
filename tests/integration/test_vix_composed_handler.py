@@ -420,7 +420,9 @@ class TestVixHandlerSectorStatus:
         """Test get_sector_status returns formatted markdown."""
         result = await vix_handler.get_sector_status()
 
-        assert "Sector Momentum Status" in result
+        # Accepts both v1 ("Sector Momentum Status") and v2 ("Sector Relative Strength")
+        assert "Sector" in result
+        assert ("Momentum Status" in result or "Relative Strength" in result)
 
 
 class TestVixHandlerCaching:
