@@ -226,6 +226,12 @@ class ScanConfig:
     )
     fundamentals_whitelist: List[str] = field(default_factory=list)  # Überschreibt alle Filter
 
+    # =========================================================================
+    # VIX REGIME V2 + SECTOR RS (Phase 2)
+    # =========================================================================
+    enable_regime_v2: bool = False  # Use v2 interpolated min_score gate
+    enable_sector_rs: bool = False  # Apply additive Sector RS modifier
+
 
 def _get_default_blacklist_scanner() -> List[str]:
     """Lädt die Default-Blacklist aus fundamentals_constants."""
@@ -375,6 +381,20 @@ class MultiStrategyScanner:
         self._fundamentals_manager: Optional["SymbolFundamentalsManager"] = None
         if self.config.enable_fundamentals_filter and get_fundamentals_manager is not None:
             self._load_fundamentals_cache()
+
+        # Sector RS Service (Phase 2 — lazy init, additive modifier)
+        self._sector_rs_service = None
+        if self.config.enable_sector_rs:
+            try:
+                from ..services.sector_rs import SectorRSService
+
+                self._sector_rs_service = SectorRSService()
+                logger.info("SectorRS service enabled for additive score modifiers")
+            except ImportError:
+                logger.debug("SectorRS service not available")
+
+        # VIX Regime v2 params (cached per scan, not per symbol)
+        self._regime_v2_params = None
 
         # BatchScorer (Step 11 - vectorized re-scoring)
         self._batch_scorer = None
@@ -649,10 +669,43 @@ class MultiStrategyScanner:
             regime: Regime-Name (low_vol, normal, elevated, high_vol, danger)
         """
         self._regime_cache = regime
+        # Reset v2 params so they're recomputed with latest VIX
+        self._regime_v2_params = None
+
+    async def prefetch_sector_rs(self) -> None:
+        """
+        Pre-fetch Sector RS data before scan (call once, cached for TTL).
+
+        This should be called before scan_async() when enable_sector_rs=True,
+        so the cache is warm when analyze_symbol() needs it.
+        """
+        if self._sector_rs_service is not None:
+            try:
+                await self._sector_rs_service.get_all_sector_rs()
+                logger.info("Sector RS data prefetched for scan")
+            except Exception as e:
+                logger.debug(f"Sector RS prefetch failed: {e}")
 
     def _get_regime(self) -> str:
         """Returns cached regime or 'normal' as default."""
         return getattr(self, "_regime_cache", "normal")
+
+    def _get_regime_v2_params(self):
+        """Get cached VIX Regime v2 params (computed once per scan)."""
+        if self._regime_v2_params is not None:
+            return self._regime_v2_params
+        if not self.config.enable_regime_v2:
+            return None
+        try:
+            from ..services.vix_regime import get_regime_params
+
+            vix = self._vix_cache
+            if vix is not None:
+                self._regime_v2_params = get_regime_params(vix)
+                return self._regime_v2_params
+        except ImportError:
+            pass
+        return None
 
     def _get_sector(self, symbol: str) -> Optional[str]:
         """Looks up sector for a symbol from fundamentals."""
@@ -1074,6 +1127,38 @@ class MultiStrategyScanner:
                     if signal.details is not None:
                         signal.details["vix_score_multiplier"] = resolved.vix_score_multiplier
                         signal.details["pre_vix_score"] = original_score
+
+                # Sector RS additive modifier (Phase 2)
+                if self._sector_rs_service is not None and context is not None:
+                    sector = getattr(context, "sector", None)
+                    if sector:
+                        try:
+                            from ..services.sector_rs import normalize_sector_name
+
+                            canonical = normalize_sector_name(sector)
+                            rs = self._sector_rs_service._cache.get(canonical)
+                            if rs is not None and rs.score_modifier != 0.0:
+                                pre_rs_score = signal.score
+                                signal.score = round(signal.score + rs.score_modifier, 1)
+                                if signal.details is not None:
+                                    signal.details["sector_rs_modifier"] = rs.score_modifier
+                                    signal.details["sector_rs_quadrant"] = rs.quadrant.value
+                                    signal.details["pre_sector_rs_score"] = pre_rs_score
+                        except Exception:
+                            pass
+
+                # VIX Regime v2 min_score gate (Phase 2)
+                v2_params = self._get_regime_v2_params()
+                if v2_params is not None:
+                    if signal.score < v2_params.min_score:
+                        logger.debug(
+                            f"Skipping {symbol}/{strategy_name}: score {signal.score:.1f} "
+                            f"< v2 min_score {v2_params.min_score:.1f}"
+                        )
+                        continue
+                    if signal.details is not None:
+                        signal.details["regime_v2_label"] = v2_params.regime_label.value
+                        signal.details["regime_v2_min_score"] = v2_params.min_score
 
                 # Reliability Scoring (Phase 3)
                 if self._reliability_scorer and signal.score >= self.config.min_score:
