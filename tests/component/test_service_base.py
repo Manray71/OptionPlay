@@ -260,7 +260,7 @@ class TestServiceContextProvider:
 
     @pytest.mark.asyncio
     async def test_get_provider_lazy_creates_provider(self, context):
-        """Test get_provider creates MarketDataProvider lazily."""
+        """Test get_provider creates IBKRDataProvider lazily."""
         assert context._provider is None
 
         with patch('src.services.base.get_config') as mock_config:
@@ -275,7 +275,7 @@ class TestServiceContextProvider:
             mock_provider_class.return_value = mock_provider_instance
 
             with patch(
-                'src.data_providers.marketdata.MarketDataProvider',
+                'src.data_providers.ibkr_provider.IBKRDataProvider',
                 mock_provider_class
             ):
                 provider = await context.get_provider()

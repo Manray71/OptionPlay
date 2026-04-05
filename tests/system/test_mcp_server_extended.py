@@ -243,46 +243,33 @@ class TestTradierConnection:
     """Tests for Tradier provider connection."""
 
     @pytest.mark.asyncio
-    async def test_ensure_tradier_no_key_returns_none(self, mock_api_key):
-        """Test: No Tradier key returns None."""
+    async def test_ensure_ibkr_connection_failure_logs_warning(self, mock_api_key):
+        """Test: IBKR connection failure logs warning."""
         with patch('src.mcp_server.get_config', return_value=MockConfig()):
-            server = OptionPlayServer()
-            server._tradier_api_key = None
-
-            result = await server._ensure_tradier_connected()
-
-            assert result is None
-
-    @pytest.mark.asyncio
-    async def test_ensure_tradier_connection_failure_logs_warning(self, mock_api_key):
-        """Test: Tradier connection failure logs warning."""
-        with patch('src.mcp_server.get_config', return_value=MockConfig()):
-            with patch('src.mcp_server.TradierProvider') as mock_tradier:
+            with patch('src.mcp_server.IBKRDataProvider') as mock_ibkr:
                 mock_provider = AsyncMock()
                 mock_provider.connect = AsyncMock(return_value=False)
-                mock_tradier.return_value = mock_provider
+                mock_ibkr.return_value = mock_provider
 
                 server = OptionPlayServer()
-                server._tradier_api_key = "test_tradier_key"
 
-                result = await server._ensure_tradier_connected()
+                result = await server._ensure_ibkr_connected()
 
                 assert result is None
-                assert server._tradier_connected is False
+                assert server._ibkr_connected is False
 
     @pytest.mark.asyncio
-    async def test_ensure_tradier_connection_error_handled(self, mock_api_key):
-        """Test: Tradier connection error is handled gracefully."""
+    async def test_ensure_ibkr_connection_error_handled(self, mock_api_key):
+        """Test: IBKR connection error is handled gracefully."""
         with patch('src.mcp_server.get_config', return_value=MockConfig()):
-            with patch('src.mcp_server.TradierProvider') as mock_tradier:
+            with patch('src.mcp_server.IBKRDataProvider') as mock_ibkr:
                 mock_provider = AsyncMock()
                 mock_provider.connect = AsyncMock(side_effect=ConnectionError("Network error"))
-                mock_tradier.return_value = mock_provider
+                mock_ibkr.return_value = mock_provider
 
                 server = OptionPlayServer()
-                server._tradier_api_key = "test_tradier_key"
 
-                result = await server._ensure_tradier_connected()
+                result = await server._ensure_ibkr_connected()
 
                 assert result is None
 
@@ -518,7 +505,7 @@ class TestScannerMethods:
     def test_get_multi_scanner_iv_filter_disabled_without_tradier(self, mock_api_key, mock_container):
         """Test: IV filter disabled when Tradier not connected."""
         server = OptionPlayServer(container=mock_container)
-        server._tradier_connected = False
+        server._ibkr_connected = False
 
         # Even if config has IV filter enabled
         server._config.settings.scanner.enable_iv_filter = True
@@ -552,19 +539,18 @@ class TestHealthCheck:
             mock_formatters.health_check.format.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_health_check_with_tradier_key(self, mock_api_key, mock_container):
-        """Test: Health check includes Tradier info when configured."""
+    async def test_health_check_with_ibkr_connected(self, mock_api_key, mock_container):
+        """Test: Health check includes IBKR info when connected."""
         with patch('src.mcp_server.formatters') as mock_formatters:
-            mock_formatters.health_check.format.return_value = "Health with Tradier: OK"
+            mock_formatters.health_check.format.return_value = "Health with IBKR: OK"
 
             server = OptionPlayServer(container=mock_container)
-            server._tradier_api_key = "test_tradier_key"
-            server._tradier_connected = True
+            server._ibkr_connected = True
             server._local_db_enabled = False
 
             result = await server.health_check()
 
-            assert result == "Health with Tradier: OK"
+            assert result == "Health with IBKR: OK"
             # Verify the HealthCheckData was passed with Tradier info
             call_args = mock_formatters.health_check.format.call_args
             health_data = call_args[0][0]
@@ -610,7 +596,7 @@ class TestHealthCheck:
                     # Verify IBKR info was included
                     call_args = mock_formatters.health_check.format.call_args
                     health_data = call_args[0][0]
-                    assert health_data.ibkr_available is True
+                    assert health_data.tradier_available is True
                     assert health_data.ibkr_host == "127.0.0.1"
                     assert health_data.ibkr_port == 7497
 
@@ -625,9 +611,9 @@ class TestUtilityMethods:
     def test_get_active_provider_name_tradier(self, mock_api_key, mock_container):
         """Test: Returns Tradier when connected."""
         server = OptionPlayServer(container=mock_container)
-        server._tradier_connected = True
+        server._ibkr_connected = True
 
-        assert server._get_active_provider_name() == "Tradier"
+        assert server._get_active_provider_name() == "IBKR"
 
     def test_get_watchlist_info(self, mock_api_key, mock_container):
         """Test: Watchlist info formatting."""

@@ -20,18 +20,19 @@ class EarningsSource(Enum):
 
     YFINANCE = "yfinance"
     YAHOO_SCRAPE = "yahoo_scrape"
-    TRADIER = "tradier"
     MANUAL = "manual"
     UNKNOWN = "unknown"
+    TRADIER = "tradier"  # Legacy
 
 
 class IVSource(Enum):
     """Datenquelle für IV-Daten"""
 
-    TRADIER = "tradier"
+    IBKR = "ibkr"
     CBOE = "cboe"
     CALCULATED = "calculated"
     UNKNOWN = "unknown"
+    TRADIER = "tradier"  # Legacy
 
 
 @dataclass

@@ -37,7 +37,7 @@ from ..utils.rate_limiter import get_marketdata_limiter
 from ..utils.secure_config import get_api_key, mask_api_key
 
 if TYPE_CHECKING:
-    from ..data_providers.marketdata import MarketDataProvider
+    from ..data_providers.ibkr_provider import IBKRDataProvider
     from .base import ServiceContext
     from .options_service import OptionsService
     from .quote_service import QuoteService
@@ -74,7 +74,7 @@ class ServerCore:
     _api_key: str = field(default="", repr=False)
 
     # Provider (lazy-loaded)
-    _provider: Optional["MarketDataProvider"] = field(default=None, repr=False)
+    _provider: Optional["IBKRDataProvider"] = field(default=None, repr=False)
 
     # Services (lazy-initialized)
     _quote_service: Optional["QuoteService"] = field(default=None, repr=False)
@@ -187,7 +187,7 @@ class ServerCore:
         return self._scanner_service
 
     @property
-    def provider(self) -> Optional["MarketDataProvider"]:
+    def provider(self) -> Optional["IBKRDataProvider"]:
         """Data Provider (may be None if not connected)."""
         return self._provider
 
@@ -230,9 +230,9 @@ class ServerCore:
 
             # Initialize provider
             if self._provider is None:
-                from ..data_providers.marketdata import MarketDataProvider
+                from ..data_providers.ibkr_provider import IBKRDataProvider
 
-                self._provider = MarketDataProvider(self._api_key)
+                from ..data_providers.ibkr_provider import IBKRDataProvider; self._provider = IBKRDataProvider()
 
             # Connect with rate limiting
             if self.container and self.container.rate_limiter:
@@ -278,7 +278,7 @@ class ServerCore:
         self.state.connection.mark_disconnected()
         logger.info("Disconnected")
 
-    async def ensure_connected(self) -> "MarketDataProvider":
+    async def ensure_connected(self) -> "IBKRDataProvider":
         """
         Stellt sicher, dass Provider verbunden ist.
 

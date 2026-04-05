@@ -128,8 +128,8 @@ def server(mock_api_key, mock_provider):
             })
         )
         server = OptionPlayServer(api_key="test_key")
-        server._tradier_provider = mock_provider
-        server._tradier_connected = True
+        server._ibkr_provider = mock_provider
+        server._ibkr_connected = True
         server._connected = True
         yield server
 
@@ -138,10 +138,11 @@ class TestServerInitialization:
     """Test server initialization."""
     
     def test_init_with_api_key(self, mock_api_key):
-        """Test initialization with API key."""
+        """Test initialization — IBKR needs no API key."""
         with patch('src.mcp_server.get_marketdata_limiter'):
             server = OptionPlayServer(api_key="explicit_key")
-            assert server._tradier_api_key is not None or server._provider is None
+            # IBKR provider is lazy-initialized, no API key needed
+            assert server._ibkr_provider is None or server._provider is None
 
     def test_version(self, server):
         """Test server version."""

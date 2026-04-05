@@ -27,12 +27,13 @@ IV_HISTORY_DAYS = 252  # 1 Jahr Trading-Tage
 class IVSource(Enum):
     """Datenquelle für IV"""
 
-    TRADIER = "tradier"
-    YAHOO = "yahoo"
     IBKR = "ibkr"
-    MARKETDATA = "marketdata"
+    YAHOO = "yahoo"
     MANUAL = "manual"
     UNKNOWN = "unknown"
+    # Legacy values (kept for backward compat with existing DB data)
+    TRADIER = "tradier"
+    MARKETDATA = "marketdata"
 
 
 # =============================================================================
@@ -615,7 +616,7 @@ class IVFetcher:
         atm_iv = self.extract_atm_iv_from_chain(options_chain, underlying_price)
 
         if atm_iv:
-            self.cache.add_iv_point(symbol, atm_iv, IVSource.TRADIER)
+            self.cache.add_iv_point(symbol, atm_iv, IVSource.IBKR)
 
         return atm_iv
 

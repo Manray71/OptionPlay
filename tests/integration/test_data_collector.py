@@ -72,7 +72,7 @@ def mock_vix_bars():
 
 @pytest.fixture
 def mock_provider(mock_bars, mock_vix_bars):
-    """Erzeugt Mock MarketDataProvider"""
+    """Erzeugt Mock IBKRDataProvider"""
     provider = AsyncMock()
     provider.get_historical = AsyncMock(return_value=mock_bars)
     provider.get_index_candles = AsyncMock(return_value=mock_vix_bars)
@@ -1072,10 +1072,10 @@ class TestRunDailyCollection:
     async def test_run_daily_collection_with_symbols(self, temp_db):
         """Test run_daily_collection with explicit symbols"""
         # The import happens inside run_daily_collection, so we need to patch where it's imported
-        with patch.dict('sys.modules', {'src.data_providers.marketdata': MagicMock()}):
+        with patch.dict('sys.modules', {'src.data_providers.ibkr_provider': MagicMock()}):
             # Import after patching
             import sys
-            mock_module = sys.modules['src.data_providers.marketdata']
+            mock_module = sys.modules['src.data_providers.ibkr_provider']
 
             # Setup mock provider
             mock_instance = AsyncMock()
@@ -1085,7 +1085,7 @@ class TestRunDailyCollection:
             mock_instance.get_index_candles = AsyncMock(return_value=[
                 MockBar(date.today(), 18, 20, 17, 19, 0)
             ])
-            mock_module.MarketDataProvider.return_value = mock_instance
+            mock_module.IBKRDataProvider.return_value = mock_instance
             mock_module.MarketDataConfig.return_value = MagicMock()
 
             result = await run_daily_collection(
@@ -1100,16 +1100,16 @@ class TestRunDailyCollection:
     @pytest.mark.asyncio
     async def test_run_daily_collection_with_watchlist(self, temp_watchlist, temp_db):
         """Test run_daily_collection with watchlist"""
-        with patch.dict('sys.modules', {'src.data_providers.marketdata': MagicMock()}):
+        with patch.dict('sys.modules', {'src.data_providers.ibkr_provider': MagicMock()}):
             import sys
-            mock_module = sys.modules['src.data_providers.marketdata']
+            mock_module = sys.modules['src.data_providers.ibkr_provider']
 
             mock_instance = AsyncMock()
             mock_instance.get_historical = AsyncMock(return_value=[
                 MockBar(date.today(), 100, 105, 95, 102, 1000000)
             ])
             mock_instance.get_index_candles = AsyncMock(return_value=[])
-            mock_module.MarketDataProvider.return_value = mock_instance
+            mock_module.IBKRDataProvider.return_value = mock_instance
             mock_module.MarketDataConfig.return_value = MagicMock()
 
             result = await run_daily_collection(
@@ -1123,14 +1123,14 @@ class TestRunDailyCollection:
     @pytest.mark.asyncio
     async def test_run_daily_collection_closes_on_error(self, temp_db):
         """Test that provider is closed even on error"""
-        with patch.dict('sys.modules', {'src.data_providers.marketdata': MagicMock()}):
+        with patch.dict('sys.modules', {'src.data_providers.ibkr_provider': MagicMock()}):
             import sys
-            mock_module = sys.modules['src.data_providers.marketdata']
+            mock_module = sys.modules['src.data_providers.ibkr_provider']
 
             mock_instance = AsyncMock()
             mock_instance.connect = AsyncMock(side_effect=Exception("Connection failed"))
             mock_instance.close = AsyncMock()
-            mock_module.MarketDataProvider.return_value = mock_instance
+            mock_module.IBKRDataProvider.return_value = mock_instance
             mock_module.MarketDataConfig.return_value = MagicMock()
 
             with pytest.raises(Exception, match="Connection failed"):

@@ -333,8 +333,8 @@ class TestGetOptionsChain:
                 self._config = MockConfig()
                 self._rate_limiter = MockRateLimiter()
                 self._orchestrator = MockOrchestrator()
-                self._tradier_connected = False
-                self._tradier_provider = None
+                self._ibkr_connected = False
+                self._ibkr_provider = None
                 self._ibkr_bridge = None
 
             async def _ensure_connected(self):
@@ -365,8 +365,8 @@ class TestGetOptionsChain:
             def __init__(self):
                 self._config = MockConfig()
                 self._rate_limiter = MockRateLimiter()
-                self._tradier_connected = False
-                self._tradier_provider = None
+                self._ibkr_connected = False
+                self._ibkr_provider = None
                 self._ibkr_bridge = None
 
             async def _ensure_connected(self):
@@ -401,8 +401,8 @@ class TestGetOptionsChain:
             def __init__(self):
                 self._config = MockConfig()
                 self._rate_limiter = MockRateLimiter()
-                self._tradier_connected = False
-                self._tradier_provider = None
+                self._ibkr_connected = False
+                self._ibkr_provider = None
                 self._ibkr_bridge = None
 
             async def _ensure_connected(self):
@@ -434,8 +434,8 @@ class TestGetOptionsChain:
             def __init__(self):
                 self._config = MockConfig()
                 self._rate_limiter = MockRateLimiter()
-                self._tradier_connected = False
-                self._tradier_provider = None
+                self._ibkr_connected = False
+                self._ibkr_provider = None
                 self._ibkr_bridge = None
 
             async def _ensure_connected(self):
@@ -467,8 +467,8 @@ class TestGetOptionsChain:
             def __init__(self):
                 self._config = MockConfig()
                 self._rate_limiter = MockRateLimiter()
-                self._tradier_connected = False
-                self._tradier_provider = None
+                self._ibkr_connected = False
+                self._ibkr_provider = None
                 self._ibkr_bridge = None
 
             async def _ensure_connected(self):
@@ -497,8 +497,8 @@ class TestGetOptionsChain:
             def __init__(self):
                 self._config = MockConfig()
                 self._rate_limiter = MockRateLimiter()
-                self._tradier_connected = False
-                self._tradier_provider = None
+                self._ibkr_connected = False
+                self._ibkr_provider = None
                 self._ibkr_bridge = None
 
             async def _ensure_connected(self):
@@ -538,8 +538,8 @@ class TestGetExpirations:
             def __init__(self):
                 self._config = MockConfig()
                 self._rate_limiter = MockRateLimiter()
-                self._tradier_connected = False
-                self._tradier_provider = None
+                self._ibkr_connected = False
+                self._ibkr_provider = None
 
             async def _ensure_connected(self):
                 mock_provider = MagicMock()
@@ -567,9 +567,9 @@ class TestGetExpirations:
             def __init__(self):
                 self._config = MockConfig()
                 self._rate_limiter = MockRateLimiter()
-                self._tradier_connected = True
-                self._tradier_provider = MagicMock()
-                self._tradier_provider.get_expirations = AsyncMock(return_value=[
+                self._ibkr_connected = True
+                self._ibkr_provider = MagicMock()
+                self._ibkr_provider.get_expirations = AsyncMock(return_value=[
                     date.today() + timedelta(days=30),
                 ])
                 self._marketdata_called = False
@@ -585,7 +585,7 @@ class TestGetExpirations:
         result = await test_handler.get_expirations("AAPL")
 
         # Tradier should be called
-        test_handler._tradier_provider.get_expirations.assert_called_once_with("AAPL")
+        test_handler._ibkr_provider.get_expirations.assert_called_once_with("AAPL")
         assert "1" in result  # Total: 1
 
     @pytest.mark.asyncio
@@ -597,9 +597,9 @@ class TestGetExpirations:
             def __init__(self):
                 self._config = MockConfig()
                 self._rate_limiter = MockRateLimiter()
-                self._tradier_connected = True
-                self._tradier_provider = MagicMock()
-                self._tradier_provider.get_expirations = AsyncMock(side_effect=Exception("Tradier error"))
+                self._ibkr_connected = True
+                self._ibkr_provider = MagicMock()
+                self._ibkr_provider.get_expirations = AsyncMock(side_effect=Exception("Tradier error"))
 
             async def _ensure_connected(self):
                 mock_provider = MagicMock()
@@ -626,8 +626,8 @@ class TestGetExpirations:
             def __init__(self):
                 self._config = MockConfig()
                 self._rate_limiter = MockRateLimiter()
-                self._tradier_connected = False
-                self._tradier_provider = None
+                self._ibkr_connected = False
+                self._ibkr_provider = None
 
             async def _ensure_connected(self):
                 mock_provider = MagicMock()
@@ -649,8 +649,8 @@ class TestGetExpirations:
             def __init__(self):
                 self._config = MockConfig()
                 self._rate_limiter = MockRateLimiter()
-                self._tradier_connected = False
-                self._tradier_provider = None
+                self._ibkr_connected = False
+                self._ibkr_provider = None
 
             async def _ensure_connected(self):
                 mock_provider = MagicMock()
@@ -699,7 +699,7 @@ class TestGetEarnings:
             assert call_args[1]['source'] == "etf"
 
     @pytest.mark.asyncio
-    async def test_get_earnings_from_marketdata(self):
+    async def test_get_earnings_from_provider(self):
         """Test earnings from Marketdata provider."""
         from src.handlers.quote import QuoteHandlerMixin
 
@@ -1342,8 +1342,8 @@ class TestErrorHandling:
             def __init__(self):
                 self._config = MockConfig()
                 self._rate_limiter = MockRateLimiter()
-                self._tradier_connected = False
-                self._tradier_provider = None
+                self._ibkr_connected = False
+                self._ibkr_provider = None
                 self._ibkr_bridge = None
 
             async def _ensure_connected(self):
@@ -1371,8 +1371,8 @@ class TestErrorHandling:
                 self._config = MockConfig()
                 self._rate_limiter = MagicMock()
                 self._rate_limiter.acquire = AsyncMock(side_effect=Exception("Rate limit exceeded"))
-                self._tradier_connected = False
-                self._tradier_provider = None
+                self._ibkr_connected = False
+                self._ibkr_provider = None
 
             async def _ensure_connected(self):
                 return MagicMock()
@@ -1447,8 +1447,8 @@ class TestResponseFormatting:
             def __init__(self):
                 self._config = MockConfig()
                 self._rate_limiter = MockRateLimiter()
-                self._tradier_connected = False
-                self._tradier_provider = None
+                self._ibkr_connected = False
+                self._ibkr_provider = None
 
             async def _ensure_connected(self):
                 mock_provider = MagicMock()
@@ -1507,9 +1507,9 @@ class TestProviderSelection:
             def __init__(self):
                 self._config = MockConfig()
                 self._rate_limiter = MockRateLimiter()
-                self._tradier_connected = True
-                self._tradier_provider = MagicMock()
-                self._tradier_provider.get_expirations = AsyncMock(return_value=[
+                self._ibkr_connected = True
+                self._ibkr_provider = MagicMock()
+                self._ibkr_provider.get_expirations = AsyncMock(return_value=[
                     date.today() + timedelta(days=30)
                 ])
                 self._marketdata_called = False
@@ -1525,7 +1525,7 @@ class TestProviderSelection:
         await test_handler.get_expirations("AAPL")
 
         # Tradier should be called
-        test_handler._tradier_provider.get_expirations.assert_called_once()
+        test_handler._ibkr_provider.get_expirations.assert_called_once()
         # Marketdata should NOT be called since Tradier succeeded
         assert not test_handler._marketdata_called
 
@@ -1538,8 +1538,8 @@ class TestProviderSelection:
             def __init__(self):
                 self._config = MockConfig()
                 self._rate_limiter = MockRateLimiter()
-                self._tradier_connected = False
-                self._tradier_provider = None
+                self._ibkr_connected = False
+                self._ibkr_provider = None
                 self._marketdata_called = False
 
             async def _ensure_connected(self):
@@ -1573,8 +1573,8 @@ class TestIntegration:
             def __init__(self):
                 self._config = MockConfig()
                 self._rate_limiter = MockRateLimiter()
-                self._tradier_connected = False
-                self._tradier_provider = None
+                self._ibkr_connected = False
+                self._ibkr_provider = None
                 self._ibkr_bridge = None
                 self._earnings_fetcher = None
 

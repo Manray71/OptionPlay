@@ -27,7 +27,7 @@ class TestServerContext:
         return {
             "config": MagicMock(),
             "provider": MagicMock(),
-            "tradier_provider": MagicMock(),
+            "ibkr_provider": MagicMock(),
             "rate_limiter": MagicMock(),
             "circuit_breaker": MagicMock(),
             "historical_cache": MagicMock(),
@@ -42,7 +42,7 @@ class TestServerContext:
 
         assert ctx.config is args["config"]
         assert ctx.provider is args["provider"]
-        assert ctx.tradier_provider is args["tradier_provider"]
+        assert ctx.ibkr_provider is args["ibkr_provider"]
         assert ctx.rate_limiter is args["rate_limiter"]
 
     def test_init_default_state(self):
@@ -51,7 +51,7 @@ class TestServerContext:
         ctx = ServerContext(**args)
 
         assert ctx.connected is False
-        assert ctx.tradier_connected is False
+        assert ctx.ibkr_connected is False
         assert ctx.current_vix is None
         assert ctx.vix_updated is None
 
@@ -104,7 +104,7 @@ class TestBaseHandler:
         return ServerContext(
             config=MagicMock(),
             provider=MagicMock(),
-            tradier_provider=MagicMock(),
+            ibkr_provider=MagicMock(),
             rate_limiter=MagicMock(),
             circuit_breaker=MagicMock(),
             historical_cache=MagicMock(),
@@ -126,12 +126,12 @@ class TestBaseHandler:
 
         assert handler.config is ctx.config
 
-    def test_tradier_provider_property(self):
-        """Test BaseHandler tradier_provider property."""
+    def test_ibkr_provider_property(self):
+        """Test BaseHandler ibkr_provider property."""
         ctx = self.create_context()
         handler = BaseHandler(ctx)
 
-        assert handler.tradier_provider is ctx.tradier_provider
+        assert handler.ibkr_provider is ctx.ibkr_provider
 
     def test_has_logger(self):
         """Test BaseHandler has logger."""
@@ -153,7 +153,7 @@ class TestHandlerContainer:
         return ServerContext(
             config=MagicMock(),
             provider=MagicMock(),
-            tradier_provider=MagicMock(),
+            ibkr_provider=MagicMock(),
             rate_limiter=MagicMock(),
             circuit_breaker=MagicMock(),
             historical_cache=MagicMock(),
@@ -249,14 +249,14 @@ class TestCreateHandlerContainerFromServer:
         server = MagicMock()
         server._config = MagicMock()
         server._provider = MagicMock()
-        server._tradier_provider = MagicMock()
+        server._ibkr_provider = MagicMock()
         server._rate_limiter = MagicMock()
         server._circuit_breaker = MagicMock()
         server._historical_cache = MagicMock()
         server._vix_selector = MagicMock()
         server._deduplicator = MagicMock()
         server._connected = True
-        server._tradier_connected = True
+        server._ibkr_connected = True
         server._current_vix = 18.5
         server._vix_updated = "2024-01-30T10:00:00"
         server._quote_cache = {"AAPL": {"price": 150.0}}
@@ -287,7 +287,7 @@ class TestCreateHandlerContainerFromServer:
         container = create_handler_container_from_server(server)
 
         assert container._context.provider is server._provider
-        assert container._context.tradier_provider is server._tradier_provider
+        assert container._context.ibkr_provider is server._ibkr_provider
 
     def test_copies_mutable_state(self):
         """Test function copies mutable state to context."""
@@ -295,7 +295,7 @@ class TestCreateHandlerContainerFromServer:
         container = create_handler_container_from_server(server)
 
         assert container._context.connected is True
-        assert container._context.tradier_connected is True
+        assert container._context.ibkr_connected is True
         assert container._context.current_vix == 18.5
 
     def test_copies_caches(self):
@@ -332,16 +332,16 @@ class TestCreateHandlerContainerFromServer:
         server._earnings_fetcher = None
 
         # Delete optional attributes
-        del server._tradier_provider
-        del server._tradier_connected
+        del server._ibkr_provider
+        del server._ibkr_connected
         del server._scanner
         del server._ibkr_bridge
         del server._container
 
         container = create_handler_container_from_server(server)
 
-        assert container._context.tradier_provider is None
-        assert container._context.tradier_connected is False
+        assert container._context.ibkr_provider is None
+        assert container._context.ibkr_connected is False
 
 
 if __name__ == "__main__":

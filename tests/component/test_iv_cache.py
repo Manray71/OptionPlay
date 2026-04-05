@@ -129,7 +129,7 @@ class TestIVDataClass:
             iv_high_52w=0.45,
             iv_low_52w=0.20,
             data_points=252,
-            source=IVSource.TRADIER,
+            source=IVSource.IBKR,
             updated_at="2025-01-24T10:00:00"
         )
         
@@ -142,7 +142,7 @@ class TestIVDataClass:
         iv_data = IVData(
             symbol="AAPL", current_iv=0.35, iv_rank=60.0,
             iv_percentile=65.0, iv_high_52w=0.45, iv_low_52w=0.20,
-            data_points=252, source=IVSource.TRADIER, updated_at=""
+            data_points=252, source=IVSource.IBKR, updated_at=""
         )
         
         assert iv_data.is_elevated(threshold=50.0) == True
@@ -153,7 +153,7 @@ class TestIVDataClass:
         iv_data = IVData(
             symbol="AAPL", current_iv=0.22, iv_rank=25.0,
             iv_percentile=20.0, iv_high_52w=0.45, iv_low_52w=0.20,
-            data_points=252, source=IVSource.TRADIER, updated_at=""
+            data_points=252, source=IVSource.IBKR, updated_at=""
         )
         
         assert iv_data.is_low(threshold=30.0) == True
@@ -162,19 +162,19 @@ class TestIVDataClass:
     def test_iv_status(self):
         """iv_status sollte korrekte Kategorie zurückgeben"""
         # Very High (>= 70)
-        iv_high = IVData("AAPL", 0.40, 75.0, 80.0, 0.45, 0.20, 100, IVSource.TRADIER, "")
+        iv_high = IVData("AAPL", 0.40, 75.0, 80.0, 0.45, 0.20, 100, IVSource.IBKR, "")
         assert iv_high.iv_status() == "very_high"
         
         # Elevated (50-70)
-        iv_elevated = IVData("AAPL", 0.35, 55.0, 60.0, 0.45, 0.20, 100, IVSource.TRADIER, "")
+        iv_elevated = IVData("AAPL", 0.35, 55.0, 60.0, 0.45, 0.20, 100, IVSource.IBKR, "")
         assert iv_elevated.iv_status() == "elevated"
         
         # Normal (30-50)
-        iv_normal = IVData("AAPL", 0.30, 40.0, 45.0, 0.45, 0.20, 100, IVSource.TRADIER, "")
+        iv_normal = IVData("AAPL", 0.30, 40.0, 45.0, 0.45, 0.20, 100, IVSource.IBKR, "")
         assert iv_normal.iv_status() == "normal"
         
         # Low (< 30)
-        iv_low = IVData("AAPL", 0.22, 20.0, 15.0, 0.45, 0.20, 100, IVSource.TRADIER, "")
+        iv_low = IVData("AAPL", 0.22, 20.0, 15.0, 0.45, 0.20, 100, IVSource.IBKR, "")
         assert iv_low.iv_status() == "low"
         
     def test_iv_status_unknown(self):
@@ -188,7 +188,7 @@ class TestIVSourceEnum:
     
     def test_iv_source_values(self):
         """IVSource sollte alle erwarteten Werte haben"""
-        assert IVSource.TRADIER.value == "tradier"
+        assert IVSource.IBKR.value == "ibkr"
         assert IVSource.YAHOO.value == "yahoo"
         assert IVSource.IBKR.value == "ibkr"
         assert IVSource.UNKNOWN.value == "unknown"

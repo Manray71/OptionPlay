@@ -75,7 +75,7 @@ def sample_iv_data():
         iv_high_52w=0.40,
         iv_low_52w=0.15,
         data_points=252,
-        source=IVSource.TRADIER,
+        source=IVSource.IBKR,
         updated_at=datetime.now().isoformat(),
     )
 
@@ -88,7 +88,7 @@ def sample_cache_entry():
         iv_high=0.30,
         iv_low=0.20,
         data_points=6,
-        source="tradier",
+        source="ibkr",
         updated=datetime.now().isoformat(),
     )
 
@@ -110,10 +110,10 @@ class TestIVSource:
 
     def test_enum_values(self):
         """Test enum values."""
-        assert IVSource.TRADIER.value == "tradier"
+        assert IVSource.IBKR.value == "ibkr"
         assert IVSource.YAHOO.value == "yahoo"
         assert IVSource.IBKR.value == "ibkr"
-        assert IVSource.MARKETDATA.value == "marketdata"
+        assert IVSource.IBKR.value == "ibkr"
         assert IVSource.MANUAL.value == "manual"
         assert IVSource.UNKNOWN.value == "unknown"
 
@@ -144,7 +144,7 @@ class TestIVData:
             iv_high_52w=0.40,
             iv_low_52w=0.20,
             data_points=100,
-            source=IVSource.TRADIER,
+            source=IVSource.IBKR,
             updated_at="2026-01-15",
         )
         assert data.is_elevated(threshold=50.0) is True
@@ -159,7 +159,7 @@ class TestIVData:
             iv_high_52w=0.40,
             iv_low_52w=0.15,
             data_points=100,
-            source=IVSource.TRADIER,
+            source=IVSource.IBKR,
             updated_at="2026-01-15",
         )
         assert data.is_elevated(threshold=50.0) is False
@@ -189,7 +189,7 @@ class TestIVData:
             iv_high_52w=0.40,
             iv_low_52w=0.12,
             data_points=100,
-            source=IVSource.TRADIER,
+            source=IVSource.IBKR,
             updated_at="2026-01-15",
         )
         assert data.is_low(threshold=30.0) is True
@@ -204,7 +204,7 @@ class TestIVData:
             iv_high_52w=0.40,
             iv_low_52w=0.15,
             data_points=100,
-            source=IVSource.TRADIER,
+            source=IVSource.IBKR,
             updated_at="2026-01-15",
         )
         assert data.is_low(threshold=30.0) is False
@@ -219,7 +219,7 @@ class TestIVData:
             iv_high_52w=0.50,
             iv_low_52w=0.15,
             data_points=100,
-            source=IVSource.TRADIER,
+            source=IVSource.IBKR,
             updated_at="2026-01-15",
         )
         assert data.iv_status() == "very_high"
@@ -234,7 +234,7 @@ class TestIVData:
             iv_high_52w=0.40,
             iv_low_52w=0.15,
             data_points=100,
-            source=IVSource.TRADIER,
+            source=IVSource.IBKR,
             updated_at="2026-01-15",
         )
         assert data.iv_status() == "elevated"
@@ -249,7 +249,7 @@ class TestIVData:
             iv_high_52w=0.40,
             iv_low_52w=0.15,
             data_points=100,
-            source=IVSource.TRADIER,
+            source=IVSource.IBKR,
             updated_at="2026-01-15",
         )
         assert data.iv_status() == "normal"
@@ -264,7 +264,7 @@ class TestIVData:
             iv_high_52w=0.40,
             iv_low_52w=0.12,
             data_points=100,
-            source=IVSource.TRADIER,
+            source=IVSource.IBKR,
             updated_at="2026-01-15",
         )
         assert data.iv_status() == "low"
@@ -295,7 +295,7 @@ class TestIVData:
         assert d["iv_percentile"] == 42.0
         assert d["iv_high_52w"] == 40.0  # Percent
         assert d["iv_low_52w"] == 15.0  # Percent
-        assert d["source"] == "tradier"
+        assert d["source"] == "ibkr"
 
     def test_to_dict_with_none_values(self):
         """Test to_dict with None values."""
@@ -330,7 +330,7 @@ class TestIVCacheEntry:
         assert entry.iv_high == 0.30
         assert entry.iv_low == 0.20
         assert entry.data_points == 6
-        assert entry.source == "tradier"
+        assert entry.source == "ibkr"
         assert len(entry.iv_history) == 6
 
 
@@ -489,7 +489,7 @@ class TestIVCache:
         cache_file = temp_cache_dir / "iv_cache.json"
         cache = IVCache(cache_file=cache_file)
 
-        cache.update_history("AAPL", small_iv_history, IVSource.TRADIER)
+        cache.update_history("AAPL", small_iv_history, IVSource.IBKR)
         result = cache.get_history("AAPL")
 
         assert result is not None
@@ -500,7 +500,7 @@ class TestIVCache:
         cache_file = temp_cache_dir / "iv_cache.json"
         cache = IVCache(cache_file=cache_file)
 
-        cache.update_history("AAPL", small_iv_history, IVSource.TRADIER)
+        cache.update_history("AAPL", small_iv_history, IVSource.IBKR)
         result = cache.get_iv_data("AAPL", current_iv=0.30)
 
         assert result is not None
@@ -513,8 +513,8 @@ class TestIVCache:
         cache_file = temp_cache_dir / "iv_cache.json"
         cache = IVCache(cache_file=cache_file)
 
-        cache.add_iv_point("AAPL", 0.25, IVSource.TRADIER)
-        cache.add_iv_point("AAPL", 0.30, IVSource.TRADIER)
+        cache.add_iv_point("AAPL", 0.25, IVSource.IBKR)
+        cache.add_iv_point("AAPL", 0.30, IVSource.IBKR)
 
         history = cache.get_history("AAPL")
         # May return empty if cache considers it stale or not enough data
@@ -526,9 +526,9 @@ class TestIVCache:
         cache = IVCache(cache_file=cache_file)
 
         # Should not crash with invalid values
-        cache.add_iv_point("AAPL", 0.0, IVSource.TRADIER)
-        cache.add_iv_point("AAPL", -0.1, IVSource.TRADIER)
-        cache.add_iv_point("AAPL", None, IVSource.TRADIER)
+        cache.add_iv_point("AAPL", 0.0, IVSource.IBKR)
+        cache.add_iv_point("AAPL", -0.1, IVSource.IBKR)
+        cache.add_iv_point("AAPL", None, IVSource.IBKR)
 
     def test_add_iv_points_batch(self, temp_cache_dir):
         """Test batch adding IV points."""
@@ -536,9 +536,9 @@ class TestIVCache:
         cache = IVCache(cache_file=cache_file)
 
         entries = [
-            ("AAPL", 0.25, IVSource.TRADIER),
-            ("MSFT", 0.22, IVSource.TRADIER),
-            ("GOOGL", 0.28, IVSource.TRADIER),
+            ("AAPL", 0.25, IVSource.IBKR),
+            ("MSFT", 0.22, IVSource.IBKR),
+            ("GOOGL", 0.28, IVSource.IBKR),
         ]
 
         added = cache.add_iv_points_batch(entries)
@@ -549,7 +549,7 @@ class TestIVCache:
         cache_file = temp_cache_dir / "iv_cache.json"
         cache = IVCache(cache_file=cache_file, max_age_days=14)
 
-        cache.update_history("AAPL", small_iv_history, IVSource.TRADIER)
+        cache.update_history("AAPL", small_iv_history, IVSource.IBKR)
         assert cache.is_fresh("AAPL") is True
         assert cache.is_fresh("NONEXISTENT") is False
 
@@ -558,7 +558,7 @@ class TestIVCache:
         cache_file = temp_cache_dir / "iv_cache.json"
         cache = IVCache(cache_file=cache_file)
 
-        cache.update_history("AAPL", small_iv_history, IVSource.TRADIER)
+        cache.update_history("AAPL", small_iv_history, IVSource.IBKR)
         age = cache.get_cache_age("AAPL")
 
         assert age is not None
@@ -569,7 +569,7 @@ class TestIVCache:
         cache_file = temp_cache_dir / "iv_cache.json"
         cache = IVCache(cache_file=cache_file)
 
-        cache.update_history("AAPL", small_iv_history, IVSource.TRADIER)
+        cache.update_history("AAPL", small_iv_history, IVSource.IBKR)
 
         stale = cache.get_stale_symbols(["AAPL", "MSFT", "GOOGL"])
         assert "AAPL" not in stale  # Fresh
@@ -581,7 +581,7 @@ class TestIVCache:
         cache_file = temp_cache_dir / "iv_cache.json"
         cache = IVCache(cache_file=cache_file)
 
-        cache.update_history("AAPL", small_iv_history, IVSource.TRADIER)
+        cache.update_history("AAPL", small_iv_history, IVSource.IBKR)
         cache.invalidate("AAPL")
 
         assert "AAPL" not in cache
@@ -591,7 +591,7 @@ class TestIVCache:
         cache_file = temp_cache_dir / "iv_cache.json"
         cache = IVCache(cache_file=cache_file)
 
-        cache.update_history("AAPL", small_iv_history, IVSource.TRADIER)
+        cache.update_history("AAPL", small_iv_history, IVSource.IBKR)
         stats = cache.stats()
 
         assert "total_symbols" in stats
@@ -603,8 +603,8 @@ class TestIVCache:
         cache_file = temp_cache_dir / "iv_cache.json"
         cache = IVCache(cache_file=cache_file)
 
-        cache.update_history("AAPL", small_iv_history, IVSource.TRADIER)
-        cache.update_history("MSFT", small_iv_history, IVSource.TRADIER)
+        cache.update_history("AAPL", small_iv_history, IVSource.IBKR)
+        cache.update_history("MSFT", small_iv_history, IVSource.IBKR)
 
         assert len(cache) == 2
 
@@ -613,7 +613,7 @@ class TestIVCache:
         cache_file = temp_cache_dir / "iv_cache.json"
         cache = IVCache(cache_file=cache_file)
 
-        cache.update_history("AAPL", small_iv_history, IVSource.TRADIER)
+        cache.update_history("AAPL", small_iv_history, IVSource.IBKR)
 
         assert "AAPL" in cache
         assert "aapl" in cache  # Case insensitive
@@ -629,7 +629,7 @@ class TestIVCachePersistence:
 
         # Create and populate cache
         cache1 = IVCache(cache_file=cache_file)
-        cache1.update_history("AAPL", small_iv_history, IVSource.TRADIER)
+        cache1.update_history("AAPL", small_iv_history, IVSource.IBKR)
 
         # Create new cache instance (should load from file)
         cache2 = IVCache(cache_file=cache_file)
@@ -678,7 +678,7 @@ class TestIVFetcher:
         """Test get_iv_rank with cached data."""
         cache_file = temp_cache_dir / "iv_cache.json"
         cache = IVCache(cache_file=cache_file)
-        cache.update_history("AAPL", small_iv_history, IVSource.TRADIER)
+        cache.update_history("AAPL", small_iv_history, IVSource.IBKR)
 
         fetcher = IVFetcher(cache=cache)
         iv_data = fetcher.get_iv_rank("AAPL", current_iv=0.30)
@@ -706,8 +706,8 @@ class TestIVFetcher:
         """Test get_iv_rank_many method."""
         cache_file = temp_cache_dir / "iv_cache.json"
         cache = IVCache(cache_file=cache_file)
-        cache.update_history("AAPL", small_iv_history, IVSource.TRADIER)
-        cache.update_history("MSFT", small_iv_history, IVSource.TRADIER)
+        cache.update_history("AAPL", small_iv_history, IVSource.IBKR)
+        cache.update_history("MSFT", small_iv_history, IVSource.IBKR)
 
         fetcher = IVFetcher(cache=cache)
         symbols_with_iv = [("AAPL", 0.30), ("MSFT", 0.25)]
@@ -823,7 +823,7 @@ class TestHistoricalIVFetcher:
         """Test get_stale_symbols method."""
         cache_file = temp_cache_dir / "iv_cache.json"
         cache = IVCache(cache_file=cache_file)
-        cache.update_history("AAPL", small_iv_history, IVSource.TRADIER)
+        cache.update_history("AAPL", small_iv_history, IVSource.IBKR)
 
         fetcher = HistoricalIVFetcher(cache=cache)
         stale = fetcher.get_stale_symbols(["AAPL", "MSFT"])

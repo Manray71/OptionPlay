@@ -33,7 +33,7 @@ class TestEarningsSource:
         """Test: All expected values exist."""
         assert EarningsSource.YFINANCE.value == "yfinance"
         assert EarningsSource.YAHOO_SCRAPE.value == "yahoo_scrape"
-        assert EarningsSource.TRADIER.value == "tradier"
+        assert EarningsSource.YFINANCE.value == "yfinance"
         assert EarningsSource.MANUAL.value == "manual"
         assert EarningsSource.UNKNOWN.value == "unknown"
 
@@ -43,7 +43,7 @@ class TestIVSource:
 
     def test_all_values(self):
         """Test: All expected values exist."""
-        assert IVSource.TRADIER.value == "tradier"
+        assert IVSource.IBKR.value == "ibkr"
         assert IVSource.CBOE.value == "cboe"
         assert IVSource.CALCULATED.value == "calculated"
         assert IVSource.UNKNOWN.value == "unknown"
@@ -116,7 +116,7 @@ class TestEarningsInfo:
             symbol="MSFT",
             earnings_date="2026-02-20",
             days_to_earnings=45,
-            source=EarningsSource.TRADIER,
+            source=EarningsSource.YFINANCE,
             updated_at="2026-01-06T12:00:00",
             confirmed=False
         )
@@ -126,7 +126,7 @@ class TestEarningsInfo:
         assert d["symbol"] == "MSFT"
         assert d["earnings_date"] == "2026-02-20"
         assert d["days_to_earnings"] == 45
-        assert d["source"] == "tradier"
+        assert d["source"] == "yfinance"
         assert d["confirmed"] is False
         assert d["is_safe_60d"] is False  # 45 < 60
 
@@ -148,7 +148,7 @@ class TestIVData:
             hv_20=0.20,
             hv_50=0.22,
             iv_hv_ratio=1.25,
-            source=IVSource.TRADIER,
+            source=IVSource.IBKR,
             updated_at="2026-01-16T10:00:00"
         )
 

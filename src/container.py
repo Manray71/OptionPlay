@@ -237,95 +237,67 @@ class ServiceContainer:
 
         return cls(config=get_config())
 
-    async def ensure_provider(self, api_key: Optional[str] = None) -> "MarketDataProvider":
+    async def ensure_provider(self, api_key: Optional[str] = None) -> "IBKRDataProvider":
         """
-        Ensure data provider is initialized and connected.
+        Ensure IBKR data provider is initialized and connected.
 
         Lazy-loads the provider on first call.
 
-        Args:
-            api_key: Optional API key override
-
         Returns:
-            Connected MarketDataProvider
+            Connected IBKRDataProvider
 
         Raises:
             ConnectionError: If unable to connect
         """
         if self.provider is None:
-            from .data_providers.marketdata import MarketDataProvider
-            from .utils.secure_config import get_api_key
+            from .data_providers.ibkr_provider import IBKRDataProvider
 
-            resolved_key = api_key or get_api_key("MARKETDATA_API_KEY")
-            self.provider = MarketDataProvider(api_key=resolved_key)
+            self.provider = IBKRDataProvider()
 
         if not await self.provider.is_connected():
             await self.provider.connect()
 
         return self.provider
 
-    async def ensure_tradier_provider(self, api_key: Optional[str] = None) -> "TradierProvider":
+    async def ensure_ibkr_provider(self, **kwargs) -> "IBKRDataProvider":
         """
-        Ensure Tradier provider is initialized and connected.
-
-        Lazy-loads the provider on first call.
-
-        Args:
-            api_key: Optional API key override
+        Ensure IBKR provider is initialized and connected.
 
         Returns:
-            Connected TradierProvider
+            Connected IBKRDataProvider
 
         Raises:
             ConnectionError: If unable to connect
-            ValueError: If API key not found
         """
-        if self.tradier_provider is None:
-            from .data_providers.tradier import TradierEnvironment, TradierProvider
-            from .utils.secure_config import get_api_key
+        if self.ibkr_provider is None:
+            from .data_providers.ibkr_provider import IBKRDataProvider
 
-            resolved_key = api_key or get_api_key("TRADIER_API_KEY")
-            if not resolved_key:
-                raise ValueError(
-                    "TRADIER_API_KEY required for Tradier provider. "
-                    "Set environment variable or create .env file."
-                )
+            self.ibkr_provider = IBKRDataProvider()
 
-            # Get environment from config
-            env = TradierEnvironment.SANDBOX
-            if self.config:
-                tradier_cfg = self.config.settings.tradier
-                if tradier_cfg.is_production:
-                    env = TradierEnvironment.PRODUCTION
-
-            self.tradier_provider = TradierProvider(api_key=resolved_key, environment=env)
-
-        if not await self.tradier_provider.is_connected():
-            connected = await self.tradier_provider.connect()
+        if not await self.ibkr_provider.is_connected():
+            connected = await self.ibkr_provider.connect()
             if not connected:
-                raise ConnectionError("Failed to connect to Tradier API")
+                raise ConnectionError("Failed to connect to IBKR")
 
-        return self.tradier_provider
+        return self.ibkr_provider
+
+    # Legacy alias
+    async def ensure_tradier_provider(self, api_key: Optional[str] = None) -> Any:
+        return await self.ensure_ibkr_provider()
 
     def is_tradier_configured(self) -> bool:
-        """Check if Tradier API key is configured."""
-        from .utils.secure_config import get_api_key
-
-        try:
-            key = get_api_key("TRADIER_API_KEY", required=False)
-            return bool(key)
-        except (KeyError, ValueError):
-            return False
+        """Check if IBKR is available (legacy name)."""
+        return True  # IBKR needs no API key
 
     async def disconnect(self) -> None:
         """Disconnect all services that have connections."""
         if self.provider and hasattr(self.provider, "disconnect"):
             await self.provider.disconnect()
-            logger.debug("Marketdata provider disconnected")
+            logger.debug("Provider disconnected")
 
-        if self.tradier_provider and hasattr(self.tradier_provider, "disconnect"):
-            await self.tradier_provider.disconnect()
-            logger.debug("Tradier provider disconnected")
+        if self.ibkr_provider and hasattr(self.ibkr_provider, "disconnect"):
+            await self.ibkr_provider.disconnect()
+            logger.debug("IBKR provider disconnected")
 
     def get_stats(self) -> dict:
         """

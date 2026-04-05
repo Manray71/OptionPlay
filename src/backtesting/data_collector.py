@@ -77,7 +77,7 @@ class DataCollector:
 
     Usage:
         from src.backtesting import DataCollector, CollectionConfig
-        from src.data_providers.marketdata import MarketDataProvider
+        from src.data_providers.ibkr_provider import IBKRDataProvider as MarketDataProvider
 
         # Provider erstellen
         provider = MarketDataProvider(api_key="...")
@@ -455,13 +455,12 @@ async def run_daily_collection(
     """
     # Import hier um zirkuläre Imports zu vermeiden
     try:
-        from ..data_providers.marketdata import MarketDataConfig, MarketDataProvider
+        from ..data_providers.ibkr_provider import IBKRDataProvider as MarketDataProvider
     except ImportError:
-        from src.data_providers.marketdata import MarketDataConfig, MarketDataProvider
+        from src.data_providers.ibkr_provider import IBKRDataProvider as MarketDataProvider
 
-    # Provider erstellen
-    config = MarketDataConfig(api_key=api_key)
-    provider = MarketDataProvider(config)
+    # Provider erstellen (IBKR braucht keine API-Key-Konfiguration)
+    provider = MarketDataProvider()
 
     try:
         await provider.connect()

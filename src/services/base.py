@@ -50,7 +50,7 @@ class ServiceContext:
     Attributes:
         api_key: Marketdata.app API Key
         config: Configuration (optional, falls back to get_config())
-        provider: Shared MarketDataProvider (lazy init)
+        provider: Shared IBKRDataProvider (lazy init)
         rate_limiter: Shared Rate Limiter
         circuit_breaker: Shared Circuit Breaker
         historical_cache: Shared Cache
@@ -62,7 +62,7 @@ class ServiceContext:
     rate_limiter: AdaptiveRateLimiter = field(default_factory=get_marketdata_limiter)
     historical_cache: Optional[HistoricalCache] = None
     _circuit_breaker: Optional[CircuitBreaker] = None
-    _provider: Optional[Any] = None  # MarketDataProvider
+    _provider: Optional[Any] = None  # IBKRDataProvider
     _connected: bool = False
     _vix_cache: Optional[float] = None
     _vix_updated: Optional[datetime] = None
@@ -103,9 +103,9 @@ class ServiceContext:
         Lazy-initialisiert die Verbindung wenn nötig.
         """
         if self._provider is None:
-            from ..data_providers.marketdata import MarketDataProvider
+            from ..data_providers.ibkr_provider import IBKRDataProvider
 
-            self._provider = MarketDataProvider(self.api_key)
+            self._provider = IBKRDataProvider()
 
         if not self._connected:
             await self._connect_provider()

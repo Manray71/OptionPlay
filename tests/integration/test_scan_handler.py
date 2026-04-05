@@ -187,8 +187,8 @@ class MockScanHandler(ScanHandlerMixin):
         self._scan_cache_misses = 0
         self._earnings_fetcher = None
         self._tradier = None
-        self._tradier_connected = False
-        self._tradier_provider = None
+        self._ibkr_connected = False
+        self._ibkr_provider = None
         self._ibkr = None
         self._provider = None
 

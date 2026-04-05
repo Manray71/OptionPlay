@@ -441,7 +441,7 @@ class TestServerCoreConnectionErrors:
         mock_provider = AsyncMock()
         mock_provider.connect.return_value = False
 
-        with patch('src.data_providers.marketdata.MarketDataProvider', return_value=mock_provider):
+        with patch('src.data_providers.ibkr_provider.IBKRDataProvider', return_value=mock_provider):
             result = await core.connect()
 
         assert result is False
@@ -462,7 +462,7 @@ class TestServerCoreConnectionErrors:
         mock_provider = AsyncMock()
         mock_provider.connect.side_effect = Exception("Network error")
 
-        with patch('src.data_providers.marketdata.MarketDataProvider', return_value=mock_provider):
+        with patch('src.data_providers.ibkr_provider.IBKRDataProvider', return_value=mock_provider):
             with pytest.raises(ConnectionError, match="Failed to connect"):
                 await core.connect()
 
@@ -490,7 +490,7 @@ class TestServerCoreConnectionErrors:
         mock_provider = AsyncMock()
         mock_provider.connect.return_value = True
 
-        with patch('src.data_providers.marketdata.MarketDataProvider', return_value=mock_provider):
+        with patch('src.data_providers.ibkr_provider.IBKRDataProvider', return_value=mock_provider):
             await core.connect()
 
         mock_rl.acquire.assert_called_once()
@@ -538,7 +538,7 @@ class TestServerCoreEnsureConnected:
         mock_provider = AsyncMock()
         mock_provider.connect.return_value = True
 
-        with patch('src.data_providers.marketdata.MarketDataProvider', return_value=mock_provider):
+        with patch('src.data_providers.ibkr_provider.IBKRDataProvider', return_value=mock_provider):
             provider = await core.ensure_connected()
 
         assert provider is mock_provider

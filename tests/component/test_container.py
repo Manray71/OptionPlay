@@ -65,7 +65,7 @@ class TestServiceContainerProvider:
         """Test ensure_provider creates provider if None."""
         container = ServiceContainer.create_minimal()
 
-        with patch('src.data_providers.marketdata.MarketDataProvider') as MockProvider:
+        with patch('src.data_providers.ibkr_provider.IBKRDataProvider') as MockProvider:
             mock_instance = AsyncMock()
             mock_instance.is_connected = AsyncMock(return_value=False)
             mock_instance.connect = AsyncMock()

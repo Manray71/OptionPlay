@@ -86,10 +86,11 @@ class EarningsSource(Enum):
 
     YFINANCE = "yfinance"
     YAHOO_SCRAPE = "yahoo_scrape"
-    TRADIER = "tradier"
-    MARKETDATA = "marketdata"
     MANUAL = "manual"
     UNKNOWN = "unknown"
+    # Legacy values (kept for backward compat with existing DB data)
+    TRADIER = "tradier"
+    MARKETDATA = "marketdata"
 
 
 # =============================================================================

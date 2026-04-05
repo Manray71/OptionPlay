@@ -15,7 +15,7 @@ class MockServerContext:
     def __init__(self):
         self.config = MagicMock()
         self.provider = None
-        self.tradier_provider = None
+        self.ibkr_provider = None
         self.rate_limiter = MagicMock()
         self.rate_limiter.acquire = AsyncMock()
         self.rate_limiter.record_success = MagicMock()
@@ -28,7 +28,7 @@ class MockServerContext:
 
         # Mutable state
         self.connected = False
-        self.tradier_connected = False
+        self.ibkr_connected = False
         self.tradier_api_key = None
         self.current_vix = None
         self.vix_updated = None
@@ -110,24 +110,24 @@ class TestVixHandlerGetVix:
 
     @pytest.mark.asyncio
     async def test_get_vix_falls_back_to_tradier(self, vix_handler, mock_context):
-        """Test get_vix falls back to Tradier quote if IBKR fails."""
+        """Test get_vix falls back to IBKR quote if IBKR fails."""
         mock_ibkr = AsyncMock()
         mock_ibkr.get_vix_value = AsyncMock(side_effect=Exception("IBKR error"))
         mock_context.ibkr_bridge = mock_ibkr
 
-        # Tradier quote for VIX
-        mock_tradier = AsyncMock()
+        # IBKR quote for VIX
+        mock_ibkr = AsyncMock()
         mock_quote = MagicMock()
         mock_quote.last = 21.0
-        mock_tradier.get_quote = AsyncMock(return_value=mock_quote)
-        mock_tradier.connect = AsyncMock(return_value=True)
-        mock_context.tradier_provider = mock_tradier
-        mock_context.tradier_connected = True
+        mock_ibkr.get_quote = AsyncMock(return_value=mock_quote)
+        mock_ibkr.connect = AsyncMock(return_value=True)
+        mock_context.ibkr_provider = mock_ibkr
+        mock_context.ibkr_connected = True
 
         result = await vix_handler.get_vix(force_refresh=True)
 
         assert result == 21.0
-        mock_tradier.get_quote.assert_called_once_with("VIX")
+        mock_ibkr.get_quote.assert_called_once_with("VIX")
 
     @pytest.mark.asyncio
     async def test_get_vix_returns_none_if_no_source(self, vix_handler, mock_context):
@@ -311,15 +311,15 @@ class TestVixHandlerStrategyForStock:
     def mock_context(self):
         """Create mock server context with Tradier provider for quote fetching."""
         ctx = MockServerContext()
-        mock_tradier = AsyncMock()
-        mock_tradier.connect = AsyncMock(return_value=True)
+        mock_ibkr = AsyncMock()
+        mock_ibkr.connect = AsyncMock(return_value=True)
 
         mock_quote = MagicMock()
         mock_quote.last = 150.0
-        mock_tradier.get_quote = AsyncMock(return_value=mock_quote)
+        mock_ibkr.get_quote = AsyncMock(return_value=mock_quote)
 
-        ctx.tradier_provider = mock_tradier
-        ctx.tradier_connected = True
+        ctx.ibkr_provider = mock_ibkr
+        ctx.ibkr_connected = True
         ctx.current_vix = 18.5
         ctx.vix_updated = datetime.now()
         return ctx
@@ -360,7 +360,7 @@ class TestVixHandlerStrategyForStock:
     @pytest.mark.asyncio
     async def test_get_strategy_for_stock_no_quote(self, vix_handler, mock_context):
         """Test get_strategy_for_stock when quote fails."""
-        mock_context.tradier_provider.get_quote = AsyncMock(return_value=None)
+        mock_context.ibkr_provider.get_quote = AsyncMock(return_value=None)
 
         result = await vix_handler.get_strategy_for_stock("AAPL")
 
@@ -448,13 +448,13 @@ class TestVixHandlerCaching:
         """Test cache is updated when new VIX is fetched."""
         mock_context.current_vix = None
 
-        mock_tradier = AsyncMock()
+        mock_ibkr = AsyncMock()
         mock_quote = MagicMock()
         mock_quote.last = 19.5
-        mock_tradier.get_quote = AsyncMock(return_value=mock_quote)
-        mock_tradier.connect = AsyncMock(return_value=True)
-        mock_context.tradier_provider = mock_tradier
-        mock_context.tradier_connected = True
+        mock_ibkr.get_quote = AsyncMock(return_value=mock_quote)
+        mock_ibkr.connect = AsyncMock(return_value=True)
+        mock_context.ibkr_provider = mock_ibkr
+        mock_context.ibkr_connected = True
 
         await vix_handler.get_vix()
 
@@ -469,15 +469,15 @@ class TestVixHandlerHelpers:
     def mock_context(self):
         """Create mock server context with Tradier."""
         ctx = MockServerContext()
-        mock_tradier = AsyncMock()
-        mock_tradier.connect = AsyncMock(return_value=True)
+        mock_ibkr = AsyncMock()
+        mock_ibkr.connect = AsyncMock(return_value=True)
 
         mock_quote = MagicMock()
         mock_quote.last = 175.0
-        mock_tradier.get_quote = AsyncMock(return_value=mock_quote)
+        mock_ibkr.get_quote = AsyncMock(return_value=mock_quote)
 
-        ctx.tradier_provider = mock_tradier
-        ctx.tradier_connected = True
+        ctx.ibkr_provider = mock_ibkr
+        ctx.ibkr_connected = True
         return ctx
 
     @pytest.fixture
@@ -493,13 +493,13 @@ class TestVixHandlerHelpers:
         """Test _ensure_connected returns Tradier provider."""
         result = await vix_handler._ensure_connected()
 
-        assert result is mock_context.tradier_provider
+        assert result is mock_context.ibkr_provider
 
     @pytest.mark.asyncio
     async def test_ensure_connected_returns_none_without_tradier(self, vix_handler, mock_context):
         """Test _ensure_connected returns None if no Tradier configured."""
-        mock_context.tradier_provider = None
-        mock_context.tradier_connected = False
+        mock_context.ibkr_provider = None
+        mock_context.ibkr_connected = False
         mock_context.tradier_api_key = None
 
         result = await vix_handler._ensure_connected()
@@ -520,7 +520,7 @@ class TestVixHandlerHelpers:
 
     @pytest.mark.asyncio
     async def test_get_quote_cached_fetches_on_miss(self, vix_handler, mock_context):
-        """Test _get_quote_cached fetches from Tradier on cache miss."""
+        """Test _get_quote_cached fetches from IBKR on cache miss."""
         result = await vix_handler._get_quote_cached("MSFT")
 
         assert result.last == 175.0

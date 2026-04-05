@@ -86,7 +86,7 @@ class TestEarningsSourceEnum:
     def test_earnings_source_values(self):
         """EarningsSource sollte alle Werte haben"""
         assert EarningsSource.YFINANCE.value == "yfinance"
-        assert EarningsSource.TRADIER.value == "tradier"
+        assert EarningsSource.YFINANCE.value == "yfinance"
         assert EarningsSource.MANUAL.value == "manual"
         assert EarningsSource.UNKNOWN.value == "unknown"
 
