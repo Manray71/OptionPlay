@@ -74,6 +74,11 @@ class MarketRegime(Enum):
     """
     Market regime based on VIX level.
 
+    .. deprecated::
+        Use ``VIXRegime`` from ``constants.trading_rules`` for new code.
+        ``MarketRegime`` is kept for backward compatibility during migration
+        to VIX Regime v2 (continuous interpolation).
+
     5-tier system based on training analysis (2026-01-31):
     - LOW_VOL (<15):     78.9% Win Rate - Normal conditions
     - NORMAL (15-20):    84.0% Win Rate - Sweet Spot
@@ -676,6 +681,97 @@ class VIXStrategySelector:
             dte_max=profile.get("dte_max", DTE_MAX),
             reasoning=reasoning,
             warnings=warnings,
+        )
+
+    def get_recommendation_v2(
+        self,
+        vix: Optional[float],
+        vix_futures_front: Optional[float] = None,
+        vix_trend: Optional[str] = None,
+    ) -> StrategyRecommendation:
+        """
+        Returns strategy recommendation using VIX Regime v2 (continuous interpolation).
+
+        Unlike get_recommendation() which uses discrete profiles, this method
+        uses the interpolated regime parameters from vix_regime.py.
+
+        Args:
+            vix: Current VIX value (None if not available)
+            vix_futures_front: Front-month VIX future (for term structure overlay)
+            vix_trend: VIX trend label ("rising_fast", "rising", "stable", etc.)
+
+        Returns:
+            StrategyRecommendation with interpolated parameters
+        """
+        from .vix_regime import RegimeLabel, get_regime_params
+
+        if vix is None:
+            # Fallback to v1 when VIX unavailable
+            return self.get_recommendation(vix)
+
+        params = get_regime_params(vix, vix_futures_front, vix_trend)
+
+        # Map RegimeLabel to MarketRegime for backward compat
+        _LABEL_TO_REGIME = {
+            RegimeLabel.ULTRA_LOW_VOL: MarketRegime.LOW_VOL,
+            RegimeLabel.LOW_VOL: MarketRegime.LOW_VOL,
+            RegimeLabel.NORMAL: MarketRegime.NORMAL,
+            RegimeLabel.ELEVATED: MarketRegime.DANGER_ZONE,
+            RegimeLabel.HIGH_VOL: MarketRegime.ELEVATED,
+            RegimeLabel.STRESS: MarketRegime.HIGH_VOL,
+            RegimeLabel.EXTREME: MarketRegime.HIGH_VOL,
+        }
+        regime = _LABEL_TO_REGIME.get(params.regime_label, MarketRegime.UNKNOWN)
+
+        warnings_list = []
+
+        # Build reasoning from interpolated params
+        label = params.regime_label.value
+        reasoning = (
+            f"VIX at {vix:.1f} — Regime: {label}. "
+            f"Min Score: {params.min_score:.1f}, "
+            f"Max Positions: {params.max_positions}, "
+            f"Spread Width Floor: ${params.spread_width:.2f}."
+        )
+
+        if params.term_structure:
+            reasoning += f" Term Structure: {params.term_structure}."
+        if params.stress_adjusted:
+            warnings_list.append("STRESS-ADJUSTED: Backwardation detected — tighter parameters")
+        if params.trend_adjusted and params.vix_trend_label:
+            warnings_list.append(f"VIX Trend: {params.vix_trend_label}")
+
+        if params.max_positions == 0:
+            warnings_list.append(f"NO NEW TRADES at VIX {vix:.1f}")
+        elif params.max_positions <= 2:
+            warnings_list.append(
+                f"Reduced capacity: max {params.max_positions} positions"
+            )
+
+        if params.min_score >= 6.0:
+            warnings_list.append(f"High quality required: Score >= {params.min_score:.1f}")
+
+        logger.info(
+            f"VIX strategy v2: vix={vix:.1f}, regime={label}, "
+            f"min_score={params.min_score:.1f}, max_pos={params.max_positions}, "
+            f"spread_width={params.spread_width:.2f}"
+        )
+
+        return StrategyRecommendation(
+            profile_name=f"v2_{label.lower().replace(' ', '_').replace('-', '_')}",
+            regime=regime,
+            vix_level=vix,
+            delta_target=params.delta_target,
+            delta_min=params.delta_min,
+            delta_max=params.delta_max,
+            long_delta_target=params.long_delta_target,
+            spread_width=params.spread_width,
+            min_score=int(params.min_score),
+            earnings_buffer_days=params.earnings_buffer_days,
+            dte_min=params.dte_min,
+            dte_max=params.dte_max,
+            reasoning=reasoning,
+            warnings=warnings_list,
         )
 
     def get_all_profiles(self) -> Dict[str, Dict]:
