@@ -13,6 +13,9 @@ from .interface import (
     PriceQuote,
 )
 
+# IBKR Provider
+from .ibkr_provider import IBKRDataProvider, get_ibkr_provider
+
 # Local Database Provider
 from .local_db import LocalDBProvider, get_local_db_provider, reset_local_db_provider
 
@@ -58,6 +61,9 @@ __all__ = [
     "get_marketdata_provider",
     "fetch_historical",
     "create_scanner_data_fetcher",
+    # IBKR Provider
+    "IBKRDataProvider",
+    "get_ibkr_provider",
     # Local Database Provider
     "LocalDBProvider",
     "get_local_db_provider",
