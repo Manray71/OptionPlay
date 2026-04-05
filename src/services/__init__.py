@@ -60,6 +60,11 @@ from .sector_cycle_service import (
     SectorRegime,
     SectorStatus,
 )
+from .sector_rs import (
+    RSQuadrant,
+    SectorRS,
+    SectorRSService,
+)
 from .server_core import ServerCore
 from .trade_validator import (
     TradeValidationRequest,
@@ -103,10 +108,14 @@ __all__ = [
     "snapshot_from_internal",
     "snapshot_from_ibkr",
     "estimate_pnl_from_theta",
-    # Sector Cycle Service
+    # Sector Cycle Service (v1, deprecated)
     "SectorCycleService",
     "SectorRegime",
     "SectorStatus",
+    # Sector RS Service (v2, RRG quadrants)
+    "SectorRSService",
+    "SectorRS",
+    "RSQuadrant",
     # Recommendation Engine
     "DailyRecommendationEngine",
     "DailyPick",
