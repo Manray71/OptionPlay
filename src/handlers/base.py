@@ -17,8 +17,7 @@ from ..constants.trading_rules import SPREAD_DTE_MAX, SPREAD_DTE_MIN
 if TYPE_CHECKING:
     from ..cache import EarningsFetcher, HistoricalCache
     from ..config import ConfigLoader
-    from ..data_providers.marketdata import MarketDataProvider
-    from ..data_providers.tradier import TradierProvider
+    from ..data_providers.ibkr_provider import IBKRDataProvider
     from ..scanner.multi_strategy_scanner import MultiStrategyScanner, ScanConfig
     from ..services.vix_strategy import VIXStrategySelector
     from ..utils.circuit_breaker import CircuitBreaker
@@ -37,8 +36,8 @@ class BaseHandlerMixin:
 
     Attributes expected on self (provided by OptionPlayServer):
         _config: Config instance
-        _provider: MarketDataProvider instance
-        _tradier_provider: Optional TradierProvider instance
+        _provider: Optional provider instance
+        _ibkr_provider: Optional IBKRDataProvider instance
         _rate_limiter: AdaptiveRateLimiter instance
         _circuit_breaker: CircuitBreaker instance
         _historical_cache: HistoricalCache instance
@@ -46,7 +45,7 @@ class BaseHandlerMixin:
         _vix_selector: VIXStrategySelector instance
         _deduplicator: RequestDeduplicator instance
         _connected: bool
-        _tradier_connected: bool
+        _ibkr_connected: bool
         _current_vix: Optional[float]
         _vix_updated: Optional[datetime]
         _quote_cache: Dict[str, tuple]
@@ -55,8 +54,8 @@ class BaseHandlerMixin:
 
     # Type hints for attributes provided by OptionPlayServer
     _config: "ConfigLoader"
-    _provider: Optional["MarketDataProvider"]
-    _tradier_provider: Optional["TradierProvider"]
+    _provider: Optional[Any]
+    _ibkr_provider: Optional["IBKRDataProvider"]
     _rate_limiter: "AdaptiveRateLimiter"
     _circuit_breaker: "CircuitBreaker"
     _historical_cache: "HistoricalCache"
@@ -64,7 +63,7 @@ class BaseHandlerMixin:
     _vix_selector: "VIXStrategySelector"
     _deduplicator: "RequestDeduplicator"
     _connected: bool
-    _tradier_connected: bool
+    _ibkr_connected: bool
     _current_vix: Optional[float]
     _vix_updated: Optional[datetime]
     _quote_cache: dict[str, tuple[Any, ...]]
@@ -77,13 +76,18 @@ class BaseHandlerMixin:
     _ibkr_bridge: Any
 
     # Methods expected from OptionPlayServer (defined elsewhere)
-    async def _ensure_connected(self) -> "MarketDataProvider":
+    async def _ensure_connected(self) -> Optional[Any]:
         """Ensure connection to data provider."""
         raise NotImplementedError
 
-    async def _ensure_tradier_connected(self) -> Optional["TradierProvider"]:
-        """Ensure connection to Tradier."""
+    async def _ensure_ibkr_connected(self) -> Optional["IBKRDataProvider"]:
+        """Ensure connection to IBKR."""
         raise NotImplementedError
+
+    # Legacy alias
+    async def _ensure_tradier_connected(self) -> Optional[Any]:
+        """Legacy alias for _ensure_ibkr_connected."""
+        return await self._ensure_ibkr_connected()
 
     async def _fetch_historical_cached(
         self, symbol: str, days: Optional[int] = None
@@ -135,14 +139,11 @@ class BaseHandlerMixin:
         right: str = "P",
     ) -> list[Any]:
         """
-        Fetch options chain with Tradier-first, IBKR-fallback provider strategy.
-
-        Marketdata.app is NOT used for options chains (only delivers ATM options,
-        unsuitable for OTM Bull-Put-Spread strike selection).
+        Fetch options chain with IBKR provider as primary source.
 
         Provider priority:
-            1. Tradier — full chains with ORATS Greeks
-            2. IBKR/TWS — full chains from Interactive Brokers
+            1. IBKR DataProvider — full chains with Greeks
+            2. IBKR Bridge (legacy fallback)
 
         Args:
             symbol: Ticker symbol
@@ -156,21 +157,21 @@ class BaseHandlerMixin:
         options = None
         right_upper = right.upper()
 
-        # 1. Try Tradier (full OTM chains with ORATS Greeks)
-        if self._tradier_connected and self._tradier_provider:
+        # 1. Try IBKR DataProvider (primary)
+        if self._ibkr_connected and self._ibkr_provider:
             try:
-                options = await self._tradier_provider.get_option_chain(
+                options = await self._ibkr_provider.get_option_chain(
                     symbol,
                     dte_min=dte_min,
                     dte_max=dte_max,
                     right=right_upper,
                 )
                 if options:
-                    logger.debug(f"Options chain from Tradier: {len(options)} options for {symbol}")
+                    logger.debug(f"Options chain from IBKR: {len(options)} options for {symbol}")
             except Exception as e:
-                logger.debug(f"Tradier options chain failed for {symbol}, trying IBKR: {e}")
+                logger.debug(f"IBKR options chain failed for {symbol}: {e}")
 
-        # 2. Fallback to IBKR/TWS
+        # 2. Fallback to IBKR Bridge (legacy)
         if not options and hasattr(self, "_ibkr_bridge") and self._ibkr_bridge:
             try:
                 if await self._ibkr_bridge.is_available():
@@ -182,16 +183,16 @@ class BaseHandlerMixin:
                     )
                     if options:
                         logger.debug(
-                            f"Options chain from IBKR: {len(options)} options for {symbol}"
+                            f"Options chain from IBKR bridge: {len(options)} options for {symbol}"
                         )
             except Exception as e:
-                logger.debug(f"IBKR options chain failed for {symbol}: {e}")
+                logger.debug(f"IBKR bridge options chain failed for {symbol}: {e}")
 
         if not options:
             logger.warning(
                 f"No options chain available for {symbol} "
-                f"(Tradier: {'connected' if self._tradier_connected else 'not connected'}, "
-                f"IBKR: {'available' if hasattr(self, '_ibkr_bridge') and self._ibkr_bridge else 'not available'})"
+                f"(IBKR: {'connected' if self._ibkr_connected else 'not connected'}, "
+                f"Bridge: {'available' if hasattr(self, '_ibkr_bridge') and self._ibkr_bridge else 'not available'})"
             )
 
         return options or []

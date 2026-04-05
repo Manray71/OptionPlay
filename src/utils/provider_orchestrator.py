@@ -187,10 +187,8 @@ class ProviderOrchestrator:
         self._last_daily_reset = datetime.now().date()
 
     def enable_tradier(self, enabled: bool = True) -> None:
-        """Aktiviert/Deaktiviert Tradier Provider."""
-        self.providers[ProviderType.TRADIER].enabled = enabled
-        self._tradier_connected = enabled
-        logger.info(f"Tradier Provider: {'aktiviert' if enabled else 'deaktiviert'}")
+        """Legacy alias — routes to enable_ibkr."""
+        self.enable_ibkr(enabled)
 
     def enable_ibkr(self, connected: bool = True) -> None:
         """Aktiviert/Deaktiviert IBKR Provider."""

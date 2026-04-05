@@ -494,10 +494,11 @@ class HealthCheckData:
     ibkr_host: Optional[str] = None
     ibkr_port: Optional[int] = None
     metrics_stats: Optional[Dict[str, Any]] = None  # Application metrics
-    tradier_available: bool = False
-    tradier_connected: bool = False
-    tradier_api_key_masked: Optional[str] = None
-    tradier_environment: Optional[str] = None
+    # IBKR DataProvider status (legacy field names kept for compat)
+    tradier_available: bool = False  # Now: IBKR provider available
+    tradier_connected: bool = False  # Now: IBKR provider connected
+    tradier_api_key_masked: Optional[str] = None  # Unused (IBKR has no API key)
+    tradier_environment: Optional[str] = None  # Unused
     local_db_enabled: bool = False
     local_db_stats: Optional[Dict[str, Any]] = None
 
@@ -574,18 +575,13 @@ class HealthCheckFormatter(BaseFormatter):
         b.kv_line("Avg Wait", f"{rl['avg_wait_time']:.3f}s")
         b.kv_line("Available Tokens", rl["available_tokens"])
 
-        # Tradier Provider
-        b.blank().h2("Tradier Provider")
-        if data.tradier_available:
-            status = "✅ Connected" if data.tradier_connected else "⚠️ Configured but not connected"
-            b.kv_line("Status", status)
-            if data.tradier_api_key_masked:
-                b.kv_line("API Key", data.tradier_api_key_masked)
-            if data.tradier_environment:
-                b.kv_line("Environment", data.tradier_environment.upper())
-            b.kv_line("Features", "Quotes, Options Chain + Greeks (ORATS), Historical Data")
+        # IBKR DataProvider
+        b.blank().h2("IBKR DataProvider")
+        if data.tradier_connected:
+            b.kv_line("Status", "✅ Connected")
+            b.kv_line("Features", "Quotes, Options Chain + Greeks, Historical Data, VIX")
         else:
-            b.kv_line("Status", "❌ Not configured (set TRADIER_API_KEY)")
+            b.kv_line("Status", "⚠️ Not connected (start IB Gateway/TWS)")
 
         # IBKR Bridge
         b.blank().h2("IBKR Bridge")

@@ -1248,8 +1248,8 @@ async def handle_shadow_review(server: Any, arguments: ToolArguments) -> str:
             provider = None
             if hasattr(server, "handlers"):
                 ctx = server.handlers._context
-                if ctx.tradier_connected and ctx.tradier_provider:
-                    provider = ctx.tradier_provider
+                if ctx.ibkr_connected and ctx.ibkr_provider:
+                    provider = ctx.ibkr_provider
             resolutions = await resolve_open_trades(tracker, provider=provider)
 
         # Fetch trades and rejections
@@ -1368,8 +1368,8 @@ async def handle_shadow_log(server: Any, arguments: ToolArguments) -> str:
     provider = None
     if hasattr(server, "handlers"):
         ctx = server.handlers._context
-        if ctx.tradier_connected and ctx.tradier_provider:
-            provider = ctx.tradier_provider
+        if ctx.ibkr_connected and ctx.ibkr_provider:
+            provider = ctx.ibkr_provider
 
     if not provider:
         return "**Error:** Tradier provider not available. Cannot run tradability check."

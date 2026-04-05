@@ -471,9 +471,9 @@ class QuoteHandlerMixin(BaseHandlerMixin):
         expirations = None
 
         # Try Tradier first
-        if self._tradier_connected and self._tradier_provider:
+        if self._ctx.ibkr_connected and self._ctx.ibkr_provider:
             try:
-                expirations = await self._tradier_provider.get_expirations(symbol)
+                expirations = await self._ctx.ibkr_provider.get_expirations(symbol)
                 if expirations:
                     logger.debug(f"Expirations from Tradier: {len(expirations)}")
             except Exception as e:

@@ -31,7 +31,7 @@ if TYPE_CHECKING:
     from ..cache import EarningsFetcher, HistoricalCache
     from ..config import Config
     from ..container import ServiceContainer
-    from ..data_providers.tradier import TradierProvider
+    from ..data_providers.ibkr_provider import IBKRDataProvider
     from ..scanner.multi_strategy_scanner import MultiStrategyScanner
     from ..services.vix_strategy import VIXStrategySelector
     from ..state.server_state import ServerState
@@ -53,19 +53,21 @@ class ServerContext:
     def __init__(
         self,
         config: "Config",
-        provider: Optional["MarketDataProvider"],
-        tradier_provider: Optional["TradierProvider"],
-        rate_limiter: "AdaptiveRateLimiter",
-        circuit_breaker: "CircuitBreaker",
-        historical_cache: "HistoricalCache",
-        vix_selector: "VIXStrategySelector",
-        deduplicator: "RequestDeduplicator",
+        provider: Optional[Any] = None,
+        ibkr_provider: Optional["IBKRDataProvider"] = None,
+        rate_limiter: "AdaptiveRateLimiter" = None,
+        circuit_breaker: "CircuitBreaker" = None,
+        historical_cache: "HistoricalCache" = None,
+        vix_selector: "VIXStrategySelector" = None,
+        deduplicator: "RequestDeduplicator" = None,
         container: Optional["ServiceContainer"] = None,
         server_state: Optional["ServerState"] = None,
+        # Legacy compat — accepts tradier_provider but stores as ibkr_provider
+        tradier_provider: Optional[Any] = None,
     ) -> None:
         self.config = config
         self.provider = provider
-        self.tradier_provider = tradier_provider
+        self.ibkr_provider = ibkr_provider
         self.rate_limiter = rate_limiter
         self.circuit_breaker = circuit_breaker
         self.historical_cache = historical_cache
@@ -76,7 +78,7 @@ class ServerContext:
 
         # Mutable state (shared across handlers)
         self.connected = False
-        self.tradier_connected = False
+        self.ibkr_connected = False
         self.current_vix: Optional[float] = None
         self.vix_updated = None
 
@@ -91,13 +93,12 @@ class ServerContext:
         self.scan_cache_hits = 0
         self.scan_cache_misses = 0
 
-        # Tradier lazy init
-        self.tradier_api_key: Optional[str] = None
-
         # Optional components
         self.earnings_fetcher: Optional["EarningsFetcher"] = None
         self.scanner: Optional["MultiStrategyScanner"] = None
         self.ibkr_bridge = None
+
+        self.tradier_api_key: Optional[str] = None
 
 
 class BaseHandler:
@@ -116,50 +117,49 @@ class BaseHandler:
         return self._ctx.config
 
     @property
-    def tradier_provider(self) -> Optional["TradierProvider"]:
-        return self._ctx.tradier_provider
+    def ibkr_provider(self) -> Optional["IBKRDataProvider"]:
+        return self._ctx.ibkr_provider
 
-    async def _ensure_tradier_connected(self) -> Optional["TradierProvider"]:
-        """Establish connection to Tradier API if key is available."""
-        if self._ctx.tradier_connected:
-            return self._ctx.tradier_provider
+    # Legacy compat alias
+    @property
+    def tradier_provider(self) -> Optional[Any]:
+        return self._ctx.ibkr_provider
 
-        # Lazy-create provider if API key is available but provider not yet created
-        if self._ctx.tradier_provider is None and self._ctx.tradier_api_key:
-            from ..data_providers.tradier import TradierEnvironment, TradierProvider
+    async def _ensure_ibkr_connected(self) -> Optional["IBKRDataProvider"]:
+        """Establish connection to IBKR if available."""
+        if self._ctx.ibkr_connected and self._ctx.ibkr_provider:
+            return self._ctx.ibkr_provider
 
-            tradier_cfg = self._ctx.config.settings.tradier
-            env = (
-                TradierEnvironment.PRODUCTION
-                if tradier_cfg.is_production
-                else TradierEnvironment.SANDBOX
-            )
-            self._ctx.tradier_provider = TradierProvider(
-                api_key=self._ctx.tradier_api_key,
-                environment=env,
-            )
+        if self._ctx.ibkr_provider is None:
+            try:
+                from ..data_providers.ibkr_provider import IBKRDataProvider
 
-        if not self._ctx.tradier_provider:
-            return None
+                self._ctx.ibkr_provider = IBKRDataProvider()
+            except ImportError:
+                self._logger.debug("IBKRDataProvider not available")
+                return None
 
         try:
-            connected = await self._ctx.tradier_provider.connect()
+            connected = await self._ctx.ibkr_provider.connect()
             if connected:
-                self._ctx.tradier_connected = True
-                self._logger.info("Tradier connected")
+                self._ctx.ibkr_connected = True
+                self._logger.info("IBKR provider connected")
             else:
-                self._logger.debug("Tradier connection returned False")
+                self._logger.debug("IBKR connection returned False")
         except (ConnectionError, TimeoutError, OSError) as e:
-            self._logger.debug(f"Tradier connection failed: {e}")
+            self._logger.debug(f"IBKR connection failed: {e}")
 
-        return self._ctx.tradier_provider if self._ctx.tradier_connected else None
+        return self._ctx.ibkr_provider if self._ctx.ibkr_connected else None
 
-    async def _ensure_connected(self) -> Optional["TradierProvider"]:
-        """Ensure Tradier provider is connected."""
-        return await self._ensure_tradier_connected()
+    # Legacy compat aliases
+    async def _ensure_tradier_connected(self) -> Optional[Any]:
+        return await self._ensure_ibkr_connected()
+
+    async def _ensure_connected(self) -> Optional[Any]:
+        return await self._ensure_ibkr_connected()
 
     async def _get_quote_cached(self, symbol: str) -> Optional[Any]:
-        """Get quote with caching via Tradier."""
+        """Get quote with caching via IBKR."""
         from datetime import datetime
 
         now = datetime.now()
@@ -170,28 +170,40 @@ class BaseHandler:
                 return cached_quote
 
         self._ctx.quote_cache_misses += 1
-        await self._ensure_connected()
+        await self._ensure_ibkr_connected()
 
-        if self._ctx.tradier_connected and self._ctx.tradier_provider:
+        if self._ctx.ibkr_connected and self._ctx.ibkr_provider:
             try:
-                quote = await self._ctx.tradier_provider.get_quote(symbol)
+                quote = await self._ctx.ibkr_provider.get_quote(symbol)
                 if quote and quote.last:
                     self._ctx.quote_cache[symbol] = (quote, now)
                     return quote
             except Exception as e:
-                self._logger.debug(f"Tradier quote failed for {symbol}: {e}")
+                self._logger.debug(f"IBKR quote failed for {symbol}: {e}")
 
         return None
 
     async def _get_vix(self) -> Optional[float]:
-        """Get current VIX value. Chain: cache → IBKR → Tradier → Yahoo Finance."""
+        """Get current VIX value. Chain: cache → IBKR provider → IBKR bridge → Yahoo."""
         from datetime import datetime
 
         # 1. Check cache
         if self._ctx.current_vix is not None:
             return self._ctx.current_vix
 
-        # 2. Try IBKR bridge
+        # 2. Try IBKR provider (primary)
+        await self._ensure_ibkr_connected()
+        if self._ctx.ibkr_connected and self._ctx.ibkr_provider:
+            try:
+                vix = await self._ctx.ibkr_provider.get_vix()
+                if vix is not None:
+                    self._ctx.current_vix = vix
+                    self._ctx.vix_updated = datetime.now()
+                    return vix
+            except Exception as e:
+                self._logger.debug(f"IBKR provider VIX failed: {e}")
+
+        # 3. Try IBKR bridge (legacy fallback)
         if self._ctx.ibkr_bridge:
             try:
                 vix = await self._ctx.ibkr_bridge.get_vix_value()
@@ -200,19 +212,7 @@ class BaseHandler:
                     self._ctx.vix_updated = datetime.now()
                     return vix
             except Exception as e:
-                self._logger.debug(f"IBKR VIX failed: {e}")
-
-        # 3. Try Tradier quote for VIX index
-        await self._ensure_connected()
-        if self._ctx.tradier_connected and self._ctx.tradier_provider:
-            try:
-                quote = await self._ctx.tradier_provider.get_quote("VIX")
-                if quote and hasattr(quote, "last") and quote.last:
-                    self._ctx.current_vix = quote.last
-                    self._ctx.vix_updated = datetime.now()
-                    return quote.last
-            except Exception as e:
-                self._logger.debug(f"Tradier VIX quote failed: {e}")
+                self._logger.debug(f"IBKR bridge VIX failed: {e}")
 
         # 4. Fall back to Yahoo Finance
         try:
@@ -392,7 +392,7 @@ def create_handler_container_from_server(server) -> HandlerContainer:
     context = ServerContext(
         config=server._config,
         provider=server._provider,
-        tradier_provider=getattr(server, "_tradier_provider", None),
+        ibkr_provider=getattr(server, "_ibkr_provider", None),
         rate_limiter=server._rate_limiter,
         circuit_breaker=server._circuit_breaker,
         historical_cache=server._historical_cache,
@@ -404,8 +404,7 @@ def create_handler_container_from_server(server) -> HandlerContainer:
 
     # Copy mutable state
     context.connected = server._connected
-    context.tradier_connected = getattr(server, "_tradier_connected", False)
-    context.tradier_api_key = getattr(server, "_tradier_api_key", None)
+    context.ibkr_connected = getattr(server, "_ibkr_connected", False)
     context.current_vix = server._current_vix
     context.vix_updated = server._vix_updated
     context.quote_cache = server._quote_cache

@@ -265,9 +265,9 @@ class ReportHandler(BaseHandler):
                 return cache_result.data
 
         await self._ensure_connected()
-        if self._ctx.tradier_connected and self._ctx.tradier_provider:
+        if self._ctx.ibkr_connected and self._ctx.ibkr_provider:
             try:
-                data = await self._ctx.tradier_provider.get_historical_for_scanner(
+                data = await self._ctx.ibkr_provider.get_historical_for_scanner(
                     symbol, days=days
                 )
                 if data:
@@ -275,6 +275,6 @@ class ReportHandler(BaseHandler):
                         self._ctx.historical_cache.set(symbol, data, days=days)
                     return data
             except (ConnectionError, TimeoutError, ValueError) as e:
-                self._logger.debug(f"Tradier historical failed for {symbol}: {e}")
+                self._logger.debug(f"IBKR historical failed for {symbol}: {e}")
 
         return None

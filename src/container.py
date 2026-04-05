@@ -29,8 +29,7 @@ if TYPE_CHECKING:
     from .cache.historical_cache import HistoricalCache
     from .cache.iv_cache_impl import IVCache, IVFetcher
     from .config import ConfigLoader
-    from .data_providers.marketdata import MarketDataProvider
-    from .data_providers.tradier import TradierProvider
+    from .data_providers.ibkr_provider import IBKRDataProvider
     from .utils.circuit_breaker import CircuitBreaker, CircuitBreakerRegistry
     from .utils.earnings_aggregator import EarningsAggregator
     from .utils.rate_limiter import AdaptiveRateLimiter
@@ -81,8 +80,8 @@ class ServiceContainer:
     iv_fetcher: Optional["IVFetcher"] = None
 
     # Data providers (lazy-loaded)
-    provider: Optional["MarketDataProvider"] = None
-    tradier_provider: Optional["TradierProvider"] = None
+    provider: Optional[Any] = None
+    ibkr_provider: Optional["IBKRDataProvider"] = None
 
     # Active provider name (for routing)
     active_provider: str = field(default="marketdata", repr=False)

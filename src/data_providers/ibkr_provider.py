@@ -322,6 +322,32 @@ class IBKRDataProvider(DataProvider):
             return []
 
     # =========================================================================
+    # Scanner-compatible historical data
+    # =========================================================================
+
+    async def get_historical_for_scanner(
+        self, symbol: str, days: int = 260
+    ) -> Optional[tuple]:
+        """
+        Historical data in scanner format.
+
+        Returns:
+            Tuple of (prices, volumes, highs, lows, opens) or None
+        """
+        bars = await self.get_historical(symbol, days)
+
+        if not bars or len(bars) < 50:
+            return None
+
+        prices = [bar.close for bar in bars]
+        volumes = [bar.volume for bar in bars]
+        highs = [bar.high for bar in bars]
+        lows = [bar.low for bar in bars]
+        opens = [bar.open for bar in bars]
+
+        return prices, volumes, highs, lows, opens
+
+    # =========================================================================
     # DataProvider ABC — Options
     # =========================================================================
 

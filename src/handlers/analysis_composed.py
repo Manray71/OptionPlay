@@ -670,9 +670,9 @@ class AnalysisHandler(BaseHandler):
 
         # 2. Fetch from Tradier
         await self._ensure_connected()
-        if self._ctx.tradier_connected and self._ctx.tradier_provider:
+        if self._ctx.ibkr_connected and self._ctx.ibkr_provider:
             try:
-                data = await self._ctx.tradier_provider.get_historical_for_scanner(
+                data = await self._ctx.ibkr_provider.get_historical_for_scanner(
                     symbol, days=days
                 )
                 if data:
@@ -680,7 +680,7 @@ class AnalysisHandler(BaseHandler):
                         self._ctx.historical_cache.set(symbol, data, days=days)
                     return data
             except (ConnectionError, TimeoutError, ValueError) as e:
-                self._logger.debug(f"Tradier historical failed for {symbol}: {e}")
+                self._logger.debug(f"IBKR historical failed for {symbol}: {e}")
 
         return None
 
@@ -720,15 +720,15 @@ class AnalysisHandler(BaseHandler):
         options = None
         right_upper = right.upper()
 
-        if self._ctx.tradier_connected and self._ctx.tradier_provider:
+        if self._ctx.ibkr_connected and self._ctx.ibkr_provider:
             try:
-                options = await self._ctx.tradier_provider.get_option_chain(
+                options = await self._ctx.ibkr_provider.get_option_chain(
                     symbol, dte_min=dte_min, dte_max=dte_max, right=right_upper
                 )
                 if options:
                     return options
             except Exception as e:
-                self._logger.debug(f"Tradier options failed: {e}")
+                self._logger.debug(f"IBKR options failed: {e}")
 
         if self._ctx.ibkr_bridge:
             try:

@@ -8,7 +8,7 @@
 #   ├── analyzers/       # Strategy Analyzers (Pullback, Breakout, etc.)
 #   ├── indicators/      # Technical Indicators (RSI, MACD, etc.)
 #   ├── options/         # Options-specific tools (Max Pain, VIX)
-#   ├── providers/       # Data Providers (Tradier)
+#   ├── providers/       # Data Providers (IBKR)
 #   ├── cache/           # Caching (Earnings, IV)
 #   ├── config/          # Configuration
 #   └── scanner/         # Multi-Strategy Scanner
@@ -68,8 +68,7 @@ from .config import (
 # =============================================================================
 from .data_providers import (
     DataProvider,
-    TradierConfig,
-    TradierProvider,
+    IBKRDataProvider,
 )
 
 # =============================================================================
@@ -209,8 +208,7 @@ __all__ = [
     "update_iv_cache",
     # Providers
     "DataProvider",
-    "TradierProvider",
-    "TradierConfig",
+    "IBKRDataProvider",
     # Scanner
     "MarketScanner",
     "SignalAggregator",

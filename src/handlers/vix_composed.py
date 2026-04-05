@@ -67,11 +67,11 @@ class VixHandler(BaseHandler):
             except Exception as e:
                 self._logger.debug(f"IBKR VIX failed: {e}")
 
-        # Try Tradier quote for VIX index
+        # Try IBKR quote for VIX index
         await self._ensure_connected()
-        if self._ctx.tradier_connected and self._ctx.tradier_provider:
+        if self._ctx.ibkr_connected and self._ctx.ibkr_provider:
             try:
-                quote = await self._ctx.tradier_provider.get_quote("VIX")
+                quote = await self._ctx.ibkr_provider.get_quote("VIX")
                 if quote and hasattr(quote, "last") and quote.last:
                     self._ctx.current_vix = quote.last
                     self._ctx.vix_updated = datetime.now()

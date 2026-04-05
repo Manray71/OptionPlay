@@ -461,11 +461,11 @@ class QuoteHandler(BaseHandler):
         expirations = None
 
         # Try Tradier first
-        if self._ctx.tradier_connected and self._ctx.tradier_provider:
+        if self._ctx.ibkr_connected and self._ctx.ibkr_provider:
             try:
-                expirations = await self._ctx.tradier_provider.get_expirations(symbol)
+                expirations = await self._ctx.ibkr_provider.get_expirations(symbol)
             except Exception as e:
-                self._logger.debug(f"Tradier expirations failed: {e}")
+                self._logger.debug(f"IBKR expirations failed: {e}")
 
         # Fallback to Marketdata
         if not expirations:
@@ -574,15 +574,15 @@ class QuoteHandler(BaseHandler):
         options = None
         right_upper = right.upper()
 
-        if self._ctx.tradier_connected and self._ctx.tradier_provider:
+        if self._ctx.ibkr_connected and self._ctx.ibkr_provider:
             try:
-                options = await self._ctx.tradier_provider.get_option_chain(
+                options = await self._ctx.ibkr_provider.get_option_chain(
                     symbol, dte_min=dte_min, dte_max=dte_max, right=right_upper
                 )
                 if options:
                     return options
             except Exception as e:
-                self._logger.debug(f"Tradier options failed: {e}")
+                self._logger.debug(f"IBKR options failed: {e}")
 
         if self._ctx.ibkr_bridge:
             try:

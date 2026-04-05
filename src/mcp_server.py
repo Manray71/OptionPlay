@@ -41,7 +41,7 @@ from .container import ServiceContainer
 from .data_providers.local_db import LocalDBProvider, get_local_db_provider
 
 # Local imports
-from .data_providers.tradier import TradierEnvironment, TradierProvider
+from .data_providers.ibkr_provider import IBKRDataProvider
 from .formatters import HealthCheckData, formatters
 
 # Composition-based handler architecture (Phase 3.3)
@@ -126,13 +126,13 @@ class OptionPlayServer:
             self._rate_limiter = container.rate_limiter
             self._circuit_breaker = container.circuit_breaker
             self._historical_cache = container.historical_cache
-            self._provider = None  # Marketdata.app removed — Tradier is sole live provider
+            self._provider = None  # IBKR is sole live provider
         else:
             self._config = get_config()
             perf = self._config.settings.performance
             cb_cfg = self._config.settings.circuit_breaker
 
-            self._provider = None  # Marketdata.app removed — Tradier is sole live provider
+            self._provider = None  # IBKR is sole live provider
             self._rate_limiter = get_marketdata_limiter()
             self._historical_cache = get_historical_cache(
                 ttl_seconds=perf.cache_ttl_seconds, max_entries=perf.cache_max_entries
@@ -165,19 +165,10 @@ class OptionPlayServer:
         if IBKR_AVAILABLE:
             self._ibkr_bridge = get_ibkr_bridge()
 
-        # Tradier Provider (optional)
-        self._tradier_provider: Optional[TradierProvider] = None
-        self._tradier_api_key: Optional[str] = None
-        self._tradier_connected = False
+        # IBKR DataProvider (primary data source)
+        self._ibkr_provider: Optional[IBKRDataProvider] = None
+        self._ibkr_connected = False
         self._orchestrator = get_orchestrator()
-
-        try:
-            tradier_key = get_api_key("TRADIER_API_KEY", required=False)
-            if tradier_key:
-                self._tradier_api_key = tradier_key
-                logger.info(f"Tradier API key found: {mask_api_key(tradier_key)}")
-        except (KeyError, ValueError):
-            logger.debug("Tradier API key not configured")
 
         # Local Database Provider (primary source for historical data)
         self._local_db_provider: Optional[LocalDBProvider] = None
@@ -210,8 +201,8 @@ class OptionPlayServer:
 
     @property
     def api_key_masked(self) -> str:
-        """Return masked Tradier API key for debugging/logging."""
-        return mask_api_key(self._tradier_api_key) if self._tradier_api_key else "N/A"
+        """Return connection info for debugging/logging."""
+        return "IBKR" if self._ibkr_connected else "N/A"
 
     # =========================================================================
     # STATE DELEGATION (backward compat for handler mixins)
@@ -297,46 +288,36 @@ class OptionPlayServer:
     # CONNECTION MANAGEMENT
     # =========================================================================
 
-    async def _ensure_tradier_connected(self) -> Optional[TradierProvider]:
-        """Establish connection to Tradier API."""
-        if not self._tradier_api_key:
-            return None
+    async def _ensure_ibkr_connected(self) -> Optional[IBKRDataProvider]:
+        """Establish connection to IBKR."""
+        if self._ibkr_provider is None:
+            self._ibkr_provider = IBKRDataProvider()
 
-        if self._tradier_provider is None:
-            tradier_cfg = self._config.settings.tradier
-            env = (
-                TradierEnvironment.PRODUCTION
-                if tradier_cfg.is_production
-                else TradierEnvironment.SANDBOX
-            )
-
-            self._tradier_provider = TradierProvider(api_key=self._tradier_api_key, environment=env)
-
-        if not self._tradier_connected:
+        if not self._ibkr_connected:
             try:
-                connected = await self._tradier_provider.connect()
+                connected = await self._ibkr_provider.connect()
                 if connected:
-                    self._tradier_connected = True
-                    self._orchestrator.enable_tradier(True)
+                    self._ibkr_connected = True
                     self.state.connection.mark_connected()
-                    logger.info(
-                        f"Connected to Tradier ({self._config.settings.tradier.environment})"
-                    )
+                    logger.info("Connected to IBKR")
                 else:
-                    logger.warning("Tradier connection failed")
+                    logger.warning("IBKR connection failed")
             except (ConnectionError, TimeoutError, OSError) as e:
-                logger.warning(f"Tradier connection error: {e}")
+                logger.warning(f"IBKR connection error: {e}")
 
-        return self._tradier_provider if self._tradier_connected else None
+        return self._ibkr_provider if self._ibkr_connected else None
 
-    async def _ensure_connected(self) -> Optional[TradierProvider]:
-        """Ensure Tradier provider is connected."""
-        return await self._ensure_tradier_connected()
+    # Legacy aliases
+    async def _ensure_tradier_connected(self) -> Optional[IBKRDataProvider]:
+        return await self._ensure_ibkr_connected()
+
+    async def _ensure_connected(self) -> Optional[IBKRDataProvider]:
+        return await self._ensure_ibkr_connected()
 
     def _get_active_provider_name(self) -> str:
         """Get the name of the currently active provider."""
-        if self._tradier_connected:
-            return "Tradier"
+        if self._ibkr_connected:
+            return "IBKR"
         return "None"
 
     def _get_scanner(
@@ -364,7 +345,7 @@ class OptionPlayServer:
         scanner_cfg = self._config.settings.scanner
         enable_iv = getattr(scanner_cfg, "enable_iv_filter", False)
 
-        if enable_iv and not self._tradier_connected:
+        if enable_iv and not self._ibkr_connected:
             logger.debug("IV filter disabled: no IV data provider connected")
             enable_iv = False
 
@@ -405,7 +386,7 @@ class OptionPlayServer:
         Priority:
         1. In-memory cache (fastest)
         2. Local database (if enabled, data fresh, and has real OHLCV)
-        3. Tradier API
+        3. IBKR API
         4. Graceful degradation: incomplete local data if API fails
         """
         if days is None:
@@ -442,17 +423,17 @@ class OptionPlayServer:
             except Exception as e:
                 logger.debug(f"LocalDB failed for {symbol}: {e}")
 
-        # 3. Fetch from Tradier
+        # 3. Fetch from IBKR
         async def fetch_historical() -> Optional[Tuple]:
-            tradier = await self._ensure_tradier_connected()
-            if tradier:
+            provider = await self._ensure_ibkr_connected()
+            if provider:
                 try:
-                    d = await tradier.get_historical_for_scanner(symbol, days=days)
+                    d = await provider.get_historical_for_scanner(symbol, days=days)
                     if d:
-                        logger.debug(f"Historical data for {symbol} from Tradier")
+                        logger.debug(f"Historical data for {symbol} from IBKR")
                         return d
                 except (ConnectionError, TimeoutError, ValueError) as e:
-                    logger.debug(f"Tradier historical failed for {symbol}: {e}")
+                    logger.debug(f"IBKR historical failed for {symbol}: {e}")
             return None
 
         try:
@@ -623,16 +604,16 @@ class OptionPlayServer:
 
         async def fetch_quote() -> Optional[Any]:
             await self._ensure_connected()
-            if self._tradier_connected and self._tradier_provider:
+            if self._ibkr_connected and self._ibkr_provider:
                 try:
-                    q = await self._tradier_provider.get_quote(symbol)
+                    q = await self._ibkr_provider.get_quote(symbol)
                     if q and q.last:
-                        self._orchestrator.record_request(ProviderType.TRADIER, success=True)
+                        self._orchestrator.record_request(ProviderType.IBKR, success=True)
                         return q
                 except (ConnectionError, TimeoutError, ValueError) as e:
-                    logger.debug(f"Tradier quote failed for {symbol}: {e}")
+                    logger.debug(f"IBKR quote failed for {symbol}: {e}")
                     self._orchestrator.record_request(
-                        ProviderType.TRADIER, success=False, error=str(e)
+                        ProviderType.IBKR, success=False, error=str(e)
                     )
             return None
 
@@ -673,12 +654,12 @@ class OptionPlayServer:
 
     async def disconnect(self) -> None:
         """Disconnect from all data providers."""
-        if self._tradier_provider and self._tradier_connected:
-            await self._tradier_provider.disconnect()
-            self._tradier_connected = False
-            self._orchestrator.enable_tradier(False)
+        if self._ibkr_provider and self._ibkr_connected:
+            await self._ibkr_provider.disconnect()
+            self._ibkr_connected = False
+            self._orchestrator.enable_ibkr(False)
             self.state.connection.mark_disconnected()
-            logger.info("Tradier disconnected")
+            logger.info("IBKR disconnected")
 
     # =========================================================================
     # HEALTH CHECK
@@ -698,13 +679,9 @@ class OptionPlayServer:
             ibkr_host = self._ibkr_bridge.host
             ibkr_port = self._ibkr_bridge.port
 
-        tradier_available = bool(self._tradier_api_key)
-        tradier_environment = None
-        if tradier_available:
-            tradier_environment = cfg.settings.tradier.environment
-            # Trigger lazy connection so health check reflects actual status
-            if not self._tradier_connected:
-                await self._ensure_tradier_connected()
+        # Trigger lazy IBKR connection so health check reflects actual status
+        if not self._ibkr_connected:
+            await self._ensure_ibkr_connected()
 
         # Local DB stats
         local_db_stats = None
@@ -727,12 +704,8 @@ class OptionPlayServer:
             ibkr_host=ibkr_host,
             ibkr_port=ibkr_port,
             metrics_stats=metrics.to_dict(),
-            tradier_available=tradier_available,
-            tradier_connected=self._tradier_connected,
-            tradier_api_key_masked=(
-                mask_api_key(self._tradier_api_key) if self._tradier_api_key else None
-            ),
-            tradier_environment=tradier_environment,
+            tradier_available=True,  # IBKR always available (no API key needed)
+            tradier_connected=self._ibkr_connected,
             local_db_enabled=self._local_db_enabled,
             local_db_stats=local_db_stats,
         )
