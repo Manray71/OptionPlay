@@ -95,7 +95,19 @@ _instance: Optional[AnalyzerThresholdsConfig] = None
 def get_analyzer_thresholds(
     config_path: Optional[Path] = None,
 ) -> AnalyzerThresholdsConfig:
-    """Return (or create) the singleton AnalyzerThresholdsConfig instance."""
+    """Return (or create) the singleton AnalyzerThresholdsConfig instance.
+
+    Prefers the global ServiceContainer if available.
+    """
+    # Prefer container if available
+    try:
+        from ..container import _default_container
+
+        if _default_container is not None and _default_container.analyzer_thresholds is not None:
+            return _default_container.analyzer_thresholds
+    except ImportError:
+        pass
+
     global _instance
     if _instance is None:
         with _lock:
@@ -108,3 +120,11 @@ def reset_analyzer_thresholds() -> None:
     """Reset singleton (for testing)."""
     global _instance
     _instance = None
+    # Also clear container slot so getter creates fresh instance
+    try:
+        from ..container import _default_container
+
+        if _default_container is not None:
+            _default_container.analyzer_thresholds = None
+    except ImportError:
+        pass

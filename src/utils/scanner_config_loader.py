@@ -282,7 +282,19 @@ def get_scanner_config(
     rsi_config_path: Optional[Path] = None,
     scanner_config_path: Optional[Path] = None,
 ) -> ScannerConfig:
-    """Return (or create) the singleton ScannerConfig instance."""
+    """Return (or create) the singleton ScannerConfig instance.
+
+    Prefers the global ServiceContainer if available.
+    """
+    # Prefer container if available
+    try:
+        from ..container import _default_container
+
+        if _default_container is not None and _default_container.scanner_config is not None:
+            return _default_container.scanner_config
+    except ImportError:
+        pass
+
     global _instance
     if _instance is None:
         with _lock:
@@ -295,3 +307,10 @@ def reset_scanner_config() -> None:
     """Reset singleton (for testing)."""
     global _instance
     _instance = None
+    try:
+        from ..container import _default_container
+
+        if _default_container is not None:
+            _default_container.scanner_config = None
+    except ImportError:
+        pass

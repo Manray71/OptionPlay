@@ -1032,15 +1032,18 @@ def get_fundamentals_manager(db_path: Optional[Path] = None) -> SymbolFundamenta
     """
     Returns global SymbolFundamentalsManager instance.
 
-    .. deprecated:: 3.5.0
-        Use ``ServiceContainer`` instead. Will be removed in v4.0.
-
-    Thread-safe singleton pattern.
+    Prefers the global ServiceContainer if available, otherwise
+    falls back to the module-level singleton.
     """
+    # Prefer container if available
     try:
-        from ..utils.deprecation import warn_singleton_usage
+        from ..container import _default_container
 
-        warn_singleton_usage("get_fundamentals_manager", "ServiceContainer.fundamentals_manager")
+        if (
+            _default_container is not None
+            and _default_container.fundamentals_manager is not None
+        ):
+            return _default_container.fundamentals_manager
     except ImportError:
         pass
 
@@ -1057,3 +1060,10 @@ def reset_fundamentals_manager() -> None:
     global _default_manager
     with _manager_lock:
         _default_manager = None
+    try:
+        from ..container import _default_container
+
+        if _default_container is not None:
+            _default_container.fundamentals_manager = None
+    except ImportError:
+        pass

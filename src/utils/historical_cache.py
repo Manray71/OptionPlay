@@ -343,7 +343,8 @@ def get_historical_cache(
     """
     Gibt die globale Cache-Instanz zurück.
 
-    Erstellt bei Bedarf eine neue Instanz.
+    Prefers the global ServiceContainer if available, otherwise
+    falls back to the module-level singleton.
 
     Args:
         ttl_seconds: TTL für neue Instanz
@@ -352,6 +353,15 @@ def get_historical_cache(
     Returns:
         HistoricalDataCache Instanz
     """
+    # Prefer container if available
+    try:
+        from ..container import _default_container
+
+        if _default_container is not None and _default_container.historical_data_cache is not None:
+            return _default_container.historical_data_cache
+    except ImportError:
+        pass
+
     global _cache_instance
 
     if _cache_instance is None:
@@ -367,3 +377,10 @@ def reset_historical_cache() -> None:
     if _cache_instance:
         _cache_instance.clear()
     _cache_instance = None
+    try:
+        from ..container import _default_container
+
+        if _default_container is not None:
+            _default_container.historical_data_cache = None
+    except ImportError:
+        pass

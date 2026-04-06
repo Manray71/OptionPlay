@@ -187,6 +187,7 @@ class IBKRConnection:
                 self.port,
                 clientId=self.client_id,
                 timeout=10,
+                readonly=True,
             )
 
             if self._ib.isConnected():
