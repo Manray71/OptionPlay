@@ -12,7 +12,7 @@
 # =============================================================================
 entry:
   stability_min: 65.0          # Minimum Stability Score (65-70 = WARNING)
-  earnings_min_days: 30        # Minimum days to earnings
+  earnings_min_days: 45        # Minimum days to earnings
   earnings_quarterly_max_gap: 100  # Max days since last earnings for "recently reported"
   vix_max_new_trades: 30.0     # No new trades above this VIX
   vix_no_trading: 35.0         # No trading at all above this

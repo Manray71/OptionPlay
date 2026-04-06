@@ -342,7 +342,7 @@ watchlist:
   #   /scan --all     → Scannt beide Listen
   stability_split:
     enabled: true                   # Aktiviert automatische Aufteilung
-    stable_min_score: 58.0          # Minimum Stability Score für stable_list
+    stable_min_score: 60.0          # Minimum Stability Score für stable_list
     # Symbole mit Score >= 60 → stable_list (ca. 250 Symbole)
     # Symbole mit Score < 60 → risk_list (ca. 100 Symbole)
     # Symbole auf Blacklist → werden komplett ausgeschlossen
@@ -459,7 +459,7 @@ risk_management:
 roll_strategy:
   # PULLBACK: Sharpe 7.02, Win Rate 90.5%
   pullback:
-    trigger_pct: -42.6            # Spread wert -42.6% → Roll initiieren
+    trigger_pct: -50.0            # Spread wert -50.0% → Roll initiieren
     dte_extension: 62             # DTE um ~62 Tage verlängern
     dte_extension_max: 107        # Max DTE-Verlängerung
     max_rolls: 5                  # Maximal 5 Rolls pro Trade
@@ -468,7 +468,7 @@ roll_strategy:
 
   # BOUNCE: Sharpe 6.39, Win Rate 88.8%
   bounce:
-    trigger_pct: -58.0            # Später rollen bei Bounce-Trades
+    trigger_pct: -50.0            # Roll bei -50% Verlust
     dte_extension: 76
     dte_extension_max: 113
     max_rolls: 5
@@ -477,7 +477,7 @@ roll_strategy:
 
   # ATH_BREAKOUT: Sharpe 8.51, Win Rate 93.1%
   ath_breakout:
-    trigger_pct: -55.1
+    trigger_pct: -50.0
     dte_extension: 63
     dte_extension_max: 114
     max_rolls: 6                  # Mehr Rolls erlaubt bei Breakouts
@@ -486,7 +486,7 @@ roll_strategy:
 
   # EARNINGS_DIP: Sharpe 3.19, Win Rate 85.3%
   earnings_dip:
-    trigger_pct: -40.9            # Früher rollen bei Earnings Dips
+    trigger_pct: -50.0            # Roll bei -50% Verlust
     dte_extension: 70
     dte_extension_max: 86
     max_rolls: 5
@@ -502,7 +502,7 @@ shadow_tracker:
   enabled: true
   auto_log_daily_picks: true
   auto_log_scans: false
-  auto_log_min_score: 8.0
+  auto_log_min_score: 5.0
   db_path: "data/shadow_trades.db"
 
 # ============================================================================

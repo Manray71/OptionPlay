@@ -3,7 +3,7 @@
 Session-Kontext für Claude Code. Enthält DB-Schema, API-Beispiele und Code-Konventionen.
 Für alle Trading-Regeln → siehe `docs/PLAYBOOK.md`
 
-**Version:** 4.2.0
+**Version:** 5.0.0
 **Zuletzt aktualisiert:** 2026-04-06
 **Test-Coverage:** 80%+ (7,771 Tests)
 **Codebase:** 225 Module | ~96,000 LOC (src/) | 156 Testdateien

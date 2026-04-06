@@ -331,7 +331,7 @@ trained_weights:
 #
 roll_strategy:
   pullback:
-    trigger_pct: -65.0          # Roll bei -65% Verlust
+    trigger_pct: -50.0          # Roll bei -50% Verlust
     dte_extension: 65           # Auf +65 DTE rollen
     dte_extension_max: 74       # Max DTE nach Roll
     max_rolls: 5                # Maximal 5 Rolls
@@ -340,7 +340,7 @@ roll_strategy:
     # Performance: 80.9% WR, 44.3% Roll Success, $2.46 avg P&L
 
   bounce:
-    trigger_pct: -36.5          # Roll bei -36.5% Verlust
+    trigger_pct: -50.0          # Roll bei -50% Verlust
     dte_extension: 52           # Auf +52 DTE rollen
     dte_extension_max: 103      # Max DTE nach Roll
     max_rolls: 6                # Maximal 6 Rolls
@@ -349,7 +349,7 @@ roll_strategy:
     # Performance: 87.3% WR, 65.7% Roll Success, $19.69 avg P&L
 
   ath_breakout:
-    trigger_pct: -31.8          # Roll bei -31.8% Verlust
+    trigger_pct: -50.0          # Roll bei -50% Verlust
     dte_extension: 88           # Auf +88 DTE rollen
     dte_extension_max: 87       # Max DTE nach Roll
     max_rolls: 5                # Maximal 5 Rolls
@@ -358,7 +358,7 @@ roll_strategy:
     # Performance: 81.2% WR, 62.2% Roll Success, -$2.37 avg P&L
 
   earnings_dip:
-    trigger_pct: -38.0          # Roll bei -38% Verlust
+    trigger_pct: -50.0          # Roll bei -50% Verlust
     dte_extension: 73           # Auf +73 DTE rollen
     dte_extension_max: 106      # Max DTE nach Roll
     max_rolls: 5                # Maximal 5 Rolls

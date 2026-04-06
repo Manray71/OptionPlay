@@ -60,7 +60,7 @@ class TestDefaultSettings:
         """Filters should have correct defaults"""
         settings = Settings()
         
-        assert settings.filters.earnings_exclude_days == 30  # Was 45, reduced via scanner_config.yaml
+        assert settings.filters.earnings_exclude_days == 45  # Unified to 45 days (PLAYBOOK §1)
         assert settings.filters.price_minimum == 20.0
         assert settings.filters.price_maximum == 1500.0
         assert settings.filters.volume_minimum == 500000
@@ -451,7 +451,7 @@ class TestScannerConfig:
         
         assert config.min_score == 5.0
         assert config.min_actionable_score == 6.0
-        assert config.exclude_earnings_within_days == 30  # Was 45
+        assert config.exclude_earnings_within_days == 45  # Unified to 45 days
         assert config.iv_rank_minimum == 30.0
         assert config.iv_rank_maximum == 80.0
         assert config.enable_iv_filter == True

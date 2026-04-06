@@ -140,7 +140,7 @@ class TestScanConfig:
 
         assert config.min_score == 3.5
         assert config.min_actionable_score == 5.0
-        assert config.exclude_earnings_within_days == 30
+        assert config.exclude_earnings_within_days == 45
         assert config.iv_rank_minimum == 30.0
         assert config.iv_rank_maximum == 80.0
         assert config.enable_iv_filter is True
@@ -159,13 +159,13 @@ class TestScanConfig:
         """Custom values should be applied"""
         config = ScanConfig(
             min_score=7.0,
-            exclude_earnings_within_days=30,
+            exclude_earnings_within_days=45,
             max_total_results=100,
             enable_pullback=False,
         )
 
         assert config.min_score == 7.0
-        assert config.exclude_earnings_within_days == 30
+        assert config.exclude_earnings_within_days == 45
         assert config.max_total_results == 100
         assert config.enable_pullback is False
 

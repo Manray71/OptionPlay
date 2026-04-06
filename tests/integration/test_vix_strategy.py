@@ -700,7 +700,7 @@ class TestGetRecommendation:
         assert rec.min_score >= 5
         assert rec.dte_min == 60
         assert rec.dte_max == 90
-        assert rec.earnings_buffer_days == 30
+        assert rec.earnings_buffer_days == 45
 
     def test_standard_recommendation(self):
         """Standard profile values (sweet spot)"""
