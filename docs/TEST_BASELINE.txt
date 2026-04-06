@@ -1,0 +1,327 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/larschristiansen/OptionPlay
+configfile: pytest.ini (WARNING: ignoring pytest config in pyproject.toml!)
+plugins: anyio-4.12.1, timeout-2.4.0, hypothesis-6.151.4, asyncio-1.3.0, cov-7.0.0
+timeout: 30.0s
+timeout method: signal
+timeout func_only: False
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 7782 items
+
+tests/component/test_analyzer_pool.py ...............................    [  0%]
+tests/component/test_ath_breakout_analyzer.py .......................... [  0%]
+...................................................                      [  1%]
+tests/component/test_bounce_analyzer.py ................................ [  1%]
+.............................................                            [  2%]
+tests/component/test_cache_manager.py .................................. [  2%]
+........................................................................ [  3%]
+.....                                                                    [  3%]
+tests/component/test_cache_thread_safety.py ..........                   [  3%]
+tests/component/test_concurrent_access.py ...........                    [  4%]
+tests/component/test_config_loader.py .................................. [  4%]
+......                                                                   [  4%]
+tests/component/test_container.py .................                      [  4%]
+tests/component/test_delta_configuration.py ............................ [  5%]
+......................s................................................. [  6%]
+..sss                                                                    [  6%]
+tests/component/test_dividend_history.py ............................... [  6%]
+.                                                                        [  6%]
+tests/component/test_earnings_cache.py ...................               [  6%]
+tests/component/test_earnings_dip_analyzer.py .......................... [  7%]
+........................................................................ [  8%]
+........                                                                 [  8%]
+tests/component/test_earnings_history.py ............................... [  8%]
+..........                                                               [  8%]
+tests/component/test_entry_quality_scorer.py ........................... [  9%]
+..........................                                               [  9%]
+tests/component/test_error_handler.py .................................. [  9%]
+..............................                                           [ 10%]
+tests/component/test_feature_scoring_mixin.py .......................... [ 10%]
+                                                                         [ 10%]
+tests/component/test_historical_cache.py ............................... [ 10%]
+........................................................................ [ 11%]
+..                                                                       [ 11%]
+tests/component/test_iv_analyzer.py .................................... [ 12%]
+........................                                                 [ 12%]
+tests/component/test_iv_cache.py ...........................             [ 13%]
+tests/component/test_iv_cache_impl_extended.py ......................... [ 13%]
+..........................................                               [ 13%]
+tests/component/test_liquidity_filter.py .....................           [ 14%]
+tests/component/test_local_db_provider.py ..................             [ 14%]
+tests/component/test_market_data_models.py ..................            [ 14%]
+tests/component/test_models_candidates.py ......                         [ 14%]
+tests/component/test_models_options.py .........................         [ 14%]
+tests/component/test_phase_g_optimizations.py .......................... [ 15%]
+..                                                                       [ 15%]
+tests/component/test_pullback_analyzer.py .............................. [ 15%]
+.....................................                                    [ 16%]
+tests/component/test_pullback_analyzer_extended.py ..................... [ 16%]
+................                                                         [ 16%]
+tests/component/test_pullback_analyzer_fixes.py ..............           [ 16%]
+tests/component/test_regime_config.py ............................       [ 17%]
+tests/component/test_service_base.py .....................               [ 17%]
+tests/component/test_signal_aggregator.py ...............                [ 17%]
+tests/component/test_spread_analyzer.py ................................ [ 18%]
+......................................................                   [ 18%]
+tests/component/test_symbol_fundamentals.py ............................ [ 19%]
+.....................                                                    [ 19%]
+tests/component/test_tool_registry.py .......................            [ 19%]
+tests/component/test_trend_continuation_analyzer.py .................... [ 19%]
+........................................................................ [ 20%]
+..........................                                               [ 21%]
+tests/component/test_utils_historical_cache.py ......................... [ 21%]
+............                                                             [ 21%]
+tests/component/test_visualization.py .............................      [ 22%]
+tests/component/test_vix_cache.py ....................................   [ 22%]
+tests/component/test_watchlist_loader.py ..........................      [ 22%]
+tests/integration/test_analysis_context.py ............................. [ 23%]
+.............                                                            [ 23%]
+tests/integration/test_analysis_handler.py .............                 [ 23%]
+tests/integration/test_backtest_engine.py .............................. [ 23%]
+...........................................                              [ 24%]
+tests/integration/test_backtesting.py .................................. [ 24%]
+.........                                                                [ 25%]
+tests/integration/test_backtesting_metrics.py .......................... [ 25%]
+........................................................................ [ 26%]
+......                                                                   [ 26%]
+tests/integration/test_context.py ...................................... [ 26%]
+...............................                                          [ 27%]
+tests/integration/test_data_collector.py ............................... [ 27%]
+.................................                                        [ 28%]
+tests/integration/test_db_benchmarks.py .................                [ 28%]
+tests/integration/test_earnings_aggregator.py .......................... [ 28%]
+.................................................................        [ 29%]
+tests/integration/test_ensemble_selector.py ............................ [ 29%]
+...........................................................              [ 30%]
+tests/integration/test_handler_container.py ..........................   [ 30%]
+tests/integration/test_market_scanner.py ...................             [ 31%]
+tests/integration/test_ml_weight_optimizer.py .......................... [ 31%]
+......................................                                   [ 32%]
+tests/integration/test_monitor_handler.py ...................            [ 32%]
+tests/integration/test_multi_strategy_scanner.py ....................... [ 32%]
+........................................................................ [ 33%]
+...............                                                          [ 33%]
+tests/integration/test_options_chain_validator.py ...................... [ 33%]
+.                                                                        [ 33%]
+tests/integration/test_options_service.py .............................. [ 34%]
+.......                                                                  [ 34%]
+tests/integration/test_options_simulator.py ............................ [ 34%]
+..............                                                           [ 35%]
+tests/integration/test_performance_benchmark.py ...................      [ 35%]
+tests/integration/test_portfolio.py ..........................           [ 35%]
+tests/integration/test_portfolio_constraints.py ........................ [ 35%]
+.............................                                            [ 36%]
+tests/integration/test_portfolio_formatter.py .......................... [ 36%]
+..                                                                       [ 36%]
+tests/integration/test_portfolio_handler.py ............................ [ 36%]
+.....................                                                    [ 37%]
+tests/integration/test_position_monitor.py ............................. [ 37%]
+.............................................................            [ 38%]
+tests/integration/test_provider_orchestrator.py ........................ [ 38%]
+..s..............s......s............s...................s.............. [ 39%]
+......s.....s.........                                                   [ 39%]
+tests/integration/test_quote_handler.py ................................ [ 40%]
+..................                                                       [ 40%]
+tests/integration/test_quote_service.py ................................ [ 40%]
+....                                                                     [ 41%]
+tests/integration/test_recommendation_engine.py ........................ [ 41%]
+........................................................................ [ 42%]
+...                                                                      [ 42%]
+tests/integration/test_regime_model.py ........................          [ 42%]
+tests/integration/test_reliability.py .................................. [ 43%]
+.................................................                        [ 43%]
+tests/integration/test_report_handler.py .................               [ 43%]
+tests/integration/test_risk_handler.py ............                      [ 44%]
+tests/integration/test_scan_handler.py ................................. [ 44%]
+.............................                                            [ 44%]
+tests/integration/test_scan_performance.py ......                        [ 44%]
+tests/integration/test_scanner_service.py .............................. [ 45%]
+...................................................                      [ 45%]
+tests/integration/test_shadow_daily_picks.py ........                    [ 46%]
+tests/integration/test_signal_validation.py ............................ [ 46%]
+........................................................................ [ 47%]
+....................                                                     [ 47%]
+tests/integration/test_strike_recommender.py ........................... [ 47%]
+........................................................................ [ 48%]
+...                                                                      [ 48%]
+tests/integration/test_trade_tracker.py ................................ [ 49%]
+........................................................................ [ 50%]
+.............                                                            [ 50%]
+tests/integration/test_trade_validator.py .............................. [ 50%]
+........................................................................ [ 51%]
+................                                                         [ 51%]
+tests/integration/test_validate_handler.py ............                  [ 52%]
+tests/integration/test_vix_composed_handler.py ......................... [ 52%]
+....                                                                     [ 52%]
+tests/integration/test_vix_handler.py ................                   [ 52%]
+tests/integration/test_vix_service.py .................................. [ 53%]
+..................................                                       [ 53%]
+tests/integration/test_vix_strategy.py ................................. [ 53%]
+........................................................................ [ 54%]
+.                                                                        [ 54%]
+tests/integration/test_vix_strategy_fixes.py .......................     [ 55%]
+tests/integration/test_walk_forward.py ................................. [ 55%]
+.....................................                                    [ 56%]
+tests/system/test_handlers.py .........                                  [ 56%]
+tests/system/test_ibkr_bridge.py ...........................             [ 56%]
+tests/system/test_ibkr_handler.py .........................              [ 56%]
+tests/system/test_mcp_integration.py ..................                  [ 57%]
+tests/system/test_mcp_server_e2e.py .................................    [ 57%]
+tests/system/test_mcp_server_extended.py .........................       [ 57%]
+tests/system/test_multi_strategy_ranker.py ............................. [ 58%]
+....                                                                     [ 58%]
+tests/system/test_pdf_report_generator.py .............................. [ 58%]
+................                                                         [ 58%]
+tests/system/test_server_core.py ....................................... [ 59%]
+....                                                                     [ 59%]
+tests/system/test_server_state.py ...................................    [ 59%]
+tests/system/test_workflow_integration.py ........................       [ 60%]
+tests/unit/test_analyzer_thresholds.py ................................  [ 60%]
+tests/unit/test_batch_scorer.py .......                                  [ 60%]
+tests/unit/test_black_scholes.py ..........................              [ 61%]
+tests/unit/test_circuit_breaker.py .............................         [ 61%]
+tests/unit/test_classify_liquidity.py ........................           [ 61%]
+tests/unit/test_deprecation.py ...............                           [ 61%]
+tests/unit/test_enhanced_scoring.py .................................... [ 62%]
+........................................................                 [ 63%]
+tests/unit/test_events.py .......................................        [ 63%]
+tests/unit/test_gap_analysis.py ........................................ [ 64%]
+..............................................                           [ 64%]
+tests/unit/test_hypothesis_pbt.py ..............................         [ 65%]
+tests/unit/test_ibkr_provider.py ....................................... [ 65%]
+...............                                                          [ 65%]
+tests/unit/test_indicators_momentum.py ................................. [ 66%]
+..............................................................           [ 66%]
+tests/unit/test_indicators_trend.py .................................... [ 67%]
+..................................                                       [ 67%]
+tests/unit/test_indicators_volatility.py ............................... [ 68%]
+.......................................                                  [ 68%]
+tests/unit/test_malicious_input.py ..................................... [ 69%]
+........................................................................ [ 70%]
+...................................................                      [ 70%]
+tests/unit/test_markdown_builder.py .................................... [ 71%]
+....................................................                     [ 71%]
+tests/unit/test_max_pain.py ................                             [ 72%]
+tests/unit/test_max_pain_fixes.py ................                       [ 72%]
+tests/unit/test_metrics.py .........................                     [ 72%]
+tests/unit/test_models_base.py ......................................... [ 73%]
+..........                                                               [ 73%]
+tests/unit/test_momentum_indicators.py .............................     [ 73%]
+tests/unit/test_outcome_storage_security.py .................            [ 73%]
+tests/unit/test_output_formatters.py ...........................         [ 74%]
+tests/unit/test_portfolio_manager.py ................................... [ 74%]
+.......................................                                  [ 75%]
+tests/unit/test_position_sizing.py ...............................       [ 75%]
+tests/unit/test_pricing.py ............................................. [ 76%]
+..........................................................               [ 76%]
+tests/unit/test_pricing_black_scholes.py ............................... [ 77%]
+....................................................                     [ 78%]
+tests/unit/test_pullback_scoring.py .................................... [ 78%]
+.................                                                        [ 78%]
+tests/unit/test_rate_limiter.py ........................................ [ 79%]
+.................................................                        [ 79%]
+tests/unit/test_recommendation_ranking.py .............................  [ 80%]
+tests/unit/test_request_dedup.py ..........                              [ 80%]
+tests/unit/test_result_types.py ........................................ [ 80%]
+                                                                         [ 80%]
+tests/unit/test_scanner_config.py ........................               [ 81%]
+tests/unit/test_scanner_v2_integration.py ..................             [ 81%]
+tests/unit/test_score_normalization.py ................................. [ 81%]
+............................                                             [ 82%]
+tests/unit/test_scoring_config.py ...................................... [ 82%]
+..........................                                               [ 83%]
+tests/unit/test_sector_rs.py .........................................   [ 83%]
+tests/unit/test_secure_config.py ....................................... [ 84%]
+............................................................             [ 84%]
+tests/unit/test_shadow_tracker.py ...................................... [ 85%]
+........................................................................ [ 86%]
+...................                                                      [ 86%]
+tests/unit/test_simulation_batch.py ...............................      [ 86%]
+tests/unit/test_sr_chart.py ..........................................   [ 87%]
+tests/unit/test_strategy_enum.py ........................                [ 87%]
+tests/unit/test_structured_logging.py .................................. [ 88%]
+......................                                                   [ 88%]
+tests/unit/test_support_resistance.py .................................. [ 88%]
+........................................................................ [ 89%]
+................................................                         [ 90%]
+tests/unit/test_trading_rules.py ....................................... [ 90%]
+........................                                                 [ 91%]
+tests/unit/test_training_modules.py .................................... [ 91%]
+.....................................                                    [ 92%]
+tests/unit/test_trend_indicators.py ....................                 [ 92%]
+tests/unit/test_utils_metrics.py ....................................... [ 92%]
+....................................................................     [ 93%]
+tests/unit/test_utils_validation.py .................................... [ 94%]
+........................................................................ [ 95%]
+........................................................................ [ 96%]
+...........                                                              [ 96%]
+tests/unit/test_validation.py ..............................             [ 96%]
+tests/unit/test_validation_module.py ................................... [ 97%]
+.............................................................            [ 97%]
+tests/unit/test_vix_regime.py .......................................... [ 98%]
+......................................                                   [ 98%]
+tests/unit/test_vix_regime_integration.py .............................. [ 99%]
+........                                                                 [ 99%]
+tests/unit/test_volatility_indicators.py ..................              [ 99%]
+tests/unit/test_volume_profile.py .............................          [100%]
+
+=============================== warnings summary ===============================
+tests/integration/test_recommendation_engine.py::TestGetDailyPicks::test_get_daily_picks_no_vix
+tests/integration/test_vix_composed_handler.py::TestVixHandlerGetVix::test_get_vix_falls_back_to_tradier
+tests/integration/test_vix_composed_handler.py::TestVixHandlerRegimeStatus::test_get_regime_status_returns_markdown
+tests/integration/test_vix_composed_handler.py::TestVixHandlerStrategyForStock::test_get_strategy_for_stock_no_quote
+tests/integration/test_vix_composed_handler.py::TestVixHandlerHelpers::test_ensure_connected_returns_none_without_tradier
+tests/system/test_mcp_server_extended.py::TestHealthCheck::test_health_check_with_ibkr_connected
+tests/system/test_mcp_server_extended.py::TestUtilityMethods::test_get_watchlist_info
+  /Users/larschristiansen/OptionPlay/.venv/lib/python3.12/site-packages/_pytest/unraisableexception.py:67: PytestUnraisableExceptionWarning: Exception ignored in: <function IB.__del__ at 0x168ce2660>
+  
+  Traceback (most recent call last):
+    File "/Users/larschristiansen/OptionPlay/.venv/lib/python3.12/site-packages/ib_insync/ib.py", line 243, in __del__
+      self.disconnect()
+    File "/Users/larschristiansen/OptionPlay/.venv/lib/python3.12/site-packages/ib_insync/ib.py", line 297, in disconnect
+      self.client.disconnect()
+    File "/Users/larschristiansen/OptionPlay/.venv/lib/python3.12/site-packages/ib_insync/client.py", line 232, in disconnect
+      self.conn.disconnect()
+    File "/Users/larschristiansen/OptionPlay/.venv/lib/python3.12/site-packages/ib_insync/connection.py", line 45, in disconnect
+      self.transport.close()
+    File "/opt/homebrew/Cellar/python@3.12/3.12.12/Frameworks/Python.framework/Versions/3.12/lib/python3.12/asyncio/selector_events.py", line 1213, in close
+      super().close()
+    File "/opt/homebrew/Cellar/python@3.12/3.12.12/Frameworks/Python.framework/Versions/3.12/lib/python3.12/asyncio/selector_events.py", line 875, in close
+      self._loop.call_soon(self._call_connection_lost, None)
+    File "/opt/homebrew/Cellar/python@3.12/3.12.12/Frameworks/Python.framework/Versions/3.12/lib/python3.12/asyncio/base_events.py", line 799, in call_soon
+      self._check_closed()
+    File "/opt/homebrew/Cellar/python@3.12/3.12.12/Frameworks/Python.framework/Versions/3.12/lib/python3.12/asyncio/base_events.py", line 545, in _check_closed
+      raise RuntimeError('Event loop is closed')
+  RuntimeError: Event loop is closed
+  
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))
+
+tests/integration/test_trade_tracker.py::TestExportEdgeCases::test_export_for_training_no_closed_trades
+  /Users/larschristiansen/OptionPlay/.venv/lib/python3.12/site-packages/_pytest/unraisableexception.py:67: PytestUnraisableExceptionWarning: Exception ignored in: <function IB.__del__ at 0x168ce2660>
+  
+  Traceback (most recent call last):
+    File "/Users/larschristiansen/OptionPlay/.venv/lib/python3.12/site-packages/ib_insync/ib.py", line 243, in __del__
+      self.disconnect()
+    File "/Users/larschristiansen/OptionPlay/.venv/lib/python3.12/site-packages/ib_insync/ib.py", line 297, in disconnect
+      self.client.disconnect()
+    File "/Users/larschristiansen/OptionPlay/.venv/lib/python3.12/site-packages/ib_insync/client.py", line 232, in disconnect
+      self.conn.disconnect()
+    File "/Users/larschristiansen/OptionPlay/.venv/lib/python3.12/site-packages/ib_insync/connection.py", line 44, in disconnect
+      self.transport.write_eof()
+    File "/opt/homebrew/Cellar/python@3.12/3.12.12/Frameworks/Python.framework/Versions/3.12/lib/python3.12/asyncio/selector_events.py", line 1172, in write_eof
+      self._sock.shutdown(socket.SHUT_WR)
+  OSError: [Errno 9] Bad file descriptor
+  
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))
+
+tests/unit/test_indicators_momentum.py::TestEdgeCases::test_rsi_with_inf_values
+  /Users/larschristiansen/OptionPlay/src/indicators/momentum.py:43: RuntimeWarning: invalid value encountered in scalar divide
+    rs = avg_gain / avg_loss
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========== 7771 passed, 11 skipped, 9 warnings in 342.96s (0:05:42) ===========
