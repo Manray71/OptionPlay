@@ -389,53 +389,52 @@ class VixHandlerMixin(BaseHandlerMixin):
         """
         Get current sector momentum analysis for all sectors.
 
-        Uses SectorCycleService to calculate relative strength,
-        breadth, and momentum factors.
+        Uses SectorRSService to calculate relative strength
+        with RRG quadrant classification.
 
         Returns:
             Formatted Markdown sector status table
         """
-        from ..services.sector_cycle_service import SectorCycleService
+        from ..services.sector_rs import SectorRSService
 
-        service = SectorCycleService()
+        service = SectorRSService()
         statuses = await service.get_all_sector_statuses()
 
         b = MarkdownBuilder()
-        b.h1("Sector Momentum Status").blank()
+        b.h1("Sector RS Analysis").blank()
 
         if not statuses:
             b.hint("No sector data available.")
             return b.build()
 
-        regime_icons = {
-            "strong": "[+]",
-            "neutral": "[ ]",
-            "weak": "[-]",
-            "crisis": "[!]",
+        quadrant_icons = {
+            "leading": "[+]",
+            "improving": "[^]",
+            "weakening": "[v]",
+            "lagging": "[-]",
         }
 
         rows = []
-        for s in sorted(statuses, key=lambda x: x.momentum_factor, reverse=True):
-            icon = regime_icons.get(s.regime.value, "[ ]")
+        for s in sorted(statuses, key=lambda x: x.rs_ratio, reverse=True):
+            icon = quadrant_icons.get(s.quadrant.value, "[ ]")
             rows.append(
                 [
                     s.sector,
                     s.etf_symbol,
-                    f"{s.momentum_factor:.3f}",
-                    f"{icon} {s.regime.value.upper()}",
-                    f"{s.relative_strength_30d:+.1f}%",
-                    f"{s.relative_strength_60d:+.1f}%",
-                    f"{s.breadth_proxy:.2f}",
+                    f"{s.rs_ratio:.1f}",
+                    f"{s.rs_momentum:.1f}",
+                    f"{icon} {s.quadrant.value.capitalize()}",
+                    f"{s.score_modifier:+.1f}",
                 ]
             )
 
         b.table(
-            ["Sector", "ETF", "Factor", "Regime", "RS 30d", "RS 60d", "Breadth"],
+            ["Sector", "ETF", "RS Ratio", "Momentum", "Quadrant", "Modifier"],
             rows,
         )
         b.blank()
         b.hint(
-            "Factor range: 0.6 (weak) to 1.2 (strong). Applied to signal scores when sector_momentum.enabled=true."
+            "RS Ratio > 100 = outperforming SPY. Modifier applied additively to signal scores."
         )
 
         return b.build()

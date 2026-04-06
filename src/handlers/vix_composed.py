@@ -456,65 +456,12 @@ class VixHandler(BaseHandler):
         """
         Get current sector relative strength analysis for all sectors.
 
-        Uses SectorRSService (RRG quadrants) if available,
-        falls back to legacy SectorCycleService.
+        Uses SectorRSService with RRG quadrant classification.
 
         Returns:
             Formatted Markdown sector status table
         """
-        from ..utils.markdown_builder import MarkdownBuilder
-
-        # Try v2 (SectorRS) first
-        try:
-            return await self._get_sector_status_v2()
-        except Exception as e:
-            logger.debug(f"SectorRS v2 failed, falling back to v1: {e}")
-
-        # Fallback to legacy SectorCycleService
-        from ..services.sector_cycle_service import SectorCycleService
-
-        service = SectorCycleService()
-        statuses = await service.get_all_sector_statuses()
-
-        b = MarkdownBuilder()
-        b.h1("Sector Momentum Status").blank()
-
-        if not statuses:
-            b.hint("No sector data available.")
-            return b.build()
-
-        regime_icons = {
-            "strong": "[+]",
-            "neutral": "[ ]",
-            "weak": "[-]",
-            "crisis": "[!]",
-        }
-
-        rows = []
-        for s in sorted(statuses, key=lambda x: x.momentum_factor, reverse=True):
-            icon = regime_icons.get(s.regime.value, "[ ]")
-            rows.append(
-                [
-                    s.sector,
-                    s.etf_symbol,
-                    f"{s.momentum_factor:.3f}",
-                    f"{icon} {s.regime.value.upper()}",
-                    f"{s.relative_strength_30d:+.1f}%",
-                    f"{s.relative_strength_60d:+.1f}%",
-                    f"{s.breadth_proxy:.2f}",
-                ]
-            )
-
-        b.table(
-            ["Sector", "ETF", "Factor", "Regime", "RS 30d", "RS 60d", "Breadth"],
-            rows,
-        )
-        b.blank()
-        b.hint(
-            "Factor range: 0.6 (weak) to 1.2 (strong). Applied to signal scores when sector_momentum.enabled=true."
-        )
-
-        return b.build()
+        return await self._get_sector_status_v2()
 
     async def _get_sector_status_v2(self) -> str:
         """

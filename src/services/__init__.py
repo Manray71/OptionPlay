@@ -55,11 +55,6 @@ from .recommendation_engine import (
     get_quick_picks,
 )
 from .scanner_service import ScannerService
-from .sector_cycle_service import (
-    SectorCycleService,
-    SectorRegime,
-    SectorStatus,
-)
 from .sector_rs import (
     RSQuadrant,
     SectorRS,
@@ -108,11 +103,7 @@ __all__ = [
     "snapshot_from_internal",
     "snapshot_from_ibkr",
     "estimate_pnl_from_theta",
-    # Sector Cycle Service (v1, deprecated)
-    "SectorCycleService",
-    "SectorRegime",
-    "SectorStatus",
-    # Sector RS Service (v2, RRG quadrants)
+    # Sector RS Service (RRG quadrants)
     "SectorRSService",
     "SectorRS",
     "RSQuadrant",

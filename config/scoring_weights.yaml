@@ -631,49 +631,6 @@ ranking:
     Basic Materials: 0.0
 
 # =============================================================================
-# SECTOR CYCLE SERVICE
-# =============================================================================
-# Parameters for sector momentum factor calculation.
-
-sector_cycle:
-  cache_ttl_hours: 4
-
-  # Factor clamping bounds
-  factor_max: 1.5
-  factor_min: 0.6
-
-  # Lookback periods (days)
-  lookback_short: 30
-  lookback_long: 60
-
-  # Component weights for momentum factor (sum = 1.0)
-  weights:
-    rs_30d: 0.40
-    rs_60d: 0.30
-    breadth: 0.20
-    vol_premium: 0.10
-
-  # Breadth proxy defaults
-  breadth:
-    proxy_neutral: 0.5
-    norm_floor: 0.95
-    norm_range: 0.10
-
-  # Regime classification thresholds
-  regime:
-    strong: 1.05
-    neutral: 0.90
-    weak: 0.70
-
-  # Relative strength normalization scales
-  rs_scale:
-    d30: 10.0
-    d60: 15.0
-
-  # Extra days fetched beyond lookback
-  fetch_buffer_days: 10
-
-# =============================================================================
 # ENTRY QUALITY SCORER (EQS)
 # =============================================================================
 # Parameters for the 7-factor Entry Quality Score.
