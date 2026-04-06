@@ -462,6 +462,15 @@ async def fetch_daily_prices(
         loader = WatchlistLoader()
         symbols = loader.get_all_symbols()
 
+        # Always include sector ETFs + SPY for SectorRSService (O-1)
+        SECTOR_ETFS = [
+            "SPY", "XLK", "XLV", "XLF", "XLY", "XLP",
+            "XLE", "XLI", "XLB", "XLRE", "XLU", "XLC",
+        ]
+        for etf in SECTOR_ETFS:
+            if etf not in symbols:
+                symbols.append(etf)
+
         if not symbols:
             logger.warning("No symbols in watchlist")
             return 0
