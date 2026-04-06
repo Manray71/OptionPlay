@@ -192,6 +192,8 @@ class IBKRConnection:
 
             if self._ib.isConnected():
                 self._connected = True
+                # Use delayed data (type 3) to avoid subscription errors
+                self._ib.reqMarketDataType(3)
                 logger.info(f"IBKR Bridge verbunden (clientId={self.client_id}, port={self.port})")
                 return True
             else:

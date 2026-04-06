@@ -281,7 +281,12 @@ class IBKRMarketData:
                 if not chains:
                     continue
 
-                chain = next((c for c in chains if c.exchange == "SMART"), chains[0])
+                # Pick SMART chain with most expirations (multiple SMART entries possible)
+                smart_chains = [c for c in chains if c.exchange == "SMART"]
+                if smart_chains:
+                    chain = max(smart_chains, key=lambda c: len(c.expirations))
+                else:
+                    chain = max(chains, key=lambda c: len(c.expirations))
 
                 # Determine expiry
                 target_expiry = expiry
@@ -784,14 +789,14 @@ class IBKRMarketData:
         """
         Fetch full options chain from IBKR/TWS with Greeks.
 
-        Returns OptionQuote objects compatible with the DataProvider interface.
-        Used as fallback when Tradier is not available.
+        Uses reqSecDefOptParams for chain definition, then qualifies and
+        requests market data in optimized batches.
 
         Args:
             symbol: Ticker symbol
             dte_min: Minimum days to expiration
             dte_max: Maximum days to expiration
-            right: Option type - "P" for puts, "C" for calls
+            right: Option type - "P" for puts, "C" for calls, "PC" for both
 
         Returns:
             List of OptionQuote objects
@@ -813,20 +818,28 @@ class IBKRMarketData:
             stock = Stock(ibkr_sym, "SMART", "USD")
             self._conn.ib.qualifyContracts(stock)
 
-            # Get current price
+            # Get current price (delayed data needs more time)
             self._conn.ib.reqMktData(stock, "", False, False)
-            await asyncio.sleep(0.5)
-            ticker = self._conn.ib.ticker(stock)
-            current_price = ticker.marketPrice() if ticker else None
+            current_price = None
+            for _ in range(20):  # up to 2 seconds
+                await asyncio.sleep(0.1)
+                ticker = self._conn.ib.ticker(stock)
+                if ticker:
+                    mp = ticker.marketPrice()
+                    if mp and not math.isnan(mp) and mp > 0 and mp != float('inf'):
+                        current_price = mp
+                        break
             self._conn.ib.cancelMktData(stock)
 
-            if not current_price or math.isnan(current_price):
+            if not current_price:
                 logger.warning(f"IBKR: No price for {symbol}, cannot fetch options")
                 return []
 
             # Get options chain definition
             chains = await asyncio.wait_for(
-                self._conn.ib.reqSecDefOptParamsAsync(stock.symbol, "", stock.secType, stock.conId),
+                self._conn.ib.reqSecDefOptParamsAsync(
+                    stock.symbol, "", stock.secType, stock.conId
+                ),
                 timeout=15,
             )
 
@@ -834,7 +847,12 @@ class IBKRMarketData:
                 logger.warning(f"IBKR: No options chain for {symbol}")
                 return []
 
-            chain = next((c for c in chains if c.exchange == "SMART"), chains[0])
+            # Pick SMART chain with most expirations (multiple SMART entries possible)
+            smart_chains = [c for c in chains if c.exchange == "SMART"]
+            if smart_chains:
+                chain = max(smart_chains, key=lambda c: len(c.expirations))
+            else:
+                chain = max(chains, key=lambda c: len(c.expirations))
 
             # Filter expirations by DTE range
             today = datetime.now().date()
@@ -849,54 +867,67 @@ class IBKRMarketData:
                     continue
 
             if not valid_expiries:
-                logger.debug(f"IBKR: No expirations in DTE range {dte_min}-{dte_max} for {symbol}")
+                logger.debug(
+                    f"IBKR: No expirations in DTE range {dte_min}-{dte_max} for {symbol}"
+                )
                 return []
 
             # Filter strikes to +/-20% of current price
             max_distance = 0.20
-            valid_strikes = [
-                s for s in chain.strikes if abs(s - current_price) / current_price <= max_distance
-            ]
+            valid_strikes = sorted(
+                s for s in chain.strikes
+                if abs(s - current_price) / current_price <= max_distance
+            )
 
             right_upper = right.upper()
-            results = []
+            rights_to_query = ["P", "C"] if right_upper == "PC" else [right_upper]
 
+            # Build all contracts at once
+            all_contracts = []
             for expiry_str, expiry_date, dte in valid_expiries:
-                contracts = []
-                for strike in valid_strikes:
-                    try:
-                        opt = Option(ibkr_sym, expiry_str, strike, right_upper, "SMART")
-                        contracts.append((strike, opt))
-                    except (TypeError, ValueError) as e:
-                        logger.warning(
-                            "Contract creation failed for %s strike=%s: %s", symbol, strike, e
-                        )
-                        continue
+                for cur_right in rights_to_query:
+                    for strike in valid_strikes:
+                        try:
+                            opt = Option(ibkr_sym, expiry_str, strike, cur_right, "SMART")
+                            all_contracts.append(
+                                (strike, opt, expiry_str, expiry_date, dte, cur_right)
+                            )
+                        except (TypeError, ValueError):
+                            continue
 
-                if not contracts:
-                    continue
+            if not all_contracts:
+                return []
 
-                # Qualify all contracts for this expiry
-                all_opts = [c[1] for c in contracts]
-                try:
-                    self._conn.ib.qualifyContracts(*all_opts)
-                except Exception as e:
-                    logger.debug(f"IBKR: Qualify failed for {symbol} {expiry_str}: {e}")
-                    continue
+            # Qualify all contracts at once (single call, much faster than batches)
+            all_opts = [c[1] for c in all_contracts]
+            try:
+                self._conn.ib.qualifyContracts(*all_opts)
+            except Exception as e:
+                logger.debug(f"IBKR: Qualify failed for {symbol}: {e}")
 
-                # Request market data with Greeks (tick 100=OI, 101=Greeks, 106=IV)
-                qualified = [(s, o) for s, o in contracts if o.conId > 0]
-                for _, opt in qualified:
+            qualified = [
+                (s, o, es, ed, d, r) for s, o, es, ed, d, r in all_contracts if o.conId > 0
+            ]
+
+            if not qualified:
+                logger.debug(f"IBKR: No qualified contracts for {symbol}")
+                return []
+
+            # Request market data in chunks of 100 (streaming, not snapshot)
+            results = []
+            mktdata_chunk = 100
+            for i in range(0, len(qualified), mktdata_chunk):
+                chunk = qualified[i:i + mktdata_chunk]
+                for _, opt, *_ in chunk:
                     try:
                         self._conn.ib.reqMktData(opt, "100,101,106", False, False)
-                    except Exception as e:
-                        logger.debug(f"IBKR reqMktData failed for {symbol}: {e}")
+                    except Exception:
+                        pass
 
-                # Wait for data
+                # Wait for delayed data to arrive
                 await asyncio.sleep(2)
 
-                # Collect results
-                for strike, opt in qualified:
+                for strike, opt, expiry_str, expiry_date, dte, cur_right in chunk:
                     try:
                         opt_ticker = self._conn.ib.ticker(opt)
                         if not opt_ticker:
@@ -918,32 +949,32 @@ class IBKRMarketData:
                             else None
                         )
 
-                        # Skip if no pricing at all
                         if bid is None and ask is None and last is None:
                             continue
 
-                        # Greeks from model
-                        delta = None
-                        gamma = None
-                        theta = None
-                        vega = None
-                        iv = None
-
+                        delta = gamma = theta = vega = iv = None
                         if opt_ticker.modelGreeks:
                             mg = opt_ticker.modelGreeks
-                            delta = mg.delta if mg.delta and not math.isnan(mg.delta) else None
-                            gamma = mg.gamma if mg.gamma and not math.isnan(mg.gamma) else None
-                            theta = mg.theta if mg.theta and not math.isnan(mg.theta) else None
-                            vega = mg.vega if mg.vega and not math.isnan(mg.vega) else None
+                            delta = (
+                                mg.delta if mg.delta and not math.isnan(mg.delta) else None
+                            )
+                            gamma = (
+                                mg.gamma if mg.gamma and not math.isnan(mg.gamma) else None
+                            )
+                            theta = (
+                                mg.theta if mg.theta and not math.isnan(mg.theta) else None
+                            )
+                            vega = (
+                                mg.vega if mg.vega and not math.isnan(mg.vega) else None
+                            )
                             iv = (
                                 mg.impliedVol
                                 if mg.impliedVol and not math.isnan(mg.impliedVol)
                                 else None
                             )
 
-                        # Open interest
                         oi = None
-                        if right_upper == "P":
+                        if cur_right == "P":
                             raw_oi = opt_ticker.putOpenInterest
                         else:
                             raw_oi = opt_ticker.callOpenInterest
@@ -956,12 +987,12 @@ class IBKRMarketData:
 
                         results.append(
                             OptionQuote(
-                                symbol=f"{symbol}{expiry_str}{right_upper}{strike:.0f}",
+                                symbol=f"{symbol}{expiry_str}{cur_right}{strike:.0f}",
                                 underlying=symbol,
                                 underlying_price=current_price,
                                 expiry=expiry_date,
                                 strike=strike,
-                                right=right_upper,
+                                right=cur_right,
                                 bid=bid,
                                 ask=ask,
                                 last=last,
@@ -980,12 +1011,12 @@ class IBKRMarketData:
                     except Exception as e:
                         logger.debug(f"IBKR option data error {symbol} {strike}: {e}")
 
-                # Cancel market data for this expiry
-                for _, opt in qualified:
+                # Cancel market data for this chunk
+                for _, opt, *_ in chunk:
                     try:
                         self._conn.ib.cancelMktData(opt)
-                    except Exception as e:
-                        logger.debug(f"IBKR cancelMktData failed: {e}")
+                    except Exception:
+                        pass
 
             logger.info(f"IBKR options chain: {len(results)} options for {symbol}")
             return results

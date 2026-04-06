@@ -168,7 +168,73 @@ def step_vix(logger, status, dry_run=False):
 # -- Step 2: Options + Greeks via IBKR --
 
 
-async def step_options(logger, status, dry_run=False):
+def _store_options_with_greeks(db_path, options, quote_date):
+    """Store options prices + Greeks into DB. Returns (prices, greeks) counts."""
+    if not options:
+        return 0, 0
+
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    prices_inserted = 0
+    greeks_inserted = 0
+    quote_date_str = quote_date.isoformat()
+
+    for opt in options:
+        try:
+            dte = (opt.expiry - quote_date).days
+            mid = None
+            if opt.bid is not None and opt.ask is not None:
+                mid = (opt.bid + opt.ask) / 2
+            elif opt.last is not None:
+                mid = opt.last
+
+            moneyness = None
+            if opt.underlying_price and opt.underlying_price > 0:
+                moneyness = round(opt.strike / opt.underlying_price, 4)
+
+            cursor.execute(
+                """INSERT OR REPLACE INTO options_prices (
+                    occ_symbol, underlying, expiration, strike, option_type,
+                    quote_date, bid, ask, mid, last, volume, open_interest,
+                    underlying_price, dte, moneyness
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    opt.symbol, opt.underlying, opt.expiry.isoformat(),
+                    opt.strike, opt.right, quote_date_str,
+                    opt.bid, opt.ask, mid, opt.last,
+                    opt.volume or 0, opt.open_interest or 0,
+                    opt.underlying_price, dte, moneyness,
+                ),
+            )
+            prices_inserted += 1
+
+            has_greeks = any(
+                v is not None
+                for v in [opt.delta, opt.gamma, opt.theta, opt.vega, opt.implied_volatility]
+            )
+            if has_greeks:
+                price_id = cursor.lastrowid
+                cursor.execute(
+                    """INSERT OR REPLACE INTO options_greeks (
+                        options_price_id, occ_symbol, quote_date,
+                        iv_calculated, iv_method, delta, gamma, theta, vega
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        price_id, opt.symbol, quote_date_str,
+                        opt.implied_volatility, "ibkr_orats",
+                        opt.delta, opt.gamma, opt.theta, opt.vega,
+                    ),
+                )
+                greeks_inserted += 1
+        except Exception:
+            pass
+
+    conn.commit()
+    conn.close()
+    return prices_inserted, greeks_inserted
+
+
+async def step_options(logger, status, dry_run=False, port=4001, client_id=10):
     logger.info("--- STEP 2: Options + Greeks (IBKR) ---")
     last = status["opt_max"]
     if not last:
@@ -205,7 +271,7 @@ async def step_options(logger, status, dry_run=False):
         symbols = get_watchlist_loader().get_all_symbols()
         logger.info(f"  {len(symbols)} Symbole")
 
-        provider = IBKRDataProvider()
+        provider = IBKRDataProvider(port=port, client_id=client_id)
         try:
             connected = await provider.connect()
             if not connected:
@@ -214,11 +280,7 @@ async def step_options(logger, status, dry_run=False):
 
             logger.info("  IBKR verbunden - sammle Options-Chains...")
 
-            from scripts.collect_options_tradier import store_options_with_greeks, ensure_schema
-
             db_path = str(DB_PATH)
-            ensure_schema(db_path)
-
             quote_date = today
             total_prices = 0
             total_greeks = 0
@@ -233,7 +295,9 @@ async def step_options(logger, status, dry_run=False):
                             symbol, dte_min=7, dte_max=130, right="PC"
                         )
                         if chain:
-                            prices, greeks = store_options_with_greeks(db_path, chain, quote_date)
+                            prices, greeks = _store_options_with_greeks(
+                                db_path, chain, quote_date
+                            )
                             total_prices += prices
                             total_greeks += greeks
                     except Exception as e:
@@ -462,7 +526,7 @@ async def run(args):
     if "vix" in steps:
         results["VIX"] = step_vix(logger, status, args.dry_run)
     if "options" in steps:
-        results["Options+Greeks"] = await step_options(logger, status, args.dry_run)
+        results["Options+Greeks"] = await step_options(logger, status, args.dry_run, port=args.port, client_id=args.client_id)
     if "ohlcv" in steps:
         results["OHLCV"] = await step_ohlcv(logger, status, args.dry_run)
     if "iv" in steps:
@@ -485,6 +549,8 @@ def main():
     p.add_argument("--steps", nargs="+", choices=ALL_STEPS)
     p.add_argument("--dry-run", "-n", action="store_true")
     p.add_argument("--status", action="store_true")
+    p.add_argument("--port", type=int, default=4001, help="IBKR Gateway port (default: 4001)")
+    p.add_argument("--client-id", type=int, default=10, help="IBKR client ID (default: 10)")
     p.add_argument("--verbose", "-v", action="store_true")
     asyncio.run(run(p.parse_args()))
 
