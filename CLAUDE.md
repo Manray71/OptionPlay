@@ -3,10 +3,10 @@
 Session-Kontext für Claude Code. Enthält DB-Schema, API-Beispiele und Code-Konventionen.
 Für alle Trading-Regeln → siehe `docs/PLAYBOOK.md`
 
-**Version:** 4.1.0
-**Zuletzt aktualisiert:** 2026-02-21
-**Test-Coverage:** 80%+ (7,635 Tests)
-**Codebase:** 220 Module | 94,080 LOC (src/) | 151 Testdateien
+**Version:** 4.2.0
+**Zuletzt aktualisiert:** 2026-04-06
+**Test-Coverage:** 80%+ (7,771 Tests)
+**Codebase:** 225 Module | ~96,000 LOC (src/) | 156 Testdateien
 
 ---
 
@@ -177,17 +177,30 @@ except ImportError:
     IBKR_AVAILABLE = False
 ```
 
-### Handler-Pattern (Mixin-basiert)
+### Handler-Pattern (Composition-basiert)
 
 ```python
-class OptionPlayServer(
-    VixHandlerMixin,
-    ScanHandlerMixin,
-    QuoteHandlerMixin,
-    BaseHandlerMixin,
-):
-    pass
+# Aktiv: Composition via HandlerContainer (handler_container.py)
+server.handlers.vix.get_vix()
+server.handlers.scan.daily_picks()
+
+# Deprecated: Mixin-Handler existieren noch für Test-Kompatibilität
+# OptionPlayServer erbt NICHT mehr von den Mixins
 ```
+
+### ServiceContainer (DI)
+
+```python
+from src.container import ServiceContainer, get_container
+
+container = get_container()  # Singleton
+container.vix_manager          # VixCacheManager
+container.fundamentals_manager # SymbolFundamentalsManager
+container.scanner_config       # ScannerConfigLoader
+# ... 11 Services total
+```
+
+Alle Singletons sind container-aware: `get_*()` prüft erst Container, dann lokalen Singleton.
 
 ### Exception-Hierarchie
 
@@ -240,8 +253,6 @@ python scripts/train_stability_thresholds.py # Stability-Cutoffs per Strategy ×
 |-------|--------|
 | `docs/PLAYBOOK.md` | **DAS Regelwerk** — Entry, Exit, Sizing, VIX, Disziplin |
 | `docs/ARCHITECTURE.md` | System-Architektur |
-| `docs/ROADMAP.md` | Stabilisierungs-Roadmap (Phase 1-6 ✅, S1-S6 ✅) |
-| `docs/PROJECT_REVIEW.md` | Vollständige Projektdokumentation mit Code-Review |
 | `CLAUDE.md` | Diese Datei — DB, API, Code |
 | `SKILL.md` | MCP-Tool-Referenz (53 Tools + 55 Aliases) |
 
@@ -273,6 +284,42 @@ Alle Scores werden via `score_normalization.py` auf 0-10 Skala normalisiert.
    - Sector-Factors pro Strategie × Sektor (12 Sektoren)
    - VIX-Regime-Adjustments (normal, elevated, high, extreme)
 3. **Ranking**: `recommendation_engine.py` kombiniert Signal (70%) + Stability (30%) × Speed-Multiplier
+
+### VIX Regime v2 (Kontinuierliche Interpolation)
+
+Ersetzt das alte 5-Stufen-System durch gleitende Skalierung:
+
+| Modul | Beschreibung |
+|-------|-------------|
+| `src/services/vix_regime.py` | Ankerpunkt-Interpolation, Term Structure, Trend Overlay |
+| `src/services/vix_strategy.py` | `MarketRegime = VIXRegime` (Alias), `VIXStrategySelector` mit v2-Pfad |
+| `src/constants/trading_rules.py` | `VIXRegime` Enum (6 Stufen inkl. NO_TRADING), `get_regime_rules_v2()` |
+
+**Ankerpunkte** (VIX → Parameter):
+```
+VIX 10: spread_width=$2.50, min_score=3.5, max_positions=6
+VIX 20: spread_width=$5.00, min_score=4.5, max_positions=4
+VIX 30: spread_width=$7.50, min_score=5.5, max_positions=2
+VIX 40: spread_width=$10.00, min_score=7.0, max_positions=0
+```
+
+- **Delta bleibt fix** bei -0.20 (±0.03) — "Delta ist heilig"
+- **Term Structure Overlay**: Contango → Score -0.5, Backwardation → Score +1.0 (nur VIX > 20)
+- **MarketRegime.UNKNOWN entfernt** — `Optional[VIXRegime] = None` stattdessen
+- **Feature-Flag**: `config/settings.yaml → scanner.vix_regime_version: 2`
+
+### Sector RS (RRG-Quadranten)
+
+Ersetzt `SectorCycleService` (multiplikativ) durch `SectorRSService` (additiv):
+
+| Modul | Beschreibung |
+|-------|-------------|
+| `src/services/sector_rs.py` | RRG-Quadranten (Leading/Weakening/Lagging/Improving), 11 GICS-Sektoren |
+
+- **Score-Modifier**: Leading +0.5, Improving +0.3, Weakening -0.3, Lagging -0.5
+- **Berechnung**: RS-Ratio (EMA-basiert vs SPY) + RS-Momentum (5d ROC)
+- **Config**: `config/strategies.yaml → sector_rs`
+- **MCP Tool**: `optionplay_sector_status` zeigt RRG-Tabelle
 
 ### Bekannte kritische Issues
 

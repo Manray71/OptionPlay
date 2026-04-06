@@ -1,6 +1,6 @@
 # OptionPlay - Architecture
 
-**Version:** 4.1.0
+**Version:** 4.2.0
 **Status:** Production MCP Server
 
 ---
@@ -29,7 +29,7 @@ DB-Schema & Code-Details → `CLAUDE.md`
 │                           MCP SERVER                                 │
 │  ┌───────────────────────────────────────────────────────────────┐  │
 │  │                    OptionPlayServer                            │  │
-│  │  (Mixin-based handlers, Composition migration planned)        │  │
+│  │  (Composition-based handlers via HandlerContainer)            │  │
 │  └──────────────────────────┬────────────────────────────────────┘  │
 │                              │                                       │
 │  ┌──────────────────────────┼────────────────────────────────────┐  │
@@ -40,7 +40,7 @@ DB-Schema & Code-Details → `CLAUDE.md`
 │         │      │       │          │          │                      │
 │  ┌──────┴──────┴───────┴──────────┴──────────┴──────────────────┐  │
 │  │                     SERVICE LAYER                              │  │
-│  │  VIX │ Scanner │ Options │ Recommender │ Validator │ Monitor  │  │
+│  │  VIX │ VIXRegime │ SectorRS │ Scanner │ Recommender │ Monitor │  │
 │  └──────────────────────────┬───────────────────────────────────┘  │
 │                              │                                       │
 │  ┌──────────────────────────┼───────────────────────────────────┐  │
@@ -50,7 +50,7 @@ DB-Schema & Code-Details → `CLAUDE.md`
 │                              │                                       │
 │  ┌──────────────────────────┼───────────────────────────────────┐  │
 │  │                     DATA LAYER                                 │  │
-│  │  Tradier Provider │ MarketData Provider │ Local DB Provider    │  │
+│  │  Tradier Provider │ IBKR Provider │ Local DB Provider          │  │
 │  └──────────────────────────┬───────────────────────────────────┘  │
 │                              │                                       │
 │  ┌──────────────────────────┼───────────────────────────────────┐  │
@@ -105,17 +105,18 @@ src/                                    223 Module | 89,574 LOC
 │   ├── base.py                        Abstrakte Basis (22 Interface-Methoden)
 │   └── handler_container.py           Composition-based (Migration)
 │
-├── services/                           15 Dateien — Business Logic
+├── services/                           17 Dateien — Business Logic
 │   ├── vix_service.py                 VIX-Daten + Regime-Erkennung
+│   ├── vix_regime.py                  VIX Regime v2 (Interpolation, Term Structure)
+│   ├── vix_strategy.py                VIX Strategy Selector (v1+v2 Pfad)
+│   ├── sector_rs.py                   Sector RS mit RRG-Quadranten
 │   ├── scanner_service.py             Multi-Strategy Scanning
 │   ├── options_service.py             Options-Analyse
 │   ├── recommendation_engine.py       Daily Picks + Strikes
 │   ├── trade_validator.py             Trade Validator (PLAYBOOK-Regeln)
 │   ├── position_monitor.py            Position Monitor (Exit-Signale)
 │   ├── portfolio_constraints.py       Portfolio-Limits + Sizing
-│   ├── entry_quality_scorer.py        Entry-Qualitäts-Score
-│   ├── iv_analyzer.py                 IV-Analyse
-│   ├── signal_filter.py               Signal-Filterung
+│   ├── enhanced_scoring.py            Enhanced Scoring (multiplicative)
 │   ├── pick_formatter.py              Pick-Formatierung
 │   └── options_chain_validator.py     Chain-Validierung
 │
@@ -156,8 +157,8 @@ src/                                    223 Module | 89,574 LOC
 ├── data_providers/                     Datenquellen-Abstraktion
 │   ├── interface.py                   DataProvider ABC (16 Methoden)
 │   ├── tradier.py                     Tradier API (Primär)
-│   ├── marketdata.py                  MarketData.app API (Sekundär)
-│   ├── local_db.py                    SQLite Local DB (Fallback)
+│   ├── ibkr_provider.py              IBKR Gateway (Fallback, readonly)
+│   ├── local_db.py                    SQLite Local DB (Historisch)
 │   └── fundamentals.py               Fundamentaldaten-Provider
 │
 ├── constants/                          Zentrale Konfiguration
@@ -258,7 +259,7 @@ Alle Parameter extern in YAML:
 | **CIRC-01** | ~~Zirkulärer Import validation ↔ training~~ | ✅ GELÖST | Klein | Lazy Import in `reliability.py:from_trained_model()` |
 | **VER-01** | ~~Versionskonflikt 3.7.0 vs 4.0.0~~ | ✅ GELÖST | Klein | Vereinheitlicht auf 4.0.0 |
 | **DEBT-003** | Blocking SQLite in async handlers | Medium | Mittel | `asyncio.to_thread()` als Workaround, `aiosqlite` für langfristige Lösung |
-| **DEBT-004** | Mixin → Composition Migration | Medium | Groß | `HandlerContainer` existiert, 11 Mixins mit 22 Interface-Methoden noch aktiv |
+| **DEBT-004** | ~~Mixin → Composition Migration~~ | ✅ GELÖST | — | Composition via `HandlerContainer` aktiv, Mixins nur noch für Test-Kompatibilität |
 | **DEBT-009** | 5 Dateien >1000 LOC im Backtesting | Medium | Mittel | engine.py, walk_forward.py, ml_weight_optimizer.py, signal_validation.py, options_backtest.py |
 | **DEBT-015** | Duale Black-Scholes-Implementierung | Medium | Mittel | `pricing/` (batch) + `options/` (OOP) — bewusste Trennung, aber Doku fehlt |
 | **WEIGHT-01** | ~~Komponenten-Gewichte hardcoded~~ | ✅ GELÖST | — | `config/scoring_weights.yaml` + RecursiveConfigResolver (4-Layer). Alle Analyzer nutzen `self.get_weights()`. Training via `retrain_weights.py --apply`. |
