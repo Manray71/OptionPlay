@@ -377,6 +377,9 @@ def get_regime_params(
         >>> params.stress_adjusted  # Backwardation detected
         True
     """
+    if vix < 0:
+        raise ValueError(f"VIX cannot be negative (got {vix}). Check data source.")
+
     # 1. Interpolate base parameters
     interp = _interpolate(vix)
 

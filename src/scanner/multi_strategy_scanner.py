@@ -1136,7 +1136,7 @@ class MultiStrategyScanner:
                             from ..services.sector_rs import normalize_sector_name
 
                             canonical = normalize_sector_name(sector)
-                            rs = self._sector_rs_service._cache.get(canonical)
+                            rs = self._sector_rs_service.get_cached_sector_rs(canonical)
                             if rs is not None and rs.score_modifier != 0.0:
                                 pre_rs_score = signal.score
                                 signal.score = round(signal.score + rs.score_modifier, 1)

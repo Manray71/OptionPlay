@@ -507,9 +507,9 @@ class TestEdgeCases:
         assert params.max_positions == 6
 
     def test_vix_negative(self):
-        """Negative VIX should not crash — clamps to lowest anchor."""
-        params = get_regime_params(-5.0)
-        assert params.min_score == 3.5
+        """Negative VIX should raise ValueError (data error)."""
+        with pytest.raises(ValueError, match="VIX cannot be negative"):
+            get_regime_params(-5.0)
 
     def test_vix_very_high(self):
         """VIX 100 should clamp to highest anchor."""

@@ -85,8 +85,13 @@ _SECTOR_ALIASES: Dict[str, str] = {
     "Basic Materials": "Materials",
 }
 
-# Reverse mapping: GICS names → DB (Yahoo Finance) names
-_SECTOR_REVERSE: Dict[str, str] = {v: k for k, v in _SECTOR_ALIASES.items()}
+# Reverse mapping: GICS canonical → preferred DB (Yahoo Finance) name.
+# Built explicitly to avoid silent overwrites when multiple aliases
+# map to the same canonical name (dict comprehension keeps only last).
+_SECTOR_REVERSE: Dict[str, str] = {}
+for _alias, _canonical in _SECTOR_ALIASES.items():
+    if _canonical not in _SECTOR_REVERSE:
+        _SECTOR_REVERSE[_canonical] = _alias
 
 # Default configuration
 DEFAULT_BENCHMARK = _cfg.get("benchmark", "SPY")
@@ -676,6 +681,17 @@ class SectorRSService:
             })
 
         return stock_results
+
+    def get_cached_sector_rs(self, sector: str) -> Optional[SectorRS]:
+        """
+        Get cached SectorRS for a canonical sector name (synchronous).
+
+        Returns None if not cached or cache expired.
+        Use this instead of accessing _cache directly.
+        """
+        if not self._is_cache_valid():
+            return None
+        return self._cache.get(sector)
 
     async def get_score_modifier(self, symbol: str) -> float:
         """
