@@ -229,8 +229,8 @@ class ScanConfig:
     # =========================================================================
     # VIX REGIME V2 + SECTOR RS (Phase 2)
     # =========================================================================
-    enable_regime_v2: bool = False  # Use v2 interpolated min_score gate
-    enable_sector_rs: bool = False  # Apply additive Sector RS modifier
+    enable_regime_v2: bool = True  # v2 interpolated min_score gate (activated v5.0.0)
+    enable_sector_rs: bool = True  # Additive Sector RS modifier (activated v5.0.0)
 
 
 def _get_default_blacklist_scanner() -> List[str]:

@@ -393,7 +393,7 @@ roll_strategy:
 # Replaces discrete 4-profile system with 7-anchor-point interpolation.
 # Feature-flagged: set enabled=true + scanner.enable_regime_v2=true
 vix_regime_v2:
-  enabled: false  # Set to true to activate v2 in MCP tools
+  enabled: true  # Activated in v5.0.0
   term_structure_overlay: true  # Contango/backwardation adjustments
 
 # =========================================================================
@@ -402,7 +402,7 @@ vix_regime_v2:
 # Replaces SectorCycleService multiplicative factors with additive modifiers.
 # Feature-flagged: set enabled=true + scanner.enable_sector_rs=true
 sector_rs:
-  enabled: false  # Set to true to activate in scanner
+  enabled: true  # Activated in v5.0.0
   benchmark: "SPY"
   lookback_days: 60
   ema_fast: 10

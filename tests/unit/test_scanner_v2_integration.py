@@ -16,18 +16,18 @@ from src.scanner.multi_strategy_scanner import MultiStrategyScanner, ScanConfig
 class TestScanConfigFlags:
     """Test that new ScanConfig flags have correct defaults."""
 
-    def test_enable_regime_v2_default_false(self):
+    def test_enable_regime_v2_default_true(self):
         cfg = ScanConfig()
-        assert cfg.enable_regime_v2 is False
-
-    def test_enable_sector_rs_default_false(self):
-        cfg = ScanConfig()
-        assert cfg.enable_sector_rs is False
-
-    def test_flags_can_be_enabled(self):
-        cfg = ScanConfig(enable_regime_v2=True, enable_sector_rs=True)
         assert cfg.enable_regime_v2 is True
+
+    def test_enable_sector_rs_default_true(self):
+        cfg = ScanConfig()
         assert cfg.enable_sector_rs is True
+
+    def test_flags_can_be_disabled(self):
+        cfg = ScanConfig(enable_regime_v2=False, enable_sector_rs=False)
+        assert cfg.enable_regime_v2 is False
+        assert cfg.enable_sector_rs is False
 
 
 # =============================================================================
