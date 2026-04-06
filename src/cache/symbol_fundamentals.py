@@ -542,6 +542,25 @@ class SymbolFundamentalsManager:
 
         return [SymbolFundamentals.from_dict(dict(row)) for row in rows]
 
+    def get_top_liquid_symbols(self, limit: int = 20) -> List[SymbolFundamentals]:
+        """Get top N symbols by liquidity (Tier 1, ordered by avg_put_oi DESC)."""
+        with self._lock:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    """
+                    SELECT * FROM symbol_fundamentals
+                    WHERE liquidity_tier = 1
+                      AND sector IS NOT NULL AND sector != ''
+                    ORDER BY avg_put_oi DESC
+                    LIMIT ?
+                """,
+                    (limit,),
+                )
+                rows = cursor.fetchall()
+
+        return [SymbolFundamentals.from_dict(dict(row)) for row in rows]
+
     # =========================================================================
     # Fetch from yfinance
     # =========================================================================

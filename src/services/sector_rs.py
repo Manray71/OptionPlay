@@ -78,14 +78,22 @@ _SECTOR_ALIASES: Dict[str, str] = {
     "Healthcare": "Health Care",
     "Information Technology": "Technology",
     "Communications": "Communication Services",
+    # DB (Yahoo Finance) → GICS mapping
+    "Consumer Cyclical": "Consumer Discretionary",
+    "Consumer Defensive": "Consumer Staples",
+    "Financial Services": "Financials",
+    "Basic Materials": "Materials",
 }
+
+# Reverse mapping: GICS names → DB (Yahoo Finance) names
+_SECTOR_REVERSE: Dict[str, str] = {v: k for k, v in _SECTOR_ALIASES.items()}
 
 # Default configuration
 DEFAULT_BENCHMARK = _cfg.get("benchmark", "SPY")
 DEFAULT_LOOKBACK_DAYS = _cfg.get("lookback_days", 60)
 DEFAULT_EMA_FAST = _cfg.get("ema_fast", 10)
 DEFAULT_EMA_SLOW = _cfg.get("ema_slow", 30)
-DEFAULT_MOMENTUM_LOOKBACK = _cfg.get("momentum_lookback", 5)
+DEFAULT_MOMENTUM_LOOKBACK = _cfg.get("momentum_lookback", 14)
 DEFAULT_CACHE_TTL_HOURS = _cfg.get("cache_ttl_hours", 8)
 
 # Score modifiers per quadrant (additive, not multiplicative)
@@ -148,26 +156,19 @@ def compute_ema(prices: List[float], period: int) -> List[float]:
     return ema
 
 
-def compute_rs_ratio(
+def _compute_ratio_ema(
     sector_closes: List[float],
     benchmark_closes: List[float],
-    ema_period: int = DEFAULT_EMA_SLOW,
-) -> float:
-    """
-    Compute RS Ratio: EMA of (sector / benchmark) * 100.
-
-    Returns value centered around 100:
-    - > 100: sector outperforming
-    - < 100: sector underperforming
-    """
+    ema_period: int,
+) -> List[float]:
+    """Compute EMA-smoothed sector/benchmark ratio series."""
     if (
         not sector_closes
         or not benchmark_closes
         or len(sector_closes) != len(benchmark_closes)
     ):
-        return 100.0
+        return []
 
-    # Raw ratio series
     ratios = []
     for s, b in zip(sector_closes, benchmark_closes):
         if b > 0:
@@ -175,21 +176,52 @@ def compute_rs_ratio(
         else:
             ratios.append(1.0)
 
-    if not ratios:
+    return compute_ema(ratios, ema_period) if ratios else []
+
+
+def compute_rs_ratio(
+    sector_closes: List[float],
+    benchmark_closes: List[float],
+    ema_period: int = DEFAULT_EMA_SLOW,
+) -> float:
+    """
+    Compute RS Ratio: EMA of (sector / benchmark), normalized against mean.
+
+    Standard JdK normalization: current_ema / mean(ema) * 100.
+    Returns value centered around 100:
+    - > 100: sector outperforming benchmark (above average)
+    - < 100: sector underperforming benchmark (below average)
+    """
+    ema_vals = _compute_ratio_ema(sector_closes, benchmark_closes, ema_period)
+    if not ema_vals:
         return 100.0
 
-    # Smooth with EMA
-    ema_ratios = compute_ema(ratios, ema_period)
-
-    # Normalize: current EMA / mean of EMA * 100
-    if not ema_ratios:
+    mean_ema = sum(ema_vals) / len(ema_vals)
+    if mean_ema <= 0:
         return 100.0
 
-    # Use the ratio of current to first as relative measure
-    # Centered at 100
-    current = ema_ratios[-1]
-    baseline = ema_ratios[0] if ema_ratios[0] > 0 else 1.0
-    return (current / baseline) * 100.0
+    return (ema_vals[-1] / mean_ema) * 100.0
+
+
+def compute_rs_ratio_series(
+    sector_closes: List[float],
+    benchmark_closes: List[float],
+    ema_period: int = DEFAULT_EMA_SLOW,
+) -> List[float]:
+    """
+    Compute full RS-Ratio time series (for momentum calculation).
+
+    Returns list of RS-Ratio values centered around 100 (oldest first).
+    """
+    ema_vals = _compute_ratio_ema(sector_closes, benchmark_closes, ema_period)
+    if not ema_vals:
+        return []
+
+    mean_ema = sum(ema_vals) / len(ema_vals)
+    if mean_ema <= 0:
+        return []
+
+    return [(e / mean_ema) * 100.0 for e in ema_vals]
 
 
 def compute_rs_momentum(
@@ -200,50 +232,28 @@ def compute_rs_momentum(
     momentum_lookback: int = DEFAULT_MOMENTUM_LOOKBACK,
 ) -> float:
     """
-    Compute RS Momentum: rate of change of RS Ratio.
+    Compute RS Momentum: rate of change of the RS-Ratio over momentum_lookback days.
 
-    Uses fast EMA / slow EMA of ratio series, then measures
-    the recent rate of change.
+    Measures whether the sector's relative strength is accelerating or decelerating.
 
     Returns value centered around 100:
-    - > 100: RS improving (accelerating)
-    - < 100: RS deteriorating (decelerating)
+    - > 100: RS improving (sector gaining relative strength)
+    - < 100: RS deteriorating (sector losing relative strength)
     """
-    if (
-        not sector_closes
-        or not benchmark_closes
-        or len(sector_closes) != len(benchmark_closes)
-        or len(sector_closes) < momentum_lookback + ema_slow
-    ):
-        return 100.0
-
-    # Raw ratio series
-    ratios = []
-    for s, b in zip(sector_closes, benchmark_closes):
-        if b > 0:
-            ratios.append(s / b)
-        else:
-            ratios.append(1.0)
-
-    # Fast and slow EMAs of the ratio
-    ema_fast_vals = compute_ema(ratios, ema_fast)
-    ema_slow_vals = compute_ema(ratios, ema_slow)
-
-    if not ema_fast_vals or not ema_slow_vals:
-        return 100.0
-
-    # Momentum: fast EMA vs slow EMA, with lookback comparison
-    current_spread = ema_fast_vals[-1] / ema_slow_vals[-1] if ema_slow_vals[-1] > 0 else 1.0
-    past_spread = (
-        ema_fast_vals[-momentum_lookback] / ema_slow_vals[-momentum_lookback]
-        if len(ema_fast_vals) > momentum_lookback and ema_slow_vals[-momentum_lookback] > 0
-        else 1.0
+    rs_series = compute_rs_ratio_series(
+        sector_closes, benchmark_closes, ema_period=ema_slow
     )
 
-    if past_spread <= 0:
+    if len(rs_series) <= momentum_lookback:
         return 100.0
 
-    return (current_spread / past_spread) * 100.0
+    current_rs = rs_series[-1]
+    past_rs = rs_series[-1 - momentum_lookback]
+
+    if past_rs <= 0:
+        return 100.0
+
+    return (current_rs / past_rs) * 100.0
 
 
 def classify_quadrant(rs_ratio: float, rs_momentum: float) -> RSQuadrant:
@@ -443,6 +453,229 @@ class SectorRSService:
         self._cache_time = time.time()
 
         return dict(sector_results)
+
+    async def get_all_sector_rs_with_trail(
+        self,
+        trail_points: int = 4,
+        trail_interval: int = 5,
+    ) -> Dict[str, dict]:
+        """
+        Compute RS for all sectors with trailing tail data.
+
+        Trail is computed by truncating price series at different offsets,
+        using existing daily_prices data (no extra DB storage needed).
+
+        Args:
+            trail_points: Number of historical snapshots (default 4 = 4 weeks)
+            trail_interval: Trading days between snapshots (default 5 = weekly)
+
+        Returns:
+            Dict mapping sector name -> {sector, etf, rs_ratio, rs_momentum,
+            quadrant, score_modifier, trail: [{rs_ratio, rs_momentum}, ...]}
+        """
+        benchmark = self._benchmark
+        extra_days = trail_points * trail_interval
+        fetch_days = self._lookback_days + 10 + extra_days
+
+        # Fetch all ETFs + benchmark in parallel
+        symbols = list(SECTOR_ETF_MAP.values()) + [benchmark]
+        tasks = [self._fetch_closes(sym, fetch_days) for sym in symbols]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        price_map: Dict[str, List[float]] = {}
+        for sym, res in zip(symbols, results):
+            if isinstance(res, list) and len(res) > 0:
+                price_map[sym] = res
+
+        benchmark_closes = price_map.get(benchmark)
+        if benchmark_closes is None:
+            logger.warning(f"No {benchmark} data for trail, returning neutral")
+            return {
+                sector: {
+                    **self._neutral_rs(sector).__dict__,
+                    "quadrant": self._neutral_rs(sector).quadrant.value,
+                    "trail": [],
+                }
+                for sector in SECTOR_ETF_MAP
+            }
+
+        sector_results: Dict[str, dict] = {}
+        offsets = list(range(trail_points * trail_interval, 0, -trail_interval)) + [0]
+
+        for sector, etf in SECTOR_ETF_MAP.items():
+            etf_closes = price_map.get(etf)
+            if etf_closes is None:
+                nr = self._neutral_rs(sector)
+                sector_results[sector] = {
+                    "sector": nr.sector,
+                    "etf_symbol": nr.etf_symbol,
+                    "rs_ratio": nr.rs_ratio,
+                    "rs_momentum": nr.rs_momentum,
+                    "quadrant": nr.quadrant.value,
+                    "score_modifier": nr.score_modifier,
+                    "trail": [],
+                }
+                continue
+
+            # Align lengths
+            min_len = min(len(etf_closes), len(benchmark_closes))
+            etf_aligned = etf_closes[-min_len:]
+            bench_aligned = benchmark_closes[-min_len:]
+
+            trail = []
+            for offset in offsets:
+                if offset == 0:
+                    sc = etf_aligned
+                    bc = bench_aligned
+                else:
+                    sc = etf_aligned[:-offset]
+                    bc = bench_aligned[:-offset]
+
+                if len(sc) < self._ema_slow + self._momentum_lookback:
+                    continue
+
+                rs_ratio = compute_rs_ratio(sc, bc, ema_period=self._ema_slow)
+                rs_momentum = compute_rs_momentum(
+                    sc, bc,
+                    ema_fast=self._ema_fast,
+                    ema_slow=self._ema_slow,
+                    momentum_lookback=self._momentum_lookback,
+                )
+                trail.append({
+                    "rs_ratio": round(rs_ratio, 2),
+                    "rs_momentum": round(rs_momentum, 2),
+                })
+
+            # Current values = last trail point
+            current = trail[-1] if trail else {"rs_ratio": 100.0, "rs_momentum": 100.0}
+            quadrant = classify_quadrant(current["rs_ratio"], current["rs_momentum"])
+
+            sector_results[sector] = {
+                "sector": sector,
+                "etf_symbol": etf,
+                "rs_ratio": current["rs_ratio"],
+                "rs_momentum": current["rs_momentum"],
+                "quadrant": quadrant.value,
+                "score_modifier": get_quadrant_modifier(quadrant),
+                "trail": trail[:-1],  # Exclude current (it's in top-level fields)
+            }
+
+        return sector_results
+
+    async def get_stock_rs_with_trail(
+        self,
+        limit: int = 20,
+        sector: Optional[str] = None,
+        trail_points: int = 4,
+        trail_interval: int = 5,
+    ) -> List[dict]:
+        """
+        Compute RS for top liquid individual stocks vs SPY, with trailing tails.
+
+        Args:
+            limit: Number of stocks (top by liquidity)
+            sector: Optional sector filter (e.g. "Technology")
+            trail_points: Historical snapshots (default 4 = 4 weeks)
+            trail_interval: Trading days between snapshots (default 5 = weekly)
+
+        Returns:
+            List of dicts: {symbol, sector, rs_ratio, rs_momentum, quadrant, trail}
+        """
+        try:
+            from ..cache import get_fundamentals_manager
+            manager = get_fundamentals_manager()
+            if sector:
+                # Filter by sector: get all sector stocks, sort by liquidity
+                all_sector = manager.get_symbols_by_sector(sector)
+                # Also check aliases (forward: DB→GICS)
+                canonical = normalize_sector_name(sector)
+                if canonical != sector:
+                    all_sector += manager.get_symbols_by_sector(canonical)
+                # Also check reverse aliases (GICS→DB)
+                reverse = _SECTOR_REVERSE.get(sector)
+                if reverse and reverse != sector:
+                    all_sector += manager.get_symbols_by_sector(reverse)
+                # Filter Tier 1+2, sort by avg_put_oi
+                top_stocks = sorted(
+                    [f for f in all_sector if (f.liquidity_tier or 99) <= 2],
+                    key=lambda f: f.avg_put_oi or 0,
+                    reverse=True,
+                )[:limit]
+            else:
+                top_stocks = manager.get_top_liquid_symbols(limit=limit)
+        except Exception as e:
+            logger.warning(f"Could not get liquid symbols: {e}")
+            return []
+
+        if not top_stocks:
+            return []
+
+        benchmark = self._benchmark
+        extra_days = trail_points * trail_interval
+        fetch_days = self._lookback_days + 10 + extra_days
+
+        # Fetch all stock prices + benchmark in parallel
+        symbols = [f.symbol for f in top_stocks] + [benchmark]
+        tasks = [self._fetch_closes(sym, fetch_days) for sym in symbols]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        price_map: Dict[str, List[float]] = {}
+        for sym, res in zip(symbols, results):
+            if isinstance(res, list) and len(res) > 0:
+                price_map[sym] = res
+
+        benchmark_closes = price_map.get(benchmark)
+        if benchmark_closes is None:
+            logger.warning(f"No {benchmark} data for stock RS")
+            return []
+
+        # Build sector lookup
+        sector_lookup = {f.symbol: f.sector or "Unknown" for f in top_stocks}
+        offsets = list(range(trail_points * trail_interval, 0, -trail_interval)) + [0]
+
+        stock_results: List[dict] = []
+        for f in top_stocks:
+            stock_closes = price_map.get(f.symbol)
+            if stock_closes is None:
+                continue
+
+            min_len = min(len(stock_closes), len(benchmark_closes))
+            stock_aligned = stock_closes[-min_len:]
+            bench_aligned = benchmark_closes[-min_len:]
+
+            trail = []
+            for offset in offsets:
+                sc = stock_aligned[:-offset] if offset > 0 else stock_aligned
+                bc = bench_aligned[:-offset] if offset > 0 else bench_aligned
+
+                if len(sc) < self._ema_slow + self._momentum_lookback:
+                    continue
+
+                rs_ratio = compute_rs_ratio(sc, bc, ema_period=self._ema_slow)
+                rs_momentum = compute_rs_momentum(
+                    sc, bc,
+                    ema_fast=self._ema_fast,
+                    ema_slow=self._ema_slow,
+                    momentum_lookback=self._momentum_lookback,
+                )
+                trail.append({
+                    "rs_ratio": round(rs_ratio, 2),
+                    "rs_momentum": round(rs_momentum, 2),
+                })
+
+            current = trail[-1] if trail else {"rs_ratio": 100.0, "rs_momentum": 100.0}
+            quadrant = classify_quadrant(current["rs_ratio"], current["rs_momentum"])
+
+            stock_results.append({
+                "symbol": f.symbol,
+                "sector": sector_lookup.get(f.symbol, "Unknown"),
+                "rs_ratio": current["rs_ratio"],
+                "rs_momentum": current["rs_momentum"],
+                "quadrant": quadrant.value,
+                "trail": trail[:-1],
+            })
+
+        return stock_results
 
     async def get_score_modifier(self, symbol: str) -> float:
         """
