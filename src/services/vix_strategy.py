@@ -27,6 +27,7 @@ from ..constants import (
     VIX_LOW,
     VIX_NORMAL,
 )
+from ..constants.trading_rules import VIXRegime
 
 logger = logging.getLogger(__name__)
 
@@ -70,29 +71,11 @@ class VixTrendInfo:
         return descriptions.get(self.trend, "Unknown")
 
 
-class MarketRegime(Enum):
-    """
-    Market regime based on VIX level.
-
-    .. deprecated::
-        Use ``VIXRegime`` from ``constants.trading_rules`` for new code.
-        ``MarketRegime`` is kept for backward compatibility during migration
-        to VIX Regime v2 (continuous interpolation).
-
-    5-tier system based on training analysis (2026-01-31):
-    - LOW_VOL (<15):     78.9% Win Rate - Normal conditions
-    - NORMAL (15-20):    84.0% Win Rate - Sweet Spot
-    - DANGER_ZONE (20-25): 78.9% Win Rate - CAUTION! Be careful
-    - ELEVATED (25-30):  88.6% Win Rate - Paradoxically good
-    - HIGH_VOL (>30):    80.5% Win Rate - Crash mode
-    """
-
-    LOW_VOL = "low_vol"  # VIX < 15
-    NORMAL = "normal"  # VIX 15-20 (Sweet Spot)
-    DANGER_ZONE = "danger_zone"  # VIX 20-25 (CRITICAL!)
-    ELEVATED = "elevated"  # VIX 25-30 (OK)
-    HIGH_VOL = "high_vol"  # VIX > 30
-    UNKNOWN = "unknown"  # No VIX data
+# DEPRECATED — use VIXRegime from constants.trading_rules directly
+# MarketRegime is now an alias for backward compatibility.
+# VIXRegime has the same members (LOW_VOL, NORMAL, DANGER_ZONE, ELEVATED, HIGH_VOL)
+# plus NO_TRADING (VIX > 35). Where MarketRegime.UNKNOWN was used, use None instead.
+MarketRegime = VIXRegime
 
 
 @dataclass
@@ -119,7 +102,7 @@ class StrategyRecommendation:
     """Strategy recommendation based on market conditions"""
 
     profile_name: str
-    regime: MarketRegime
+    regime: Optional[MarketRegime]
     vix_level: Optional[float]
 
     # Recommendations
@@ -140,7 +123,7 @@ class StrategyRecommendation:
     def to_dict(self) -> Dict[str, Any]:
         return {
             "profile": self.profile_name,
-            "regime": self.regime.value,
+            "regime": self.regime.value if self.regime else None,
             "vix": self.vix_level,
             "recommendations": {
                 "delta_target": self.delta_target,
@@ -357,7 +340,7 @@ class VIXStrategySelector:
             history_available=True,
         )
 
-    def get_regime(self, vix: Optional[float], use_trend: bool = True) -> MarketRegime:
+    def get_regime(self, vix: Optional[float], use_trend: bool = True) -> Optional[MarketRegime]:
         """
         Determines the market regime based on VIX (5-tier system).
 
@@ -385,8 +368,8 @@ class VIXStrategySelector:
         # Determine static regime first
         base_regime = self._get_static_regime(vix)
 
-        if base_regime == MarketRegime.UNKNOWN:
-            return base_regime
+        if base_regime is None:
+            return None
 
         if not use_trend:
             return base_regime
@@ -411,7 +394,7 @@ class VIXStrategySelector:
         # Regime adjustment based on trend
         return self._adjust_regime_for_trend(base_regime, trend_info)
 
-    def _get_static_regime(self, vix: Optional[float]) -> MarketRegime:
+    def _get_static_regime(self, vix: Optional[float]) -> Optional[MarketRegime]:
         """
         Determines static regime without trend consideration.
 
@@ -422,12 +405,12 @@ class VIXStrategySelector:
             MarketRegime based only on VIX level
         """
         if vix is None:
-            return MarketRegime.UNKNOWN
+            return None
 
         # Validation: VIX cannot be negative
         if vix < 0:
-            logger.warning(f"Invalid VIX value: {vix} (negative). Returning UNKNOWN.")
-            return MarketRegime.UNKNOWN
+            logger.warning(f"Invalid VIX value: {vix} (negative). Returning None.")
+            return None
 
         # Validation: Extremely high values could indicate data errors
         if vix > 100:
@@ -552,7 +535,7 @@ class VIXStrategySelector:
 
     def get_regime_with_trend(
         self, vix: Optional[float]
-    ) -> Tuple[MarketRegime, Optional[VixTrendInfo]]:
+    ) -> Tuple[Optional[MarketRegime], Optional[VixTrendInfo]]:
         """
         Returns regime and trend info together.
 
@@ -560,10 +543,10 @@ class VIXStrategySelector:
             vix: VIX value
 
         Returns:
-            Tuple of (MarketRegime, VixTrendInfo or None)
+            Tuple of (Optional[MarketRegime], VixTrendInfo or None)
         """
         if vix is None:
-            return MarketRegime.UNKNOWN, None
+            return None, None
 
         trend_info = self.get_vix_trend(vix)
         regime = self.get_regime(vix, use_trend=True)
@@ -580,10 +563,9 @@ class VIXStrategySelector:
             MarketRegime.DANGER_ZONE: "danger_zone",  # VIX 20-25: CAUTION!
             MarketRegime.ELEVATED: "elevated",  # VIX 25-30: OK
             MarketRegime.HIGH_VOL: "high_volatility",
-            MarketRegime.UNKNOWN: "standard",  # Fallback
         }
 
-        return profile_mapping[regime]
+        return profile_mapping.get(regime, "standard")
 
     def get_recommendation(self, vix: Optional[float]) -> StrategyRecommendation:
         """
@@ -649,7 +631,7 @@ class VIXStrategySelector:
             warnings.append("Higher quality requirements (Score >= 6)")
             warnings.append("Daily portfolio monitoring required")
 
-        else:  # UNKNOWN
+        else:  # regime is None (no VIX data)
             reasoning = (
                 "No VIX data available. "
                 f"Using standard profile: Delta {DELTA_TARGET}, DTE {DTE_MIN}-{DTE_MAX} days."
@@ -662,7 +644,7 @@ class VIXStrategySelector:
 
         logger.info(
             f"VIX strategy: vix={vix if vix is not None else 'N/A'}, "
-            f"regime={regime.value}, profile={profile_name}, "
+            f"regime={regime.value if regime else 'None'}, profile={profile_name}, "
             f"delta_target={profile['delta_target']}, long_delta={DELTA_LONG_TARGET}"
         )
 
@@ -721,7 +703,7 @@ class VIXStrategySelector:
             RegimeLabel.STRESS: MarketRegime.HIGH_VOL,
             RegimeLabel.EXTREME: MarketRegime.HIGH_VOL,
         }
-        regime = _LABEL_TO_REGIME.get(params.regime_label, MarketRegime.UNKNOWN)
+        regime = _LABEL_TO_REGIME.get(params.regime_label)
 
         warnings_list = []
 
@@ -778,15 +760,16 @@ class VIXStrategySelector:
         """Returns all available profiles"""
         return self.PROFILES.copy()
 
-    def get_regime_description(self, regime: MarketRegime) -> str:
+    def get_regime_description(self, regime: Optional[MarketRegime]) -> str:
         """Returns description for a regime (5-tier system)"""
+        if regime is None:
+            return "Unknown (no VIX data)"
         descriptions = {
             MarketRegime.LOW_VOL: "Low Volatility (VIX < 15) - 78.9% WR",
             MarketRegime.NORMAL: "Normal Volatility (VIX 15-20) - Sweet Spot 84.0% WR",
             MarketRegime.DANGER_ZONE: "DANGER ZONE (VIX 20-25) - Only 78.9% WR!",
             MarketRegime.ELEVATED: "Elevated Volatility (VIX 25-30) - 88.6% WR",
             MarketRegime.HIGH_VOL: "High Volatility (VIX > 30) - 80.5% WR",
-            MarketRegime.UNKNOWN: "Unknown (no VIX data)",
         }
         return descriptions.get(regime, "Unknown")
 
@@ -838,7 +821,7 @@ def format_recommendation(rec: StrategyRecommendation) -> str:
         f"  STRATEGY RECOMMENDATION (Short Put)",
         f"═══════════════════════════════════════════════════════════",
         f"  VIX:          {rec.vix_level:.1f}" if rec.vix_level else "  VIX:          n/a",
-        f"  Regime:       {rec.regime.value}",
+        f"  Regime:       {rec.regime.value if rec.regime else 'Unknown'}",
         f"  Profile:      {rec.profile_name.upper()}",
         f"───────────────────────────────────────────────────────────",
         f"  Delta Target: {rec.delta_target}",

@@ -40,11 +40,11 @@ try:
 except (ImportError, ModuleNotFoundError):
     # Fallback if not available (e.g., yaml not installed)
     class MarketRegime(Enum):
-        LOW_VOL = "low_vol"
-        NORMAL = "normal"
-        ELEVATED = "elevated"
-        HIGH_VOL = "high_vol"
-        UNKNOWN = "unknown"
+        LOW_VOL = "LOW_VOL"
+        NORMAL = "NORMAL"
+        DANGER_ZONE = "DANGER_ZONE"
+        ELEVATED = "ELEVATED"
+        HIGH_VOL = "HIGH_VOL"
 
 
 class ConnectionStatus(Enum):

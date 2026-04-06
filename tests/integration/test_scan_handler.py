@@ -154,7 +154,7 @@ class MockDailyPick:
 
 class MockVixRegime:
     """Mock VIX regime enum."""
-    value = "normal"
+    value = "NORMAL"
 
 
 @dataclass
@@ -1490,7 +1490,7 @@ class TestFormatDailyPicksOutput:
 
         # Test low vol regime
         class LowVolRegime:
-            value = "low_vol"
+            value = "LOW_VOL"
 
         result = MockDailyRecommendationResult(
             picks=[mock_pick],
@@ -1519,7 +1519,7 @@ class TestFormatDailyPicksOutput:
         )
 
         class DangerZoneRegime:
-            value = "danger_zone"
+            value = "DANGER_ZONE"
 
         result = MockDailyRecommendationResult(
             picks=[mock_pick],

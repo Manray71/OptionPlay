@@ -149,7 +149,7 @@ class TestGetRecommendationV2:
     def test_none_vix_falls_back_to_v1(self):
         """None VIX falls back to v1 get_recommendation."""
         rec = self.selector.get_recommendation_v2(None)
-        assert rec.regime == MarketRegime.UNKNOWN
+        assert rec.regime is None
 
     def test_with_term_structure(self):
         """Term structure info in recommendation."""

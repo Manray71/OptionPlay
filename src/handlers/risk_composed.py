@@ -97,7 +97,7 @@ class RiskHandler(BaseHandler):
 
         b.h2("Market Conditions")
         b.kv_line("VIX", f"{vix:.1f}")
-        b.kv_line("VIX Regime", vix_regime.value.upper())
+        b.kv_line("VIX Regime", vix_regime.value)
         b.kv_line("VIX Adjustment", f"{result.vix_adjustment:.0%}")
         b.blank()
 

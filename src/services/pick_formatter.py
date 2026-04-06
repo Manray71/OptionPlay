@@ -80,7 +80,7 @@ def format_picks_markdown(result: Any) -> str:
 
         lines.extend(
             [
-                f"**Markt-Regime:** {regime_emoji} {result.market_regime.value.replace('_', ' ').title()}",
+                f"**Markt-Regime:** {regime_emoji} {result.market_regime.value.replace('_', ' ').title() if result.market_regime else 'Unknown'}",
                 f"**VIX:** {result.vix_level:.2f}",
                 "",
             ]
@@ -216,12 +216,12 @@ def format_single_pick(pick: Any) -> list[str]:
 # =============================================================================
 
 _REGIME_DISPLAY = {
-    "low_vol": "Normal",
-    "normal": "Normal",
-    "danger_zone": "Danger Zone",
-    "elevated": "Elevated",
-    "high_vol": "High Volatility",
-    "unknown": "Unknown",
+    "LOW_VOL": "Normal",
+    "NORMAL": "Normal",
+    "DANGER_ZONE": "Danger Zone",
+    "ELEVATED": "Elevated",
+    "HIGH_VOL": "High Volatility",
+    # None regime handled at call site
 }
 
 _STRATEGY_DISPLAY = {
@@ -259,7 +259,7 @@ def format_picks_v2(
 
     # Market Overview (compact single-line)
     if result.vix_level:
-        regime_str = _REGIME_DISPLAY.get(result.market_regime.value, result.market_regime.value)
+        regime_str = _REGIME_DISPLAY.get(result.market_regime.value, result.market_regime.value) if result.market_regime else "Unknown"
         b.kv("Regime", f"{regime_str} (VIX {result.vix_level:.2f})")
 
     b.kv("Scanned", f"{result.symbols_scanned} symbols | Duration: {duration:.1f}s")

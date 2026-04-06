@@ -176,19 +176,19 @@ class TestVIXState:
 
         # Low vol
         state.update(12.0)
-        assert state.regime.value == "low_vol"
+        assert state.regime.value == "LOW_VOL"
 
         # Standard
         state.update(17.0)
-        assert state.regime.value == "normal"
+        assert state.regime.value == "NORMAL"
 
         # Elevated
         state.update(25.0)
-        assert state.regime.value == "elevated"
+        assert state.regime.value == "ELEVATED"
 
         # High vol
         state.update(35.0)
-        assert state.regime.value == "high_vol"
+        assert state.regime.value == "HIGH_VOL"
 
     def test_staleness(self):
         """is_stale should be True after threshold."""
