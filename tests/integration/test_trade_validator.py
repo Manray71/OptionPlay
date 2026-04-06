@@ -159,12 +159,12 @@ class TestIVRankCheck:
     """PLAYBOOK §1: IV Rank Check (soft filter)."""
 
     def test_optimal_iv_rank(self, validator, mock_fundamentals):
-        mock_fundamentals.iv_rank_252d = 45.0
+        mock_fundamentals.iv_rank_252d = 55.0
         result = validator._check_iv_rank("AAPL", mock_fundamentals)
         assert result.decision == TradeDecision.GO
 
     def test_low_iv_rank_is_warning(self, validator, mock_fundamentals):
-        mock_fundamentals.iv_rank_252d = 20.0
+        mock_fundamentals.iv_rank_252d = 40.0
         result = validator._check_iv_rank("AAPL", mock_fundamentals)
         assert result.decision == TradeDecision.WARNING
 
@@ -178,12 +178,12 @@ class TestDTECheck:
     """PLAYBOOK §2: DTE Check."""
 
     def test_optimal_dte(self, validator):
-        exp = (date.today() + timedelta(days=75)).strftime("%Y-%m-%d")
+        exp = (date.today() + timedelta(days=45)).strftime("%Y-%m-%d")
         result = validator._check_dte(exp)
         assert result.decision == TradeDecision.GO
 
     def test_dte_too_short(self, validator):
-        exp = (date.today() + timedelta(days=30)).strftime("%Y-%m-%d")
+        exp = (date.today() + timedelta(days=20)).strftime("%Y-%m-%d")
         result = validator._check_dte(exp)
         assert result.decision == TradeDecision.NO_GO
 
@@ -193,12 +193,12 @@ class TestDTECheck:
         assert result.decision == TradeDecision.WARNING
 
     def test_dte_at_minimum(self, validator):
-        exp = (date.today() + timedelta(days=60)).strftime("%Y-%m-%d")
+        exp = (date.today() + timedelta(days=35)).strftime("%Y-%m-%d")
         result = validator._check_dte(exp)
         assert result.decision == TradeDecision.GO
 
     def test_dte_at_maximum(self, validator):
-        exp = (date.today() + timedelta(days=90)).strftime("%Y-%m-%d")
+        exp = (date.today() + timedelta(days=50)).strftime("%Y-%m-%d")
         result = validator._check_dte(exp)
         assert result.decision == TradeDecision.GO
 

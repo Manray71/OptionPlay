@@ -695,11 +695,11 @@ class TestGetRecommendation:
 
         assert rec.profile_name == "conservative"
         assert rec.regime == MarketRegime.LOW_VOL
-        assert rec.delta_target == -0.20
+        assert rec.delta_target == -0.20  # Code-level constant
         assert rec.spread_width is None
         assert rec.min_score >= 5
-        assert rec.dte_min == 60
-        assert rec.dte_max == 90
+        assert rec.dte_min == 35
+        assert rec.dte_max == 50
         assert rec.earnings_buffer_days == 45
 
     def test_standard_recommendation(self):

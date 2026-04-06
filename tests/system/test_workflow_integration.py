@@ -80,7 +80,7 @@ def _fundamentals_mock(
     f.avg_drawdown = avg_drawdown
     f.market_cap_category = "Mega"
     f.current_price = current_price
-    f.iv_rank_252d = 45.0
+    f.iv_rank_252d = 55.0
     f.beta = 1.1
     return f
 

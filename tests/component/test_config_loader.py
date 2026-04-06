@@ -64,16 +64,16 @@ class TestDefaultSettings:
         assert settings.filters.price_minimum == 20.0
         assert settings.filters.price_maximum == 1500.0
         assert settings.filters.volume_minimum == 500000
-        assert settings.filters.iv_rank_minimum == 30.0
+        assert settings.filters.iv_rank_minimum == 50.0
         assert settings.filters.iv_rank_maximum == 80.0
         
     def test_default_options_values(self):
         """Options should have correct defaults"""
         settings = Settings()
 
-        assert settings.options.dte_minimum == 60   # PLAYBOOK §2
-        assert settings.options.dte_maximum == 90   # PLAYBOOK §2
-        assert settings.options.dte_target == 75    # PLAYBOOK §2
+        assert settings.options.dte_minimum == 35   # Tastytrade: 35-50
+        assert settings.options.dte_maximum == 50   # Tastytrade: 35-50
+        assert settings.options.dte_target == 45    # Tastytrade: 35-50
         assert settings.options.delta_target == -0.20  # PLAYBOOK §2
         assert settings.options.delta_minimum == -0.17  # PLAYBOOK §2: ±0.03
         assert settings.options.delta_maximum == -0.23  # PLAYBOOK §2: ±0.03
@@ -452,7 +452,7 @@ class TestScannerConfig:
         assert config.min_score == 5.0
         assert config.min_actionable_score == 6.0
         assert config.exclude_earnings_within_days == 45  # Unified to 45 days
-        assert config.iv_rank_minimum == 30.0
+        assert config.iv_rank_minimum == 50.0
         assert config.iv_rank_maximum == 80.0
         assert config.enable_iv_filter == True
         assert config.max_results_per_symbol == 3

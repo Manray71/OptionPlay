@@ -34,17 +34,17 @@ profiles:
       earnings:
         exclude_days_before: 30       # PLAYBOOK: ENTRY_EARNINGS_MIN_DAYS (was 45)
       implied_volatility:
-        iv_rank_minimum: 20
-        iv_rank_maximum: 50
+        iv_rank_minimum: 50
+        iv_rank_maximum: 80
 
     options_analysis:
       expiration:
-        dte_minimum: 60               # Basisstrategie: 60-90 Tage
-        dte_maximum: 90
+        dte_minimum: 35               # Tastytrade: 35-50 Tage
+        dte_maximum: 50
       short_put:
-        delta_minimum: -0.17
-        delta_maximum: -0.23
-        delta_target: -0.20           # PLAYBOOK: ±0.03
+        delta_minimum: -0.13
+        delta_maximum: -0.19
+        delta_target: -0.16           # Tastytrade: konservativ bei niedrigem VIX
       long_put:
         delta_minimum: -0.03
         delta_maximum: -0.07
@@ -71,13 +71,13 @@ profiles:
       earnings:
         exclude_days_before: 30       # PLAYBOOK: ENTRY_EARNINGS_MIN_DAYS (was 45)
       implied_volatility:
-        iv_rank_minimum: 30
-        iv_rank_maximum: 70
+        iv_rank_minimum: 50
+        iv_rank_maximum: 80
 
     options_analysis:
       expiration:
-        dte_minimum: 60               # Basisstrategie: 60-90 Tage
-        dte_maximum: 90
+        dte_minimum: 35               # Tastytrade: 35-50 Tage
+        dte_maximum: 50
       short_put:
         delta_minimum: -0.17
         delta_maximum: -0.23
@@ -108,13 +108,13 @@ profiles:
       earnings:
         exclude_days_before: 30       # PLAYBOOK: ENTRY_EARNINGS_MIN_DAYS (was 45)
       implied_volatility:
-        iv_rank_minimum: 40
+        iv_rank_minimum: 50
         iv_rank_maximum: 80
 
     options_analysis:
       expiration:
-        dte_minimum: 60               # Basisstrategie: 60-90 Tage
-        dte_maximum: 90
+        dte_minimum: 35               # Tastytrade: 35-50 Tage
+        dte_maximum: 50
       short_put:
         delta_minimum: -0.17
         delta_maximum: -0.23
@@ -157,12 +157,12 @@ profiles:
 
     options_analysis:
       expiration:
-        dte_minimum: 60               # Basisstrategie: 60-90 Tage
-        dte_maximum: 90
+        dte_minimum: 35               # Tastytrade: 35-50 Tage
+        dte_maximum: 50
       short_put:
-        delta_minimum: -0.17
-        delta_maximum: -0.23
-        delta_target: -0.20           # PLAYBOOK: ±0.03
+        delta_minimum: -0.13
+        delta_maximum: -0.19
+        delta_target: -0.16           # Tastytrade: konservativ bei hohem VIX
       long_put:
         delta_minimum: -0.03
         delta_maximum: -0.07
@@ -218,23 +218,23 @@ auto_selection:
 #              Wide stop (150%+) lets winning trades recover from drawdowns.
 # =========================================================================
 exit_strategy:
-  # Default: Best risk-adjusted returns (highest Sharpe)
+  # Default: Tastytrade 50% profit target, 2× premium stop
   default:
-    profit_target_pct: 100    # Hold to expiration for max profit
-    stop_loss_pct: 150        # Wide stop (rarely triggers)
+    profit_target_pct: 50     # Tastytrade: exit at 50% profit
+    stop_loss_pct: 200        # 2× premium stop loss
     dte_exit: 7               # Close at 7 DTE (gamma risk)
 
-  # Conservative: Higher win rate, smaller gains
+  # Conservative: Same targets, earlier DTE exit
   conservative:
     profit_target_pct: 50
-    stop_loss_pct: 150
+    stop_loss_pct: 200
     dte_exit: 14
 
-  # Aggressive: Max P&L, hold to expiration
+  # Aggressive: Same targets
   aggressive:
-    profit_target_pct: 100    # Hold to expiration for max profit
-    stop_loss_pct: 200        # Very wide stop (never triggers)
-    dte_exit: 0               # Let it expire
+    profit_target_pct: 50     # Tastytrade: exit at 50% profit
+    stop_loss_pct: 200        # 2× premium stop loss
+    dte_exit: 7
 
 # =========================================================================
 # TRAINED COMPONENT WEIGHTS (from 2026-01-29 Training)

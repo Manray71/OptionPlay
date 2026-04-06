@@ -141,7 +141,7 @@ class TestScanConfig:
         assert config.min_score == 3.5
         assert config.min_actionable_score == 5.0
         assert config.exclude_earnings_within_days == 45
-        assert config.iv_rank_minimum == 30.0
+        assert config.iv_rank_minimum == 50.0
         assert config.iv_rank_maximum == 80.0
         assert config.enable_iv_filter is True
         assert config.enable_liquidity_filter is True

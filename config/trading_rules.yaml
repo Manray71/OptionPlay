@@ -19,7 +19,7 @@ entry:
   price_min: 20.0              # Minimum stock price
   price_max: 1500.0            # Maximum stock price
   volume_min: 500000           # Minimum daily volume
-  iv_rank_min: 30.0            # IV Rank warning floor (soft filter)
+  iv_rank_min: 50.0            # IV Rank minimum (Tastytrade)
   iv_rank_max: 80.0            # IV Rank warning ceiling (soft filter)
 
 # =============================================================================
@@ -27,9 +27,9 @@ entry:
 # =============================================================================
 # Delta targets excluded — hardcoded in trading_rules.py
 spread:
-  dte_min: 60                  # Minimum DTE
-  dte_max: 90                  # Maximum DTE
-  dte_target: 75               # Optimal DTE
+  dte_min: 35                  # Minimum DTE (Tastytrade)
+  dte_max: 50                  # Maximum DTE (Tastytrade)
+  dte_target: 45               # Optimal DTE (Tastytrade)
   min_credit_pct: 10.0         # Min credit as % of spread width
   min_credit_absolute: 20.0    # Min absolute credit per contract (USD)
   fee_warning_threshold: 40.0  # Warn when credit < this (fee erosion)
@@ -105,9 +105,13 @@ exit:
 # =============================================================================
 roll:
   allowed_max_loss_pct: 0.0    # Max: break-even (0% loss)
-  new_dte_min: 60              # New expiration: 60-90 DTE
-  new_dte_max: 90
+  new_dte_min: 35              # New expiration: 35-50 DTE (Tastytrade)
+  new_dte_max: 50
   min_credit_pct: 10.0         # New credit must be >= 10% spread
+  trigger_dte: 21              # Roll at 21 DTE
+  roll_if_profit_below_pct: 50 # Roll if profit < 50%
+  keep_strike: true            # Keep same strike on roll
+  trigger_pct: -50.0           # Roll at -50% loss
 
 # =============================================================================
 # POSITION SIZING (PLAYBOOK §5)
@@ -117,6 +121,8 @@ sizing:
   max_open_positions: 10       # Max open positions (VIX < 20)
   max_per_sector: 2            # Max positions per sector
   max_new_trades_per_day: 2    # Max new trades per day
+  max_buying_power_pct: 5.0    # Max 5% buying power per trade (Tastytrade)
+  max_portfolio_allocation: 50.0  # Max 50% portfolio in spreads
 
 # =============================================================================
 # DISCIPLINE RULES (PLAYBOOK §6)
@@ -194,8 +200,8 @@ spread_analysis:
   min_buffer_pct: 5.0            # Warning if buffer < 5%
   max_dte_for_theta: 60          # Theta most effective under 60 DTE
   # Profit target recommendations
-  profit_target_standard: 65     # Standard exit at 65% of max profit
-  profit_target_aggressive: 80   # Aggressive exit at 80%
+  profit_target_standard: 50     # Tastytrade: exit at 50% of max profit
+  profit_target_aggressive: 50   # Tastytrade: exit at 50% of max profit
   # Risk scoring (inline values from _assess_risk_level)
   risk_scoring:
     buffer_warning_pct: 5        # Buffer < this → +2 score

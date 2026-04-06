@@ -105,7 +105,7 @@ class TestPlaybookEntryRules:
         assert ENTRY_VOLUME_MIN == 500_000
 
     def test_iv_rank_range(self):
-        assert ENTRY_IV_RANK_MIN == 30.0
+        assert ENTRY_IV_RANK_MIN == 50.0
         assert ENTRY_IV_RANK_MAX == 80.0
 
     def test_blacklist_contains_known_symbols(self):
@@ -121,9 +121,9 @@ class TestPlaybookSpreadParameters:
     """PLAYBOOK §2: Spread Parameters."""
 
     def test_dte_range(self):
-        assert SPREAD_DTE_MIN == 60
-        assert SPREAD_DTE_MAX == 90
-        assert SPREAD_DTE_TARGET == 75
+        assert SPREAD_DTE_MIN == 35
+        assert SPREAD_DTE_MAX == 50
+        assert SPREAD_DTE_TARGET == 45
 
     def test_short_delta(self):
         """Delta -0.20 ±0.03."""
@@ -282,8 +282,8 @@ class TestTradingRulesConvenience:
     def test_instantiation(self):
         tr = TradingRules()
         assert tr.ENTRY_STABILITY_MIN == 65.0
-        assert tr.DTE_MIN == 60
-        assert tr.DTE_MAX == 90
+        assert tr.DTE_MIN == 35
+        assert tr.DTE_MAX == 50
         assert tr.SHORT_DELTA == -0.20
         assert tr.LONG_DELTA == -0.05
         assert tr.MAX_RISK_PCT == 2.0
@@ -356,8 +356,8 @@ class TestRollRules:
         assert ROLL_ALLOWED_MAX_LOSS_PCT == 0.0  # Break-even
 
     def test_roll_dte_range(self):
-        assert ROLL_NEW_DTE_MIN == 60
-        assert ROLL_NEW_DTE_MAX == 90
+        assert ROLL_NEW_DTE_MIN == 35
+        assert ROLL_NEW_DTE_MAX == 50
 
     def test_roll_min_credit(self):
         assert ROLL_MIN_CREDIT_PCT == 10.0  # PLAYBOOK §4: ≥10% Spread-Breite

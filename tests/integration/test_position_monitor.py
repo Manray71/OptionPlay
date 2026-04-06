@@ -196,19 +196,19 @@ class TestEstimatePnlFromTheta:
         assert snap.pnl_estimated is True
 
     def test_fresh_position(self):
-        """Position just opened (dte=75) → ~0% profit."""
-        snap = make_snapshot(dte=75)
+        """Position just opened (dte=45) → ~0% profit."""
+        snap = make_snapshot(dte=45)
         estimate_pnl_from_theta(snap)
 
         assert snap.pnl_pct_of_max_profit == 0.0
         assert snap.pnl_estimated is True
 
     def test_half_time_position(self):
-        """Midpoint (~37 DTE) → ~71% profit via sqrt model."""
-        snap = make_snapshot(dte=38)  # 75-38=37 elapsed
+        """Midpoint (~22 DTE) → ~71% profit via sqrt model."""
+        snap = make_snapshot(dte=23)  # 45-23=22 elapsed
         estimate_pnl_from_theta(snap)
 
-        # sqrt(37/75) ≈ 0.702 → ~70%
+        # sqrt(22/45) ≈ 0.699 → ~70%
         assert 65.0 <= snap.pnl_pct_of_max_profit <= 75.0
         assert snap.pnl_estimated is True
 
@@ -217,8 +217,8 @@ class TestEstimatePnlFromTheta:
         snap = make_snapshot(dte=10)
         estimate_pnl_from_theta(snap)
 
-        # sqrt(65/75) ≈ 0.93 → ~93%
-        assert snap.pnl_pct_of_max_profit >= 90.0
+        # sqrt(35/45) ≈ 0.882 → ~88%
+        assert snap.pnl_pct_of_max_profit >= 85.0
 
     def test_returns_snapshot(self):
         """Modifies in-place and returns the snapshot."""

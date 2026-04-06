@@ -229,8 +229,8 @@ class TestSpreadAnalyzerInitialization:
 
         # Profit targets
         assert analyzer.config["profit_target_conservative"] == 50
-        assert analyzer.config["profit_target_standard"] == 65
-        assert analyzer.config["profit_target_aggressive"] == 80
+        assert analyzer.config["profit_target_standard"] == 50
+        assert analyzer.config["profit_target_aggressive"] == 50
 
     def test_custom_config_overrides(self):
         """Custom config should override defaults."""
@@ -997,8 +997,8 @@ class TestWarningsAndRecommendations:
         )
         result = default_analyzer.analyze(params)
 
-        # Should recommend 65% (standard)
-        assert any("65%" in r for r in result.recommendations)
+        # Should recommend 50% (Tastytrade standard)
+        assert any("50%" in r for r in result.recommendations)
 
 
 # =============================================================================

@@ -36,7 +36,7 @@ def _make_option_quote(
     oi: int = 500,
     volume: int = 100,
     iv: float = 0.30,
-    expiry_days: int = 75,
+    expiry_days: int = 45,
 ):
     """Create a mock OptionQuote matching the DataProvider interface."""
     expiry = date.today() + timedelta(days=expiry_days)
@@ -57,7 +57,7 @@ def _make_option_quote(
     return mock
 
 
-def _make_chain(underlying_price: float = 200.0, expiry_days: int = 75):
+def _make_chain(underlying_price: float = 200.0, expiry_days: int = 45):
     """Create a realistic put options chain."""
     return [
         _make_option_quote(strike=160, delta=-0.03, bid=0.30, ask=0.45, oi=200, expiry_days=expiry_days),
@@ -78,10 +78,10 @@ def _make_provider(chain=None, expirations=None):
 
     if expirations is None:
         expirations = [
-            date.today() + timedelta(days=65),
-            date.today() + timedelta(days=72),
-            date.today() + timedelta(days=79),
-            date.today() + timedelta(days=86),
+            date.today() + timedelta(days=35),
+            date.today() + timedelta(days=42),
+            date.today() + timedelta(days=49),
+            date.today() + timedelta(days=56),
         ]
 
     provider.get_expirations = AsyncMock(return_value=expirations)
@@ -292,7 +292,7 @@ class TestOptimalExpiration:
         validator = OptionsChainValidator(options_provider=provider)
         result = await validator.validate_spread("AAPL")
         if result.tradeable:
-            assert abs(result.dte - 74) <= 1  # Should be ~74 DTE
+            assert abs(result.dte - 44) <= 1  # Should be ~44 DTE
 
 
 class TestProviderFallback:
@@ -365,11 +365,11 @@ class TestFindStrikeByDelta:
     def test_finds_closest_to_target(self):
         """Should return leg closest to target delta."""
         chain = [
-            OptionLeg(strike=185, expiration="2026-04-17", dte=72, delta=-0.18,
+            OptionLeg(strike=185, expiration="2026-04-17", dte=44, delta=-0.18,
                      gamma=0.01, theta=-0.05, vega=0.15, iv=0.30,
                      bid=2.80, ask=3.05, mid=2.925, last=2.90,
                      open_interest=1500, volume=100),
-            OptionLeg(strike=190, expiration="2026-04-17", dte=72, delta=-0.21,
+            OptionLeg(strike=190, expiration="2026-04-17", dte=44, delta=-0.21,
                      gamma=0.01, theta=-0.05, vega=0.15, iv=0.30,
                      bid=3.40, ask=3.65, mid=3.525, last=3.50,
                      open_interest=2000, volume=150),
@@ -384,7 +384,7 @@ class TestFindStrikeByDelta:
     def test_returns_none_outside_range(self):
         """No candidates in delta range → returns None."""
         chain = [
-            OptionLeg(strike=200, expiration="2026-04-17", dte=72, delta=-0.50,
+            OptionLeg(strike=200, expiration="2026-04-17", dte=44, delta=-0.50,
                      gamma=0.01, theta=-0.05, vega=0.15, iv=0.30,
                      bid=5.80, ask=6.10, mid=5.95, last=5.90,
                      open_interest=2500, volume=200),
