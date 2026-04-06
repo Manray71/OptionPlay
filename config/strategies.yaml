@@ -388,6 +388,34 @@ roll_strategy:
 # =========================================================================
 
 # =========================================================================
+# VIX REGIME V2 (Phase 2 — Continuous Interpolation)
+# =========================================================================
+# Replaces discrete 4-profile system with 7-anchor-point interpolation.
+# Feature-flagged: set enabled=true + scanner.enable_regime_v2=true
+vix_regime_v2:
+  enabled: false  # Set to true to activate v2 in MCP tools
+  term_structure_overlay: true  # Contango/backwardation adjustments
+
+# =========================================================================
+# SECTOR RELATIVE STRENGTH (Phase 2 — RRG Quadrants)
+# =========================================================================
+# Replaces SectorCycleService multiplicative factors with additive modifiers.
+# Feature-flagged: set enabled=true + scanner.enable_sector_rs=true
+sector_rs:
+  enabled: false  # Set to true to activate in scanner
+  benchmark: "SPY"
+  lookback_days: 60
+  ema_fast: 10
+  ema_slow: 30
+  momentum_lookback: 5
+  cache_ttl_hours: 8
+  score_modifiers:
+    leading: 0.5
+    improving: 0.3
+    weakening: -0.3
+    lagging: -0.5
+
+# =========================================================================
 # BASISSTRATEGIE ÜBERSICHT
 # =========================================================================
 # Alle Profile verwenden dieselbe Basisstrategie (Bull-Put-Spread):

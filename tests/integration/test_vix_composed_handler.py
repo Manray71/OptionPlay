@@ -420,7 +420,9 @@ class TestVixHandlerSectorStatus:
         """Test get_sector_status returns formatted markdown."""
         result = await vix_handler.get_sector_status()
 
-        assert "Sector Momentum Status" in result
+        # Accepts both v1 ("Sector Momentum Status") and v2 ("Sector Relative Strength")
+        assert "Sector" in result
+        assert ("Momentum Status" in result or "Relative Strength" in result)
 
 
 class TestVixHandlerCaching:
@@ -497,12 +499,16 @@ class TestVixHandlerHelpers:
 
     @pytest.mark.asyncio
     async def test_ensure_connected_returns_none_without_tradier(self, vix_handler, mock_context):
-        """Test _ensure_connected returns None if no Tradier configured."""
+        """Test _ensure_connected returns None if no Tradier/IBKR available."""
         mock_context.ibkr_provider = None
         mock_context.ibkr_connected = False
         mock_context.tradier_api_key = None
 
-        result = await vix_handler._ensure_connected()
+        with patch(
+            "src.data_providers.ibkr_provider.IBKRDataProvider",
+            side_effect=ImportError("mocked"),
+        ):
+            result = await vix_handler._ensure_connected()
 
         assert result is None
 

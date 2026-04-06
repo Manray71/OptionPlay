@@ -200,7 +200,7 @@ class DailyRecommendationResult:
 
     picks: list[DailyPick]
     vix_level: Optional[float]
-    market_regime: MarketRegime
+    market_regime: Optional[MarketRegime]
     strategy_recommendation: Optional[StrategyRecommendation]
     scan_result: Optional[ScanResult]
 
@@ -220,7 +220,7 @@ class DailyRecommendationResult:
         return {
             "picks": [p.to_dict() for p in self.picks],
             "vix_level": self.vix_level,
-            "market_regime": self.market_regime.value,
+            "market_regime": self.market_regime.value if self.market_regime else None,
             "strategy_recommendation": (
                 self.strategy_recommendation.to_dict() if self.strategy_recommendation else None
             ),
@@ -341,12 +341,12 @@ class DailyRecommendationEngine(RecommendationRankingMixin):
 
     # Map MarketRegime enum values to YAML config regime keys
     _REGIME_TO_CONFIG = {
-        "low_vol": "low",
-        "normal": "normal",
-        "danger_zone": "danger",
-        "elevated": "elevated",
-        "high_vol": "high",
-        "unknown": "normal",
+        "LOW_VOL": "low",
+        "NORMAL": "normal",
+        "DANGER_ZONE": "danger",
+        "ELEVATED": "elevated",
+        "HIGH_VOL": "high",
+        # None (no VIX data) handled at call site with default "normal"
     }
 
     def set_vix(self, vix: float) -> None:
@@ -354,11 +354,11 @@ class DailyRecommendationEngine(RecommendationRankingMixin):
         self._vix_cache = vix
         self._scanner.set_vix(vix)
 
-    def get_market_regime(self, vix: Optional[float] = None) -> MarketRegime:
+    def get_market_regime(self, vix: Optional[float] = None) -> Optional[MarketRegime]:
         """Bestimmt das aktuelle Markt-Regime."""
         vix_level = vix or self._vix_cache
         if vix_level is None:
-            return MarketRegime.UNKNOWN
+            return None
 
         return self._vix_selector.get_regime(vix_level)
 
@@ -393,10 +393,10 @@ class DailyRecommendationEngine(RecommendationRankingMixin):
             regime = self.get_market_regime(vix_level)
             strategy_rec = self._vix_selector.get_recommendation(vix_level)
             # Pass regime to scanner for config-based scoring weights
-            config_regime = self._REGIME_TO_CONFIG.get(regime.value, "normal")
+            config_regime = self._REGIME_TO_CONFIG.get(regime.value, "normal") if regime else "normal"
             self._scanner.set_regime(config_regime)
         else:
-            regime = MarketRegime.UNKNOWN
+            regime = None
             strategy_rec = None
             warnings.append("VIX-Level nicht verfügbar - verwende Standard-Strategie")
 
@@ -442,11 +442,13 @@ class DailyRecommendationEngine(RecommendationRankingMixin):
 
             sm_config = get_scoring_resolver().get_sector_momentum_config()
             if sm_config.get("enabled", False):
-                from ..services.sector_cycle_service import SectorCycleService
+                from ..services.sector_rs import SectorRSService
 
-                service = SectorCycleService()
+                service = SectorRSService()
                 statuses = await service.get_all_sector_statuses()
-                self._sector_factors = {s.sector: s.momentum_factor for s in statuses}
+                self._sector_factors = {
+                    s.sector: (1.0 + s.score_modifier) for s in statuses
+                }
                 if self._sector_factors:
                     logger.info(
                         f"Loaded sector momentum factors for {len(self._sector_factors)} sectors"

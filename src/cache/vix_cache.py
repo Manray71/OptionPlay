@@ -357,13 +357,15 @@ def get_vix_manager() -> VixCacheManager:
     """
     Get singleton VIX Cache Manager instance. Thread-safe.
 
-    .. deprecated:: 3.5.0
-        Use ``ServiceContainer`` instead. Will be removed in v4.0.
+    Prefers the global ServiceContainer if available, otherwise
+    falls back to the module-level singleton.
     """
+    # Prefer container if available
     try:
-        from ..utils.deprecation import warn_singleton_usage
+        from ..container import _default_container
 
-        warn_singleton_usage("get_vix_manager", "ServiceContainer.vix_manager")
+        if _default_container is not None and _default_container.vix_manager is not None:
+            return _default_container.vix_manager
     except ImportError:
         pass
 
@@ -379,3 +381,10 @@ def reset_vix_manager() -> None:
     global _vix_manager
     with _vix_manager_lock:
         _vix_manager = None
+    try:
+        from ..container import _default_container
+
+        if _default_container is not None:
+            _default_container.vix_manager = None
+    except ImportError:
+        pass

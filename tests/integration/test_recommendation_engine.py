@@ -693,7 +693,7 @@ class TestMarketRegime:
         engine = DailyRecommendationEngine()
 
         regime = engine.get_market_regime(None)
-        assert regime == MarketRegime.UNKNOWN
+        assert regime is None
 
     def test_get_regime_low_vol(self):
         """Test low volatility regime."""
@@ -795,7 +795,7 @@ class TestDailyRecommendationResult:
 
         assert len(data['picks']) == 1
         assert data['vix_level'] == 18.5
-        assert data['market_regime'] == 'normal'
+        assert data['market_regime'] == 'NORMAL'
         assert data['statistics']['symbols_scanned'] == 100
 
     def test_after_liquidity_filter_field(self):
@@ -1486,7 +1486,7 @@ class TestGetDailyPicks:
         )
 
         assert result.vix_level is None
-        assert result.market_regime == MarketRegime.UNKNOWN
+        assert result.market_regime is None
         assert "VIX-Level nicht verfügbar" in result.warnings[0]
 
     @pytest.mark.asyncio

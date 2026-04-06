@@ -331,6 +331,42 @@ def get_regime_rules(vix: float) -> VIXRegimeRules:
     return VIX_REGIME_RULES[regime]
 
 
+def get_regime_rules_v2(
+    vix: float, vix_futures_front: Optional[float] = None
+) -> VIXRegimeRules:
+    """Get interpolated regime rules from VIX Regime v2.
+
+    Uses continuous interpolation instead of discrete tiers.
+    Falls back to v1 lookup for fields not in v2 anchors
+    (stability_min, risk_per_trade_pct, profit_exit_pct).
+
+    Args:
+        vix: Current VIX spot value
+        vix_futures_front: Optional front-month VIX future for term structure
+
+    Returns:
+        VIXRegimeRules with interpolated max_positions/max_per_sector
+        and v1-derived stability_min/risk_per_trade_pct/profit_exit_pct
+    """
+    from ..services.vix_regime import get_regime_params
+
+    params = get_regime_params(vix, vix_futures_front)
+
+    # v1 lookup for fields without v2 anchor points
+    v1_rules = get_regime_rules(vix)
+
+    return VIXRegimeRules(
+        regime=get_vix_regime(vix),
+        stability_min=v1_rules.stability_min,
+        new_trades_allowed=params.max_positions > 0,
+        max_positions=params.max_positions,
+        max_per_sector=params.max_per_sector,
+        risk_per_trade_pct=v1_rules.risk_per_trade_pct,
+        profit_exit_pct=v1_rules.profit_exit_pct,
+        notes=f"VIX Regime v2: {params.regime_label.value}",
+    )
+
+
 def is_blacklisted(symbol: str) -> bool:
     """Check if symbol is on the blacklist (PLAYBOOK §1, Check 1)."""
     return symbol.upper() in {s.upper() for s in BLACKLIST_SYMBOLS}

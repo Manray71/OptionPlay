@@ -277,10 +277,45 @@ class LocalDBProvider(DataProvider):
         return await self._run_sync(self._get_earnings_date_sync, symbol.upper())
 
     def _get_historical_sync(self, symbol: str, days: int) -> List[HistoricalBar]:
-        """Sync historical query. Runs in thread pool."""
+        """Sync historical query. Runs in thread pool.
+
+        Priority:
+        1. daily_prices table (real OHLCV from API)
+        2. options_prices table (close only, fake OHLCV fallback)
+        """
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
+
+                # 1. Try daily_prices first (has real OHLCV data)
+                cursor.execute(
+                    """
+                    SELECT quote_date, open, high, low, close, volume
+                    FROM daily_prices
+                    WHERE symbol = ?
+                    ORDER BY quote_date DESC
+                    LIMIT ?
+                """,
+                    (symbol, days),
+                )
+                rows = cursor.fetchall()
+                if rows:
+                    rows = list(reversed(rows))
+                    return [
+                        HistoricalBar(
+                            symbol=symbol,
+                            date=date.fromisoformat(row[0]),
+                            open=float(row[1]),
+                            high=float(row[2]),
+                            low=float(row[3]),
+                            close=float(row[4]),
+                            volume=int(row[5]),
+                            source="daily_prices",
+                        )
+                        for row in rows
+                    ]
+
+                # 2. Fallback: options_prices (close only)
                 cursor.execute(
                     """
                     SELECT quote_date, underlying_price

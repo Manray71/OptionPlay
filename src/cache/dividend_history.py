@@ -422,8 +422,18 @@ def get_dividend_history_manager(db_path: Optional[Path] = None) -> DividendHist
     """
     Returns global DividendHistoryManager instance.
 
-    Thread-safe singleton pattern.
+    Prefers the global ServiceContainer if available, otherwise
+    falls back to the module-level singleton.
     """
+    # Prefer container if available
+    try:
+        from ..container import _default_container
+
+        if _default_container is not None and _default_container.dividend_history_manager is not None:
+            return _default_container.dividend_history_manager
+    except ImportError:
+        pass
+
     global _default_manager
 
     with _manager_lock:
@@ -437,3 +447,10 @@ def reset_dividend_history_manager() -> None:
     global _default_manager
     with _manager_lock:
         _default_manager = None
+    try:
+        from ..container import _default_container
+
+        if _default_container is not None:
+            _default_container.dividend_history_manager = None
+    except ImportError:
+        pass

@@ -97,7 +97,7 @@ class RiskHandler(BaseHandler):
 
         b.h2("Market Conditions")
         b.kv_line("VIX", f"{vix:.1f}")
-        b.kv_line("VIX Regime", vix_regime.value.upper())
+        b.kv_line("VIX Regime", vix_regime.value)
         b.kv_line("VIX Adjustment", f"{result.vix_adjustment:.0%}")
         b.blank()
 
@@ -411,7 +411,7 @@ class RiskHandler(BaseHandler):
     async def _fetch_historical_cached(self, symbol: str, days: Optional[int] = None):
         """Fetch historical data with caching.
 
-        Priority: in-memory cache → Tradier.
+        Priority: in-memory cache → IBKR.
         """
         from ..cache.historical_cache import CacheStatus
 

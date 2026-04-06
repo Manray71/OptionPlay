@@ -515,9 +515,11 @@ class ShadowTracker:
         params.append(cutoff)
 
         if status_filter == "open":
-            conditions.append("status = 'open'")
+            conditions.append("status = ?")
+            params.append("open")
         elif status_filter == "closed":
-            conditions.append("status != 'open'")
+            conditions.append("status != ?")
+            params.append("open")
 
         if strategy_filter is not None:
             conditions.append("strategy = ?")

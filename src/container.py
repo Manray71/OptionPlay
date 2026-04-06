@@ -25,14 +25,25 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
+    from .analyzers.pool import AnalyzerPool
+    from .cache.dividend_history import DividendHistoryManager
     from .cache.earnings_cache_impl import EarningsCache, EarningsFetcher
+    from .cache.earnings_history import EarningsHistoryManager
     from .cache.historical_cache import HistoricalCache
     from .cache.iv_cache_impl import IVCache, IVFetcher
+    from .cache.symbol_fundamentals import SymbolFundamentalsManager
+    from .cache.vix_cache import VixCacheManager
     from .config import ConfigLoader
+    from .config.analyzer_thresholds import AnalyzerThresholdsConfig
+    from .config.watchlist_loader import WatchlistLoader
     from .data_providers.ibkr_provider import IBKRDataProvider
+    from .portfolio.manager import PortfolioManager
+    from .services.enhanced_scoring import EnhancedScoringConfig
     from .utils.circuit_breaker import CircuitBreaker, CircuitBreakerRegistry
     from .utils.earnings_aggregator import EarningsAggregator
+    from .utils.historical_cache import HistoricalDataCache
     from .utils.rate_limiter import AdaptiveRateLimiter
+    from .utils.scanner_config_loader import ScannerConfig
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +90,23 @@ class ServiceContainer:
     iv_cache: Optional["IVCache"] = None
     iv_fetcher: Optional["IVFetcher"] = None
 
+    # DB-backed managers
+    vix_manager: Optional["VixCacheManager"] = None
+    fundamentals_manager: Optional["SymbolFundamentalsManager"] = None
+    earnings_history_manager: Optional["EarningsHistoryManager"] = None
+    dividend_history_manager: Optional["DividendHistoryManager"] = None
+
+    # Config loaders
+    watchlist_loader: Optional["WatchlistLoader"] = None
+    analyzer_thresholds: Optional["AnalyzerThresholdsConfig"] = None
+    scanner_config: Optional["ScannerConfig"] = None
+    enhanced_scoring_config: Optional["EnhancedScoringConfig"] = None
+
+    # Application services
+    portfolio_manager: Optional["PortfolioManager"] = None
+    analyzer_pool: Optional["AnalyzerPool"] = None
+    historical_data_cache: Optional["HistoricalDataCache"] = None
+
     # Data providers (lazy-loaded)
     provider: Optional[Any] = None
     ibkr_provider: Optional["IBKRDataProvider"] = None
@@ -114,13 +142,24 @@ class ServiceContainer:
             >>> assert container.rate_limiter is not None
         """
         # Import here to avoid circular imports
+        from .analyzers.pool import get_analyzer_pool
+        from .cache.dividend_history import get_dividend_history_manager
         from .cache.earnings_cache_impl import get_earnings_cache, get_earnings_fetcher
+        from .cache.earnings_history import get_earnings_history_manager
         from .cache.historical_cache import get_historical_cache
         from .cache.iv_cache_impl import get_iv_cache, get_iv_fetcher
+        from .cache.symbol_fundamentals import get_fundamentals_manager
+        from .cache.vix_cache import get_vix_manager
         from .config import get_config
+        from .config.analyzer_thresholds import get_analyzer_thresholds
+        from .config.watchlist_loader import get_watchlist_loader
+        from .portfolio.manager import get_portfolio_manager
+        from .services.enhanced_scoring import get_enhanced_scoring_config
         from .utils.circuit_breaker import CircuitBreaker, get_circuit_breaker_registry
         from .utils.earnings_aggregator import get_earnings_aggregator
+        from .utils.historical_cache import get_historical_cache as get_historical_data_cache
         from .utils.rate_limiter import get_marketdata_limiter
+        from .utils.scanner_config_loader import get_scanner_config
         from .utils.secure_config import get_api_key
 
         # Load configuration
@@ -159,6 +198,20 @@ class ServiceContainer:
             earnings_aggregator=earnings_aggregator,
             iv_cache=iv_cache,
             iv_fetcher=iv_fetcher,
+            # DB-backed managers
+            vix_manager=get_vix_manager(),
+            fundamentals_manager=get_fundamentals_manager(),
+            earnings_history_manager=get_earnings_history_manager(),
+            dividend_history_manager=get_dividend_history_manager(),
+            # Config loaders
+            watchlist_loader=get_watchlist_loader(),
+            analyzer_thresholds=get_analyzer_thresholds(),
+            scanner_config=get_scanner_config(),
+            enhanced_scoring_config=get_enhanced_scoring_config(),
+            # Application services
+            portfolio_manager=get_portfolio_manager(),
+            analyzer_pool=get_analyzer_pool(),
+            historical_data_cache=get_historical_data_cache(),
         )
 
         logger.info("ServiceContainer created with default configuration")
@@ -342,6 +395,25 @@ class ServiceContainer:
 
         if self.historical_cache and hasattr(self.historical_cache, "clear"):
             self.historical_cache.clear()
+
+        if self.historical_data_cache and hasattr(self.historical_data_cache, "clear"):
+            self.historical_data_cache.clear()
+
+        if self.analyzer_pool and hasattr(self.analyzer_pool, "clear"):
+            self.analyzer_pool.clear()
+
+        # Reset singleton references so they get re-created
+        self.vix_manager = None
+        self.fundamentals_manager = None
+        self.earnings_history_manager = None
+        self.dividend_history_manager = None
+        self.watchlist_loader = None
+        self.analyzer_thresholds = None
+        self.scanner_config = None
+        self.enhanced_scoring_config = None
+        self.portfolio_manager = None
+        self.analyzer_pool = None
+        self.historical_data_cache = None
 
         logger.debug("ServiceContainer reset")
 

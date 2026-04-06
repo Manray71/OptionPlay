@@ -854,13 +854,15 @@ def get_portfolio_manager() -> PortfolioManager:
     """
     Get global portfolio manager instance.
 
-    .. deprecated:: 3.5.0
-        Use ``ServiceContainer`` instead. Will be removed in v4.0.
+    Prefers the global ServiceContainer if available, otherwise
+    falls back to the module-level singleton.
     """
+    # Prefer container if available
     try:
-        from ..utils.deprecation import warn_singleton_usage
+        from ..container import _default_container
 
-        warn_singleton_usage("get_portfolio_manager", "ServiceContainer.portfolio_manager")
+        if _default_container is not None and _default_container.portfolio_manager is not None:
+            return _default_container.portfolio_manager
     except ImportError:
         pass
 
@@ -874,3 +876,10 @@ def reset_portfolio_manager() -> None:
     """Reset global portfolio manager (for testing)."""
     global _default_portfolio
     _default_portfolio = None
+    try:
+        from ..container import _default_container
+
+        if _default_container is not None:
+            _default_container.portfolio_manager = None
+    except ImportError:
+        pass

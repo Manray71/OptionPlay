@@ -29,14 +29,14 @@ class TestMarketRegimeEnum:
 
     def test_all_regime_values_exist(self):
         """All expected regime values should be defined"""
-        expected_regimes = ["low_vol", "normal", "danger_zone", "elevated", "high_vol", "unknown"]
+        expected_regimes = ["LOW_VOL", "NORMAL", "DANGER_ZONE", "ELEVATED", "HIGH_VOL"]
         actual_values = [regime.value for regime in MarketRegime]
 
         for expected in expected_regimes:
             assert expected in actual_values, f"Missing regime: {expected}"
 
     def test_regime_count(self):
-        """Should have exactly 6 regimes"""
+        """Should have 6 regimes (5 standard + NO_TRADING from VIXRegime)"""
         assert len(MarketRegime) == 6
 
     def test_regime_value_types(self):
@@ -46,27 +46,27 @@ class TestMarketRegimeEnum:
 
     def test_low_vol_regime(self):
         """LOW_VOL should have correct value"""
-        assert MarketRegime.LOW_VOL.value == "low_vol"
+        assert MarketRegime.LOW_VOL.value == "LOW_VOL"
 
     def test_normal_regime(self):
         """NORMAL should have correct value"""
-        assert MarketRegime.NORMAL.value == "normal"
+        assert MarketRegime.NORMAL.value == "NORMAL"
 
     def test_danger_zone_regime(self):
         """DANGER_ZONE should have correct value"""
-        assert MarketRegime.DANGER_ZONE.value == "danger_zone"
+        assert MarketRegime.DANGER_ZONE.value == "DANGER_ZONE"
 
     def test_elevated_regime(self):
         """ELEVATED should have correct value"""
-        assert MarketRegime.ELEVATED.value == "elevated"
+        assert MarketRegime.ELEVATED.value == "ELEVATED"
 
     def test_high_vol_regime(self):
         """HIGH_VOL should have correct value"""
-        assert MarketRegime.HIGH_VOL.value == "high_vol"
+        assert MarketRegime.HIGH_VOL.value == "HIGH_VOL"
 
-    def test_unknown_regime(self):
-        """UNKNOWN should have correct value"""
-        assert MarketRegime.UNKNOWN.value == "unknown"
+    def test_unknown_regime_removed(self):
+        """UNKNOWN was removed — use None instead"""
+        assert not hasattr(MarketRegime, "UNKNOWN")
 
 
 # =============================================================================
@@ -298,15 +298,15 @@ class TestGetRegime:
         assert selector.get_regime(50.0, use_trend=False) == MarketRegime.HIGH_VOL
 
     def test_unknown_regime_for_none(self):
-        """None VIX should be UNKNOWN"""
+        """None VIX should return None"""
         selector = VIXStrategySelector()
-        assert selector.get_regime(None) == MarketRegime.UNKNOWN
+        assert selector.get_regime(None) is None
 
-    def test_negative_vix_is_unknown(self):
-        """Negative VIX should be UNKNOWN"""
+    def test_negative_vix_is_none(self):
+        """Negative VIX should return None"""
         selector = VIXStrategySelector()
-        assert selector.get_regime(-5.0) == MarketRegime.UNKNOWN
-        assert selector.get_regime(-0.1) == MarketRegime.UNKNOWN
+        assert selector.get_regime(-5.0) is None
+        assert selector.get_regime(-0.1) is None
 
     def test_extremely_high_vix(self):
         """VIX > 100 should be HIGH_VOL with warning"""
@@ -743,7 +743,7 @@ class TestGetRecommendation:
         rec = get_strategy_for_vix(None)
 
         assert rec.profile_name == "standard"
-        assert rec.regime == MarketRegime.UNKNOWN
+        assert rec.regime is None
         assert len(rec.warnings) > 0
 
 
@@ -898,10 +898,10 @@ class TestGetRegimeDescription:
         assert "High" in desc
         assert "30" in desc
 
-    def test_unknown_description(self):
-        """UNKNOWN description should mention no VIX data"""
+    def test_none_description(self):
+        """None regime description should mention no VIX data"""
         selector = VIXStrategySelector()
-        desc = selector.get_regime_description(MarketRegime.UNKNOWN)
+        desc = selector.get_regime_description(None)
 
         assert "Unknown" in desc or "no VIX" in desc
 
@@ -929,7 +929,7 @@ class TestGetRegimeWithTrend:
 
         regime, trend_info = selector.get_regime_with_trend(None)
 
-        assert regime == MarketRegime.UNKNOWN
+        assert regime is None
         assert trend_info is None
 
 

@@ -55,10 +55,10 @@ from .recommendation_engine import (
     get_quick_picks,
 )
 from .scanner_service import ScannerService
-from .sector_cycle_service import (
-    SectorCycleService,
-    SectorRegime,
-    SectorStatus,
+from .sector_rs import (
+    RSQuadrant,
+    SectorRS,
+    SectorRSService,
 )
 from .server_core import ServerCore
 from .trade_validator import (
@@ -103,10 +103,10 @@ __all__ = [
     "snapshot_from_internal",
     "snapshot_from_ibkr",
     "estimate_pnl_from_theta",
-    # Sector Cycle Service
-    "SectorCycleService",
-    "SectorRegime",
-    "SectorStatus",
+    # Sector RS Service (RRG quadrants)
+    "SectorRSService",
+    "SectorRS",
+    "RSQuadrant",
     # Recommendation Engine
     "DailyRecommendationEngine",
     "DailyPick",

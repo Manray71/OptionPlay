@@ -32,7 +32,7 @@ class MockVixSelector:
     """Mock VIX selector."""
     def get_regime(self, vix):
         if vix is None:
-            return MarketRegime.UNKNOWN
+            return None
         if vix < 15:
             return MarketRegime.LOW_VOL
         elif vix < 20:

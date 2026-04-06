@@ -843,14 +843,14 @@ class ScanHandlerMixin(BaseHandlerMixin):
         # Market Overview (compact single-line)
         if result.vix_level:
             regime_display = {
-                "low_vol": "Normal",
-                "normal": "Normal",
-                "danger_zone": "Danger Zone",
-                "elevated": "Elevated",
-                "high_vol": "High Volatility",
-                "unknown": "Unknown",
+                "LOW_VOL": "Normal",
+                "NORMAL": "Normal",
+                "DANGER_ZONE": "Danger Zone",
+                "ELEVATED": "Elevated",
+                "HIGH_VOL": "High Volatility",
+                # None regime handled at call site
             }
-            regime_str = regime_display.get(result.market_regime.value, result.market_regime.value)
+            regime_str = regime_display.get(result.market_regime.value, result.market_regime.value) if result.market_regime else "Unknown"
             b.kv("Regime", f"{regime_str} (VIX {result.vix_level:.2f})")
 
         b.kv("Scanned", f"{result.symbols_scanned} symbols | Duration: {duration:.1f}s")

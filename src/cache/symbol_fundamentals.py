@@ -542,6 +542,25 @@ class SymbolFundamentalsManager:
 
         return [SymbolFundamentals.from_dict(dict(row)) for row in rows]
 
+    def get_top_liquid_symbols(self, limit: int = 20) -> List[SymbolFundamentals]:
+        """Get top N symbols by liquidity (Tier 1, ordered by avg_put_oi DESC)."""
+        with self._lock:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    """
+                    SELECT * FROM symbol_fundamentals
+                    WHERE liquidity_tier = 1
+                      AND sector IS NOT NULL AND sector != ''
+                    ORDER BY avg_put_oi DESC
+                    LIMIT ?
+                """,
+                    (limit,),
+                )
+                rows = cursor.fetchall()
+
+        return [SymbolFundamentals.from_dict(dict(row)) for row in rows]
+
     # =========================================================================
     # Fetch from yfinance
     # =========================================================================
@@ -1013,15 +1032,18 @@ def get_fundamentals_manager(db_path: Optional[Path] = None) -> SymbolFundamenta
     """
     Returns global SymbolFundamentalsManager instance.
 
-    .. deprecated:: 3.5.0
-        Use ``ServiceContainer`` instead. Will be removed in v4.0.
-
-    Thread-safe singleton pattern.
+    Prefers the global ServiceContainer if available, otherwise
+    falls back to the module-level singleton.
     """
+    # Prefer container if available
     try:
-        from ..utils.deprecation import warn_singleton_usage
+        from ..container import _default_container
 
-        warn_singleton_usage("get_fundamentals_manager", "ServiceContainer.fundamentals_manager")
+        if (
+            _default_container is not None
+            and _default_container.fundamentals_manager is not None
+        ):
+            return _default_container.fundamentals_manager
     except ImportError:
         pass
 
@@ -1038,3 +1060,10 @@ def reset_fundamentals_manager() -> None:
     global _default_manager
     with _manager_lock:
         _default_manager = None
+    try:
+        from ..container import _default_container
+
+        if _default_container is not None:
+            _default_container.fundamentals_manager = None
+    except ImportError:
+        pass

@@ -77,7 +77,7 @@ class VixHandler(BaseHandler):
                     self._ctx.vix_updated = datetime.now()
                     return quote.last
             except Exception as e:
-                self._logger.debug(f"Tradier VIX quote failed: {e}")
+                self._logger.debug(f"IBKR VIX quote failed: {e}")
 
         # Fallback to Yahoo Finance
         if self._ctx.current_vix is None:
@@ -242,6 +242,101 @@ class VixHandler(BaseHandler):
             logger.error(f"Regime status error: {e}")
             return f"Error getting regime status: {e}"
 
+    async def get_regime_status_v2(self) -> str:
+        """
+        Get VIX regime status using v2 continuous interpolation model.
+
+        Shows interpolated parameters, term structure overlay, and
+        VIX trend information.
+
+        Returns:
+            Formatted Markdown regime status
+        """
+        from ..services.vix_regime import get_regime_params
+        from ..utils.markdown_builder import MarkdownBuilder
+
+        vix = await self.get_vix()
+
+        if vix is None:
+            return "Could not fetch VIX - unable to determine regime"
+
+        try:
+            # Get VIX futures for term structure (if IBKR available)
+            vix_futures = None
+            try:
+                if hasattr(self._ctx, "ibkr_provider") and self._ctx.ibkr_provider:
+                    provider = self._ctx.ibkr_provider
+                    if hasattr(provider, "get_vix_futures_front"):
+                        vix_futures = await provider.get_vix_futures_front()
+            except Exception:
+                pass
+
+            # Get VIX trend
+            vix_trend = None
+            try:
+                from ..services.vix_strategy import VIXStrategySelector
+
+                selector = VIXStrategySelector()
+                trend_info = selector.get_vix_trend(vix)
+                if trend_info and trend_info.history_available:
+                    vix_trend = trend_info.trend.value
+            except Exception:
+                pass
+
+            params = get_regime_params(vix, vix_futures, vix_trend)
+
+            b = MarkdownBuilder()
+            b.h1("VIX Regime Status (v2)").blank()
+
+            # Current Status
+            b.h2("Current Regime")
+            b.kv_line("VIX", f"{vix:.2f}")
+            b.kv_line("Regime", params.regime_label.value)
+            if params.stress_adjusted:
+                b.kv_line("Status", "STRESS-ADJUSTED")
+            b.blank()
+
+            # Interpolated Parameters
+            b.h2("Interpolated Parameters")
+            b.kv_line("Min Score", f"{params.min_score:.1f}")
+            b.kv_line("Spread Width", f"${params.spread_width:.2f} (floor)")
+            b.kv_line("Earnings Buffer", f"{params.earnings_buffer_days}d")
+            b.kv_line("Max Positions", str(params.max_positions))
+            b.kv_line("Max/Sector", str(params.max_per_sector))
+            b.blank()
+
+            # Fixed Parameters (from Playbook)
+            b.h2("Fixed Parameters (Playbook)")
+            b.kv_line("Delta Target", f"{params.delta_target:.2f}")
+            b.kv_line("Delta Range", f"{params.delta_max:.2f} to {params.delta_min:.2f}")
+            b.kv_line("DTE Range", f"{params.dte_min}-{params.dte_max}d")
+            b.blank()
+
+            # Term Structure
+            if vix_futures is not None:
+                b.h2("Term Structure")
+                spread_pct = ((vix_futures - vix) / vix) * 100
+                b.kv_line("VIX Spot", f"{vix:.2f}")
+                b.kv_line("VIX Futures (Front)", f"{vix_futures:.2f}")
+                b.kv_line("Spread", f"{spread_pct:+.1f}%")
+                ts_label = params.term_structure or "neutral"
+                b.kv_line("Classification", ts_label.upper())
+                b.blank()
+
+            # VIX Trend
+            if vix_trend:
+                b.h2("VIX Trend")
+                b.kv_line("Trend", vix_trend.replace("_", " ").title())
+                if params.trend_adjusted:
+                    b.kv_line("Adjustment", "Applied")
+                b.blank()
+
+            return b.build()
+
+        except Exception as e:
+            logger.error(f"Regime status v2 error: {e}")
+            return f"Error getting regime status v2: {e}"
+
     async def get_strategy_for_stock(self, symbol: str) -> str:
         """
         Get strategy recommendation based on stock price and VIX regime.
@@ -359,56 +454,66 @@ class VixHandler(BaseHandler):
 
     async def get_sector_status(self) -> str:
         """
-        Get current sector momentum analysis for all sectors.
+        Get current sector relative strength analysis for all sectors.
 
-        Uses SectorCycleService to calculate relative strength,
-        breadth, and momentum factors.
+        Uses SectorRSService with RRG quadrant classification.
 
         Returns:
             Formatted Markdown sector status table
         """
-        from ..services.sector_cycle_service import SectorCycleService
+        return await self._get_sector_status_v2()
+
+    async def _get_sector_status_v2(self) -> str:
+        """
+        Sector RS v2: RRG quadrant-based analysis.
+
+        Returns:
+            Formatted Markdown with RS Ratio, Momentum, Quadrant, Modifier
+        """
+        from ..services.sector_rs import SectorRSService
         from ..utils.markdown_builder import MarkdownBuilder
 
-        service = SectorCycleService()
-        statuses = await service.get_all_sector_statuses()
+        service = SectorRSService()
+        rs_map = await service.get_all_sector_rs()
 
         b = MarkdownBuilder()
-        b.h1("Sector Momentum Status").blank()
+        b.h1("Sector Relative Strength (RRG)").blank()
 
-        if not statuses:
+        if not rs_map:
             b.hint("No sector data available.")
             return b.build()
 
-        regime_icons = {
-            "strong": "[+]",
-            "neutral": "[ ]",
-            "weak": "[-]",
-            "crisis": "[!]",
+        quadrant_icons = {
+            "leading": "[+]",
+            "improving": "[^]",
+            "weakening": "[v]",
+            "lagging": "[-]",
         }
 
         rows = []
-        for s in sorted(statuses, key=lambda x: x.momentum_factor, reverse=True):
-            icon = regime_icons.get(s.regime.value, "[ ]")
+        for rs in sorted(rs_map.values(), key=lambda x: x.rs_ratio, reverse=True):
+            icon = quadrant_icons.get(rs.quadrant.value, "[ ]")
+            modifier_str = f"{rs.score_modifier:+.1f}" if rs.score_modifier != 0 else "0.0"
             rows.append(
                 [
-                    s.sector,
-                    s.etf_symbol,
-                    f"{s.momentum_factor:.3f}",
-                    f"{icon} {s.regime.value.upper()}",
-                    f"{s.relative_strength_30d:+.1f}%",
-                    f"{s.relative_strength_60d:+.1f}%",
-                    f"{s.breadth_proxy:.2f}",
+                    rs.sector,
+                    rs.etf_symbol,
+                    f"{rs.rs_ratio:.1f}",
+                    f"{rs.rs_momentum:.1f}",
+                    f"{icon} {rs.quadrant.value.capitalize()}",
+                    modifier_str,
                 ]
             )
 
         b.table(
-            ["Sector", "ETF", "Factor", "Regime", "RS 30d", "RS 60d", "Breadth"],
+            ["Sector", "ETF", "RS Ratio", "Momentum", "Quadrant", "Modifier"],
             rows,
         )
         b.blank()
         b.hint(
-            "Factor range: 0.6 (weak) to 1.2 (strong). Applied to signal scores when sector_momentum.enabled=true."
+            "RS > 100 = outperforming SPY. "
+            "Quadrants: Leading (+0.5), Improving (+0.3), Weakening (-0.3), Lagging (-0.5). "
+            "Modifier added to signal scores when sector_rs enabled."
         )
 
         return b.build()

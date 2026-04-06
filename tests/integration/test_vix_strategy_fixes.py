@@ -27,7 +27,7 @@ class TestVIXValidation:
 
         regime = selector.get_regime(-5.0, use_trend=False)
 
-        assert regime == MarketRegime.UNKNOWN
+        assert regime is None
 
     def test_vix_negative_minus_one(self):
         """Test: VIX = -1 gibt UNKNOWN"""
@@ -35,7 +35,7 @@ class TestVIXValidation:
 
         regime = selector.get_regime(-1.0, use_trend=False)
 
-        assert regime == MarketRegime.UNKNOWN
+        assert regime is None
 
     def test_vix_negative_small(self):
         """Test: VIX = -0.01 gibt UNKNOWN"""
@@ -43,7 +43,7 @@ class TestVIXValidation:
 
         regime = selector.get_regime(-0.01, use_trend=False)
 
-        assert regime == MarketRegime.UNKNOWN
+        assert regime is None
 
     def test_vix_zero_is_low_vol(self):
         """Test: VIX = 0 gibt LOW_VOL (gültig, wenn auch unwahrscheinlich)"""
@@ -83,7 +83,7 @@ class TestVIXValidation:
 
         regime = selector.get_regime(None, use_trend=False)
 
-        assert regime == MarketRegime.UNKNOWN
+        assert regime is None
 
 
 class TestVIXNormalRanges:
@@ -160,15 +160,15 @@ class TestRecommendationWithValidation:
         """Test: Negative VIX gibt Empfehlung mit Warnung"""
         rec = get_strategy_for_vix(-5.0)
         
-        assert rec.regime == MarketRegime.UNKNOWN
+        assert rec.regime is None
         assert rec.profile_name == "standard"
         assert len(rec.warnings) > 0
-    
+
     def test_recommendation_for_none_vix(self):
         """Test: None VIX gibt Empfehlung mit Warnung"""
         rec = get_strategy_for_vix(None)
-        
-        assert rec.regime == MarketRegime.UNKNOWN
+
+        assert rec.regime is None
         assert ("VIX nicht verfügbar" in rec.warnings[0]
                 or "nicht verfügbar" in rec.reasoning
                 or "not available" in rec.warnings[0]
@@ -206,8 +206,8 @@ class TestCustomThresholdsWithValidation:
         )
         selector = VIXStrategySelector(thresholds=custom)
 
-        # Negative VIX sollte immer noch UNKNOWN sein
-        assert selector.get_regime(-5.0, use_trend=False) == MarketRegime.UNKNOWN
+        # Negative VIX sollte immer noch None sein
+        assert selector.get_regime(-5.0, use_trend=False) is None
 
         # Normale Bereiche mit neuen Thresholds (5-Stufen-System)
         assert selector.get_regime(11.0, use_trend=False) == MarketRegime.LOW_VOL

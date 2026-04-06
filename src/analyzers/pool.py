@@ -451,10 +451,8 @@ def get_analyzer_pool(config: Optional[PoolConfig] = None) -> AnalyzerPool:
     """
     Gibt die globale AnalyzerPool-Instanz zurück.
 
-    .. deprecated:: 3.5.0
-        Use ``ServiceContainer`` instead. Will be removed in v4.0.
-
-    Erstellt bei Bedarf eine neue Instanz.
+    Prefers the global ServiceContainer if available, otherwise
+    falls back to the module-level singleton.
 
     Args:
         config: Pool-Konfiguration (nur bei erster Erstellung verwendet)
@@ -462,10 +460,12 @@ def get_analyzer_pool(config: Optional[PoolConfig] = None) -> AnalyzerPool:
     Returns:
         AnalyzerPool Instanz
     """
+    # Prefer container if available
     try:
-        from ..utils.deprecation import warn_singleton_usage
+        from ..container import _default_container
 
-        warn_singleton_usage("get_analyzer_pool", "ServiceContainer.analyzer_pool")
+        if _default_container is not None and _default_container.analyzer_pool is not None:
+            return _default_container.analyzer_pool
     except ImportError:
         pass
 
@@ -488,6 +488,14 @@ def reset_analyzer_pool() -> None:
         if _pool_instance:
             _pool_instance.clear()
         _pool_instance = None
+
+    try:
+        from ..container import _default_container
+
+        if _default_container is not None:
+            _default_container.analyzer_pool = None
+    except ImportError:
+        pass
 
 
 def configure_default_pool() -> AnalyzerPool:

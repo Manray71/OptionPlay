@@ -828,17 +828,18 @@ def get_earnings_history_manager(db_path: Optional[Path] = None) -> EarningsHist
     """
     Returns global EarningsHistoryManager instance.
 
-    .. deprecated:: 3.5.0
-        Use ``ServiceContainer`` instead. Will be removed in v4.0.
-
-    Thread-safe singleton pattern.
+    Prefers the global ServiceContainer if available, otherwise
+    falls back to the module-level singleton.
     """
+    # Prefer container if available
     try:
-        from ..utils.deprecation import warn_singleton_usage
+        from ..container import _default_container
 
-        warn_singleton_usage(
-            "get_earnings_history_manager", "ServiceContainer.earnings_history_manager"
-        )
+        if (
+            _default_container is not None
+            and _default_container.earnings_history_manager is not None
+        ):
+            return _default_container.earnings_history_manager
     except ImportError:
         pass
 
@@ -855,3 +856,10 @@ def reset_earnings_history_manager() -> None:
     global _default_manager
     with _manager_lock:
         _default_manager = None
+    try:
+        from ..container import _default_container
+
+        if _default_container is not None:
+            _default_container.earnings_history_manager = None
+    except ImportError:
+        pass

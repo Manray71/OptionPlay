@@ -450,33 +450,6 @@ class RecursiveConfigResolver:
             },
         )
 
-    def get_sector_cycle_config(self) -> dict:
-        """Get sector cycle service configuration."""
-        return self._raw.get(
-            "sector_cycle",
-            {
-                "cache_ttl_hours": 4,
-                "factor_max": 1.5,
-                "factor_min": 0.6,
-                "lookback_short": 30,
-                "lookback_long": 60,
-                "weights": {
-                    "rs_30d": 0.40,
-                    "rs_60d": 0.30,
-                    "breadth": 0.20,
-                    "vol_premium": 0.10,
-                },
-                "breadth": {
-                    "proxy_neutral": 0.5,
-                    "norm_floor": 0.95,
-                    "norm_range": 0.10,
-                },
-                "regime": {"strong": 1.05, "neutral": 0.90, "weak": 0.70},
-                "rs_scale": {"d30": 10.0, "d60": 15.0},
-                "fetch_buffer_days": 10,
-            },
-        )
-
     def get_entry_quality_config(self) -> dict:
         """Get entry quality scorer (EQS) configuration."""
         return self._raw.get("entry_quality", {})

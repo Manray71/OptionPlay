@@ -376,7 +376,7 @@ class RecommendationRankingMixin:
             # MarketRegime für VIX-basierte Spread-Berechnung
             from ..services.vix_strategy import MarketRegime as VixRegime
 
-            vix_regime = VixRegime(regime.value) if regime != MarketRegime.UNKNOWN else None
+            vix_regime = VixRegime(regime.value) if regime is not None else None
 
             # Fetch options chain if fetcher available
             options_data = None
