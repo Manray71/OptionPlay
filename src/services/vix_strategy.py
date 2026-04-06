@@ -689,6 +689,7 @@ class VIXStrategySelector:
 
         if vix is None:
             # Fallback to v1 when VIX unavailable
+            logger.info("VIX is None — falling back to v1 get_recommendation()")
             return self.get_recommendation(vix)
 
         params = get_regime_params(vix, vix_futures_front, vix_trend)

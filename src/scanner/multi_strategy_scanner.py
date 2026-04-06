@@ -1139,7 +1139,10 @@ class MultiStrategyScanner:
                             rs = self._sector_rs_service.get_cached_sector_rs(canonical)
                             if rs is not None and rs.score_modifier != 0.0:
                                 pre_rs_score = signal.score
-                                signal.score = round(signal.score + rs.score_modifier, 1)
+                                signal.score = round(
+                                    max(0.0, min(10.0, signal.score + rs.score_modifier)),
+                                    1,
+                                )
                                 if signal.details is not None:
                                     signal.details["sector_rs_modifier"] = rs.score_modifier
                                     signal.details["sector_rs_quadrant"] = rs.quadrant.value

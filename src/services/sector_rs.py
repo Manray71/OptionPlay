@@ -176,10 +176,11 @@ def _compute_ratio_ema(
 
     ratios = []
     for s, b in zip(sector_closes, benchmark_closes):
-        if b > 0:
+        if b > 1e-9:
             ratios.append(s / b)
         else:
-            ratios.append(1.0)
+            # Benchmark price is zero or negative (bad data) — treat as neutral
+            ratios.append(ratios[-1] if ratios else 1.0)
 
     return compute_ema(ratios, ema_period) if ratios else []
 

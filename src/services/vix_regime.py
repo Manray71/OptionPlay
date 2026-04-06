@@ -12,7 +12,7 @@
 import logging
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 from ..constants.trading_rules import (
     SPREAD_DTE_MAX,
@@ -154,7 +154,7 @@ class VIXRegimeParams:
             f"{ts_info}{trend}"
         )
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> Dict[str, Any]:
         return {
             "vix": self.vix,
             "regime_label": self.regime_label.value,
@@ -181,7 +181,7 @@ class VIXRegimeParams:
 # =============================================================================
 
 
-def _interpolate(vix: float, anchors: list = ANCHOR_POINTS) -> Dict:
+def _interpolate(vix: float, anchors: list = ANCHOR_POINTS) -> Dict[str, Any]:
     """
     Linear interpolation between anchor points.
 
@@ -260,8 +260,8 @@ def _determine_term_structure(
 
 
 def _apply_term_structure(
-    params: Dict, vix: float, term_structure: Optional[str]
-) -> Tuple[Dict, bool]:
+    params: Dict[str, Any], vix: float, term_structure: Optional[str]
+) -> Tuple[Dict[str, Any], bool]:
     """
     Adjust parameters based on VIX term structure.
 
@@ -308,8 +308,8 @@ def _apply_term_structure(
 
 
 def _apply_trend_overlay(
-    params: Dict, vix: float, vix_trend: Optional[str]
-) -> Tuple[Dict, bool]:
+    params: Dict[str, Any], vix: float, vix_trend: Optional[str]
+) -> Tuple[Dict[str, Any], bool]:
     """
     Apply VIX trend overlay as post-interpolation adjustment.
 
@@ -422,7 +422,7 @@ def should_trade(
     current_positions: int,
     vix_futures_front: Optional[float] = None,
     vix_trend: Optional[str] = None,
-) -> Dict:
+) -> Dict[str, Any]:
     """
     Quick check: is this trade allowed under current VIX regime?
 
