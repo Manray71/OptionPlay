@@ -80,6 +80,7 @@ CONTEXT_*.md
 
 # Data inventory (auto-generated training data)
 data_inventory/
+data/
 
 # Pre-test config backups
 config/*.pre-test
