@@ -77,7 +77,7 @@ class VixHandler(BaseHandler):
                     self._ctx.vix_updated = datetime.now()
                     return quote.last
             except Exception as e:
-                self._logger.debug(f"Tradier VIX quote failed: {e}")
+                self._logger.debug(f"IBKR VIX quote failed: {e}")
 
         # Fallback to Yahoo Finance
         if self._ctx.current_vix is None:

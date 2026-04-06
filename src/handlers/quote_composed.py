@@ -158,19 +158,18 @@ class QuoteHandler(BaseHandler):
         days_to_earnings = None
         source_used = "unknown"
 
-        # 1. Try Marketdata.app
+        # 1. Try local DB (EarningsHistoryManager)
         try:
-            provider = await self._ensure_connected()
-            await self._ctx.rate_limiter.acquire()
-            earnings = await provider.get_earnings_date(symbol)
-            self._ctx.rate_limiter.record_success()
+            from ..cache import get_earnings_history_manager
 
-            if earnings and earnings.earnings_date:
-                earnings_date = earnings.earnings_date
-                days_to_earnings = earnings.days_to_earnings
-                source_used = "marketdata"
+            em = get_earnings_history_manager()
+            nxt = em.get_next_future_earnings(symbol)
+            if nxt:
+                earnings_date = nxt.earnings_date
+                days_to_earnings = (nxt.earnings_date - date.today()).days
+                source_used = "local_db"
         except Exception as e:
-            self._logger.debug(f"Marketdata.app earnings failed for {symbol}: {e}")
+            self._logger.debug(f"Local DB earnings failed for {symbol}: {e}")
 
         # 2. Fallback to Yahoo Finance direct
         if not earnings_date:
@@ -230,25 +229,24 @@ class QuoteHandler(BaseHandler):
         symbol = validate_symbol(symbol)
         results: List[EarningsResult] = []
 
-        async def fetch_marketdata() -> EarningsResult:
+        async def fetch_local_db() -> EarningsResult:
             try:
-                provider = await self._ensure_connected()
-                await self._ctx.rate_limiter.acquire()
-                earnings = await provider.get_earnings_date(symbol)
-                self._ctx.rate_limiter.record_success()
+                from ..cache import get_earnings_history_manager
 
-                if earnings and earnings.earnings_date:
+                em = get_earnings_history_manager()
+                nxt = em.get_next_future_earnings(symbol)
+                if nxt:
                     return create_earnings_result(
-                        source="marketdata",
-                        earnings_date=earnings.earnings_date,
-                        days_to_earnings=earnings.days_to_earnings,
+                        source="local_db",
+                        earnings_date=nxt.earnings_date,
+                        days_to_earnings=(nxt.earnings_date - date.today()).days,
                     )
                 return create_earnings_result(
-                    source="marketdata", earnings_date=None, days_to_earnings=None
+                    source="local_db", earnings_date=None, days_to_earnings=None
                 )
             except Exception as e:
                 return create_earnings_result(
-                    source="marketdata", earnings_date=None, days_to_earnings=None, error=str(e)
+                    source="local_db", earnings_date=None, days_to_earnings=None, error=str(e)
                 )
 
         async def fetch_yahoo() -> EarningsResult:
@@ -284,7 +282,7 @@ class QuoteHandler(BaseHandler):
                     source="yfinance", earnings_date=None, days_to_earnings=None, error=str(e)
                 )
 
-        results = await asyncio.gather(fetch_marketdata(), fetch_yahoo(), fetch_yfinance())
+        results = await asyncio.gather(fetch_local_db(), fetch_yahoo(), fetch_yfinance())
 
         aggregator = get_earnings_aggregator()
         aggregated = aggregator.aggregate(symbol, list(results))
@@ -460,19 +458,20 @@ class QuoteHandler(BaseHandler):
         symbol = validate_symbol(symbol)
         expirations = None
 
-        # Try Tradier first
+        # Try IBKR provider
         if self._ctx.ibkr_connected and self._ctx.ibkr_provider:
             try:
                 expirations = await self._ctx.ibkr_provider.get_expirations(symbol)
             except Exception as e:
                 self._logger.debug(f"IBKR expirations failed: {e}")
 
-        # Fallback to Marketdata
+        # Fallback: reconnect and retry
         if not expirations:
             provider = await self._ensure_connected()
-            await self._ctx.rate_limiter.acquire()
-            expirations = await provider.get_expirations(symbol)
-            self._ctx.rate_limiter.record_success()
+            if provider:
+                await self._ctx.rate_limiter.acquire()
+                expirations = await provider.get_expirations(symbol)
+                self._ctx.rate_limiter.record_success()
 
         b = MarkdownBuilder()
         b.h1(f"Option Expirations: {symbol}").blank()
@@ -570,7 +569,7 @@ class QuoteHandler(BaseHandler):
     async def _get_options_chain_with_fallback(
         self, symbol, dte_min=SPREAD_DTE_MIN, dte_max=SPREAD_DTE_MAX, right="P"
     ):
-        """Fetch options chain with Tradier-first, IBKR-fallback."""
+        """Fetch options chain via IBKR provider."""
         options = None
         right_upper = right.upper()
 

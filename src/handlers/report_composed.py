@@ -252,7 +252,7 @@ class ReportHandler(BaseHandler):
     async def _fetch_historical_cached(self, symbol: str, days: Optional[int] = None):
         """Fetch historical data with caching.
 
-        Priority: in-memory cache → Tradier.
+        Priority: in-memory cache → IBKR.
         """
         from ..cache.historical_cache import CacheStatus
 

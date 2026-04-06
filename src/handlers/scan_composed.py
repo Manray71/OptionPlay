@@ -1115,7 +1115,7 @@ class ScanHandler(BaseHandler):
     async def _fetch_historical_cached(self, symbol: str, days: Optional[int] = None):
         """Fetch historical data with caching.
 
-        Priority: in-memory cache → Tradier.
+        Priority: in-memory cache → IBKR.
         """
         from ..cache.historical_cache import CacheStatus
 
@@ -1128,7 +1128,7 @@ class ScanHandler(BaseHandler):
             if cache_result.status == CacheStatus.HIT:
                 return cache_result.data
 
-        # 2. Fetch from Tradier
+        # 2. Fetch from IBKR
         await self._ensure_connected()
         if self._ctx.ibkr_connected and self._ctx.ibkr_provider:
             try:
@@ -1139,8 +1139,20 @@ class ScanHandler(BaseHandler):
                     if self._ctx.historical_cache:
                         self._ctx.historical_cache.set(symbol, data, days=days)
                     return data
-            except (ConnectionError, TimeoutError, ValueError) as e:
+            except (ConnectionError, TimeoutError, ValueError, RuntimeError) as e:
                 self._logger.debug(f"IBKR historical failed for {symbol}: {e}")
+
+        # 3. Fallback: local DB (daily_prices)
+        try:
+            from ..data_providers.local_db import LocalDBProvider
+            local = LocalDBProvider()
+            data = await local.get_historical_for_scanner(symbol, days=days)
+            if data:
+                if self._ctx.historical_cache:
+                    self._ctx.historical_cache.set(symbol, data, days=days)
+                return data
+        except Exception as e:
+            self._logger.debug(f"Local DB historical failed for {symbol}: {e}")
 
         return None
 
@@ -1223,7 +1235,7 @@ class ScanHandler(BaseHandler):
     async def _get_options_chain_with_fallback(
         self, symbol, dte_min=SPREAD_DTE_MIN, dte_max=SPREAD_DTE_MAX, right="P"
     ):
-        """Fetch options chain with Tradier-first, IBKR-fallback."""
+        """Fetch options chain via IBKR provider."""
         options = None
         right_upper = right.upper()
 
