@@ -75,7 +75,7 @@ class VixTrendInfo:
 # MarketRegime is now an alias for backward compatibility.
 # VIXRegime has the same members (LOW_VOL, NORMAL, DANGER_ZONE, ELEVATED, HIGH_VOL)
 # plus NO_TRADING (VIX > 35). Where MarketRegime.UNKNOWN was used, use None instead.
-MarketRegime = VIXRegime
+MarketRegime = VIXRegime  # Deprecated alias — use VIXRegime directly
 
 
 @dataclass

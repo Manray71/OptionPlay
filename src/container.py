@@ -45,6 +45,8 @@ if TYPE_CHECKING:
     from .utils.rate_limiter import AdaptiveRateLimiter
     from .utils.scanner_config_loader import ScannerConfig
 
+__all__ = ["ServiceContainer", "get_container"]
+
 logger = logging.getLogger(__name__)
 
 
