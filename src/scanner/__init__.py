@@ -2,7 +2,6 @@
 # =============================
 # Multi-Strategie Scanner und Signal-Aggregation
 
-from .market_scanner import MarketScanner
 from .multi_strategy_scanner import (
     MultiStrategyScanner,
     ScanConfig,
@@ -14,10 +13,8 @@ from .multi_strategy_scanner import (
 from .signal_aggregator import SignalAggregator
 
 __all__ = [
-    # Legacy
-    "MarketScanner",
     "SignalAggregator",
-    # New Multi-Strategy Scanner
+    # Multi-Strategy Scanner
     "MultiStrategyScanner",
     "ScanConfig",
     "ScanResult",

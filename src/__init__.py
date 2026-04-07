@@ -131,7 +131,6 @@ from .options import (
 # SCANNER
 # =============================================================================
 from .scanner import (
-    MarketScanner,
     SignalAggregator,
 )
 
@@ -210,7 +209,6 @@ __all__ = [
     "DataProvider",
     "IBKRDataProvider",
     # Scanner
-    "MarketScanner",
     "SignalAggregator",
     # Indicators
     "calculate_rsi",
