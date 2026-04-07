@@ -8,8 +8,6 @@ Tests for handlers/scan.py module including:
 - scan_with_strategy (pullback) method
 - scan_pullback_candidates (legacy alias)
 - scan_bounce method
-- scan_ath_breakout method
-- scan_earnings_dip method
 - scan_multi_strategy method
 - daily_picks method
 - _apply_chain_validation method
@@ -325,8 +323,6 @@ class TestMakeScanCacheKey:
         modes = [
             ScanMode.PULLBACK_ONLY,
             ScanMode.BOUNCE_ONLY,
-            ScanMode.BREAKOUT_ONLY,
-            ScanMode.EARNINGS_DIP,
             ScanMode.BEST_SIGNAL,
             ScanMode.ALL,
         ]
@@ -778,152 +774,6 @@ class TestScanBounce:
         assert "No bounce candidates found" in result
 
 
-class TestScanAthBreakout:
-    """Tests for scan_ath_breakout method."""
-
-    @pytest.mark.asyncio
-    async def test_scan_ath_breakout(self, handler, mock_scan_result):
-        """Test scan_ath_breakout."""
-        mock_scanner = MagicMock()
-        mock_scanner.config = MagicMock()
-        mock_scanner.scan_async = AsyncMock(return_value=mock_scan_result)
-
-        with patch.object(handler, '_get_multi_scanner', return_value=mock_scanner):
-            with patch('src.handlers.scan.get_watchlist_loader') as mock_loader:
-                mock_loader.return_value.get_symbols_by_list_type.return_value = ["AAPL"]
-                mock_loader.return_value.stability_split_enabled = False
-
-                with patch('src.handlers.scan.get_earnings_fetcher') as mock_ef:
-                    mock_ef.return_value.cache.get.return_value = None
-
-                    result = await handler.scan_ath_breakout(
-                        symbols=["AAPL"],
-                        max_results=10,
-                        min_score=3.5,
-                    )
-
-        assert "[BREAKOUT]" in result
-        assert "ATH Breakout Candidates" in result
-
-    @pytest.mark.asyncio
-    async def test_scan_ath_breakout_uses_breakout_mode(self, handler, mock_scan_result):
-        """Test scan_ath_breakout uses BREAKOUT_ONLY mode."""
-        mock_scanner = MagicMock()
-        mock_scanner.config = MagicMock()
-        mock_scanner.scan_async = AsyncMock(return_value=mock_scan_result)
-
-        with patch.object(handler, '_get_multi_scanner', return_value=mock_scanner):
-            with patch('src.handlers.scan.get_watchlist_loader') as mock_loader:
-                mock_loader.return_value.get_symbols_by_list_type.return_value = ["AAPL"]
-                mock_loader.return_value.stability_split_enabled = False
-
-                with patch('src.handlers.scan.get_earnings_fetcher') as mock_ef:
-                    mock_ef.return_value.cache.get.return_value = None
-
-                    await handler.scan_ath_breakout(symbols=["AAPL"])
-
-        call_args = mock_scanner.scan_async.call_args
-        assert call_args[1]['mode'] == ScanMode.BREAKOUT_ONLY
-
-    @pytest.mark.asyncio
-    async def test_scan_ath_breakout_requires_historical_data(self, handler, mock_scan_result):
-        """Test scan_ath_breakout requires 260 days of historical data."""
-        mock_scanner = MagicMock()
-        mock_scanner.config = MagicMock()
-        mock_scanner.scan_async = AsyncMock(return_value=mock_scan_result)
-
-        # Track what data fetcher is used
-        data_fetcher_days = []
-
-        async def track_fetch(symbol, days=90):
-            data_fetcher_days.append(days)
-            return ([100.0] * days, [1000000] * days, [101.0] * days, [99.0] * days)
-
-        with patch.object(handler, '_fetch_historical_cached', side_effect=track_fetch):
-            with patch.object(handler, '_get_multi_scanner', return_value=mock_scanner):
-                with patch('src.handlers.scan.get_watchlist_loader') as mock_loader:
-                    mock_loader.return_value.get_symbols_by_list_type.return_value = ["AAPL"]
-                    mock_loader.return_value.stability_split_enabled = False
-
-                    with patch('src.handlers.scan.get_earnings_fetcher') as mock_ef:
-                        mock_ef.return_value.cache.get.return_value = None
-
-                        await handler.scan_ath_breakout(symbols=["AAPL"])
-
-        # Should request at least 260 days of data
-        assert len(data_fetcher_days) > 0
-        assert max(data_fetcher_days) >= 260
-
-
-class TestScanEarningsDip:
-    """Tests for scan_earnings_dip method."""
-
-    @pytest.mark.asyncio
-    async def test_scan_earnings_dip(self, handler, mock_scan_result):
-        """Test scan_earnings_dip."""
-        mock_scanner = MagicMock()
-        mock_scanner.config = MagicMock()
-        mock_scanner.scan_async = AsyncMock(return_value=mock_scan_result)
-
-        with patch.object(handler, '_get_multi_scanner', return_value=mock_scanner):
-            with patch('src.handlers.scan.get_watchlist_loader') as mock_loader:
-                mock_loader.return_value.get_symbols_by_list_type.return_value = ["AAPL"]
-                mock_loader.return_value.stability_split_enabled = False
-
-                with patch('src.handlers.scan.get_earnings_fetcher') as mock_ef:
-                    mock_ef.return_value.cache.get.return_value = None
-
-                    result = await handler.scan_earnings_dip(
-                        symbols=["AAPL"],
-                        max_results=10,
-                        min_score=3.5,
-                    )
-
-        assert "[EARN_DIP]" in result
-        assert "Earnings Dip Candidates" in result
-
-    @pytest.mark.asyncio
-    async def test_scan_earnings_dip_uses_earnings_dip_mode(self, handler, mock_scan_result):
-        """Test scan_earnings_dip uses EARNINGS_DIP mode."""
-        mock_scanner = MagicMock()
-        mock_scanner.config = MagicMock()
-        mock_scanner.scan_async = AsyncMock(return_value=mock_scan_result)
-
-        with patch.object(handler, '_get_multi_scanner', return_value=mock_scanner):
-            with patch('src.handlers.scan.get_watchlist_loader') as mock_loader:
-                mock_loader.return_value.get_symbols_by_list_type.return_value = ["AAPL"]
-                mock_loader.return_value.stability_split_enabled = False
-
-                with patch('src.handlers.scan.get_earnings_fetcher') as mock_ef:
-                    mock_ef.return_value.cache.get.return_value = None
-
-                    await handler.scan_earnings_dip(symbols=["AAPL"])
-
-        call_args = mock_scanner.scan_async.call_args
-        assert call_args[1]['mode'] == ScanMode.EARNINGS_DIP
-
-    @pytest.mark.asyncio
-    async def test_scan_earnings_dip_empty_results_message(self, handler):
-        """Test scan_earnings_dip shows specific no results message."""
-        empty_result = MockScanResult(signals=[], symbols_with_signals=0)
-        mock_scanner = MagicMock()
-        mock_scanner.config = MagicMock()
-        mock_scanner.scan_async = AsyncMock(return_value=empty_result)
-
-        with patch.object(handler, '_get_multi_scanner', return_value=mock_scanner):
-            with patch('src.handlers.scan.get_watchlist_loader') as mock_loader:
-                mock_loader.return_value.get_symbols_by_list_type.return_value = ["AAPL"]
-                mock_loader.return_value.stability_split_enabled = False
-
-                with patch('src.handlers.scan.get_earnings_fetcher') as mock_ef:
-                    mock_ef.return_value.cache.get.return_value = None
-
-                    result = await handler.scan_earnings_dip(symbols=["AAPL"])
-
-        assert "No earnings dip candidates found" in result
-        assert "requires recent earnings" in result
-
-
 class TestScanMultiStrategy:
     """Tests for scan_multi_strategy method."""
 
@@ -1023,29 +873,25 @@ class TestScanMultiStrategy:
         signals = [
             MockSignal("AAPL", 8.5, 185.50, "pullback", "Signal 1"),
             MockSignal("MSFT", 7.5, 410.0, "bounce", "Signal 2"),
-            MockSignal("NVDA", 7.0, 500.0, "ath_breakout", "Signal 3"),
-            MockSignal("META", 6.5, 350.0, "earnings_dip", "Signal 4"),
         ]
-        mock_result = MockScanResult(signals=signals, symbols_with_signals=4)
+        mock_result = MockScanResult(signals=signals, symbols_with_signals=2)
         mock_scanner = MagicMock()
         mock_scanner.config = MagicMock()
         mock_scanner.scan_async = AsyncMock(return_value=mock_result)
 
         with patch.object(handler, '_get_multi_scanner', return_value=mock_scanner):
             with patch('src.handlers.scan.get_watchlist_loader') as mock_loader:
-                mock_loader.return_value.get_symbols_by_list_type.return_value = ["AAPL", "MSFT", "NVDA", "META"]
+                mock_loader.return_value.get_symbols_by_list_type.return_value = ["AAPL", "MSFT"]
                 mock_loader.return_value.stability_split_enabled = False
 
                 with patch('src.handlers.scan.get_earnings_fetcher') as mock_ef:
                     mock_ef.return_value.cache.get.return_value = None
 
-                    result = await handler.scan_multi_strategy(symbols=["AAPL", "MSFT", "NVDA", "META"])
+                    result = await handler.scan_multi_strategy(symbols=["AAPL", "MSFT"])
 
         # Check for strategy icons
         assert "[PB]" in result  # pullback
         assert "[BN]" in result  # bounce
-        assert "[ATH]" in result  # ath_breakout
-        assert "[ED]" in result  # earnings_dip
 
 
 # =============================================================================
@@ -1547,11 +1393,6 @@ class TestFormatDailyPicksOutput:
                 strategy="bounce", current_price=200.0, sector="Financials",
                 reliability_grade="B"
             ),
-            MockDailyPick(
-                rank=3, symbol="NVDA", score=7.0, stability_score=75.0,
-                strategy="ath_breakout", current_price=500.0, sector="Technology",
-                reliability_grade="B"
-            ),
         ]
 
         result = MockDailyRecommendationResult(
@@ -1567,7 +1408,6 @@ class TestFormatDailyPicksOutput:
 
         assert "Pullback" in output
         assert "Bounce" in output
-        assert "ATH Breakout" in output
 
     def test_format_pick_with_all_details(self, handler):
         """Test formatting pick with all details."""
@@ -2007,8 +1847,8 @@ class TestEdgeCases:
         """Test formatting picks with all strategy types."""
         from src.utils.markdown_builder import MarkdownBuilder
 
-        strategies = ["pullback", "bounce", "ath_breakout", "earnings_dip"]
-        expected_display = ["Pullback", "Bounce", "ATH Breakout", "Earnings Dip"]
+        strategies = ["pullback", "bounce"]
+        expected_display = ["Pullback", "Bounce"]
 
         for strategy, expected in zip(strategies, expected_display):
             b = MarkdownBuilder()

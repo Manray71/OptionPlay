@@ -110,9 +110,6 @@ class BaseHandlerMixin:
         min_score: float = 3.5,
         enable_pullback: bool = True,
         enable_bounce: bool = True,
-        enable_breakout: bool = True,
-        enable_earnings_dip: bool = True,
-        enable_trend_continuation: bool = True,
     ) -> "MultiStrategyScanner":
         """Get multi-strategy scanner instance."""
         raise NotImplementedError
@@ -121,8 +118,6 @@ class BaseHandlerMixin:
         self,
         symbols: list[str],
         min_days: int,
-        for_earnings_dip: bool = False,
-        include_dip_candidates: bool = False,
     ) -> tuple[list[str], int, int]:
         """Apply earnings pre-filter to symbols."""
         raise NotImplementedError

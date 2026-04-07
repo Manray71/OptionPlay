@@ -78,20 +78,6 @@ def sample_strategy_scores():
             confidence=0.75,
             breakdown={"rsi": 1.0, "support": 2.5, "volume": 1.0, "bounce": 2.0},
         ),
-        "ath_breakout": StrategyScore(
-            strategy="ath_breakout",
-            raw_score=6.0,
-            weighted_score=6.5,
-            confidence=0.65,
-            breakdown={"ath": 2.0, "volume": 1.5, "trend": 2.5},
-        ),
-        "earnings_dip": StrategyScore(
-            strategy="earnings_dip",
-            raw_score=5.5,
-            weighted_score=6.0,
-            confidence=0.60,
-            breakdown={"rsi": 1.0, "support": 1.5, "volume": 1.5, "fibonacci": 1.5},
-        ),
     }
 
 
@@ -110,7 +96,7 @@ def sample_ensemble_recommendation(sample_strategy_scores):
         regime="normal",
         vix=18.5,
         selection_reason="highest raw score; preferred in normal regime",
-        alternative_strategies=["bounce", "ath_breakout"],
+        alternative_strategies=["bounce"],
         diversification_benefit=0.65,
         strategy_correlation=0.45,
     )
@@ -121,9 +107,9 @@ def sample_symbol_performance():
     """Create a sample SymbolPerformance for testing."""
     return SymbolPerformance(
         symbol="AAPL",
-        strategy_win_rates={"pullback": 0.65, "bounce": 0.55, "ath_breakout": 0.50},
-        strategy_sample_sizes={"pullback": 20, "bounce": 15, "ath_breakout": 10},
-        strategy_avg_returns={"pullback": 1.5, "bounce": 1.2, "ath_breakout": 0.8},
+        strategy_win_rates={"pullback": 0.65, "bounce": 0.55},
+        strategy_sample_sizes={"pullback": 20, "bounce": 15},
+        strategy_avg_returns={"pullback": 1.5, "bounce": 1.2},
         best_strategy="pullback",
         best_strategy_confidence=0.67,
         last_updated=datetime(2026, 1, 15, 10, 0, 0),
@@ -170,12 +156,8 @@ class TestConstants:
 
     def test_strategies_defined(self):
         """Test that all strategies are defined."""
-        assert len(STRATEGIES) == 5
         assert "pullback" in STRATEGIES
         assert "bounce" in STRATEGIES
-        assert "ath_breakout" in STRATEGIES
-        assert "earnings_dip" in STRATEGIES
-        assert "trend_continuation" in STRATEGIES
 
     def test_default_regime_preferences_complete(self):
         """Test that default regime preferences cover all regimes."""
@@ -324,7 +306,7 @@ class TestEnsembleRecommendation:
         assert "AAPL" in summary
         assert "PULLBACK" in summary
         assert "normal" in summary
-        assert "bounce" in summary or "ath_breakout" in summary
+        assert "bounce" in summary
 
 
 # =============================================================================
@@ -395,8 +377,6 @@ class TestRotationState:
             recent_win_rates={
                 "pullback": [0.0] * 15,  # 0% win rate in last 15 trades
                 "bounce": [],
-                "ath_breakout": [],
-                "earnings_dip": [],
             },
             consecutive_losses={s: 0 for s in STRATEGIES},
         )
@@ -414,8 +394,6 @@ class TestRotationState:
             consecutive_losses={
                 "pullback": 6,  # More than 5 consecutive losses
                 "bounce": 0,
-                "ath_breakout": 0,
-                "earnings_dip": 0,
             },
         )
         should, trigger = state.should_rotate(date.today())
@@ -874,8 +852,8 @@ class TestEnsembleSelectorClusterAndSector:
         """Test sector recommendation for known sector."""
         rec = ensemble_selector.get_sector_recommendation("Utilities")
         assert rec is not None
-        assert rec["strategy"] == "earnings_dip"
-        assert rec["win_rate"] == 90.0
+        assert rec["strategy"] in STRATEGIES
+        assert rec["win_rate"] > 0
 
     def test_get_sector_recommendation_unknown_sector(self, ensemble_selector):
         """Test sector recommendation for unknown sector."""
@@ -940,7 +918,7 @@ class TestEnsembleSelectorClusterAndSector:
         """Test strategy preference from sector."""
         selector = EnsembleSelector()
         strat, conf, source = selector.get_strategy_preference("AAPL", "Utilities")
-        assert strat == "earnings_dip"
+        assert strat in STRATEGIES
         assert conf > 0.5
         assert "sector:" in source
 

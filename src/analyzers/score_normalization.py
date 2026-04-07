@@ -5,8 +5,6 @@
 # Problem: Different strategies have different max scores
 # - Pullback: max ~14 points (P95 empirical; theoretical ~27)
 # - Bounce: max 10 points (v2: 5-component scoring)
-# - ATH Breakout: max 10 points (v2: 4-component scoring)
-# - Earnings Dip: max 9.5 points (v2: 5-component + penalties)
 #
 # Solution: Normalize all scores to 0-10 scale for direct comparability
 
@@ -55,33 +53,6 @@ STRATEGY_SCORE_CONFIGS: Dict[str, StrategyScoreConfig] = {
         moderate_threshold=5.0,
         weak_threshold=3.5,
     ),
-    "ath_breakout": StrategyScoreConfig(
-        max_possible=10.0,
-        # Component breakdown (v2 refactored):
-        # Consolidation Quality: 2.5, Breakout Strength: 2.0,
-        # Volume: 2.5 (can be -1.0), Momentum/Trend: 1.5 (can be -1.0)
-        strong_threshold=7.0,
-        moderate_threshold=5.5,
-        weak_threshold=4.0,
-    ),
-    "earnings_dip": StrategyScoreConfig(
-        max_possible=9.5,
-        # Component breakdown (v2 refactored):
-        # Drop Magnitude: 2.0, Stabilization: 2.5, Fundamental: 2.0,
-        # Overreaction: 2.0, BPS Suitability: 1.0, Penalties: -3.0
-        strong_threshold=6.5,
-        moderate_threshold=5.0,
-        weak_threshold=3.5,
-    ),
-    "trend_continuation": StrategyScoreConfig(
-        max_possible=10.5,
-        # Component breakdown (v2 new):
-        # SMA Alignment: 2.5, Trend Stability: 2.0 (+0.5 bonus),
-        # Trend Buffer: 2.0, Momentum Health: 2.0, Volatility: 1.5
-        strong_threshold=7.5,
-        moderate_threshold=5.0,
-        weak_threshold=3.5,
-    ),
 }
 
 
@@ -109,7 +80,7 @@ def normalize_score(
 
     Args:
         raw_score: The raw score from the strategy analyzer
-        strategy: Strategy name ('pullback', 'bounce', 'ath_breakout', 'earnings_dip')
+        strategy: Strategy name ('pullback', 'bounce')
         max_possible: Optional override for max possible score (e.g. from
                       RecursiveConfigResolver). If None, uses STRATEGY_SCORE_CONFIGS.
 

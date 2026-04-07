@@ -157,40 +157,6 @@ class RecursiveConfigResolver:
             },
             "max_possible": 10.0,
         },
-        "ath_breakout": {
-            "weights": {
-                "ath": 3.0,
-                "volume": 2.0,
-                "trend": 2.0,
-                "rsi": 1.0,
-                "rs": 2.0,
-                "momentum": 2.0,
-                "macd": 2.0,
-                "keltner": 2.0,
-                "vwap": 3.0,
-                "market_context": 2.0,
-                "sector": 1.0,
-                "gap": 1.0,
-            },
-            "max_possible": 10.0,
-        },
-        "earnings_dip": {
-            "weights": {
-                "dip": 3.0,
-                "gap": 2.0,
-                "rsi": 2.0,
-                "stabilization": 2.0,
-                "volume": 2.0,
-                "trend": 2.0,
-                "macd": 2.0,
-                "stoch": 2.0,
-                "keltner": 2.0,
-                "vwap": 3.0,
-                "market_context": 2.0,
-                "sector": 1.0,
-            },
-            "max_possible": 9.5,
-        },
     }
 
     _FALLBACK_STABILITY: Dict[str, float] = {

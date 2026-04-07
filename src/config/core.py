@@ -156,9 +156,7 @@ def get_scan_config(
         max_concurrent=scanner_cfg.max_concurrent,
         min_data_points=scanner_cfg.min_data_points,
         enable_pullback=scanner_cfg.enable_pullback,
-        enable_ath_breakout=scanner_cfg.enable_ath_breakout,
         enable_bounce=scanner_cfg.enable_bounce,
-        enable_earnings_dip=scanner_cfg.enable_earnings_dip,
         # Fundamentals Filter (aus filters.fundamentals)
         enable_fundamentals_filter=(
             enable_fundamentals_filter

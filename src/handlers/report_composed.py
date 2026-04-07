@@ -45,7 +45,7 @@ class ReportHandler(BaseHandler):
 
         Args:
             symbol: Ticker symbol
-            strategy: Strategy type (pullback, bounce, breakout, earnings_dip)
+            strategy: Strategy type (pullback, bounce)
             include_options: Include options analysis
             include_news: Include news headlines
 

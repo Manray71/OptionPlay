@@ -1248,7 +1248,7 @@ class TestFormatSinglePick:
         pick = DailyPick(
             rank=1,
             symbol="AAPL",
-            strategy="ath_breakout",
+            strategy="pullback",
             score=8.0,
             stability_score=90.0,
             current_price=180.0,

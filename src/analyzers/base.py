@@ -41,7 +41,7 @@ class BaseAnalyzer(ABC):
         """
         Unique name of the strategy.
 
-        Examples: "pullback", "breakout", "bounce", "earnings_dip"
+        Examples: "pullback", "bounce"
         """
         pass
 

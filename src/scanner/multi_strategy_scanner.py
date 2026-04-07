@@ -19,14 +19,11 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from ..analyzers.ath_breakout import ATHBreakoutAnalyzer, ATHBreakoutConfig
 from ..analyzers.base import BaseAnalyzer
 from ..analyzers.bounce import BounceAnalyzer, BounceConfig
 from ..analyzers.context import AnalysisContext
-from ..analyzers.earnings_dip import EarningsDipAnalyzer, EarningsDipConfig
 from ..analyzers.pool import AnalyzerPool, PoolConfig, get_analyzer_pool
 from ..analyzers.pullback import PullbackAnalyzer
-from ..analyzers.trend_continuation import TrendContinuationAnalyzer, TrendContinuationConfig
 from ..config import PullbackScoringConfig
 from ..config.liquidity_blacklist import filter_liquid_symbols, is_illiquid
 from ..constants.trading_rules import (
@@ -96,10 +93,7 @@ class ScanMode(Enum):
 
     ALL = "all"  # Alle Strategien
     PULLBACK_ONLY = "pullback"  # Nur Pullbacks (für Bull-Put-Spreads)
-    BREAKOUT_ONLY = "breakout"  # Nur ATH Breakouts
     BOUNCE_ONLY = "bounce"  # Nur Support Bounces
-    EARNINGS_DIP = "earnings_dip"  # Nur Earnings Dips
-    TREND_ONLY = "trend_continuation"  # Nur Trend Continuation
     BEST_SIGNAL = "best"  # Nur bestes Signal pro Symbol
 
 
@@ -138,10 +132,7 @@ class ScanConfig:
 
     # Strategies to enable
     enable_pullback: bool = True
-    enable_ath_breakout: bool = True
     enable_bounce: bool = True
-    enable_earnings_dip: bool = True
-    enable_trend_continuation: bool = True
 
     # Analyzer Pool Settings
     use_analyzer_pool: bool = True  # Object Pooling für Performance
@@ -781,19 +772,8 @@ class MultiStrategyScanner:
             except Exception as e:
                 logger.warning(f"Could not register PullbackAnalyzer: {e}")
 
-        if self.config.enable_ath_breakout:
-            pool.register_factory("ath_breakout", lambda: ATHBreakoutAnalyzer(ATHBreakoutConfig()))
-
         if self.config.enable_bounce:
             pool.register_factory("bounce", lambda: BounceAnalyzer(BounceConfig()))
-
-        if self.config.enable_earnings_dip:
-            pool.register_factory("earnings_dip", lambda: EarningsDipAnalyzer(EarningsDipConfig()))
-
-        if self.config.enable_trend_continuation:
-            pool.register_factory(
-                "trend_continuation", lambda: TrendContinuationAnalyzer(TrendContinuationConfig())
-            )
 
         logger.info(f"Created analyzer pool with strategies: {pool.registered_strategies}")
 
@@ -809,17 +789,8 @@ class MultiStrategyScanner:
             except Exception as e:
                 logger.warning(f"Could not register PullbackAnalyzer: {e}")
 
-        if self.config.enable_ath_breakout:
-            self._analyzers["ath_breakout"] = ATHBreakoutAnalyzer()
-
         if self.config.enable_bounce:
             self._analyzers["bounce"] = BounceAnalyzer()
-
-        if self.config.enable_earnings_dip:
-            self._analyzers["earnings_dip"] = EarningsDipAnalyzer()
-
-        if self.config.enable_trend_continuation:
-            self._analyzers["trend_continuation"] = TrendContinuationAnalyzer()
 
         logger.info(f"Registered {len(self._analyzers)} analyzers: {list(self._analyzers.keys())}")
 
@@ -910,8 +881,8 @@ class MultiStrategyScanner:
             Tuple (passes_filter, reason_if_failed)
         """
         # IV-Filter nur für Credit-Spread-Strategien (pullback)
-        # Andere Strategien (bounce, ath_breakout, earnings_dip) sind keine Credit-Spreads
-        if strategy in ["earnings_dip", "ath_breakout", "bounce"]:
+        # Bounce is not a credit spread strategy
+        if strategy in ["bounce"]:
             return True, None
 
         # Filter deaktiviert?
@@ -942,9 +913,7 @@ class MultiStrategyScanner:
         Prüft ob ein Symbol wegen Earnings übersprungen werden soll.
 
         Logik:
-        - earnings_dip: Nur wenn Earnings KÜRZLICH stattgefunden haben
-          (innerhalb der letzten 10 Tage). Bevorstehende Earnings = skip.
-        - andere Strategien: Skip wenn Earnings bevorstehen (in den nächsten X Tagen)
+        - Skip wenn Earnings bevorstehen (in den nächsten X Tagen)
 
         HINWEIS: Die primäre Filterung erfolgt im MCP-Server via
         _apply_earnings_prefilter(). Diese Methode ist eine zusätzliche
@@ -952,35 +921,7 @@ class MultiStrategyScanner:
         """
         earnings_date = self._earnings_cache.get(symbol)
 
-        if strategy == "earnings_dip":
-            # Earnings Dip braucht KÜRZLICH VERGANGENE Earnings
-            if not earnings_date:
-                # Kein Datum bekannt -> überspringen
-                logger.debug(f"Skipping {symbol} for earnings_dip: no earnings date known")
-                return True
-
-            days_to_earnings = (earnings_date - date.today()).days
-
-            # Earnings müssen in der Vergangenheit liegen (negativ)
-            # und nicht zu weit zurück (max 10 Tage)
-            if days_to_earnings > 0:
-                # Earnings stehen noch bevor -> kein Dip möglich
-                logger.debug(
-                    f"Skipping {symbol} for earnings_dip: earnings in {days_to_earnings} days (not yet occurred)"
-                )
-                return True
-
-            if days_to_earnings < -10:
-                # Earnings zu lange her (>10 Tage) -> kein frischer Dip
-                logger.debug(
-                    f"Skipping {symbol} for earnings_dip: earnings {abs(days_to_earnings)} days ago (too old)"
-                )
-                return True
-
-            # Earnings innerhalb der letzten 10 Tage -> analysieren
-            return False
-
-        # Für andere Strategien: Skip wenn Earnings bevorstehen
+        # Skip wenn Earnings bevorstehen
         if self.config.exclude_earnings_within_days <= 0:
             return False
 
@@ -1927,14 +1868,8 @@ class MultiStrategyScanner:
             return None  # Alle
         elif mode == ScanMode.PULLBACK_ONLY:
             return ["pullback"]
-        elif mode == ScanMode.BREAKOUT_ONLY:
-            return ["ath_breakout"]
         elif mode == ScanMode.BOUNCE_ONLY:
             return ["bounce"]
-        elif mode == ScanMode.EARNINGS_DIP:
-            return ["earnings_dip"]
-        elif mode == ScanMode.TREND_ONLY:
-            return ["trend_continuation"]
         # Fallback for future modes
         return None  # pragma: no cover
 
@@ -2085,10 +2020,7 @@ class MultiStrategyScanner:
 
 def create_scanner(
     enable_pullback: bool = True,
-    enable_breakout: bool = True,
     enable_bounce: bool = True,
-    enable_earnings_dip: bool = True,
-    enable_trend_continuation: bool = True,
     min_score: float = 3.5,  # Normalized 0-10 scale
     exclude_earnings_days: int = ENTRY_EARNINGS_MIN_DAYS,
 ) -> MultiStrategyScanner:
@@ -2096,17 +2028,14 @@ def create_scanner(
     Factory-Funktion für einfache Scanner-Erstellung.
 
     Beispiel:
-        scanner = create_scanner(enable_earnings_dip=False)
+        scanner = create_scanner(enable_bounce=False)
         result = scanner.scan_sync(symbols, data_fetcher)
     """
     config = ScanConfig(
         min_score=min_score,
         exclude_earnings_within_days=exclude_earnings_days,
         enable_pullback=enable_pullback,
-        enable_ath_breakout=enable_breakout,
         enable_bounce=enable_bounce,
-        enable_earnings_dip=enable_earnings_dip,
-        enable_trend_continuation=enable_trend_continuation,
     )
     return MultiStrategyScanner(config)
 

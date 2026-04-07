@@ -28,15 +28,10 @@ class Strategy(Enum):
     Attributes:
         PULLBACK: Pullback im Aufwärtstrend - ideal für Bull-Put-Spreads
         BOUNCE: Support Bounce - Long-Entry bei Unterstützung
-        ATH_BREAKOUT: All-Time-High Breakout - Momentum-Trade
-        EARNINGS_DIP: Earnings Dip Buy - Contrarian nach Earnings-Drop
     """
 
     PULLBACK = "pullback"
     BOUNCE = "bounce"
-    ATH_BREAKOUT = "ath_breakout"
-    EARNINGS_DIP = "earnings_dip"
-    TREND_CONTINUATION = "trend_continuation"
 
     @property
     def icon(self) -> str:
@@ -44,9 +39,6 @@ class Strategy(Enum):
         icons = {
             Strategy.PULLBACK: "📊",
             Strategy.BOUNCE: "🔄",
-            Strategy.ATH_BREAKOUT: "🚀",
-            Strategy.EARNINGS_DIP: "📉",
-            Strategy.TREND_CONTINUATION: "📈",
         }
         return icons.get(self, "•")
 
@@ -56,9 +48,6 @@ class Strategy(Enum):
         names = {
             Strategy.PULLBACK: "Bull-Put-Spread",
             Strategy.BOUNCE: "Support Bounce",
-            Strategy.ATH_BREAKOUT: "ATH Breakout",
-            Strategy.EARNINGS_DIP: "Earnings Dip",
-            Strategy.TREND_CONTINUATION: "Trend Continuation",
         }
         return names.get(self, self.value)
 
@@ -68,9 +57,6 @@ class Strategy(Enum):
         descriptions = {
             Strategy.PULLBACK: "Pullback im Aufwärtstrend - ideal für Bull-Put-Spreads",
             Strategy.BOUNCE: "Bounce von etabliertem Support-Level - Long Entry",
-            Strategy.ATH_BREAKOUT: "Ausbruch auf neues All-Time-High mit Volumen-Bestätigung",
-            Strategy.EARNINGS_DIP: "Qualitätsaktie nach 5-15% Earnings-Drop - Contrarian Play",
-            Strategy.TREND_CONTINUATION: "Stabiler Aufwärtstrend mit SMA-Alignment - sicherer BPS-Kandidat",
         }
         return descriptions.get(self, "")
 
@@ -84,7 +70,7 @@ class Strategy(Enum):
         - Keine nahen Earnings (außer Earnings-Dip)
         - Bullische oder neutrale Bias
         """
-        return self in (Strategy.PULLBACK, Strategy.BOUNCE, Strategy.TREND_CONTINUATION)
+        return self in (Strategy.PULLBACK, Strategy.BOUNCE)
 
     @property
     def requires_earnings_filter(self) -> bool:
@@ -94,7 +80,7 @@ class Strategy(Enum):
         Earnings-Dip braucht gerade kürzliche Earnings,
         andere Strategien meiden Earnings.
         """
-        return self != Strategy.EARNINGS_DIP
+        return True
 
     @property
     def min_historical_days(self) -> int:
@@ -102,9 +88,6 @@ class Strategy(Enum):
         days = {
             Strategy.PULLBACK: 90,
             Strategy.BOUNCE: 90,
-            Strategy.ATH_BREAKOUT: 260,  # 1 Jahr für ATH
-            Strategy.EARNINGS_DIP: 60,
-            Strategy.TREND_CONTINUATION: 250,  # SMA 200 + Steigung
         }
         return days.get(self, 90)
 
@@ -114,9 +97,6 @@ class Strategy(Enum):
         scores = {
             Strategy.PULLBACK: 5.0,
             Strategy.BOUNCE: 5.0,
-            Strategy.ATH_BREAKOUT: 6.0,  # Höher wegen Momentum-Risiko
-            Strategy.EARNINGS_DIP: 5.0,
-            Strategy.TREND_CONTINUATION: 5.0,
         }
         return scores.get(self, 5.0)
 

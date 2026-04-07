@@ -6,8 +6,6 @@ Service für Multi-Strategy Scanning.
 Verantwortlichkeiten:
 - Pullback Scanning (Bull-Put-Spreads)
 - Support Bounce Scanning
-- ATH Breakout Scanning
-- Earnings Dip Scanning
 - Multi-Strategy Scanning
 
 Konsolidiert die duplizierten Scanner-Methoden aus mcp_server.py.
@@ -54,8 +52,6 @@ logger = logging.getLogger(__name__)
 STRATEGY_TO_MODE = {
     Strategy.PULLBACK: ScanMode.PULLBACK_ONLY,
     Strategy.BOUNCE: ScanMode.BOUNCE_ONLY,
-    Strategy.ATH_BREAKOUT: ScanMode.BREAKOUT_ONLY,
-    Strategy.EARNINGS_DIP: ScanMode.EARNINGS_DIP,
 }
 
 
@@ -99,7 +95,7 @@ class ScannerService(BaseService):
         Führt einen Scan mit der angegebenen Strategie durch.
 
         Unified Interface für alle Strategien. Ersetzt die duplizierten
-        Methoden scan_bounce, scan_ath_breakout, etc.
+        Methoden scan_bounce, etc.
 
         Args:
             strategy: Die zu verwendende Strategie
@@ -200,24 +196,17 @@ class ScannerService(BaseService):
         # Determine which strategies to use
         enable_pullback = strategies is None or Strategy.PULLBACK in strategies
         enable_bounce = strategies is None or Strategy.BOUNCE in strategies
-        enable_breakout = strategies is None or Strategy.ATH_BREAKOUT in strategies
-        enable_earnings_dip = strategies is None or Strategy.EARNINGS_DIP in strategies
-        enable_trend = strategies is None or Strategy.TREND_CONTINUATION in strategies
 
         # Create multi-strategy scanner
         scanner = self._create_multi_scanner(
             min_score=min_score,
             enable_pullback=enable_pullback,
             enable_bounce=enable_bounce,
-            enable_breakout=enable_breakout,
-            enable_earnings_dip=enable_earnings_dip,
-            enable_trend_continuation=enable_trend,
         )
         scanner.config.max_total_results = max_results * 2
 
-        # Need more history for ATH detection
         historical_days = max(
-            self._config.settings.performance.historical_days, 260 if enable_breakout else 90
+            self._config.settings.performance.historical_days, 90
         )
 
         # Data fetcher with caching
@@ -350,8 +339,6 @@ class ScannerService(BaseService):
         # Nur gewünschte Strategie aktivieren
         config.enable_pullback = strategy == Strategy.PULLBACK
         config.enable_bounce = strategy == Strategy.BOUNCE
-        config.enable_ath_breakout = strategy == Strategy.ATH_BREAKOUT
-        config.enable_earnings_dip = strategy == Strategy.EARNINGS_DIP
 
         return MultiStrategyScanner(config)
 
@@ -360,18 +347,12 @@ class ScannerService(BaseService):
         min_score: float,
         enable_pullback: bool,
         enable_bounce: bool,
-        enable_breakout: bool,
-        enable_earnings_dip: bool,
-        enable_trend_continuation: bool = True,
     ) -> MultiStrategyScanner:
         """Erstellt Scanner mit mehreren Strategien."""
         config = ScanConfig(
             min_score=min_score,
             enable_pullback=enable_pullback,
             enable_bounce=enable_bounce,
-            enable_ath_breakout=enable_breakout,
-            enable_earnings_dip=enable_earnings_dip,
-            enable_trend_continuation=enable_trend_continuation,
         )
         return MultiStrategyScanner(config)
 

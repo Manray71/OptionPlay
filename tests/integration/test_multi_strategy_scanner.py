@@ -150,9 +150,7 @@ class TestScanConfig:
         assert config.max_concurrent == 10
         assert config.min_data_points == 60
         assert config.enable_pullback is True
-        assert config.enable_ath_breakout is True
         assert config.enable_bounce is True
-        assert config.enable_earnings_dip is True
         assert config.use_analyzer_pool is True
 
     def test_custom_values(self):
@@ -379,35 +377,29 @@ class TestScannerInitialization:
         """Standard-Initialisierung sollte alle Analyzer registrieren"""
         scanner = MultiStrategyScanner()
 
-        # Sollte mindestens 3 Analyzer haben (pullback könnte fehlen)
-        assert len(scanner.available_strategies) >= 3
-        assert 'ath_breakout' in scanner.available_strategies
+        # Sollte mindestens 2 Analyzer haben (pullback + bounce)
+        assert len(scanner.available_strategies) >= 2
         assert 'bounce' in scanner.available_strategies
-        assert 'earnings_dip' in scanner.available_strategies
 
     def test_custom_config(self):
         """Custom Config sollte angewendet werden"""
         config = ScanConfig(
             min_score=7.0,
-            enable_earnings_dip=False,
             max_total_results=20
         )
         scanner = MultiStrategyScanner(config)
 
         assert scanner.config.min_score == 7.0
         assert scanner.config.max_total_results == 20
-        assert 'earnings_dip' not in scanner.available_strategies
 
     def test_create_scanner_factory(self):
         """Factory-Funktion sollte funktionieren"""
         scanner = create_scanner(
             enable_pullback=False,
-            enable_breakout=True,
             min_score=6.0
         )
 
         assert scanner.config.min_score == 6.0
-        assert 'ath_breakout' in scanner.available_strategies
 
     def test_scanner_without_pool(self):
         """Scanner ohne Analyzer Pool sollte funktionieren"""
@@ -457,16 +449,12 @@ class TestScannerInitialization:
         """available_strategies property sollte korrekt funktionieren"""
         config = ScanConfig(
             enable_pullback=True,
-            enable_ath_breakout=True,
             enable_bounce=False,
-            enable_earnings_dip=False,
         )
         scanner = MultiStrategyScanner(config)
 
         strategies = scanner.available_strategies
-        assert 'ath_breakout' in strategies
         assert 'bounce' not in strategies
-        assert 'earnings_dip' not in strategies
 
 
 class TestAnalyzerRegistration:
@@ -871,26 +859,12 @@ class TestStrategySelection:
         strategies = scanner._get_strategies_for_mode(ScanMode.PULLBACK_ONLY)
         assert strategies == ['pullback']
 
-    def test_get_strategies_for_mode_breakout(self):
-        """BREAKOUT_ONLY mode should return only ath_breakout"""
-        scanner = MultiStrategyScanner()
-
-        strategies = scanner._get_strategies_for_mode(ScanMode.BREAKOUT_ONLY)
-        assert strategies == ['ath_breakout']
-
     def test_get_strategies_for_mode_bounce(self):
         """BOUNCE_ONLY mode should return only bounce"""
         scanner = MultiStrategyScanner()
 
         strategies = scanner._get_strategies_for_mode(ScanMode.BOUNCE_ONLY)
         assert strategies == ['bounce']
-
-    def test_get_strategies_for_mode_earnings_dip(self):
-        """EARNINGS_DIP mode should return only earnings_dip"""
-        scanner = MultiStrategyScanner()
-
-        strategies = scanner._get_strategies_for_mode(ScanMode.EARNINGS_DIP)
-        assert strategies == ['earnings_dip']
 
 
 # =============================================================================
@@ -1014,35 +988,14 @@ class TestEarningsFilter:
 
         prices, volumes, highs, lows = create_bounce_data()
 
-        # Bounce sollte gefiltert werden (nicht earnings_dip)
+        # Bounce sollte gefiltert werden
         signals = scanner.analyze_symbol(
             "AAPL", prices, volumes, highs, lows,
-            strategies=['bounce', 'earnings_dip']
+            strategies=['bounce']
         )
 
         bounce_signals = [s for s in signals if s.strategy == 'bounce']
         assert len(bounce_signals) == 0  # Bounce gefiltert
-
-    def test_earnings_dip_with_upcoming_earnings_filtered(self, scanner):
-        """earnings_dip sollte gefiltert werden wenn Earnings BEVORSTEHEN"""
-        # Earnings in 10 Tagen -> noch nicht stattgefunden -> skip
-        scanner.set_earnings_date("AAPL", date.today() + timedelta(days=10))
-        should_skip = scanner._should_skip_for_earnings("AAPL", "earnings_dip")
-        assert should_skip == True
-
-    def test_earnings_dip_with_recent_past_earnings_not_filtered(self, scanner):
-        """earnings_dip sollte NICHT gefiltert werden wenn Earnings KÜRZLICH waren"""
-        # Earnings vor 5 Tagen -> kürzlich vergangen -> nicht skippen
-        scanner.set_earnings_date("AAPL", date.today() - timedelta(days=5))
-        should_skip = scanner._should_skip_for_earnings("AAPL", "earnings_dip")
-        assert should_skip == False
-
-    def test_earnings_dip_with_old_past_earnings_filtered(self, scanner):
-        """earnings_dip sollte gefiltert werden wenn Earnings zu LANGE HER sind"""
-        # Earnings vor 15 Tagen -> zu alt -> skip
-        scanner.set_earnings_date("AAPL", date.today() - timedelta(days=15))
-        should_skip = scanner._should_skip_for_earnings("AAPL", "earnings_dip")
-        assert should_skip == True
 
     def test_past_earnings_not_filtered_for_other_strategies(self, scanner):
         """Vergangene Earnings sollten andere Strategien nicht filtern"""
@@ -1056,13 +1009,6 @@ class TestEarningsFilter:
         # Neue Logik: erlaubt die Analyse statt konservativ zu überspringen
         should_skip = scanner._should_skip_for_earnings("MSFT", "bounce")
         assert should_skip == False
-
-    def test_unknown_earnings_filtered_for_earnings_dip(self, scanner):
-        """earnings_dip sollte auch bei unbekannten Earnings gefiltert werden"""
-        # MSFT hat KEIN Earnings-Datum im Scanner-Cache
-        # earnings_dip braucht bekannte, kürzlich vergangene Earnings -> skip
-        should_skip = scanner._should_skip_for_earnings("MSFT", "earnings_dip")
-        assert should_skip == True
 
     def test_set_earnings_date(self, scanner):
         """set_earnings_date should store earnings date"""
@@ -1158,10 +1104,9 @@ class TestIVRankFilter:
         """IV filter should be skipped for non-credit-spread strategies"""
         scanner.set_iv_rank("AAPL", 10.0)  # Would fail for pullback
 
-        # These strategies don't use IV filter
-        for strategy in ['earnings_dip', 'ath_breakout', 'bounce']:
-            passes, reason = scanner._check_iv_filter("AAPL", strategy)
-            assert passes is True
+        # Bounce doesn't use IV filter
+        passes, reason = scanner._check_iv_filter("AAPL", "bounce")
+        assert passes is True
 
 
 # =============================================================================

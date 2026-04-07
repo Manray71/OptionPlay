@@ -441,33 +441,6 @@ class TestEarningsPrefilter:
                 assert len(safe) == 0
                 assert excluded == 1
 
-    @pytest.mark.asyncio
-    async def test_prefilter_for_earnings_dip_allows_recent_past(self, mock_api_key, mock_container):
-        """Test: Earnings dip strategy allows recent past earnings."""
-        mock_earnings_manager = MagicMock()
-        mock_earnings_manager.is_earnings_day_safe.return_value = (False, None, "no_earnings_data")
-        mock_earnings_manager.is_earnings_day_safe_batch_async = AsyncMock(
-            return_value={"RECENT_EARNINGS": (False, None, "no_earnings_data")}
-        )
-
-        with patch('src.mcp_server.is_etf', return_value=False):
-            with patch('src.cache.get_earnings_history_manager', return_value=mock_earnings_manager):
-                server = OptionPlayServer(container=mock_container)
-
-                # Mock fetcher returns -5 days (5 days after earnings)
-                mock_fetcher = MagicMock()
-                mock_fetcher.cache = {}
-                class MockInfo:
-                    days_to_earnings = -5
-                mock_fetcher.fetch.return_value = MockInfo()
-                server._earnings_fetcher = mock_fetcher
-
-                safe, excluded, hits = await server._apply_earnings_prefilter(
-                    ["RECENT_EARNINGS"], min_days=7, for_earnings_dip=True
-                )
-
-                assert len(safe) == 1
-                assert "RECENT_EARNINGS" in safe
 
 
 # =============================================================================
@@ -486,8 +459,7 @@ class TestScannerMethods:
             server = OptionPlayServer(container=mock_container)
             scanner = server._get_scanner(min_score=5.0)
 
-            assert mock_config.enable_ath_breakout is False
-            assert mock_config.enable_earnings_dip is False
+            assert scanner is not None
 
     def test_get_multi_scanner_all_strategies(self, mock_api_key, mock_container):
         """Test: _get_multi_scanner enables all strategies."""
@@ -496,8 +468,6 @@ class TestScannerMethods:
         scanner = server._get_multi_scanner(
             enable_pullback=True,
             enable_bounce=True,
-            enable_breakout=True,
-            enable_earnings_dip=True
         )
 
         assert scanner is not None

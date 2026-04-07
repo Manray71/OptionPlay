@@ -21,9 +21,7 @@ from .strategy import (
     get_strategy_icon,
 )
 from .strategy_breakdowns import (
-    ATHBreakoutScoreBreakdown,
     BounceScoreBreakdown,
-    EarningsDipScoreBreakdown,
 )
 
 __all__ = [
@@ -52,8 +50,6 @@ __all__ = [
     "SupportLevel",
     # Strategy Breakdowns
     "BounceScoreBreakdown",
-    "ATHBreakoutScoreBreakdown",
-    "EarningsDipScoreBreakdown",
     # Options
     "MaxPainResult",
     "StrikePainData",

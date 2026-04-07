@@ -297,125 +297,6 @@ class BounceScoringConfig:
 
 
 # =============================================================================
-# ATH BREAKOUT ANALYZER CONFIG
-# =============================================================================
-
-
-@dataclass
-class ATHDetectionConfig:
-    """ATH Detection Konfiguration"""
-
-    lookback_days: int = 252  # 1 Jahr
-    consolidation_days: int = 20
-    breakout_threshold_pct: float = 1.0  # Min % über altem ATH
-    weight_with_consolidation: float = 3.0
-    weight_without_consolidation: float = 2.0
-
-
-@dataclass
-class MomentumConfig:
-    """Momentum/ROC Konfiguration"""
-
-    roc_period: int = 10  # Rate of Change Periode
-    weight_strong_momentum: float = 2.0  # ROC > 5%
-    weight_moderate_momentum: float = 1.0  # ROC > 2%
-    strong_threshold: float = 5.0
-    moderate_threshold: float = 2.0
-
-
-@dataclass
-class RelativeStrengthConfig:
-    """Relative Strength vs SPY"""
-
-    lookback_days: int = 20
-    weight_strong_outperformance: float = 2.0  # > 5% Outperformance
-    weight_moderate_outperformance: float = 1.0  # > 2%
-    strong_threshold: float = 5.0
-    moderate_threshold: float = 2.0
-
-
-@dataclass
-class ATHBreakoutScoringConfig:
-    """Gesamte ATH Breakout Scoring Konfiguration"""
-
-    ath_detection: ATHDetectionConfig = field(default_factory=ATHDetectionConfig)
-    volume: VolumeConfig = field(default_factory=VolumeConfig)
-    momentum: MomentumConfig = field(default_factory=MomentumConfig)
-    relative_strength: RelativeStrengthConfig = field(default_factory=RelativeStrengthConfig)
-    macd: MACDScoringConfig = field(default_factory=MACDScoringConfig)
-    keltner: KeltnerChannelConfig = field(default_factory=KeltnerChannelConfig)
-    # Volume für Breakout (höher als normal)
-    volume_spike_multiplier: float = 1.5
-    volume_strong_multiplier: float = 2.25
-    # RSI nicht überkauft
-    rsi_max: float = 80.0
-    rsi_ideal_max: float = 70.0
-    # Scoring
-    max_score: int = 16
-    min_score_for_signal: int = 6
-
-
-# =============================================================================
-# EARNINGS DIP ANALYZER CONFIG
-# =============================================================================
-
-
-@dataclass
-class DipDetectionConfig:
-    """Earnings Dip Detection Konfiguration"""
-
-    min_dip_pct: float = 5.0
-    max_dip_pct: float = 25.0
-    ideal_max_dip_pct: float = 10.0
-    lookback_days: int = 5
-    weight_ideal: float = 3.0  # 5-10% Dip
-    weight_moderate: float = 2.0  # 10-15% Dip
-    weight_large: float = 1.0  # 15-25% Dip
-
-
-@dataclass
-class GapAnalysisConfig:
-    """Gap Analysis Konfiguration"""
-
-    min_gap_pct: float = 2.0
-    gap_fill_threshold: float = 50.0  # Ab 50% gilt als "filling"
-    weight_gap_detected: float = 1.0
-
-
-@dataclass
-class StabilizationConfig:
-    """Stabilization Scoring"""
-
-    min_days_for_full_score: int = 2
-    weight_stable: float = 2.0
-    weight_beginning: float = 1.0
-
-
-@dataclass
-class EarningsDipScoringConfig:
-    """Gesamte Earnings Dip Scoring Konfiguration"""
-
-    dip_detection: DipDetectionConfig = field(default_factory=DipDetectionConfig)
-    gap_analysis: GapAnalysisConfig = field(default_factory=GapAnalysisConfig)
-    stabilization: StabilizationConfig = field(default_factory=StabilizationConfig)
-    volume: VolumeConfig = field(default_factory=VolumeConfig)
-    macd: MACDScoringConfig = field(default_factory=MACDScoringConfig)
-    stochastic: StochasticScoringConfig = field(default_factory=StochasticScoringConfig)
-    keltner: KeltnerChannelConfig = field(default_factory=KeltnerChannelConfig)
-    # RSI für Oversold nach Dip
-    rsi_extreme_oversold: int = 25
-    rsi_oversold: int = 35
-    # Quality Filter
-    require_above_sma200: bool = True
-    # Risk Management
-    stop_below_dip_low_pct: float = 3.0
-    target_recovery_pct: float = 50.0
-    # Scoring
-    max_score: int = 18
-    min_score_for_signal: int = 6
-
-
-# =============================================================================
 # FILTER CONFIGS
 # =============================================================================
 
@@ -572,9 +453,7 @@ class ScannerConfig:
 
     # Strategies to enable
     enable_pullback: bool = True
-    enable_ath_breakout: bool = True
     enable_bounce: bool = True
-    enable_earnings_dip: bool = True
 
     # Stability-First-Filter (simplified 2-tier)
     enable_stability_first: bool = True
@@ -782,8 +661,6 @@ class TrainedWeightsConfig:
     training_date: str = ""
     pullback: TrainedWeights = field(default_factory=TrainedWeights)
     bounce: TrainedWeights = field(default_factory=TrainedWeights)
-    ath_breakout: TrainedWeights = field(default_factory=TrainedWeights)
-    earnings_dip: TrainedWeights = field(default_factory=TrainedWeights)
     vix_regime_multipliers: Dict[str, Dict[str, float]] = field(default_factory=dict)
     gap_boost: GapBoostConfig = field(default_factory=GapBoostConfig)
 
@@ -792,8 +669,6 @@ class TrainedWeightsConfig:
         strategy_map = {
             "pullback": self.pullback,
             "bounce": self.bounce,
-            "ath_breakout": self.ath_breakout,
-            "earnings_dip": self.earnings_dip,
         }
         tw = strategy_map.get(strategy)
         return tw.weights if tw else {}
@@ -803,8 +678,6 @@ class TrainedWeightsConfig:
         strategy_map = {
             "pullback": self.pullback,
             "bounce": self.bounce,
-            "ath_breakout": self.ath_breakout,
-            "earnings_dip": self.earnings_dip,
         }
         tw = strategy_map.get(strategy)
         return tw.roll_params if tw else {}

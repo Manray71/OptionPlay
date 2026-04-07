@@ -2,7 +2,7 @@
 # =============================================
 """
 Tests for the centralized analyzer thresholds configuration.
-Validates that all 5 strategy analyzers load scoring parameters
+Validates that pullback and bounce strategy analyzers load scoring parameters
 from config/analyzer_thresholds.yaml correctly.
 """
 
@@ -47,33 +47,6 @@ def config_path(tmp_path):
             "signal": {"strong": 7.5, "moderate": 5.5},
             "support_quality": {"touches_strong": 6, "score_strong": 2.5},
             "proximity": {"tier1_pct": 1.5, "score_at": 2.5},
-        },
-        "earnings_dip": {
-            "general": {"min_dip_pct": 4.0, "max_dip_pct": 25.0},
-            "signal": {"strong": 7.0, "moderate": 5.5},
-            "drop_magnitude": {"minor_pct": 8.0, "score_small": 0.75},
-        },
-        "ath_breakout": {
-            "general": {"min_score": 4.5, "consol_lookback": 90},
-            "signal": {"strong": 7.5, "moderate": 6.0},
-            "consolidation": {"range_tight_pct": 7.0, "score_tight_long": 3.0},
-        },
-        "trend_continuation": {
-            "general": {"min_score": 5.5, "max_score": 11.0},
-            "sma_alignment_scoring": {
-                "all_rising": 2.5,
-                "partial_rising": 1.8,
-                "basic": 1.2,
-                "spread_bonus_above": 6.0,
-                "max": 3.0,
-            },
-            "buffer_scoring": {
-                "tier1_pct": 12.0,
-                "tier1_score": 2.5,
-                "tier2_pct": 9.0,
-                "tier2_score": 1.8,
-            },
-            "vix_adjustment": {"low": 1.10, "normal": 1.00, "elevated": 0.85},
         },
     }
     path = tmp_path / "analyzer_thresholds.yaml"
@@ -175,67 +148,6 @@ class TestBounceConfig:
 
 
 # ---------------------------------------------------------------------------
-# Earnings Dip Strategy Tests
-# ---------------------------------------------------------------------------
-
-
-class TestEarningsDipConfig:
-    """Test earnings dip-specific config values."""
-
-    def test_general(self, cfg):
-        assert cfg.get("earnings_dip.general.min_dip_pct") == 4.0
-        assert cfg.get("earnings_dip.general.max_dip_pct") == 25.0
-
-    def test_drop_magnitude(self, cfg):
-        assert cfg.get("earnings_dip.drop_magnitude.minor_pct") == 8.0
-        assert cfg.get("earnings_dip.drop_magnitude.score_small") == 0.75
-
-
-# ---------------------------------------------------------------------------
-# ATH Breakout Strategy Tests
-# ---------------------------------------------------------------------------
-
-
-class TestATHBreakoutConfig:
-    """Test ATH breakout-specific config values."""
-
-    def test_general(self, cfg):
-        assert cfg.get("ath_breakout.general.min_score") == 4.5
-        assert cfg.get("ath_breakout.general.consol_lookback") == 90
-
-    def test_consolidation(self, cfg):
-        assert cfg.get("ath_breakout.consolidation.range_tight_pct") == 7.0
-        assert cfg.get("ath_breakout.consolidation.score_tight_long") == 3.0
-
-
-# ---------------------------------------------------------------------------
-# Trend Continuation Strategy Tests
-# ---------------------------------------------------------------------------
-
-
-class TestTrendContinuationConfig:
-    """Test trend continuation-specific config values."""
-
-    def test_general(self, cfg):
-        assert cfg.get("trend_continuation.general.min_score") == 5.5
-
-    def test_sma_alignment_scoring(self, cfg):
-        section = cfg.get_section("trend_continuation.sma_alignment_scoring")
-        assert section["all_rising"] == 2.5
-        assert section["partial_rising"] == 1.8
-        assert section["basic"] == 1.2
-        assert section["max"] == 3.0
-
-    def test_buffer_scoring(self, cfg):
-        assert cfg.get("trend_continuation.buffer_scoring.tier1_pct") == 12.0
-        assert cfg.get("trend_continuation.buffer_scoring.tier1_score") == 2.5
-
-    def test_vix_adjustment(self, cfg):
-        assert cfg.get("trend_continuation.vix_adjustment.low") == 1.10
-        assert cfg.get("trend_continuation.vix_adjustment.elevated") == 0.85
-
-
-# ---------------------------------------------------------------------------
 # Singleton Tests
 # ---------------------------------------------------------------------------
 
@@ -273,18 +185,15 @@ class TestProductionConfig:
         # Spot-check values from each strategy
         assert cfg.get("bounce.signal.strong") == 7.0
         assert cfg.get("pullback.signal.strong") == 7.0
-        assert cfg.get("earnings_dip.signal.strong") == 6.5
-        assert cfg.get("ath_breakout.signal.strong") == 7.0
-        assert cfg.get("trend_continuation.general.min_score") == 3.5
 
     def test_all_strategies_present(self):
-        """All 5 strategies have sections in production config."""
+        """Pullback and bounce strategies have sections in production config."""
         prod_path = Path(__file__).resolve().parents[2] / "config" / "analyzer_thresholds.yaml"
         if not prod_path.exists():
             pytest.skip("Production config not found")
 
         cfg = AnalyzerThresholdsConfig(prod_path)
-        for strategy in ["pullback", "bounce", "earnings_dip", "ath_breakout", "trend_continuation"]:
+        for strategy in ["pullback", "bounce"]:
             section = cfg.get_section(strategy)
             assert len(section) > 0, f"Strategy {strategy} missing from config"
 
@@ -308,26 +217,6 @@ class TestProductionConfig:
         for section_path in required_sections:
             section = cfg.get_section(section_path)
             assert len(section) > 0, f"Section {section_path} missing or empty"
-
-    def test_production_trend_continuation_scoring_sections(self):
-        """Trend continuation has inline scoring sections."""
-        prod_path = Path(__file__).resolve().parents[2] / "config" / "analyzer_thresholds.yaml"
-        if not prod_path.exists():
-            pytest.skip("Production config not found")
-
-        cfg = AnalyzerThresholdsConfig(prod_path)
-        required_sections = [
-            "trend_continuation.sma_alignment_scoring",
-            "trend_continuation.trend_stability_scoring",
-            "trend_continuation.buffer_scoring",
-            "trend_continuation.momentum_scoring",
-            "trend_continuation.volatility_scoring",
-            # vix_adjustment removed (Schritt 7) — now in scoring_weights.yaml
-        ]
-        for section_path in required_sections:
-            section = cfg.get_section(section_path)
-            assert len(section) > 0, f"Section {section_path} missing or empty"
-
 
 # ---------------------------------------------------------------------------
 # Analyzer Integration Tests
@@ -361,28 +250,3 @@ class TestAnalyzerIntegration:
         assert SCORE_DIVERGENCE_STRONG == 0.7
         assert SCORE_MARKET_STRONG_UPTREND == 2.0
 
-    def test_earnings_dip_constants_match_config(self):
-        """Earnings dip module-level constants match production YAML."""
-        from src.analyzers.earnings_dip import (
-            EDIP_MIN_DIP_PCT,
-            EDIP_SIGNAL_STRONG,
-        )
-
-        assert EDIP_MIN_DIP_PCT == 5.0
-        assert EDIP_SIGNAL_STRONG == 6.5
-
-    def test_ath_breakout_constants_match_config(self):
-        """ATH breakout module-level constants match production YAML."""
-        from src.analyzers.ath_breakout import (
-            ATH_MIN_SCORE,
-            ATH_SIGNAL_STRONG,
-        )
-
-        assert ATH_MIN_SCORE == 4.0
-        assert ATH_SIGNAL_STRONG == 7.0
-
-    def test_trend_continuation_constants_match_config(self):
-        """Trend continuation module-level constants match production YAML."""
-        from src.analyzers.trend_continuation import TREND_MIN_SCORE
-
-        assert TREND_MIN_SCORE == 3.5

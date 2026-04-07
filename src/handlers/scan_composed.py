@@ -2,7 +2,7 @@
 Scan Handler (Composition-Based)
 =================================
 
-Handles all scanning operations: pullback, bounce, breakout, earnings dip,
+Handles all scanning operations: pullback, bounce,
 multi-strategy, and daily recommendation picks.
 
 This is the composition-based version of ScanHandlerMixin,
@@ -39,9 +39,6 @@ class ScanHandler(BaseHandler):
     - scan_with_strategy(): Scan for pullback candidates
     - scan_pullback_candidates(): Legacy alias for scan_with_strategy
     - scan_bounce(): Scan for support bounce candidates
-    - scan_ath_breakout(): Scan for ATH breakout candidates
-    - scan_earnings_dip(): Scan for earnings dip candidates
-    - scan_trend_continuation(): Scan for trend continuation candidates
     - scan_multi_strategy(): Multi-strategy scan returning best signal per symbol
     - daily_picks(): Generate daily trading recommendations
     """
@@ -106,14 +103,10 @@ class ScanHandler(BaseHandler):
 
         if scanner_config.auto_earnings_prefilter:
             min_days = scanner_config.earnings_prefilter_min_days
-            for_earnings_dip = mode == ScanMode.EARNINGS_DIP
-            include_dip_candidates = mode in (ScanMode.ALL, ScanMode.BEST_SIGNAL)
             symbols, excluded_by_earnings, earnings_cache_hits = (
                 await self._apply_earnings_prefilter(
                     symbols,
                     min_days,
-                    for_earnings_dip=for_earnings_dip,
-                    include_dip_candidates=include_dip_candidates,
                 )
             )
             if excluded_by_earnings > 0:
@@ -141,21 +134,11 @@ class ScanHandler(BaseHandler):
 
             enable_pullback = mode in [ScanMode.PULLBACK_ONLY, ScanMode.ALL, ScanMode.BEST_SIGNAL]
             enable_bounce = mode in [ScanMode.BOUNCE_ONLY, ScanMode.ALL, ScanMode.BEST_SIGNAL]
-            enable_breakout = mode in [ScanMode.BREAKOUT_ONLY, ScanMode.ALL, ScanMode.BEST_SIGNAL]
-            enable_earnings_dip = mode in [
-                ScanMode.EARNINGS_DIP,
-                ScanMode.ALL,
-                ScanMode.BEST_SIGNAL,
-            ]
-            enable_trend = mode in [ScanMode.TREND_ONLY, ScanMode.ALL, ScanMode.BEST_SIGNAL]
 
             scanner = self._get_multi_scanner(
                 min_score=min_score,
                 enable_pullback=enable_pullback,
                 enable_bounce=enable_bounce,
-                enable_breakout=enable_breakout,
-                enable_earnings_dip=enable_earnings_dip,
-                enable_trend_continuation=enable_trend,
             )
             scanner.config.max_total_results = max_results
 
@@ -357,128 +340,6 @@ class ScanHandler(BaseHandler):
             no_results_msg="No bounce candidates found.",
         )
 
-    async def scan_ath_breakout(
-        self,
-        symbols: Optional[List[str]] = None,
-        max_results: int = 10,
-        min_score: float = 3.5,
-    ) -> str:
-        """
-        Scan for ATH breakout candidates.
-
-        Args:
-            symbols: List of symbols to scan
-            max_results: Maximum results
-            min_score: Minimum score threshold
-
-        Returns:
-            Formatted scan results
-        """
-        from ..scanner.multi_strategy_scanner import ScanMode
-        from ..utils.markdown_builder import truncate
-
-        def format_row(signal: Any) -> list[str]:
-            return [
-                signal.symbol,
-                f"{signal.score:.1f}",
-                f"${signal.current_price:.2f}" if signal.current_price else "N/A",
-                truncate(signal.reason, 40) if signal.reason else "-",
-            ]
-
-        return await self._execute_scan(
-            mode=ScanMode.BREAKOUT_ONLY,
-            title="ATH Breakout Candidates",
-            emoji="[BREAKOUT]",
-            symbols=symbols,
-            max_results=max_results,
-            min_score=min_score,
-            min_historical_days=260,
-            table_columns=["Symbol", "Score", "Price", "Signal"],
-            row_formatter=format_row,
-            no_results_msg="No ATH breakout candidates found.",
-        )
-
-    async def scan_earnings_dip(
-        self,
-        symbols: Optional[List[str]] = None,
-        max_results: int = 10,
-        min_score: float = 3.5,
-    ) -> str:
-        """
-        Scan for earnings dip buy candidates.
-
-        Args:
-            symbols: List of symbols to scan
-            max_results: Maximum results
-            min_score: Minimum score threshold
-
-        Returns:
-            Formatted scan results
-        """
-        from ..scanner.multi_strategy_scanner import ScanMode
-        from ..utils.markdown_builder import truncate
-
-        def format_row(signal: Any) -> list[str]:
-            return [
-                signal.symbol,
-                f"{signal.score:.1f}",
-                f"${signal.current_price:.2f}" if signal.current_price else "N/A",
-                truncate(signal.reason, 40) if signal.reason else "-",
-            ]
-
-        return await self._execute_scan(
-            mode=ScanMode.EARNINGS_DIP,
-            title="Earnings Dip Candidates",
-            emoji="[EARN_DIP]",
-            symbols=symbols,
-            max_results=max_results,
-            min_score=min_score,
-            table_columns=["Symbol", "Score", "Price", "Signal"],
-            row_formatter=format_row,
-            no_results_msg="No earnings dip candidates found (requires recent earnings within 10 days).",
-        )
-
-    async def scan_trend_continuation(
-        self,
-        symbols: Optional[List[str]] = None,
-        max_results: int = 10,
-        min_score: float = 5.0,
-    ) -> str:
-        """
-        Scan for trend continuation candidates.
-
-        Args:
-            symbols: List of symbols to scan
-            max_results: Maximum results
-            min_score: Minimum score threshold
-
-        Returns:
-            Formatted scan results
-        """
-        from ..scanner.multi_strategy_scanner import ScanMode
-        from ..utils.markdown_builder import truncate
-
-        def format_row(signal: Any) -> list[str]:
-            return [
-                signal.symbol,
-                f"{signal.score:.1f}",
-                f"${signal.current_price:.2f}" if signal.current_price else "N/A",
-                truncate(signal.reason, 40) if signal.reason else "-",
-            ]
-
-        return await self._execute_scan(
-            mode=ScanMode.TREND_ONLY,
-            title="Trend Continuation Candidates",
-            emoji="[TREND]",
-            symbols=symbols,
-            max_results=max_results,
-            min_score=min_score,
-            min_historical_days=250,
-            table_columns=["Symbol", "Score", "Price", "Signal"],
-            row_formatter=format_row,
-            no_results_msg="No trend continuation candidates found.",
-        )
-
     async def scan_multi_strategy(
         self,
         symbols: Optional[List[str]] = None,
@@ -504,9 +365,6 @@ class ScanHandler(BaseHandler):
         strategy_icons = {
             "pullback": "[PB]",
             "bounce": "[BN]",
-            "ath_breakout": "[ATH]",
-            "earnings_dip": "[ED]",
-            "trend_continuation": "[TC]",
         }
 
         def format_row(signal: Any) -> list[str]:
@@ -604,8 +462,6 @@ class ScanHandler(BaseHandler):
             symbols, excluded_by_earnings, _ = await self._apply_earnings_prefilter(
                 symbols,
                 min_days,
-                for_earnings_dip=False,
-                include_dip_candidates=True,
             )
 
         # Get current VIX
@@ -631,9 +487,6 @@ class ScanHandler(BaseHandler):
             min_score=min_score,
             enable_pullback=True,
             enable_bounce=True,
-            enable_breakout=True,
-            enable_earnings_dip=True,
-            enable_trend_continuation=True,
         )
 
         engine = DailyRecommendationEngine(
@@ -751,8 +604,6 @@ class ScanHandler(BaseHandler):
         strategy_display = {
             "pullback": "Pullback",
             "bounce": "Bounce",
-            "ath_breakout": "ATH Breakout",
-            "earnings_dip": "Earnings Dip",
         }
         strategy_str = strategy_display.get(pick.strategy, pick.strategy.replace("_", " ").title())
 
@@ -1160,8 +1011,6 @@ class ScanHandler(BaseHandler):
         self,
         symbols,
         min_days,
-        for_earnings_dip=False,
-        include_dip_candidates=False,
     ):
         """Apply earnings pre-filter to symbols list."""
         from ..cache import get_earnings_fetcher
@@ -1182,16 +1031,8 @@ class ScanHandler(BaseHandler):
                         if cached.days_to_earnings < 0:
                             # Past earnings date = safe (next earnings ~90d away)
                             safe.append(symbol)
-                        elif for_earnings_dip:
-                            if cached.days_to_earnings <= 10:
-                                safe.append(symbol)
-                            else:
-                                excluded += 1
                         else:
                             if cached.days_to_earnings >= min_days:
-                                safe.append(symbol)
-                            elif include_dip_candidates and cached.days_to_earnings <= 10:
-                                # Keep recent-earnings symbols for dip strategy in multi-mode
                                 safe.append(symbol)
                             else:
                                 excluded += 1
@@ -1210,9 +1051,6 @@ class ScanHandler(BaseHandler):
         min_score=3.5,
         enable_pullback=True,
         enable_bounce=True,
-        enable_breakout=True,
-        enable_earnings_dip=True,
-        enable_trend_continuation=True,
         exclude_earnings_within_days=None,
     ):
         """Get a configured MultiStrategyScanner instance."""
@@ -1222,9 +1060,6 @@ class ScanHandler(BaseHandler):
             min_score=min_score,
             enable_pullback=enable_pullback,
             enable_bounce=enable_bounce,
-            enable_ath_breakout=enable_breakout,
-            enable_earnings_dip=enable_earnings_dip,
-            enable_trend_continuation=enable_trend_continuation,
         )
         if exclude_earnings_within_days is not None:
             config.exclude_earnings_within_days = exclude_earnings_within_days

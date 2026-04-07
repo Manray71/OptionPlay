@@ -124,7 +124,7 @@ class DailyPick:
 
     rank: int  # 1, 2, 3, ...
     symbol: str
-    strategy: str  # pullback, ath_breakout, bounce, earnings_dip
+    strategy: str  # pullback, bounce
     score: float  # Normalized 0-10
 
     # Symbol-Qualität

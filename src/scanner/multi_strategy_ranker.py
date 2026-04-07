@@ -49,32 +49,6 @@ STRATEGY_METRICS = {
             "p95": 9.1,
         },
     },
-    "ath_breakout": {
-        "win_rate": 0.868,  # 86.8%
-        "avg_pnl": 156.42,  # $156.42 per trade
-        "sharpe": 17.74,
-        "score_percentiles": {
-            "p10": 4.5,
-            "p25": 5.3,
-            "p50": 6.2,
-            "p75": 7.4,
-            "p90": 8.7,
-            "p95": 9.5,
-        },
-    },
-    "earnings_dip": {
-        "win_rate": 0.849,  # 84.9%
-        "avg_pnl": 174.65,  # $174.65 per trade (highest!)
-        "sharpe": 19.09,
-        "score_percentiles": {
-            "p10": 5.5,
-            "p25": 6.2,
-            "p50": 7.0,  # Higher baseline for earnings_dip
-            "p75": 8.0,
-            "p90": 9.2,
-            "p95": 10.0,
-        },
-    },
 }
 
 
@@ -139,20 +113,17 @@ class MultiStrategyRanker:
     scores = {
         'pullback': 7.5,
         'bounce': 6.2,
-        'ath_breakout': 8.1,
-        'earnings_dip': None  # Nicht im Earnings-Fenster
     }
     ranking = ranker.rank_symbol('AAPL', 185.0, scores)
 
     # Output:
     # {
     #   'symbol': 'AAPL',
-    #   'best_strategy': 'ath_breakout',
-    #   'best_expected_value': 142.5,
+    #   'best_strategy': 'pullback',
+    #   'best_expected_value': 128.3,
     #   'scores': [
-    #     {'strategy': 'ath_breakout', 'normalized_score': 85.2, 'expected_value': 142.5, ...},
     #     {'strategy': 'pullback', 'normalized_score': 72.1, 'expected_value': 128.3, ...},
-    #     ...
+    #     {'strategy': 'bounce', 'normalized_score': 65.4, 'expected_value': 112.1, ...},
     #   ]
     # }
     ```
@@ -170,7 +141,7 @@ class MultiStrategyRanker:
         Normalisiert einen Raw-Score auf eine 0-100 Skala.
 
         Args:
-            strategy: Name der Strategie (pullback, bounce, ath_breakout, earnings_dip)
+            strategy: Name der Strategie (pullback, bounce)
             raw_score: Roher Score aus der Strategie
 
         Returns:
@@ -348,8 +319,6 @@ def compare_strategies(
     price: float,
     pullback_score: Optional[float] = None,
     bounce_score: Optional[float] = None,
-    ath_breakout_score: Optional[float] = None,
-    earnings_dip_score: Optional[float] = None,
 ) -> MultiStrategyRanking:
     """
     Convenience function to compare strategies for a symbol.
@@ -359,15 +328,12 @@ def compare_strategies(
             'AAPL', 185.0,
             pullback_score=7.5,
             bounce_score=6.2,
-            ath_breakout_score=8.1
         )
-        print(ranking.best_strategy)  # 'ath_breakout'
+        print(ranking.best_strategy)  # 'pullback'
     """
     ranker = MultiStrategyRanker()
     scores = {
         "pullback": pullback_score,
         "bounce": bounce_score,
-        "ath_breakout": ath_breakout_score,
-        "earnings_dip": earnings_dip_score,
     }
     return ranker.rank_symbol(symbol, price, scores)

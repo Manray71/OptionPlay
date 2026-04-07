@@ -341,8 +341,6 @@ class TestConfigAccessors:
         assert "pullback" in strats
         assert "bounce" in strats
         # Fallbacks included even if not in YAML
-        assert "ath_breakout" in strats
-        assert "earnings_dip" in strats
 
 
 # ======================================================================
@@ -398,14 +396,6 @@ def v3_yaml(tmp_path):
                 "regimes": {},
                 "sectors": {},
             },
-            "ath_breakout": {
-                "weights": {"volume": 2.0, "trend": 2.0},
-                "max_possible": 23.0,
-                "regimes": {
-                    "high": {"enabled": False, "min_stability": 95},
-                },
-                "sectors": {},
-            },
         },
         "stability_thresholds": {
             "by_regime": {
@@ -421,14 +411,6 @@ def v3_yaml(tmp_path):
                 "bounce": {
                     "by_regime": {"low": 60, "normal": 65, "danger": 75, "elevated": 80, "high": 85},
                     "by_sector": {"Technology": 3},
-                },
-                "ath_breakout": {
-                    "by_regime": {"low": 70, "normal": 75, "danger": 85, "elevated": 90, "high": 95},
-                    "by_sector": {"Technology": 5},
-                },
-                "earnings_dip": {
-                    "by_regime": {"low": 60, "normal": 65, "danger": 70, "elevated": 75, "high": 80},
-                    "by_sector": {},
                 },
             },
         },
@@ -450,24 +432,6 @@ def v3_yaml(tmp_path):
                         "relative_strength_60d": 0.25,
                         "breadth": 0.20,
                         "vol_premium": 0.10,
-                    },
-                },
-                "ath_breakout": {
-                    "factor_range": {"min": 0.50, "max": 1.25},
-                    "component_weights": {
-                        "relative_strength_30d": 0.50,
-                        "relative_strength_60d": 0.20,
-                        "breadth": 0.15,
-                        "vol_premium": 0.15,
-                    },
-                },
-                "earnings_dip": {
-                    "factor_range": {"min": 0.90, "max": 1.10},
-                    "component_weights": {
-                        "relative_strength_30d": 0.20,
-                        "relative_strength_60d": 0.20,
-                        "breadth": 0.30,
-                        "vol_premium": 0.30,
                     },
                 },
             },
@@ -497,10 +461,6 @@ class TestV3StrategyStability:
         assert r.get_stability_threshold("normal", strategy="pullback") == 70
         # Bounce normal = 65 (lower than global 70)
         assert r.get_stability_threshold("normal", strategy="bounce") == 65
-        # ATH Breakout normal = 75 (higher than global)
-        assert r.get_stability_threshold("normal", strategy="ath_breakout") == 75
-        # Earnings Dip normal = 65
-        assert r.get_stability_threshold("normal", strategy="earnings_dip") == 65
 
     def test_strategy_sector_adjustment(self, v3_yaml):
         r = RecursiveConfigResolver(v3_yaml)
@@ -508,10 +468,6 @@ class TestV3StrategyStability:
         assert r.get_stability_threshold("danger", "Technology", strategy="pullback") == 85
         # Bounce danger(75) + Technology(+3) = 78
         assert r.get_stability_threshold("danger", "Technology", strategy="bounce") == 78
-        # ATH Breakout danger(85) + Technology(+5) = 90
-        assert r.get_stability_threshold("danger", "Technology", strategy="ath_breakout") == 90
-        # Earnings Dip danger(70) + no sector adjustment = 70
-        assert r.get_stability_threshold("danger", "Technology", strategy="earnings_dip") == 70
 
     def test_fallback_to_global_when_no_strategy(self, v3_yaml):
         r = RecursiveConfigResolver(v3_yaml)
@@ -527,22 +483,6 @@ class TestV3StrategyStability:
 
 class TestV3SectorFactorConfig:
     """v3: Strategy-specific sector momentum configuration."""
-
-    def test_strategy_specific_factor_range(self, v3_yaml):
-        r = RecursiveConfigResolver(v3_yaml)
-        # ATH Breakout has widest range [0.50, 1.25]
-        fr, _ = r.get_sector_factor_config("ath_breakout")
-        assert fr["min"] == 0.50
-        assert fr["max"] == 1.25
-
-    def test_earnings_dip_narrow_range(self, v3_yaml):
-        r = RecursiveConfigResolver(v3_yaml)
-        # Earnings Dip has narrowest range [0.90, 1.10]
-        fr, cw = r.get_sector_factor_config("earnings_dip")
-        assert fr["min"] == 0.90
-        assert fr["max"] == 1.10
-        # Component weights sum to 1.0
-        assert abs(sum(cw.values()) - 1.0) < 0.01
 
     def test_global_fallback_without_strategy(self, v3_yaml):
         r = RecursiveConfigResolver(v3_yaml)
@@ -600,15 +540,6 @@ def sector_factor_yaml(tmp_path):
                     },
                 },
             },
-            "ath_breakout": {
-                "weights": {"volume": 2.0, "trend": 2.0},
-                "max_possible": 23.0,
-                "regimes": {},
-                "sectors": {
-                    "Technology": {"sector_factor": 0.780},
-                    "Financial Services": {"sector_factor": 1.014},
-                },
-            },
         },
     }
     yaml_path = tmp_path / "scoring_weights_sf.yaml"
@@ -649,11 +580,6 @@ class TestSectorFactor:
         r = RecursiveConfigResolver(sector_factor_yaml)
         w = r.resolve("pullback", "normal", "UnknownSector")
         assert w.sector_factor == 1.0
-
-    def test_sector_factor_ath_breakout(self, sector_factor_yaml):
-        r = RecursiveConfigResolver(sector_factor_yaml)
-        w = r.resolve("ath_breakout", "normal", "Technology")
-        assert w.sector_factor == 0.780
 
     def test_sector_factor_clamped_high(self, tmp_path):
         """sector_factor > 1.3 should be clamped."""
@@ -728,28 +654,6 @@ def vix_regime_yaml(tmp_path):
                 },
                 "sectors": {},
             },
-            "ath_breakout": {
-                "weights": {"volume": 2.0, "trend": 2.0},
-                "max_possible": 10.0,
-                "regimes": {
-                    "normal": {},
-                    "danger": {"vix_score_multiplier": 0.85},
-                    "high": {"enabled": False},
-                },
-                "sectors": {},
-            },
-            "trend_continuation": {
-                "weights": {"sma_alignment": 2.0, "trend_stability": 2.0},
-                "max_possible": 10.5,
-                "regimes": {
-                    "low": {"vix_score_multiplier": 1.05},
-                    "normal": {"vix_score_multiplier": 1.0},
-                    "elevated": {"vix_score_multiplier": 0.70},
-                    "danger": {"vix_score_multiplier": 0.75},
-                    "high": {"enabled": False},
-                },
-                "sectors": {},
-            },
         },
     }
     yaml_path = tmp_path / "scoring_weights_vix.yaml"
@@ -773,20 +677,10 @@ class TestVIXScoreMultiplier:
         w = r.resolve("pullback", "high")
         assert w.enabled is False
 
-    def test_enabled_false_ath_breakout_high(self, vix_regime_yaml):
-        r = RecursiveConfigResolver(vix_regime_yaml)
-        w = r.resolve("ath_breakout", "high")
-        assert w.enabled is False
-
-    def test_enabled_false_trend_continuation_high(self, vix_regime_yaml):
-        r = RecursiveConfigResolver(vix_regime_yaml)
-        w = r.resolve("trend_continuation", "high")
-        assert w.enabled is False
-
     def test_vix_multiplier_default_1(self, vix_regime_yaml):
         """Without explicit multiplier, defaults to 1.0."""
         r = RecursiveConfigResolver(vix_regime_yaml)
-        w = r.resolve("ath_breakout", "normal")
+        w = r.resolve("pullback", "low")
         assert w.vix_score_multiplier == 1.0
 
     def test_vix_multiplier_danger(self, vix_regime_yaml):
@@ -798,22 +692,6 @@ class TestVIXScoreMultiplier:
         r = RecursiveConfigResolver(vix_regime_yaml)
         w = r.resolve("pullback", "elevated")
         assert w.vix_score_multiplier == 0.90
-
-    def test_vix_multiplier_ath_breakout_danger(self, vix_regime_yaml):
-        r = RecursiveConfigResolver(vix_regime_yaml)
-        w = r.resolve("ath_breakout", "danger")
-        assert w.vix_score_multiplier == 0.85
-
-    def test_vix_multiplier_tc_low_boost(self, vix_regime_yaml):
-        """TC gets a slight boost in low VIX regime."""
-        r = RecursiveConfigResolver(vix_regime_yaml)
-        w = r.resolve("trend_continuation", "low")
-        assert w.vix_score_multiplier == 1.05
-
-    def test_vix_multiplier_tc_elevated_penalty(self, vix_regime_yaml):
-        r = RecursiveConfigResolver(vix_regime_yaml)
-        w = r.resolve("trend_continuation", "elevated")
-        assert w.vix_score_multiplier == 0.70
 
     def test_vix_multiplier_clamped_high(self, tmp_path):
         """vix_score_multiplier > 1.5 should be clamped."""
@@ -883,29 +761,8 @@ class TestVIXMultiplierWithRealConfig:
     """Tests that verify the real scoring_weights.yaml has correct VIX config."""
 
     def test_all_strategies_have_high_disabled(self):
-        """All 5 strategies should have enabled: false in high regime."""
+        """Pullback and bounce should have enabled: false in high regime."""
         r = RecursiveConfigResolver()
-        for strategy in ["pullback", "bounce", "ath_breakout", "earnings_dip", "trend_continuation"]:
+        for strategy in ["pullback", "bounce"]:
             w = r.resolve(strategy, "high")
             assert w.enabled is False, f"{strategy} should be disabled in high regime"
-
-    def test_tc_preserves_original_multipliers(self):
-        """TC's multipliers should match the old analyzer_thresholds.yaml values."""
-        r = RecursiveConfigResolver()
-        assert r.resolve("trend_continuation", "low").vix_score_multiplier == 1.05
-        assert r.resolve("trend_continuation", "normal").vix_score_multiplier == 1.0
-        assert r.resolve("trend_continuation", "elevated").vix_score_multiplier == 0.70
-        assert r.resolve("trend_continuation", "danger").vix_score_multiplier == 0.75
-
-    def test_ath_breakout_penalized_more_than_pullback(self):
-        """ATH Breakout should be penalized more than Pullback in danger."""
-        r = RecursiveConfigResolver()
-        pb = r.resolve("pullback", "danger")
-        ath = r.resolve("ath_breakout", "danger")
-        assert ath.vix_score_multiplier < pb.vix_score_multiplier
-
-    def test_earnings_dip_minimal_penalty(self):
-        """Earnings Dip has minimal VIX penalty (elevated IV helps credit spreads)."""
-        r = RecursiveConfigResolver()
-        ed_danger = r.resolve("earnings_dip", "danger")
-        assert ed_danger.vix_score_multiplier == 1.0  # No penalty in danger

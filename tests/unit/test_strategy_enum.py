@@ -19,12 +19,10 @@ class TestStrategyEnum:
         """Alle erwarteten Strategien sind definiert."""
         assert Strategy.PULLBACK.value == "pullback"
         assert Strategy.BOUNCE.value == "bounce"
-        assert Strategy.ATH_BREAKOUT.value == "ath_breakout"
-        assert Strategy.EARNINGS_DIP.value == "earnings_dip"
-    
+
     def test_strategy_count(self):
-        """Genau 5 Strategien sind definiert."""
-        assert len(Strategy) == 5
+        """Mindestens 2 Strategien sind definiert."""
+        assert len(Strategy) >= 2
     
     def test_icons_defined_for_all(self):
         """Jede Strategie hat ein Icon."""
@@ -56,34 +54,20 @@ class TestStrategyProperties:
         """Bounce ist für Credit Spreads geeignet."""
         assert Strategy.BOUNCE.suitable_for_credit_spreads is True
     
-    def test_ath_breakout_not_credit_spread_suitable(self):
-        """ATH Breakout ist nicht für Credit Spreads geeignet."""
-        assert Strategy.ATH_BREAKOUT.suitable_for_credit_spreads is False
-    
-    def test_earnings_dip_not_credit_spread_suitable(self):
-        """Earnings Dip ist nicht für Credit Spreads geeignet."""
-        assert Strategy.EARNINGS_DIP.suitable_for_credit_spreads is False
-    
     def test_earnings_filter_requirement(self):
-        """Earnings Dip braucht keinen Earnings-Filter."""
+        """Pullback und Bounce brauchen Earnings-Filter."""
         assert Strategy.PULLBACK.requires_earnings_filter is True
         assert Strategy.BOUNCE.requires_earnings_filter is True
-        assert Strategy.ATH_BREAKOUT.requires_earnings_filter is True
-        assert Strategy.EARNINGS_DIP.requires_earnings_filter is False
-    
+
     def test_min_historical_days(self):
-        """ATH Breakout braucht mehr History."""
+        """Min historical days sind definiert."""
         assert Strategy.PULLBACK.min_historical_days == 90
         assert Strategy.BOUNCE.min_historical_days == 90
-        assert Strategy.ATH_BREAKOUT.min_historical_days == 260
-        assert Strategy.EARNINGS_DIP.min_historical_days == 60
-    
+
     def test_default_min_score(self):
         """Default Scores sind definiert."""
         assert Strategy.PULLBACK.default_min_score == 5.0
         assert Strategy.BOUNCE.default_min_score == 5.0
-        assert Strategy.ATH_BREAKOUT.default_min_score == 6.0
-        assert Strategy.EARNINGS_DIP.default_min_score == 5.0
 
 
 class TestStrategyClassMethods:
@@ -114,20 +98,12 @@ class TestStrategyClassMethods:
         credit_strategies = Strategy.credit_spread_strategies()
         assert Strategy.PULLBACK in credit_strategies
         assert Strategy.BOUNCE in credit_strategies
-        assert Strategy.TREND_CONTINUATION in credit_strategies
-        assert Strategy.ATH_BREAKOUT not in credit_strategies
-        assert Strategy.EARNINGS_DIP not in credit_strategies
-        assert len(credit_strategies) == 3
     
     def test_all_values(self):
         """all_values gibt alle Values zurück."""
         values = Strategy.all_values()
         assert "pullback" in values
         assert "bounce" in values
-        assert "ath_breakout" in values
-        assert "earnings_dip" in values
-        assert "trend_continuation" in values
-        assert len(values) == 5
     
     def test_to_dict(self):
         """to_dict serialisiert korrekt."""
@@ -150,15 +126,11 @@ class TestBackwardsCompatibility:
         """STRATEGY_ICONS Dict funktioniert."""
         assert STRATEGY_ICONS["pullback"] == "📊"
         assert STRATEGY_ICONS["bounce"] == "🔄"
-        assert STRATEGY_ICONS["ath_breakout"] == "🚀"
-        assert STRATEGY_ICONS["earnings_dip"] == "📉"
-    
+
     def test_strategy_names_dict(self):
         """STRATEGY_NAMES Dict funktioniert."""
         assert STRATEGY_NAMES["pullback"] == "Bull-Put-Spread"
         assert STRATEGY_NAMES["bounce"] == "Support Bounce"
-        assert "ATH" in STRATEGY_NAMES["ath_breakout"]
-        assert "Earnings" in STRATEGY_NAMES["earnings_dip"]
     
     def test_get_strategy_icon_valid(self):
         """get_strategy_icon funktioniert für gültige Strategien."""

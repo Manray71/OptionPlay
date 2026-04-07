@@ -20,7 +20,7 @@ class TestStrategyMetrics:
 
     def test_all_strategies_have_metrics(self):
         """Test all strategies have defined metrics."""
-        expected_strategies = ["pullback", "bounce", "ath_breakout", "earnings_dip"]
+        expected_strategies = ["pullback", "bounce"]
         for strategy in expected_strategies:
             assert strategy in STRATEGY_METRICS
 
@@ -179,20 +179,6 @@ class TestNormalizeScore:
         assert result.strategy == "bounce"
         assert 0 <= result.percentile <= 100
 
-    def test_normalize_score_ath_breakout(self, ranker):
-        """Test score normalization for ATH breakout strategy."""
-        result = ranker.normalize_score("ath_breakout", 7.0)
-
-        assert result.strategy == "ath_breakout"
-        assert 0 <= result.percentile <= 100
-
-    def test_normalize_score_earnings_dip(self, ranker):
-        """Test score normalization for earnings dip strategy."""
-        result = ranker.normalize_score("earnings_dip", 7.0)
-
-        assert result.strategy == "earnings_dip"
-        assert 0 <= result.percentile <= 100
-
     def test_normalize_low_score(self, ranker):
         """Test normalization of low score."""
         result = ranker.normalize_score("pullback", 2.0)
@@ -250,23 +236,21 @@ class TestRankSymbol:
         scores = {
             "pullback": 7.5,
             "bounce": 6.0,
-            "ath_breakout": 8.0,
         }
         ranking = ranker.rank_symbol("AAPL", 185.0, scores)
 
-        assert ranking.strategy_count == 3
-        assert len(ranking.scores) == 3
+        assert ranking.strategy_count == 2
+        assert len(ranking.scores) == 2
 
     def test_rank_symbol_filters_none_scores(self, ranker):
         """Test ranking filters out None scores."""
         scores = {
             "pullback": 7.5,
             "bounce": None,
-            "ath_breakout": 6.5,
         }
         ranking = ranker.rank_symbol("AAPL", 185.0, scores)
 
-        assert ranking.strategy_count == 2
+        assert ranking.strategy_count == 1
 
     def test_rank_symbol_filters_low_scores(self, ranker):
         """Test ranking filters out scores below min_score."""
@@ -292,11 +276,11 @@ class TestRankSymbol:
         """Test ranking selects strategy with highest expected value."""
         scores = {
             "pullback": 6.0,
-            "ath_breakout": 8.5,  # Higher score
+            "bounce": 8.5,  # Higher score
         }
         ranking = ranker.rank_symbol("AAPL", 185.0, scores)
 
-        assert ranking.best_strategy == "ath_breakout"
+        assert ranking.best_strategy == "bounce"
 
     def test_rank_symbol_no_qualifying_strategies(self, ranker):
         """Test ranking when no strategies qualify."""
@@ -396,10 +380,9 @@ class TestConvenienceFunctions:
             "AAPL", 185.0,
             pullback_score=7.5,
             bounce_score=None,
-            ath_breakout_score=8.0,
         )
 
-        assert ranking.strategy_count == 2
+        assert ranking.strategy_count == 1
 
 
 if __name__ == "__main__":

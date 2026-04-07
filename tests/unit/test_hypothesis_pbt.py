@@ -29,14 +29,11 @@ PBT_SETTINGS = settings(deadline=None, suppress_health_check=[HealthCheck.too_sl
 # SCORE NORMALIZATION PBT
 # =============================================================================
 
-STRATEGIES = ["pullback", "bounce", "ath_breakout", "earnings_dip", "trend_continuation"]
+STRATEGIES = ["pullback", "bounce"]
 
 MAX_POSSIBLE = {
     "pullback": 14.0,
     "bounce": 10.0,
-    "ath_breakout": 10.0,
-    "earnings_dip": 9.5,
-    "trend_continuation": 10.5,
 }
 
 

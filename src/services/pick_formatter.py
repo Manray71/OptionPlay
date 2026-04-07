@@ -227,8 +227,6 @@ _REGIME_DISPLAY = {
 _STRATEGY_DISPLAY = {
     "pullback": "Pullback",
     "bounce": "Bounce",
-    "ath_breakout": "ATH Breakout",
-    "earnings_dip": "Earnings Dip",
 }
 
 

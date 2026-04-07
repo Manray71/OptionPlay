@@ -247,16 +247,10 @@ class AnalysisHandlerMixin(BaseHandlerMixin):
         strategy_icons = {
             "pullback": "[PB]",
             "bounce": "[BN]",
-            "ath_breakout": "[ATH]",
-            "earnings_dip": "[ED]",
-            "trend_continuation": "[TC]",
         }
         strategy_names = {
             "pullback": "Bull-Put-Spread",
             "bounce": "Support Bounce",
-            "ath_breakout": "ATH Breakout",
-            "earnings_dip": "Earnings Dip",
-            "trend_continuation": "Trend Continuation",
         }
 
         b = MarkdownBuilder()
@@ -287,7 +281,7 @@ class AnalysisHandlerMixin(BaseHandlerMixin):
 
         b.h2("Strategy Scores").blank()
         rows = []
-        for strat in ["pullback", "bounce", "ath_breakout", "earnings_dip", "trend_continuation"]:
+        for strat in ["pullback", "bounce"]:
             icon = strategy_icons.get(strat, "*")
             name = strategy_names.get(strat, strat)
 
@@ -401,9 +395,6 @@ class AnalysisHandlerMixin(BaseHandlerMixin):
         strategy_icons = {
             "pullback": "[PB]",
             "bounce": "[BN]",
-            "ath_breakout": "[ATH]",
-            "earnings_dip": "[ED]",
-            "trend_continuation": "[TC]",
         }
 
         icon = strategy_icons.get(rec.recommended_strategy, "[?]")

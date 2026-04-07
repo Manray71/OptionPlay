@@ -245,16 +245,10 @@ class AnalysisHandler(BaseHandler):
         strategy_icons = {
             "pullback": "[PB]",
             "bounce": "[BN]",
-            "ath_breakout": "[ATH]",
-            "earnings_dip": "[ED]",
-            "trend_continuation": "[TC]",
         }
         strategy_names = {
             "pullback": "Bull-Put-Spread",
             "bounce": "Support Bounce",
-            "ath_breakout": "ATH Breakout",
-            "earnings_dip": "Earnings Dip",
-            "trend_continuation": "Trend Continuation",
         }
 
         b = MarkdownBuilder()
@@ -286,7 +280,7 @@ class AnalysisHandler(BaseHandler):
 
         b.h2("Strategy Scores").blank()
         rows = []
-        for strat in ["pullback", "bounce", "ath_breakout", "earnings_dip", "trend_continuation"]:
+        for strat in ["pullback", "bounce"]:
             icon = strategy_icons.get(strat, "*")
             name = strategy_names.get(strat, strat)
 
@@ -385,9 +379,6 @@ class AnalysisHandler(BaseHandler):
         strategy_icons = {
             "pullback": "[PB]",
             "bounce": "[BN]",
-            "ath_breakout": "[ATH]",
-            "earnings_dip": "[ED]",
-            "trend_continuation": "[TC]",
         }
 
         icon = strategy_icons.get(rec.recommended_strategy, "[?]")
@@ -707,9 +698,6 @@ class AnalysisHandler(BaseHandler):
         min_score=3.5,
         enable_pullback=True,
         enable_bounce=True,
-        enable_breakout=True,
-        enable_earnings_dip=True,
-        enable_trend_continuation=True,
         exclude_earnings_within_days=None,
     ):
         from ..scanner.multi_strategy_scanner import MultiStrategyScanner, ScanConfig
@@ -718,9 +706,6 @@ class AnalysisHandler(BaseHandler):
             min_score=min_score,
             enable_pullback=enable_pullback,
             enable_bounce=enable_bounce,
-            enable_ath_breakout=enable_breakout,
-            enable_earnings_dip=enable_earnings_dip,
-            enable_trend_continuation=enable_trend_continuation,
         )
         if exclude_earnings_within_days is not None:
             config.exclude_earnings_within_days = exclude_earnings_within_days

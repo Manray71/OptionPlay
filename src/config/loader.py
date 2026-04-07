@@ -390,9 +390,7 @@ class ConfigLoader:
             max_concurrent=raw.get("performance", {}).get("max_concurrent_requests", 10),
             min_data_points=scanner_raw.get("min_data_points", 60),
             enable_pullback=scanner_raw.get("enable_pullback", True),
-            enable_ath_breakout=scanner_raw.get("enable_ath_breakout", True),
             enable_bounce=scanner_raw.get("enable_bounce", True),
-            enable_earnings_dip=scanner_raw.get("enable_earnings_dip", True),
             # Stability-First-Filter (simplified 2-tier)
             enable_stability_first=scanner_raw.get("enable_stability_first", True),
             stability_qualified_threshold=scanner_raw.get("stability_qualified_threshold", 60.0),
@@ -517,9 +515,6 @@ class ConfigLoader:
         for strategy in [
             "pullback",
             "bounce",
-            "ath_breakout",
-            "earnings_dip",
-            "trend_continuation",
         ]:
             if strategy in raw:
                 strat_data = raw[strategy]
@@ -544,9 +539,6 @@ class ConfigLoader:
             for strategy in [
                 "pullback",
                 "bounce",
-                "ath_breakout",
-                "earnings_dip",
-                "trend_continuation",
             ]:
                 if strategy in gb_data:
                     strategy_boosts[strategy] = gb_data[strategy]

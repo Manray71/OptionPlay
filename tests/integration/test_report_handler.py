@@ -170,7 +170,7 @@ class TestGenerateReport:
 
         handler = MockHandler()
 
-        for strategy in ["pullback", "bounce", "breakout", "earnings_dip"]:
+        for strategy in ["pullback", "bounce"]:
             result = await handler.generate_report("AAPL", strategy=strategy)
             assert strategy.lower() in result.lower() or "Strategy" in result
 

@@ -14,7 +14,7 @@ Stats:
 
 Modules:
 - handlers.vix: VIX, strategy, regime handlers
-- handlers.scan: Scan operations (pullback, bounce, breakout, etc.)
+- handlers.scan: Scan operations (pullback, bounce, etc.)
 - handlers.quote: Quote, options chain, historical data, earnings
 - handlers.analysis: Symbol analysis, ensemble recommendations
 - handlers.portfolio: Portfolio management
@@ -326,9 +326,6 @@ class OptionPlayServer:
         """Get scanner instance with config from YAML (pullback only)."""
         config = get_scan_config(override_min_score=min_score, override_earnings_days=earnings_days)
 
-        config.enable_ath_breakout = False
-        config.enable_earnings_dip = False
-
         return MultiStrategyScanner(config)
 
     def _get_multi_scanner(
@@ -336,9 +333,6 @@ class OptionPlayServer:
         min_score: float = 3.5,
         enable_pullback: bool = True,
         enable_bounce: bool = True,
-        enable_breakout: bool = True,
-        enable_earnings_dip: bool = True,
-        enable_trend_continuation: bool = True,
         exclude_earnings_within_days: Optional[int] = None,
     ) -> MultiStrategyScanner:
         """Get scanner instance with all strategies enabled."""
@@ -353,9 +347,6 @@ class OptionPlayServer:
             min_score=min_score,
             enable_pullback=enable_pullback,
             enable_bounce=enable_bounce,
-            enable_ath_breakout=enable_breakout,
-            enable_earnings_dip=enable_earnings_dip,
-            enable_trend_continuation=enable_trend_continuation,
             enable_iv_filter=enable_iv,
         )
         if exclude_earnings_within_days is not None:
@@ -470,8 +461,6 @@ class OptionPlayServer:
         self,
         symbols: List[str],
         min_days: int,
-        for_earnings_dip: bool = False,
-        include_dip_candidates: bool = False,
     ) -> Tuple[List[str], int, int]:
         """
         Apply earnings pre-filter to symbols.
@@ -531,20 +520,9 @@ class OptionPlayServer:
 
             if reason == "no_earnings_data":
                 symbols_needing_fallback.append(symbol)
-            elif for_earnings_dip:
-                # Earnings Dip: Needs recent past earnings
-                if days_to is not None and -10 <= days_to <= 0:
-                    safe_symbols.append(symbol)
-                else:
-                    excluded_count += 1
             else:
                 # Normal strategies: use BMO/AMC-aware result
                 if is_safe:
-                    safe_symbols.append(symbol)
-                elif include_dip_candidates and days_to is not None and -10 <= days_to <= 0:
-                    # In ALL/BEST_SIGNAL mode: keep symbols with recent past earnings
-                    # for the earnings_dip strategy. The scanner's per-strategy
-                    # _should_skip_for_earnings() will filter them for non-dip strategies.
                     safe_symbols.append(symbol)
                 else:
                     logger.debug(f"{symbol}: Excluded - {reason} (days_to={days_to})")
@@ -562,26 +540,17 @@ class OptionPlayServer:
                     days_to = fetched.days_to_earnings if fetched else None
 
                 # Fallback logic: conservative for unknown data
-                if for_earnings_dip:
-                    if days_to is not None and -10 <= days_to <= 0:
-                        safe_symbols.append(symbol)
-                    else:
-                        excluded_count += 1
+                if days_to is not None and days_to < 0:
+                    # Past earnings date = safe (next earnings ~90d away)
+                    logger.debug(f"{symbol}: Past earnings ({days_to}d ago) — treating as safe")
+                    safe_symbols.append(symbol)
+                elif days_to is not None and days_to >= min_days:
+                    safe_symbols.append(symbol)
+                elif days_to is None:
+                    logger.debug(f"{symbol}: Excluded - unknown earnings date")
+                    excluded_count += 1
                 else:
-                    if days_to is not None and days_to < 0:
-                        # Past earnings date = safe (next earnings ~90d away)
-                        logger.debug(f"{symbol}: Past earnings ({days_to}d ago) — treating as safe")
-                        safe_symbols.append(symbol)
-                    elif days_to is not None and days_to >= min_days:
-                        safe_symbols.append(symbol)
-                    elif include_dip_candidates and days_to is not None and -10 <= days_to <= 0:
-                        # Keep recent-earnings symbols for dip strategy in multi-mode
-                        safe_symbols.append(symbol)
-                    elif days_to is None:
-                        logger.debug(f"{symbol}: Excluded - unknown earnings date")
-                        excluded_count += 1
-                    else:
-                        excluded_count += 1
+                    excluded_count += 1
 
             except (ValueError, KeyError, TypeError) as e:
                 logger.debug(f"Earnings check failed for {symbol}: {e}")
@@ -798,9 +767,6 @@ async def run_interactive() -> None:
         "vix": ("vix", "get_strategy_recommendation", [], False),
         "scan": ("scan", "scan_with_strategy", [], False),
         "bounce": ("scan", "scan_bounce", [], False),
-        "breakout": ("scan", "scan_ath_breakout", [], False),
-        "earningsdip": ("scan", "scan_earnings_dip", [], False),
-        "trend": ("scan", "scan_trend_continuation", [], False),
         "multi": ("scan", "scan_multi_strategy", [], False),
         "analyzem": ("analysis", "analyze_multi_strategy", ["symbol"], False),
         "quote": ("quote", "get_quote", ["symbol"], False),

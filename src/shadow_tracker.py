@@ -26,9 +26,6 @@ VALID_STRATEGIES = frozenset(
     {
         "pullback",
         "bounce",
-        "ath_breakout",
-        "earnings_dip",
-        "trend_continuation",
     }
 )
 

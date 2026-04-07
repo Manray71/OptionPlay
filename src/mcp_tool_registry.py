@@ -345,47 +345,6 @@ async def handle_scan_bounce(server: Any, arguments: ToolArguments) -> str:
     )
 
 
-@tool_registry.register(
-    name="optionplay_scan_breakout",
-    description="Scan for ATH Breakout candidates - stocks breaking out to new all-time highs with volume confirmation.",
-    input_schema=SCAN_SCHEMA,
-    aliases=["breakout"],
-)
-async def handle_scan_breakout(server: Any, arguments: ToolArguments) -> str:
-    return await server.handlers.scan.scan_ath_breakout(
-        symbols=arguments.get("symbols"),
-        max_results=arguments.get("max_results", 10),
-        min_score=arguments.get("min_score", 6.0),
-    )
-
-
-@tool_registry.register(
-    name="optionplay_scan_earnings_dip",
-    description="Scan for Earnings Dip Buy candidates - quality stocks that dropped 5-15% after earnings (potential overreaction).",
-    input_schema=SCAN_SCHEMA,
-    aliases=["dip"],
-)
-async def handle_scan_earnings_dip(server: Any, arguments: ToolArguments) -> str:
-    return await server.handlers.scan.scan_earnings_dip(
-        symbols=arguments.get("symbols"),
-        max_results=arguments.get("max_results", 10),
-        min_score=arguments.get("min_score", 5.0),
-    )
-
-
-@tool_registry.register(
-    name="optionplay_scan_trend",
-    description="Scan for Trend Continuation candidates - stocks in stable uptrends with perfect SMA alignment, ideal for Bull-Put-Spreads.",
-    input_schema=SCAN_SCHEMA,
-    aliases=["trend"],
-)
-async def handle_scan_trend(server: Any, arguments: ToolArguments) -> str:
-    return await server.handlers.scan.scan_trend_continuation(
-        symbols=arguments.get("symbols"),
-        max_results=arguments.get("max_results", 10),
-        min_score=arguments.get("min_score", 5.0),
-    )
-
 
 @tool_registry.register(
     name="optionplay_scan_multi",
@@ -1020,7 +979,7 @@ async def handle_report(server: Any, arguments: ToolArguments) -> str:
         "properties": {
             "strategy": {
                 "type": "string",
-                "description": "Strategy: pullback, bounce, breakout, dip, multi (default: multi)",
+                "description": "Strategy: pullback, bounce, multi (default: multi)",
             },
             "symbols": {"type": "array", "items": {"type": "string"}},
             "min_score": {"type": "number", "description": "Minimum score (default: 5.0)"},
@@ -1338,9 +1297,6 @@ async def handle_shadow_stats(server: Any, arguments: ToolArguments) -> str:
                 "enum": [
                     "pullback",
                     "bounce",
-                    "ath_breakout",
-                    "earnings_dip",
-                    "trend_continuation",
                 ],
                 "description": "Trading strategy",
             },

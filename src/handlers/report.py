@@ -64,7 +64,7 @@ class ReportHandlerMixin(BaseHandlerMixin):
 
         Args:
             symbol: Ticker symbol
-            strategy: Strategy type (pullback, bounce, breakout, earnings_dip)
+            strategy: Strategy type (pullback, bounce)
             include_options: Include options analysis
             include_news: Include news headlines
 
@@ -103,7 +103,7 @@ class ReportHandlerMixin(BaseHandlerMixin):
         - Detailed analysis for top candidates
 
         Args:
-            strategy: Scan strategy ("multi", "pullback", "bounce", "breakout", "earnings_dip")
+            strategy: Scan strategy ("multi", "pullback", "bounce")
             symbols: List of symbols to scan (uses default watchlist if not provided)
             min_score: Minimum score for qualification
             max_candidates: Maximum candidates to include

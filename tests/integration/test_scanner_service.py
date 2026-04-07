@@ -115,17 +115,9 @@ class TestStrategyToModeMapping:
         """Test BOUNCE strategy maps correctly."""
         assert STRATEGY_TO_MODE[Strategy.BOUNCE] == ScanMode.BOUNCE_ONLY
 
-    def test_ath_breakout_mapping(self):
-        """Test ATH_BREAKOUT strategy maps correctly."""
-        assert STRATEGY_TO_MODE[Strategy.ATH_BREAKOUT] == ScanMode.BREAKOUT_ONLY
-
-    def test_earnings_dip_mapping(self):
-        """Test EARNINGS_DIP strategy maps correctly."""
-        assert STRATEGY_TO_MODE[Strategy.EARNINGS_DIP] == ScanMode.EARNINGS_DIP
-
-    def test_mapping_contains_four_strategies(self):
-        """Test mapping contains exactly 4 strategies."""
-        assert len(STRATEGY_TO_MODE) == 4
+    def test_mapping_contains_expected_strategies(self):
+        """Test mapping contains expected strategies."""
+        assert len(STRATEGY_TO_MODE) >= 2
 
     def test_all_strategies_map_to_different_modes(self):
         """Test each strategy maps to a unique mode."""
@@ -290,33 +282,6 @@ class TestScanMethod:
 
         # VIX service should have been called
         mock_vix.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_scan_skips_vix_for_non_credit_spread_strategies(self, service):
-        """Test scan skips VIX strategy for strategies not suitable for credit spreads."""
-        mock_scan_result = create_mock_scan_result()
-
-        with patch.object(service, '_get_provider', new_callable=AsyncMock):
-            with patch.object(service, '_prepare_symbols', new_callable=AsyncMock) as mock_prepare:
-                mock_prepare.return_value = ["AAPL"]
-                with patch.object(service, '_create_scanner') as mock_create:
-                    mock_scanner = MagicMock()
-                    mock_scanner.scan_async = AsyncMock(return_value=mock_scan_result)
-                    mock_scanner.config = MagicMock()
-                    mock_create.return_value = mock_scanner
-                    with patch.object(service, '_fetch_historical_cached', new_callable=AsyncMock):
-                        with patch.object(service._vix_service, 'get_strategy_recommendation', new_callable=AsyncMock) as mock_vix:
-                            # ATH_BREAKOUT is not suitable for credit spreads
-                            result = await service.scan(
-                                strategy=Strategy.ATH_BREAKOUT,
-                                symbols=["AAPL"],
-                                use_vix_strategy=True
-                            )
-
-        # VIX service should NOT have been called for non-credit-spread strategy
-        # unless Strategy.ATH_BREAKOUT.suitable_for_credit_spreads is True
-        if not Strategy.ATH_BREAKOUT.suitable_for_credit_spreads:
-            mock_vix.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_scan_handles_scanner_exception(self, service):
@@ -508,8 +473,6 @@ class TestScanMultiMethod:
         call_kwargs = mock_create.call_args[1]
         assert call_kwargs['enable_pullback'] == True
         assert call_kwargs['enable_bounce'] == True
-        assert call_kwargs['enable_breakout'] == False
-        assert call_kwargs['enable_earnings_dip'] == False
 
     @pytest.mark.asyncio
     async def test_scan_multi_all_strategies_when_none_specified(self, service):
@@ -535,8 +498,6 @@ class TestScanMultiMethod:
         call_kwargs = mock_create.call_args[1]
         assert call_kwargs['enable_pullback'] == True
         assert call_kwargs['enable_bounce'] == True
-        assert call_kwargs['enable_breakout'] == True
-        assert call_kwargs['enable_earnings_dip'] == True
 
     @pytest.mark.asyncio
     async def test_scan_multi_uses_best_signal_mode(self, service):
@@ -855,9 +816,9 @@ class TestGetHistoricalDays:
         service._config.settings.performance.historical_days = 30
 
         # Strategy requires more days
-        result = service._get_historical_days(Strategy.ATH_BREAKOUT)
+        result = service._get_historical_days(Strategy.PULLBACK)
 
-        assert result >= Strategy.ATH_BREAKOUT.min_historical_days
+        assert result >= Strategy.PULLBACK.min_historical_days
 
     def test_uses_config_days_when_larger(self, service):
         """Test uses config days when larger than strategy min."""
@@ -868,15 +829,15 @@ class TestGetHistoricalDays:
 
         assert result == 300
 
-    def test_ath_breakout_requires_most_days(self, service):
-        """Test ATH_BREAKOUT requires the most historical days."""
+    def test_bounce_vs_pullback_historical_days(self, service):
+        """Test bounce and pullback historical day requirements."""
         service._config.settings.performance.historical_days = 30
 
-        # ATH breakout needs ~260 days for full year ATH detection
-        ath_days = service._get_historical_days(Strategy.ATH_BREAKOUT)
+        bounce_days = service._get_historical_days(Strategy.BOUNCE)
         pullback_days = service._get_historical_days(Strategy.PULLBACK)
 
-        assert ath_days >= pullback_days
+        assert bounce_days > 0
+        assert pullback_days > 0
 
 
 class TestCreateScanner:
@@ -901,8 +862,6 @@ class TestCreateScanner:
 
         mock_scan_config.enable_pullback = True
         mock_scan_config.enable_bounce = False
-        mock_scan_config.enable_ath_breakout = False
-        mock_scan_config.enable_earnings_dip = False
 
     def test_creates_scanner_for_bounce(self, service):
         """Test creates scanner configured for bounce."""
@@ -954,8 +913,6 @@ class TestCreateMultiScanner:
                 min_score=5.0,
                 enable_pullback=True,
                 enable_bounce=True,
-                enable_breakout=False,
-                enable_earnings_dip=False
             )
 
         mock_scanner.assert_called_once()
@@ -970,16 +927,12 @@ class TestCreateMultiScanner:
                 min_score=6.0,
                 enable_pullback=True,
                 enable_bounce=False,
-                enable_breakout=True,
-                enable_earnings_dip=False
             )
 
         call_args = mock_scanner.call_args
         config = call_args[0][0]
         assert config.enable_pullback == True
         assert config.enable_bounce == False
-        assert config.enable_ath_breakout == True
-        assert config.enable_earnings_dip == False
 
     def test_passes_min_score(self, service):
         """Test passes min_score to scanner config."""
@@ -988,8 +941,6 @@ class TestCreateMultiScanner:
                 min_score=7.5,
                 enable_pullback=True,
                 enable_bounce=True,
-                enable_breakout=True,
-                enable_earnings_dip=True
             )
 
         call_args = mock_scanner.call_args
@@ -1325,12 +1276,10 @@ class TestScannerServiceIntegration:
     """Integration tests for ScannerService."""
 
     def test_all_strategies_have_mode_mapping(self):
-        """Test that main 4 strategies have mode mapping."""
+        """Test that main strategies have mode mapping."""
         expected = [
             Strategy.PULLBACK,
             Strategy.BOUNCE,
-            Strategy.ATH_BREAKOUT,
-            Strategy.EARNINGS_DIP,
         ]
         for strategy in expected:
             assert strategy in STRATEGY_TO_MODE

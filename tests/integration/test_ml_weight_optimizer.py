@@ -200,8 +200,6 @@ class TestConstants:
         """Test that strategy components are defined."""
         assert "pullback" in STRATEGY_COMPONENTS
         assert "bounce" in STRATEGY_COMPONENTS
-        assert "ath_breakout" in STRATEGY_COMPONENTS
-        assert "earnings_dip" in STRATEGY_COMPONENTS
 
     def test_default_weights(self):
         """Test default weights."""

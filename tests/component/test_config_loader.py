@@ -460,9 +460,7 @@ class TestScannerConfig:
         assert config.max_concurrent == 10
         assert config.min_data_points == 60
         assert config.enable_pullback == True
-        assert config.enable_ath_breakout == True
         assert config.enable_bounce == True
-        assert config.enable_earnings_dip == True
 
 
 class TestSettingsWithNewConfigs:

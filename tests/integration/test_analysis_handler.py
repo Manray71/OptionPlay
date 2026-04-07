@@ -650,7 +650,6 @@ class TestEdgeCases:
                 scanner.analyze_symbol = MagicMock(return_value=[
                     MockSignal(strategy="pullback", score=8.5, reason="Strong pullback"),
                     MockSignal(strategy="bounce", score=7.5, reason="Strong bounce"),
-                    MockSignal(strategy="ath_breakout", score=8.0, reason="ATH breakout"),
                 ])
                 scanner.set_earnings_date = MagicMock()
                 return scanner
@@ -663,7 +662,7 @@ class TestEdgeCases:
             result = await test_handler.analyze_multi_strategy("AAPL")
 
             # Should show strong signals
-            assert "8.5" in result or "7.5" in result or "8.0" in result
+            assert "8.5" in result or "7.5" in result
 
     @pytest.mark.asyncio
     async def test_analyze_multi_strategy_weak_signals(self):

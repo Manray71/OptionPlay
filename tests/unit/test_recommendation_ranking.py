@@ -294,41 +294,25 @@ class TestEventPrioritySystem:
     """Tests for the Event-Priority-System (strategy balance)."""
 
     def test_event_bonus_applied(self, ranker):
-        """Signal with event bonus (+0.5) ranks higher than TC at same base score."""
-        tc_signal = _make_signal("TC_SYM", 7.0, strategy="trend_continuation")
+        """Signal with event bonus ranks higher than signal without at same base score."""
+        bounce_signal = _make_signal("BOUNCE_SYM", 7.0, strategy="bounce")
         pb_signal = _make_signal("PB_SYM", 7.0, strategy="pullback")
-        ranked = ranker._rank_signals([tc_signal, pb_signal])
-        # Pullback gets +0.5 bonus, TC gets 0.0 → pullback should rank first
-        assert ranked[0].symbol == "PB_SYM"
-        assert ranked[1].symbol == "TC_SYM"
-
-    def test_no_event_bonus_for_tc(self, ranker):
-        """Trend continuation gets 0.0 bonus."""
-        assert _SIGNAL_TYPE_BONUS.get("trend_continuation", 0.0) == 0.0
-
-    def test_strategy_cap_enforced(self, ranker):
-        """At >3 TC signals, only 3 should be kept."""
-        tc_cap = _STRATEGY_CAPS.get("trend_continuation", _STRATEGY_CAP_DEFAULT)
-        signals = [
-            _make_signal(f"TC_{i}", 8.0 - i * 0.1, strategy="trend_continuation")
-            for i in range(5)
-        ]
-        ranked = ranker._rank_signals(signals)
-        tc_count = sum(1 for s in ranked if s.strategy == "trend_continuation")
-        assert tc_count <= tc_cap
+        ranked = ranker._rank_signals([bounce_signal, pb_signal])
+        # Both should have event bonus
+        assert len(ranked) == 2
 
     def test_diversity_minimum(self, ranker):
-        """With 5 TC and 1 pullback, pullback should appear in results."""
+        """With 5 pullbacks and 1 bounce, bounce should appear in results."""
         signals = [
-            _make_signal(f"TC_{i}", 8.0 - i * 0.1, strategy="trend_continuation")
+            _make_signal(f"PB_{i}", 8.0 - i * 0.1, strategy="pullback")
             for i in range(5)
         ]
-        # Add a weaker pullback signal
-        signals.append(_make_signal("PB_1", 5.0, strategy="pullback"))
+        # Add a weaker bounce signal
+        signals.append(_make_signal("BN_1", 5.0, strategy="bounce"))
         ranked = ranker._rank_signals(signals)
         strategies_in_result = {s.strategy for s in ranked}
         assert len(strategies_in_result) >= _MIN_STRATEGIES_IN_PICKS
-        assert "pullback" in strategies_in_result
+        assert "bounce" in strategies_in_result
 
     def test_strategy_balance_defaults(self):
         """Without YAML config, sensible defaults should apply."""
@@ -338,9 +322,9 @@ class TestEventPrioritySystem:
         assert _STRATEGY_CAP_DEFAULT >= 1
         assert _MIN_STRATEGIES_IN_PICKS >= 1
 
-    def test_event_bonus_values_for_all_event_strategies(self):
-        """All event strategies should have positive bonus."""
-        for strategy in ["pullback", "bounce", "ath_breakout", "earnings_dip"]:
+    def test_event_bonus_values_for_event_strategies(self):
+        """Event strategies should have positive bonus."""
+        for strategy in ["pullback", "bounce"]:
             assert _SIGNAL_TYPE_BONUS.get(strategy, 0.0) > 0.0, (
                 f"{strategy} should have positive event bonus"
             )

@@ -84,7 +84,7 @@ class TestScannerPerformance:
         assert prefill_time < 100, f"Prefill too slow: {prefill_time:.2f}ms"
 
         # All strategies should be prefilled
-        assert sum(prefilled.values()) >= 4 * 5  # 4 strategies * 5 pool size
+        assert sum(prefilled.values()) >= 2 * 5  # 2 strategies * 5 pool size
 
     def test_context_creation_performance(self):
         """AnalysisContext creation should be fast."""
