@@ -313,7 +313,13 @@ class RiskHandler(BaseHandler):
         """
         import math
 
-        from ..backtesting import PriceSimulator
+        try:
+            from ..backtesting import PriceSimulator
+        except ImportError:
+            return (
+                "[!] Monte Carlo simulation unavailable "
+                "(backtesting module not installed)."
+            )
         from ..utils.markdown_builder import MarkdownBuilder
         from ..utils.validation import validate_symbol
 

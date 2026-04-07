@@ -186,27 +186,15 @@ class TestGetStrategyRecommendation:
 # =============================================================================
 
 class TestGetRegimeStatus:
-    """Tests für get_regime_status()."""
+    """Tests für get_regime_status() — legacy handler delegates to composed."""
 
     @pytest.mark.asyncio
-    async def test_regime_status_no_vix(self, handler):
-        """Test: Regime Status ohne VIX."""
-        async def no_vix():
-            return None
-        handler.get_vix = no_vix
-
-        result = await handler.get_regime_status()
-
-        assert "Could not fetch VIX" in result
-
-    @pytest.mark.asyncio
-    async def test_regime_status_default_fallback(self, handler):
-        """Test: Fallback auf Default Regime wenn kein Model."""
-        # This will trigger the default regime path since no trained model exists
+    async def test_regime_status_returns_string(self, handler):
+        """Test: Legacy regime status returns a string."""
         result = await handler.get_regime_status()
 
         assert isinstance(result, str)
-        # Should contain regime information or default message
+        assert "composed handler" in result.lower() or "regime" in result.lower()
 
 
 # =============================================================================

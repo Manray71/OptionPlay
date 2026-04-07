@@ -329,10 +329,16 @@ class AnalysisHandlerMixin(BaseHandlerMixin):
         Returns:
             Formatted Markdown ensemble recommendation
         """
-        from ..backtesting import (
-            EnsembleSelector,
-            create_strategy_score,
-        )
+        try:
+            from ..backtesting import (
+                EnsembleSelector,
+                create_strategy_score,
+            )
+        except ImportError:
+            return (
+                "[!] Ensemble recommendation unavailable "
+                "(backtesting module not installed)."
+            )
 
         symbol = validate_symbol(symbol)
 
@@ -438,7 +444,13 @@ class AnalysisHandlerMixin(BaseHandlerMixin):
         Returns:
             Formatted Markdown status
         """
-        from ..backtesting import EnsembleSelector
+        try:
+            from ..backtesting import EnsembleSelector
+        except ImportError:
+            return (
+                "[!] Ensemble status unavailable "
+                "(backtesting module not installed)."
+            )
 
         vix = await self.get_vix()
 

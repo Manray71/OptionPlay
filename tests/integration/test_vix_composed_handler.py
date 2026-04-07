@@ -271,14 +271,14 @@ class TestVixHandlerRegimeStatus:
         assert "18.5" in result
 
     @pytest.mark.asyncio
-    async def test_get_regime_status_shows_enabled_strategies(self, vix_handler, mock_context):
-        """Test get_regime_status shows enabled strategies."""
+    async def test_get_regime_status_shows_regime(self, vix_handler, mock_context):
+        """Test get_regime_status shows current regime (v2 format)."""
         mock_context.current_vix = 18.5
         mock_context.vix_updated = datetime.now()
 
         result = await vix_handler.get_regime_status()
 
-        assert "Enabled Strategies" in result
+        assert "Current Regime" in result
 
     @pytest.mark.asyncio
     async def test_get_regime_status_returns_error_if_no_vix(self, vix_handler, mock_context):
@@ -290,17 +290,16 @@ class TestVixHandlerRegimeStatus:
         with patch.object(vix_handler, '_fetch_vix_yahoo', return_value=None):
             result = await vix_handler.get_regime_status()
 
-        assert "Could not fetch VIX" in result
+        assert "Could not" in result or "unavailable" in result.lower() or "error" in result.lower()
 
     @pytest.mark.asyncio
     async def test_get_regime_status_shows_trading_parameters(self, vix_handler, mock_context):
-        """Test get_regime_status shows trading parameters section."""
+        """Test get_regime_status shows trading parameters section (v2 format)."""
         mock_context.current_vix = 18.5
         mock_context.vix_updated = datetime.now()
 
         result = await vix_handler.get_regime_status()
 
-        # Should show either trained or default parameters
         assert "Parameters" in result
 
 

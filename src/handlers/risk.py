@@ -376,7 +376,13 @@ class RiskHandlerMixin(BaseHandlerMixin):
                 volatility = 0.25  # Default 25% annualized
 
         # Run simulation using PriceSimulator's static method
-        from ..backtesting import PriceSimulator
+        try:
+            from ..backtesting import PriceSimulator
+        except ImportError:
+            return (
+                "[!] Monte Carlo simulation unavailable "
+                "(backtesting module not installed)."
+            )
 
         # Generate multiple price paths and collect final prices
         final_prices = []
