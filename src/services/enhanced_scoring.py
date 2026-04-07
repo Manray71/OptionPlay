@@ -25,7 +25,7 @@ import yaml
 
 logger = logging.getLogger(__name__)
 
-_CONFIG_PATH = Path(__file__).resolve().parents[2] / "config" / "enhanced_scoring.yaml"
+_CONFIG_PATH = Path(__file__).resolve().parents[2] / "config" / "scoring.yaml"
 
 # ---------------------------------------------------------------------------
 # Config singleton

@@ -75,9 +75,9 @@ class WatchlistLoader:
     def _get_default_list_from_settings(self) -> str:
         """Liest default_list aus settings.yaml"""
         possible_paths = [
-            Path.home() / "OptionPlay" / "config" / "settings.yaml",
-            Path(__file__).parent.parent.parent / "config" / "settings.yaml",
-            Path.cwd() / "config" / "settings.yaml",
+            Path.home() / "OptionPlay" / "config" / "system.yaml",
+            Path(__file__).parent.parent.parent / "config" / "system.yaml",
+            Path.cwd() / "config" / "system.yaml",
         ]
 
         for path in possible_paths:
@@ -95,9 +95,9 @@ class WatchlistLoader:
     def _load_stability_config(self) -> None:
         """Lädt Stability-Split Konfiguration aus settings.yaml"""
         possible_paths = [
-            Path.home() / "OptionPlay" / "config" / "settings.yaml",
-            Path(__file__).parent.parent.parent / "config" / "settings.yaml",
-            Path.cwd() / "config" / "settings.yaml",
+            Path.home() / "OptionPlay" / "config" / "system.yaml",
+            Path(__file__).parent.parent.parent / "config" / "system.yaml",
+            Path.cwd() / "config" / "system.yaml",
         ]
 
         for path in possible_paths:

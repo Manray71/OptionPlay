@@ -145,7 +145,7 @@ def _load_settings() -> dict:
     try:
         import yaml
 
-        config_path = _PROJECT_ROOT / "config" / "settings.yaml"
+        config_path = _PROJECT_ROOT / "config" / "system.yaml"
         if config_path.exists():
             with open(config_path) as f:
                 cfg = yaml.safe_load(f) or {}
@@ -160,7 +160,7 @@ def _load_tradability_config() -> dict:
     try:
         import yaml
 
-        config_path = _PROJECT_ROOT / "config" / "settings.yaml"
+        config_path = _PROJECT_ROOT / "config" / "system.yaml"
         if config_path.exists():
             with open(config_path) as f:
                 cfg = yaml.safe_load(f) or {}

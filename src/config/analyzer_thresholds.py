@@ -25,7 +25,7 @@ import yaml
 logger = logging.getLogger(__name__)
 
 _CONFIG_DIR = Path(__file__).resolve().parents[2] / "config"
-_DEFAULT_PATH = _CONFIG_DIR / "analyzer_thresholds.yaml"
+_DEFAULT_PATH = _CONFIG_DIR / "scoring.yaml"
 
 
 class AnalyzerThresholdsConfig:

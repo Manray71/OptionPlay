@@ -49,7 +49,7 @@ def config_path(tmp_path):
             "proximity": {"tier1_pct": 1.5, "score_at": 2.5},
         },
     }
-    path = tmp_path / "analyzer_thresholds.yaml"
+    path = tmp_path / "scoring.yaml"
     with open(path, "w") as f:
         yaml.dump(config, f)
     return path
@@ -177,7 +177,7 @@ class TestProductionConfig:
 
     def test_production_config_loads(self):
         """Production analyzer_thresholds.yaml loads without errors."""
-        prod_path = Path(__file__).resolve().parents[2] / "config" / "analyzer_thresholds.yaml"
+        prod_path = Path(__file__).resolve().parents[2] / "config" / "scoring.yaml"
         if not prod_path.exists():
             pytest.skip("Production config not found")
 
@@ -188,7 +188,7 @@ class TestProductionConfig:
 
     def test_all_strategies_present(self):
         """Pullback and bounce strategies have sections in production config."""
-        prod_path = Path(__file__).resolve().parents[2] / "config" / "analyzer_thresholds.yaml"
+        prod_path = Path(__file__).resolve().parents[2] / "config" / "scoring.yaml"
         if not prod_path.exists():
             pytest.skip("Production config not found")
 
@@ -199,7 +199,7 @@ class TestProductionConfig:
 
     def test_production_bounce_has_all_sections(self):
         """Bounce strategy has all required scoring sections."""
-        prod_path = Path(__file__).resolve().parents[2] / "config" / "analyzer_thresholds.yaml"
+        prod_path = Path(__file__).resolve().parents[2] / "config" / "scoring.yaml"
         if not prod_path.exists():
             pytest.skip("Production config not found")
 

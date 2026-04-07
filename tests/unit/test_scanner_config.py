@@ -50,7 +50,7 @@ def rsi_config_path(tmp_path):
             },
         }
     }
-    path = tmp_path / "rsi_thresholds.yaml"
+    path = tmp_path / "scoring.yaml"
     with open(path, "w") as f:
         yaml.dump(config, f)
     return path
@@ -74,7 +74,7 @@ def scanner_config_path(tmp_path):
             },
         }
     }
-    path = tmp_path / "scanner_config.yaml"
+    path = tmp_path / "system.yaml"
     with open(path, "w") as f:
         yaml.dump(config, f)
     return path
@@ -284,7 +284,7 @@ class TestProductionConfig:
 
     def test_production_rsi_config_loads(self):
         """Production rsi_thresholds.yaml loads correctly."""
-        prod_path = Path(__file__).resolve().parents[2] / "config" / "rsi_thresholds.yaml"
+        prod_path = Path(__file__).resolve().parents[2] / "config" / "scoring.yaml"
         if not prod_path.exists():
             pytest.skip("Production config not found")
 
@@ -296,7 +296,7 @@ class TestProductionConfig:
 
     def test_production_scanner_config_loads(self):
         """Production scanner_config.yaml loads correctly."""
-        prod_path = Path(__file__).resolve().parents[2] / "config" / "scanner_config.yaml"
+        prod_path = Path(__file__).resolve().parents[2] / "config" / "system.yaml"
         if not prod_path.exists():
             pytest.skip("Production config not found")
 
@@ -306,7 +306,7 @@ class TestProductionConfig:
 
     def test_production_rsi_thresholds_are_descending(self):
         """Production RSI thresholds must be descending with stability."""
-        prod_path = Path(__file__).resolve().parents[2] / "config" / "rsi_thresholds.yaml"
+        prod_path = Path(__file__).resolve().parents[2] / "config" / "scoring.yaml"
         if not prod_path.exists():
             pytest.skip("Production config not found")
 

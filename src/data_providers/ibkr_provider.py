@@ -45,7 +45,7 @@ def _load_ibkr_config() -> Dict[str, Any]:
     try:
         import yaml
 
-        config_path = Path(__file__).resolve().parents[2] / "config" / "settings.yaml"
+        config_path = Path(__file__).resolve().parents[2] / "config" / "system.yaml"
         with open(config_path) as f:
             cfg = yaml.safe_load(f)
         return cfg.get("connection", {}).get("ibkr", {})

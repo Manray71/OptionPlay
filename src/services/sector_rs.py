@@ -41,7 +41,7 @@ logger = logging.getLogger(__name__)
 def _load_sector_rs_config() -> Dict[str, Any]:
     """Load sector_rs config from strategies.yaml (if exists)."""
     try:
-        config_path = Path(__file__).resolve().parents[2] / "config" / "strategies.yaml"
+        config_path = Path(__file__).resolve().parents[2] / "config" / "trading.yaml"
         if config_path.exists():
             with open(config_path) as f:
                 data = yaml.safe_load(f) or {}

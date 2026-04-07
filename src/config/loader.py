@@ -149,7 +149,7 @@ class ConfigLoader:
 
     def _load_settings(self) -> None:
         """Lädt settings.yaml"""
-        settings_path = self.config_dir / "settings.yaml"
+        settings_path = self.config_dir / "system.yaml"
 
         if not settings_path.exists():
             logger.warning(f"Settings not found: {settings_path}, using defaults")
@@ -435,7 +435,7 @@ class ConfigLoader:
 
     def _load_strategies(self) -> None:
         """Lädt strategies.yaml"""
-        strategies_path = self.config_dir / "strategies.yaml"
+        strategies_path = self.config_dir / "trading.yaml"
 
         if not strategies_path.exists():
             logger.warning(f"Strategies not found: {strategies_path}")

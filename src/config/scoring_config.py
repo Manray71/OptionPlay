@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 _DEFAULT_YAML = os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
     "config",
-    "scoring_weights.yaml",
+    "scoring.yaml",
 )
 
 

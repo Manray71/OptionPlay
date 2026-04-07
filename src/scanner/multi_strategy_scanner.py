@@ -730,7 +730,7 @@ class MultiStrategyScanner:
     def _get_strategy_max_tier(self, strategy_name: str) -> int:
         """Fallback: read max_tier directly from scoring_weights.yaml when resolved weights unavailable."""
         try:
-            config_path = Path(__file__).resolve().parents[1] / "config" / "scoring_weights.yaml"
+            config_path = Path(__file__).resolve().parents[1] / "config" / "scoring.yaml"
             if not hasattr(self, "_scoring_weights_yaml"):
                 import yaml
 

@@ -158,7 +158,7 @@ options_analysis:
     delta_target: -0.28
 """
 
-        (config_dir / "settings.yaml").write_text(settings_yaml)
+        (config_dir / "system.yaml").write_text(settings_yaml)
         return ConfigLoader(str(config_dir))
     
     def test_load_custom_filter_settings(self, config_with_settings):
@@ -281,7 +281,7 @@ profiles:
         delta_target: -0.35
 """
         
-        (config_dir / "strategies.yaml").write_text(strategies_yaml)
+        (config_dir / "trading.yaml").write_text(strategies_yaml)
         return ConfigLoader(str(config_dir))
     
     def test_get_strategy(self, config_with_strategies):
@@ -319,7 +319,7 @@ class TestEdgeCases:
         """Empty YAML file should work"""
         config_dir = tmp_path / "config"
         config_dir.mkdir()
-        (config_dir / "settings.yaml").write_text("")
+        (config_dir / "system.yaml").write_text("")
 
         # Empty YAML uses defaults, which should be valid
         loader = ConfigLoader(str(config_dir))
@@ -331,7 +331,7 @@ class TestEdgeCases:
         """Malformed YAML should handle gracefully"""
         config_dir = tmp_path / "config"
         config_dir.mkdir()
-        (config_dir / "settings.yaml").write_text("this: is: not: valid: yaml: {{")
+        (config_dir / "system.yaml").write_text("this: is: not: valid: yaml: {{")
 
         loader = ConfigLoader(str(config_dir))
 
@@ -531,7 +531,7 @@ scanner:
   max_total_results: 100
 """
         
-        (config_dir / "settings.yaml").write_text(settings_yaml)
+        (config_dir / "system.yaml").write_text(settings_yaml)
         # Partial config may not pass validation, so disable it for this test
         return ConfigLoader(str(config_dir), validate=False)
 
@@ -589,7 +589,7 @@ performance:
   historical_days: 180
 """
         
-        (config_dir / "settings.yaml").write_text(settings_yaml)
+        (config_dir / "system.yaml").write_text(settings_yaml)
         # Partial config may not pass validation, so disable it for this test
         return ConfigLoader(str(config_dir), validate=False)
 

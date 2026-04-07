@@ -1,0 +1,1499 @@
+# OptionPlay Scoring Configuration (consolidated)
+# Merged from: scoring_weights.yaml + analyzer_thresholds.yaml + enhanced_scoring.yaml + rsi_thresholds.yaml + validation_config.yaml
+
+# ===========================================================================
+# SCORING WEIGHTS (from scoring_weights.yaml)
+# ===========================================================================
+version: 3.2.0
+date: '2026-02-09'
+trained: '2026-02-09'
+defaults:
+  min_stability: 70
+strategies:
+  pullback:
+    max_tier: 1
+    weights:
+      rsi: 3.7
+      rsi_divergence: 3.6
+      support: 3.0        # was 2.46 — literature: support is primary pullback signal
+      fibonacci: 2.5      # was 1.99 — literature: key retracement levels
+      ma: 1.06
+      trend_strength: 2.05
+      volume: 1.0
+      macd: 2.4
+      stoch: 1.2
+      keltner: 2.0
+      vwap: 1.5           # was 3.06 — intraday indicator, less relevant for swing trades
+      market_context: 1.7
+      sector: 1.0
+      candlestick: 2.0    # NEW — reversal patterns at support/fibonacci
+    max_possible: 14.0
+    effective_max: 14.0
+    regimes:
+      low:
+        vix_score_multiplier: 1.0
+        weights:
+          market_context: 1.6
+      normal:
+        vix_score_multiplier: 1.0
+      elevated:
+        min_stability: 85
+        vix_score_multiplier: 0.90
+      danger:
+        min_stability: 80
+        vix_score_multiplier: 0.95
+        weights:
+          rsi: 4.2
+          support: 3.0
+          fibonacci: 2.11
+          market_context: 1.84
+      high:
+        enabled: false
+        min_stability: 80
+        weights:
+          rsi: 3.8
+          market_context: 1.5
+    sectors:
+      Technology:
+        weights:
+          trend_strength: 3.0
+          volume: 2.0
+        sector_factor: 0.973
+      Energy:
+        weights:
+          support: 3.0
+        sector_factor: 0.918
+      Consumer Defensive:
+        sector_factor: 1.012
+      Healthcare:
+        sector_factor: 1.052
+      Communication Services:
+        sector_factor: 0.927
+      danger:Technology:
+        weights:
+          rsi: 4.0
+          support: 3.5
+          trend_strength: 3.5
+      Basic Materials:
+        sector_factor: 1.133
+      Consumer Cyclical:
+        sector_factor: 0.923
+      Financial Services:
+        sector_factor: 1.019
+      Industrials:
+        sector_factor: 0.927
+      Real Estate:
+        sector_factor: 0.647
+      Utilities:
+        sector_factor: 1.003
+  bounce:
+    max_tier: 1
+    weights:
+      support: 1.05
+      rsi: 2.7
+      rsi_divergence: 3.6
+      candlestick: 2.0
+      volume: 2.0
+      trend: 0.99
+      macd: 2.4
+      stoch: 1.3
+      keltner: 2.0
+      vwap: 2.99
+      market_context: 1.58
+      sector: 1.0
+      gap: 1.0
+    max_possible: 10.0
+    regimes:
+      low:
+        vix_score_multiplier: 1.0
+        weights:
+          vwap: 3.11
+          trend: 1.11
+      normal:
+        vix_score_multiplier: 1.0
+      elevated:
+        min_stability: 80
+        vix_score_multiplier: 0.90
+      danger:
+        min_stability: 75
+        vix_score_multiplier: 0.95
+        weights:
+          support: 4.0
+          candlestick: 2.5
+          rsi: 2.45
+          macd: 2.5
+      high:
+        enabled: false
+        min_stability: 90
+        weights:
+          rsi: 3.0
+          support: 0.76
+          stoch: 1.5
+    sectors:
+      Technology:
+        sector_factor: 0.976
+        weights:
+          support: 3.5
+      Financial Services:
+        sector_factor: 1.029
+        weights:
+          support: 3.5
+          volume: 2.5
+      Utilities:
+        sector_factor: 1.038
+      Industrials:
+        sector_factor: 1.092
+      Communication Services:
+        sector_factor: 0.971
+      Basic Materials:
+        sector_factor: 1.092
+      Consumer Defensive:
+        sector_factor: 1.092
+      Consumer Cyclical:
+        sector_factor: 0.977
+      Healthcare:
+        sector_factor: 1.015
+      Energy:
+        sector_factor: 0.936
+      Real Estate:
+        sector_factor: 0.983
+  ath_breakout:
+    max_tier: 2
+    weights:
+      ath: 1.03
+      volume: 2.0
+      trend: 1.06
+      rsi: 0.92
+      rs: 2.0
+      momentum: 1.97
+      macd: 2.02
+      keltner: 2.0
+      vwap: 3.06
+      market_context: 1.9
+      sector: 1.0
+      gap: 1.0
+    max_possible: 10.0
+    regimes:
+      low:
+        vix_score_multiplier: 1.0
+      normal:
+        vix_score_multiplier: 1.0
+      elevated:
+        min_stability: 90
+        vix_score_multiplier: 0.80
+      danger:
+        min_stability: 85
+        vix_score_multiplier: 0.85
+        weights:
+          volume: 3.0
+          trend: 3.0
+          market_context: 1.8
+      high:
+        enabled: false
+        min_stability: 95
+        weights:
+          vwap: 3.32
+          market_context: 1.6
+          ath: 0.8
+    sectors:
+      Technology:
+        sector_factor: 0.935
+        weights:
+          volume: 2.5
+          momentum: 2.5
+      Consumer Cyclical:
+        sector_factor: 0.948
+      Industrials:
+        sector_factor: 1.034
+      Real Estate:
+        sector_factor: 1.125
+      Financial Services:
+        sector_factor: 1.02
+      Consumer Defensive:
+        sector_factor: 1.08
+      Utilities:
+        sector_factor: 1.045
+      Basic Materials:
+        sector_factor: 1.125
+      Communication Services:
+        sector_factor: 1.08
+      Energy:
+        sector_factor: 0.985
+      Healthcare:
+        sector_factor: 0.928
+  earnings_dip:
+    max_tier: 2
+    weights:
+      dip: 3.0
+      gap: 2.0
+      rsi: 2.0
+      stabilization: 2.0
+      volume: 2.0
+      trend: 2.0
+      macd: 2.0
+      stoch: 2.0
+      keltner: 2.0
+      vwap: 3.0
+      market_context: 2.0
+      sector: 1.0
+    max_possible: 9.5
+    regimes:
+      low:
+        vix_score_multiplier: 1.0
+      normal:
+        vix_score_multiplier: 1.0
+      elevated:
+        min_stability: 75
+        vix_score_multiplier: 0.95
+      danger:
+        min_stability: 70
+        vix_score_multiplier: 1.0
+      high:
+        enabled: false
+        min_stability: 80
+    sectors:
+      Technology:
+        sector_factor: 0.947
+      Consumer Defensive:
+        sector_factor: 1.119
+      Energy:
+        sector_factor: 1.071
+      Basic Materials:
+        sector_factor: 1.025
+      Communication Services:
+        sector_factor: 1.025
+      Financial Services:
+        sector_factor: 1.025
+      Consumer Cyclical:
+        sector_factor: 1.022
+      Utilities:
+        sector_factor: 1.009
+      Industrials:
+        sector_factor: 0.948
+      Healthcare:
+        sector_factor: 0.906
+      Real Estate:
+        sector_factor: 1.154
+  trend_continuation:
+    max_tier: 1
+    weights:
+      sma_alignment: 2.00
+      trend_stability: 2.00
+      trend_buffer: 1.60
+      momentum_health: 1.60
+      volatility: 1.50
+    max_possible: 10.5
+    regimes:
+      low:
+        vix_score_multiplier: 1.05
+        weights:
+          sma_alignment: 1.60
+          trend_stability: 1.80
+          trend_buffer: 1.60
+          momentum_health: 1.60
+          volatility: 1.50
+      normal:
+        vix_score_multiplier: 1.0
+        weights:
+          sma_alignment: 1.60
+          trend_stability: 2.00
+          trend_buffer: 1.60
+          momentum_health: 1.60
+          volatility: 1.50
+      elevated:
+        min_stability: 80
+        vix_score_multiplier: 0.70
+      danger:
+        min_stability: 80
+        vix_score_multiplier: 0.75
+      high:
+        enabled: false
+    sectors:
+      Basic Materials:
+        sector_factor: 1.014
+      Communication Services:
+        sector_factor: 0.913
+      Consumer Cyclical:
+        sector_factor: 1.014
+      Consumer Defensive:
+        sector_factor: 1.005
+      Financial Services:
+        sector_factor: 1.034
+      Healthcare:
+        sector_factor: 0.984
+      Industrials:
+        sector_factor: 1.002
+      Technology:
+        sector_factor: 0.972
+      Utilities:
+        sector_factor: 1.084
+      Energy:
+        sector_factor: 0.968
+stability_thresholds:
+  by_regime:
+    low: 70
+    normal: 70
+    elevated: 80
+    danger: 80
+    high: 999
+  by_sector: {}
+  by_strategy:
+    pullback:
+      by_regime:
+        normal: 0
+        elevated: 0
+        high: 0
+        extreme: 0
+      by_sector: {}
+    bounce:
+      by_regime:
+        normal: 0
+        elevated: 0
+        high: 0
+        extreme: 0
+      by_sector: {}
+    ath_breakout:
+      by_regime:
+        normal: 0
+        elevated: 0
+        high: 0
+        extreme: 0
+      by_sector: {}
+    earnings_dip:
+      by_regime:
+        normal: 0
+        elevated: 0
+        high: 70
+        extreme: 0
+      by_sector:
+        Technology: 65
+        Healthcare: 70
+        Industrials: 70
+    trend_continuation:
+      by_regime:
+        normal: 0
+        elevated: 60
+        high: 0
+        extreme: 0
+      by_sector: {}
+sector_momentum:
+  enabled: true
+  cache_ttl_hours: 4
+  etf_mapping:
+    Technology: XLK
+    Healthcare: XLV
+    Financials: XLF
+    Consumer Discretionary: XLY
+    Consumer Staples: XLP
+    Energy: XLE
+    Industrials: XLI
+    Communication Services: XLC
+    Utilities: XLU
+    Materials: XLB
+    Real Estate: XLRE
+  factor_range:
+    min: 0.6
+    max: 1.2
+  lookback_days:
+    short: 30
+    long: 60
+  component_weights:
+    relative_strength_30d: 0.4
+    relative_strength_60d: 0.3
+    breadth: 0.2
+    vol_premium: 0.1
+  strategy_overrides:
+    pullback:
+      factor_range:
+        min: 0.6
+        max: 1.2
+      component_weights:
+        relative_strength_30d: 0.45
+        relative_strength_60d: 0.25
+        breadth: 0.2
+        vol_premium: 0.1
+    bounce:
+      factor_range:
+        min: 0.75
+        max: 1.15
+      component_weights:
+        relative_strength_30d: 0.3
+        relative_strength_60d: 0.3
+        breadth: 0.25
+        vol_premium: 0.15
+    ath_breakout:
+      factor_range:
+        min: 0.5
+        max: 1.25
+      component_weights:
+        relative_strength_30d: 0.5
+        relative_strength_60d: 0.2
+        breadth: 0.15
+        vol_premium: 0.15
+    earnings_dip:
+      factor_range:
+        min: 0.9
+        max: 1.1
+      component_weights:
+        relative_strength_30d: 0.2
+        relative_strength_60d: 0.2
+        breadth: 0.3
+        vol_premium: 0.3
+    trend_continuation:
+      factor_range:
+        min: 0.7
+        max: 1.15
+      component_weights:
+        relative_strength_30d: 0.35
+        relative_strength_60d: 0.35
+        breadth: 0.2
+        vol_premium: 0.1
+liquidity:
+  entry:
+    open_interest_min: 100
+    bid_ask_spread_max: 0.20
+  quality:
+    open_interest:
+      excellent: 5000
+      good: 700
+      fair: 100
+    spread_pct:
+      excellent: 5.0
+      good: 10.0
+      fair: 15.0
+    volume:
+      excellent: 200
+      good: 50
+      fair: 10
+  min_quality_daily_picks: "fair"
+training:
+  strategy_configs:
+    pullback:
+      walk_forward:
+        train_months: 9
+        validation_months: 2
+        min_trades: 200
+      regularization:
+        l2_lambda: 0.03
+        max_weight_change: 0.25
+        weight_bounds:
+        - 0.7
+        - 4.0
+      objective_weights:
+        win_rate: 0.4
+        avg_profit: 0.3
+        max_consecutive_losses: -0.2
+        sector_crisis_loss: -0.1
+    bounce:
+      walk_forward:
+        train_months: 9
+        validation_months: 3
+        min_trades: 120
+      regularization:
+        l2_lambda: 0.02
+        max_weight_change: 0.25
+        weight_bounds:
+        - 0.5
+        - 4.0
+      objective_weights:
+        win_rate: 0.35
+        avg_profit: 0.25
+        support_accuracy: 0.2
+        false_support: -0.2
+    ath_breakout:
+      walk_forward:
+        train_months: 12
+        validation_months: 3
+        min_trades: 80
+      regularization:
+        l2_lambda: 0.03
+        max_weight_change: 0.2
+        weight_bounds:
+        - 0.5
+        - 5.0
+      objective_weights:
+        win_rate: 0.3
+        avg_profit: 0.25
+        false_breakout: -0.3
+        max_single_loss: -0.15
+    earnings_dip:
+      walk_forward:
+        train_quarters: 4
+        validation_quarters: 2
+        min_trades: 60
+      regularization:
+        l2_lambda: 0.05
+        max_weight_change: 0.15
+        weight_bounds:
+        - 0.5
+        - 3.0
+      objective_weights:
+        win_rate: 0.3
+        avg_profit: 0.35
+        max_drawdown: -0.15
+        dip_without_recovery: -0.2
+    trend_continuation:
+      walk_forward:
+        train_months: 12
+        validation_months: 3
+        min_trades: 100
+      regularization:
+        l2_lambda: 0.02
+        max_weight_change: 0.3
+        weight_bounds:
+        - 0.5
+        - 3.0
+      regime_filter:
+      - low
+      - normal
+      elevated_weights: default
+      high_weights: disabled
+      objective_weights:
+        win_rate: 0.4
+        avg_profit: 0.3
+        max_consecutive_losses: -0.2
+        max_drawdown: -0.1
+feature_engineering:
+  vwap:
+    period: 20
+    strong_above: 3.0
+    above: 1.0
+    below: -1.0
+    strong_below: -3.0
+  market_context:
+    sma_short: 20
+    sma_medium: 50
+  gap:
+    size_large: 3.0
+    size_medium: 1.0
+parallelization:
+  sector_batch_size: 11
+  scan_concurrency: 50
+  training_workers: null
+  enable_batch_scoring: false
+  strategy_parallel: true
+
+# =============================================================================
+# RANKING & RECOMMENDATION
+# =============================================================================
+# Parameters for DailyRecommendationEngine ranking formula and speed scoring.
+
+ranking:
+  # Ranking formula: base = (1-stability_weight)*signal + stability_weight*(stability/10)
+  # combined = base * speed_normalized^speed_exponent + event_bonus
+  stability_weight: 0.15       # 15% stability, 85% signal (was 0.3 — reduced to avoid triple-counting)
+  speed_exponent: 0.3          # Speed^0.3 multiplier (PLAYBOOK)
+  min_signal_score: 3.5        # Minimum for ranking (not filtering)
+  stability_warning: 70        # Warning threshold for stability
+
+  # Speed scoring component weights (sum → speed_score_max)
+  speed:
+    dte_optimal: 60
+    dte_range: 30
+    dte_weight: 3.0
+    stability_baseline: 70
+    stability_range: 30
+    stability_weight: 2.5
+    sector_weight: 1.5
+    pullback_weight: 1.5
+    market_context_weight: 1.5
+    score_max: 10.0
+    multiplier_min: 0.5        # Speed 0 → 0.5x multiplier
+
+  # Strike fallback support percentages
+  strike_support:
+    pct_1: 0.90
+    pct_2: 0.85
+    pct_3: 0.80
+
+  # Strategy Balance (Event-Priority-System)
+  strategy_balance:
+    # Event-Bonus: seltene, zeitkritische Signale werden leicht bevorzugt
+    signal_type_bonus:
+      pullback: 0.5
+      bounce: 0.5
+      ath_breakout: 0.5
+      earnings_dip: 0.5
+      trend_continuation: 0.0
+    # Capacity Limits: max Signale pro Strategie in daily_picks
+    strategy_caps:
+      trend_continuation: 3
+      default: 5
+    # Diversity: Mindestens N verschiedene Strategien in Top-N
+    min_strategies_in_picks: 2
+
+  # Sector speed map (avg days_to_playbook_exit, 0.0=fastest, 1.0=slowest)
+  sector_speed:
+    Utilities: 1.0
+    Healthcare: 0.9
+    Real Estate: 0.85
+    Consumer Defensive: 0.7
+    Financial Services: 0.6
+    Industrials: 0.5
+    Consumer Cyclical: 0.4
+    Communication Services: 0.3
+    Energy: 0.2
+    Technology: 0.1
+    Basic Materials: 0.0
+
+# =============================================================================
+# ENTRY QUALITY SCORER (EQS)
+# =============================================================================
+# Parameters for the 7-factor Entry Quality Score.
+# EQS provides up to 30% bonus to signal score for ranking.
+
+entry_quality:
+  # General limits
+  score_max: 100.0
+  score_neutral: 50.0
+  bonus_max_pct: 0.3           # 30% max bonus to signal score
+
+  # Factor weights (must sum to 1.0)
+  weights:
+    iv_rank: 0.20
+    iv_percentile: 0.15
+    credit_ratio: 0.20
+    theta_efficiency: 0.15
+    pullback: 0.15
+    rsi: 0.10
+    trend: 0.05
+
+  # IV Rank scoring zones
+  iv_rank:
+    zone_low: 20
+    zone_mid_low: 40
+    zone_mid_high: 65
+    zone_high: 80
+    mult_low: 2.5              # 0→0, 20→50
+    mult_mid_low: 1.5          # 20→50, 40→80
+    mult_mid_high: 0.8         # 40→80, 65→100
+    mult_high: 1.333           # 65→100, 80→80
+    floor: 30.0
+
+  # IV Percentile scoring zones
+  iv_percentile:
+    zone_low: 30
+    zone_mid: 50
+    zone_high: 80
+    score_low: 30
+    score_mid: 70
+    mult_low: 1.0
+    mult_mid: 2.0
+    mult_high: 1.0
+    decay_mult: 1.5
+    floor: 50.0
+
+  # Credit Ratio scoring
+  credit:
+    mid_pct: 15
+    high_pct: 25
+    mult_low: 12
+    score_mid: 60
+    mult_high: 4
+
+  # Theta Efficiency scoring
+  theta:
+    pct_conversion: 100
+    multiplier: 25
+
+  # Pullback scoring zones
+  pullback:
+    zone_minimal: 1
+    zone_shallow: 3
+    zone_sweet: 8
+    zone_deep: 12
+    score_minimal: 20
+    mult_shallow: 20
+    mult_sweet: 8
+    mult_deep: 10
+    floor: 30.0
+
+  # RSI scoring zones
+  rsi:
+    zone_very_low: 25
+    zone_oversold: 35
+    zone_neutral: 50
+    zone_overbought: 70
+    score_oversold: 70
+    score_neutral: 40
+    score_overbought: 20
+    mult_oversold: 3
+    mult_neutral: 2
+
+  # Trend scoring
+  trend:
+    bullish: 100.0
+    bearish: 30.0
+
+# ===========================================================================
+# ANALYZER THRESHOLDS (from analyzer_thresholds.yaml)
+# ===========================================================================
+# =============================================================================
+# Analyzer Thresholds Configuration
+# =============================================================================
+# Central config for ALL scoring parameters across the 5 strategy analyzers.
+# Enables systematic calibration through Walk-Forward testing without
+# touching Python code.
+#
+# Structure: strategy → section → parameter
+# Each analyzer loads its section at module-init time via AnalyzerThresholdsConfig.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# PULLBACK STRATEGY
+# -----------------------------------------------------------------------------
+pullback:
+  # Dynamic max cap for normalization (P95 empirical max)
+  effective_max: 14.0
+
+  # Signal strength thresholds (on 0-10 normalized scale)
+  signal:
+    strong: 7.0
+    moderate: 5.0
+    min_normalized_score: 3.5
+
+  # Stop loss & targets
+  risk:
+    stop_buffer: 0.98       # Multiplier on support for stop level
+    target_rr_ratio: 2.0    # Risk/reward ratio for target
+
+  # RSI divergence detection
+  divergence:
+    lookback: 60
+    swing_window: 3
+    min_bars: 5
+    max_bars: 50
+    strong_threshold: 0.7   # RSI divergence ratio for "strong"
+    moderate_threshold: 0.4
+
+  # Divergence scoring
+  divergence_scoring:
+    strong_pts: 3.0
+    moderate_pts: 2.0
+    weak_pts: 1.0
+
+  # Support/resistance detection
+  support:
+    window: 5
+    max_levels: 5
+    tolerance_pct: 1.5
+    strong_bonus: 0.5
+    strong_extra_touches: 2
+
+  resistance:
+    lookback: 60
+    window: 5
+    max_levels: 5
+    tolerance_pct: 1.5
+
+  # Gap detection
+  gap:
+    warning_min_pct: -3.0
+    warning_max_pct: -1.0
+
+  # Moving Average scoring
+  ma_scoring:
+    dip_in_uptrend: 2.0
+
+  # Keltner Channel scoring
+  keltner:
+    lower_third_mult: 0.5
+
+  # VWAP scoring
+  vwap:
+    strong_above_pts: 3.0
+    above_pts: 2.0
+    near_pts: 1.0
+
+  # Market context scoring
+  market_context:
+    strong_uptrend: 2.0
+    uptrend: 1.0
+    downtrend: -0.5
+    strong_downtrend: -1.0
+
+  # Sector scoring thresholds
+  sector:
+    strong_threshold: 0.5
+    weak_threshold: -0.5
+
+
+# -----------------------------------------------------------------------------
+# SUPPORT BOUNCE STRATEGY
+# -----------------------------------------------------------------------------
+bounce:
+  # General
+  general:
+    support_lookback: 120
+    support_tolerance_pct: 1.0
+    proximity_max_above_pct: 7.0    # was 5.0 — wider window to catch more setups
+    proximity_max_below_pct: -1.0   # was -0.5 — allow slightly broken support
+    dcb_threshold: 0.5              # was 0.7 — less aggressive DCB filter
+    min_score: 3.5
+    max_score: 10.0
+
+  # Signal strength
+  signal:
+    strong: 7.0
+    moderate: 5.0
+
+  # Support quality scoring
+  support_quality:
+    touches_strong: 5
+    touches_moderate: 4
+    touches_established: 3
+    score_strong: 2.0
+    score_moderate: 1.5
+    score_established: 1.0
+    sma200_confluence_bonus: 0.5
+    quality_max: 2.5
+
+  # Proximity scoring
+  proximity:
+    tier1_pct: 1.0
+    tier2_pct: 2.0
+    tier3_pct: 3.0
+    tier4_pct: 5.0
+    score_at: 2.0
+    score_near: 1.5
+    score_close: 1.0
+    score_far: 0.5
+    score_below: 1.0
+
+  # Volume scoring
+  volume:
+    strong_ratio: 2.0
+    moderate_ratio: 1.5
+    adequate_ratio: 1.0
+    score_strong: 1.5
+    score_moderate: 1.0
+    score_adequate: 0.5
+    dcb_penalty: -1.0
+
+  # Trend context scoring
+  trend:
+    sma200_rising_mult: 1.001
+    sma200_falling_mult: 0.999
+    sma200_direction_lookback: 20
+    sma200_near_pct: 2.0
+    score_uptrend: 1.5
+    score_above_sma200: 1.0
+    score_near_sma200: 0.5
+    slope_steep: -1.0
+    score_steep_down: -2.0
+    slope_moderate: -0.5
+    score_mod_down: -1.5
+    score_mild_down: -1.0
+    score_below_sma200: -0.5
+
+  # Bounce confirmation
+  confirmation:
+    score_reversal: 1.0
+    score_close_up: 0.5
+    score_green_seq: 1.0
+    rsi_oversold: 40
+    score_rsi_turn: 0.5
+    score_macd_cross: 0.5
+    score_macd_pos: 0.25
+    penalty_momentum: -0.5
+    penalty_macd: -0.5
+    confirm_max: 2.5
+
+  # Fibonacci DCB filter (B1)
+  fibonacci:
+    dcb_warning: 38.2        # Below this: DCB warning
+    strong_threshold: 50.0   # Above this: bonus
+    weak_threshold: 23.6     # Below this: penalty
+    lookback_high: 30        # Days to search for swing high
+    lookback_low: 10         # Days to search for swing low
+    strong_bonus: 0.5
+    weak_penalty: -0.5
+
+  # SMA reclaim (B2)
+  sma_reclaim:
+    sma20_bonus: 0.5
+    sma50_bonus: 0.25
+    below_both_penalty: -0.25
+
+  # Candlestick pattern detection
+  candlestick:
+    hammer_wick_body_ratio: 2
+    hammer_upper_wick_pct: 0.5
+    doji_body_range_pct: 0.1
+    doji_support_pct: 0.02
+
+  # SMA confluence
+  sma_confluence:
+    sma200_pct: 0.02
+
+  # DCB filter
+  dcb:
+    rsi_overbought: 70
+
+  # RSI momentum
+  rsi:
+    momentum_fade: 50
+
+  # RSI bullish divergence (B3)
+  rsi_divergence:
+    lookback: 20
+    threshold: 2.0
+    bonus: 0.75
+
+  # Downtrend filter (B4)
+  downtrend_filter:
+    disqualify_below_sma200_pct: 10.0
+    severe_penalty: -2.5
+
+  # Market context modifier (B5) — disabled by default
+  market_context:
+    enabled: false
+    bearish_multiplier: 0.8
+    neutral_multiplier: 0.9
+    sector_weak_multiplier: 0.9
+
+  # Bollinger Band confluence (B6) — disabled by default
+  bollinger:
+    enabled: false
+    confluence_tolerance_pct: 1.0
+    confluence_bonus: 0.25
+
+
+# -----------------------------------------------------------------------------
+# EARNINGS DIP STRATEGY
+# -----------------------------------------------------------------------------
+earnings_dip:
+  # General
+  general:
+    min_dip_pct: 5.0
+    max_dip_pct: 20.0
+    extreme_dip_pct: 25.0
+    lookback_days: 10
+    min_stabilization_days: 1
+    min_stability_score: 60.0
+    min_score: 3.5
+    max_score: 9.5
+
+  # Signal strength
+  signal:
+    strong: 6.5
+    moderate: 5.0
+
+  # Drop magnitude scoring tiers
+  drop_magnitude:
+    minor_pct: 7.0
+    moderate_pct: 10.0
+    major_pct: 15.0
+    score_small: 0.5
+    score_moderate: 1.0
+    score_good: 1.5
+    score_ideal: 2.0
+    score_extreme: 1.0
+
+  # Stabilization scoring
+  stabilization:
+    score_green_multi: 1.5
+    score_green_single: 1.0
+    score_higher_low: 1.0
+    score_vol_decline: 0.5
+    score_hammer: 0.5
+    score_max: 2.5
+
+  # Fundamental strength scoring
+  fundamentals:
+    stability_very_high: 90
+    stability_high: 80
+    stability_moderate: 70
+    score_very_high: 1.5
+    score_high: 1.0
+    score_moderate: 0.5
+    score_sma200: 0.5
+    score_max: 2.0
+
+  # Overreaction indicators
+  overreaction:
+    rsi_extreme_oversold: 30
+    rsi_moderate_oversold: 40
+    component_score: 0.5
+    panic_volume_multiplier: 3.0
+    historical_move_multiplier: 2.0
+    score_max: 2.0
+
+  # BPS suitability
+  bps:
+    earnings_score: 0.5
+
+  # Penalties
+  penalties:
+    under_sma200: 1.0
+    continued_decline: 1.5
+    new_lows_min: 2
+    rsi_not_extreme: 0.5
+    penalty_max: 3.0
+
+  # Stabilization detection
+  stabilization_detection:
+    volume_decline_ratio: 0.7
+    hammer_lower_wick_ratio: 0.6
+    hammer_body_ratio: 0.3
+    hammer_approx_ratio: 0.7
+
+  # B1: Relative dip scoring via Z-Score
+  relative_scoring:
+    zscore_extreme: 3.0       # Z >= 3.0 → likely fundamental, score 1.0
+    zscore_ideal: 2.0         # Z >= 2.0 → ideal overreaction, score 2.0
+    zscore_good: 1.5          # Z >= 1.5 → good, score 1.5
+    zscore_moderate: 1.0      # Z >= 1.0 → moderate, score 1.0
+    zscore_small: 0.5         # Z < 1.0 → small, score 0.5
+    score_extreme: 1.0
+    score_ideal: 2.0
+    score_good: 1.5
+    score_moderate: 1.0
+    score_small: 0.5
+
+  # B2: Sector context for overreaction scoring
+  sector_context:
+    defensive_threshold: 1.05   # Sector factor above this = defensive
+    volatile_threshold: 0.95    # Sector factor below this = volatile
+    defensive_bonus: 0.5
+    neutral_bonus: 0.25
+    volatile_bonus: 0.0
+    earnings_beat_rate_threshold: 75  # Beat rate >= 75% → +0.25 bonus
+    earnings_beat_rate_bonus: 0.25
+
+  # B3: Dynamic stabilization timing
+  stabilization_timing:
+    min_days_small: 2          # Default for drops < large_dip_threshold
+    min_days_large: 3          # For drops >= large_dip_threshold
+    large_dip_threshold: 15.0  # Dip % threshold for longer stabilization
+
+  # B4: Graduated continued-decline penalty
+  continued_decline:
+    mild_threshold_pct: 2.0    # Max decline <= 2% → mild penalty
+    moderate_threshold_pct: 5.0  # Max decline <= 5% → moderate penalty
+    mild_penalty: 0.5
+    moderate_penalty: 1.0
+    severe_penalty: 1.5        # 3+ new lows or > 5% decline
+
+  # B5: Contextual RSI penalty
+  rsi_penalty:
+    recovery_threshold: 55     # RSI <= 55 in uptrend → no penalty
+
+  # B7: Dynamic recovery target
+  recovery_target:
+    strong_pct: 60             # Recovery % for STRONG signals
+    default_pct: 50            # Default recovery %
+    weak_pct: 40               # Recovery % for WEAK signals
+
+
+# -----------------------------------------------------------------------------
+# ATH BREAKOUT STRATEGY
+# -----------------------------------------------------------------------------
+ath_breakout:
+  # General
+  general:
+    consol_lookback: 120
+    consol_min_days: 20
+    consol_max_range_pct: 15.0
+    consol_ath_test_pct: 1.0
+    volume_disqualify: 1.0
+    rsi_disqualify: 80.0
+    min_score: 4.0
+    max_score: 9.5
+
+  # Signal strength
+  signal:
+    strong: 7.0
+    moderate: 5.5
+
+  # Consolidation scoring
+  consolidation:
+    range_tight_pct: 8.0
+    range_moderate_pct: 12.0
+    range_wide_pct: 15.0
+    duration_min: 30
+    duration_very_long: 60
+    score_tight_long: 2.5
+    score_tight_short: 2.0
+    score_mod_long: 2.0
+    score_mod_short: 1.5
+    score_wide: 1.0
+    test_min: 2
+    test_bonus: 0.5
+    score_max: 3.0
+    window_step: 5
+
+  # VCP volatility contraction (A1)
+  vcp:
+    contraction_strong: 2.0
+    contraction_moderate: 1.5
+    contraction_bonus_strong: 0.5
+    contraction_bonus_moderate: 0.25
+    expanding_penalty: -0.25
+
+  # Breakout strength
+  breakout:
+    weak_pct: 1.0
+    moderate_pct: 3.0
+    strong_pct: 5.0
+    score_weak: 1.0
+    score_moderate: 1.5
+    score_strong: 2.0
+    score_overextended: 1.5
+    days_bonus_min: 2
+    confirmation_bonus: 0.5
+    score_max: 2.5
+
+  # Candle analysis (breakout bar quality)
+  candle_analysis:
+    marubozu_wick_max_pct: 5.0     # Max upper wick % of range for marubozu
+    wide_range_atr_mult: 1.5       # ATR multiplier for wide range bar
+    close_near_high_threshold: 0.8 # Close position > 80% of range
+    long_wick_threshold: 0.5       # Upper wick > 50% of range = penalty
+    marubozu_bonus: 0.5
+    wide_range_bonus: 0.25
+    close_high_bonus: 0.25
+    long_wick_penalty: -0.5
+
+  # Gap analysis (A5)
+  gap_analysis:
+    power_threshold_pct: 3.0
+    standard_threshold_pct: 1.0
+    power_bonus: 0.5
+    standard_bonus: 0.25
+    reversal_bonus: 0.25
+
+  # Consolidation volume profile (A2)
+  consol_volume:
+    dryup_strong: 1.5
+    dryup_moderate: 1.2
+    distribution_threshold: 0.8
+    dryup_strong_bonus: 0.5
+    dryup_moderate_bonus: 0.25
+    distribution_penalty: -0.25
+
+  # Volume scoring
+  volume:
+    exceptional_ratio: 2.5
+    strong_ratio: 2.0
+    good_ratio: 1.5
+    adequate_ratio: 1.0
+    score_exceptional: 2.5
+    score_strong: 2.0
+    score_good: 1.5
+    score_adequate: 0.5
+    score_weak: -1.0
+
+  # Relative strength vs SPY (A3)
+  relative_strength:
+    lookback_days: 60
+    strong_outperformance: 20.0
+    moderate_outperformance: 10.0
+    underperformance: -10.0
+    strong_bonus: 0.5
+    moderate_bonus: 0.25
+    underperformance_penalty: -0.5
+
+  # Momentum/Trend scoring
+  momentum:
+    sma_perfect_bonus: 0.5
+    sma_good_bonus: 0.25
+    sma200_decline_mult: 0.999
+    sma200_decline_penalty: 0.5
+    sma200_lookback: 20
+    macd_bonus: 0.5
+    rsi_healthy_low: 50
+    rsi_healthy_high: 70
+    rsi_healthy_bonus: 0.5
+    rsi_overbought: 75
+    rsi_overbought_penalty: 0.5
+    score_min: -1.5
+    score_max: 2.0
+
+  # Stop loss
+  stop_loss:
+    recent_low_days: 10
+    max_pct: 0.95
+
+
+# -----------------------------------------------------------------------------
+# TREND CONTINUATION STRATEGY
+# -----------------------------------------------------------------------------
+trend_continuation:
+  # General
+  general:
+    min_score: 3.5
+    max_score: 10.5
+
+  # SMA periods
+  sma:
+    short: 20
+    med: 50
+    long: 200
+
+  # SMA slope lookback (in days)
+  sma_slope:
+    short_days: 5
+    med_days: 10
+    long_days: 20
+
+  # Trend stability
+  stability:
+    lookback: 60
+    max_closes_below_sma50: 5
+
+  # Disqualification thresholds
+  disqualification:
+    min_buffer_pct: 3.0
+    rsi_overbought: 80
+    adx_min: 20
+    min_stability_score: 70
+    min_earnings_days: 14
+
+  # Volume
+  volume:
+    avg_period: 20
+
+  # Risk management
+  risk:
+    stop_below_sma50_pct: 2.0
+    target_risk_reward: 2.0
+
+  # SMA alignment scoring (0-2.5)
+  sma_alignment_scoring:
+    all_rising: 2.0
+    partial_rising: 1.5     # SMA 50+200 rising, SMA 20 flat/falling
+    basic: 1.0              # Basic alignment without all rising
+    spread_bonus_above: 5.0  # Spread > 5% → +0.5
+    spread_penalty_below: 3.0  # Spread < 3% → -0.5
+    sma20_penalty: 0.5      # Penalty when SMA 20 not rising
+    max: 2.5
+
+  # Trend stability scoring (0-2.5)
+  trend_stability_scoring:
+    zero_closes_below: 2.0
+    few_closes_below: 1.5   # 1-2 closes below SMA 50
+    many_closes_below: 0.5  # 3+ closes below SMA 50
+    golden_cross_days: 120
+    golden_cross_bonus: 0.5
+    max: 2.5
+
+  # Trend buffer scoring (0-2.0)
+  buffer_scoring:
+    tier1_pct: 10.0   # > 10% → 2.0
+    tier1_score: 2.0
+    tier2_pct: 8.0     # 8-10% → 1.5
+    tier2_score: 1.5
+    tier3_pct: 5.0     # 5-8% → 1.0
+    tier3_score: 1.0
+    tier4_pct: 3.0     # 3-5% → 0.5
+    tier4_score: 0.5
+
+  # Momentum health scoring (-1.0 to 2.0)
+  momentum_scoring:
+    rsi_low: 50.0
+    rsi_mid: 65.0
+    rsi_high: 75.0
+    rsi_bonus: 0.5
+    rsi_penalty: -0.5
+    adx_strong: 30.0
+    adx_moderate: 20.0
+    adx_strong_bonus: 1.0
+    adx_moderate_bonus: 0.5
+    macd_bullish_bonus: 0.5
+    macd_divergence_penalty: -1.0
+    volume_divergence_penalty: -0.5
+    score_min: -1.0
+    score_max: 2.0
+
+  # Volatility scoring (0-1.5)
+  volatility_scoring:
+    atr_low: 1.0       # ATR% < 1.0% → 1.5
+    atr_mid: 1.5       # ATR% 1.0-1.5% → 1.0
+    atr_high: 2.0      # ATR% 1.5-2.0% → 0.5
+    score_low: 1.5
+    score_mid: 1.0
+    score_high: 0.5
+    score_unknown: 0.5  # Default when ATR unknown
+
+  # VIX regime adjustments — REMOVED (Schritt 7)
+  # Now centralized in scoring_weights.yaml via vix_score_multiplier per strategy×regime.
+  # Scanner applies multiplier after analyzer scoring.
+
+# ===========================================================================
+# ENHANCED SCORING (from enhanced_scoring.yaml)
+# ===========================================================================
+# Enhanced Scoring Configuration
+# ================================
+# Bonus components for daily_picks re-ranking.
+# Only applies to daily_picks() — regular scans are unaffected.
+
+# Scoring mode: "additive" (legacy) or "multiplicative" (recommended)
+# Additive: enhanced = base + sum(bonuses)  — can exceed 10.0 scale
+# Multiplicative: enhanced = base × (1 + sum(mults)) — preserves signal quality ordering
+mode: multiplicative
+
+# ---------------------------------------------------------------------------
+# Additive bonuses (legacy, used when mode: additive)
+# ---------------------------------------------------------------------------
+
+liquidity_bonus:
+  excellent: 2.0
+  good: 2.0
+  fair: 1.0
+  poor: 0.0
+
+credit_bonus:
+  brackets:
+    - min_pct: 10.0
+      bonus: 1.5
+    - min_pct: 7.0
+      bonus: 1.0
+    - min_pct: 4.0
+      bonus: 0.5
+  default: 0.0
+
+pullback_bonus:
+  both_above: 1.0
+  sma200_above_only: 0.5
+  default: 0.0
+
+stability_bonus:
+  brackets:
+    - min_score: 85
+      bonus: 1.0
+    - min_score: 75
+      bonus: 0.5
+  default: 0.0
+
+# ---------------------------------------------------------------------------
+# Multiplicative bonuses (used when mode: multiplicative)
+# enhanced_score = base_score × (1.0 + liq + cred + pull + stab)
+# Max factor: 1.0 + 0.10 + 0.08 + 0.05 + 0.05 = 1.28
+# ---------------------------------------------------------------------------
+
+multiplicative:
+  liquidity:
+    excellent: 0.10
+    good: 0.07
+    fair: 0.03
+    poor: 0.0
+  credit:
+    brackets:
+      - min_pct: 10.0
+        mult: 0.08
+      - min_pct: 7.0
+        mult: 0.05
+      - min_pct: 4.0
+        mult: 0.02
+    default: 0.0
+  pullback:
+    both_above: 0.05
+    sma200_above_only: 0.025
+    default: 0.0
+  stability:
+    brackets:
+      - min_score: 85
+        mult: 0.05
+      - min_score: 75
+        mult: 0.025
+    default: 0.0
+
+quality_filter:
+  reject_quality: "poor"
+
+overfetch_factor: 5
+
+# ===========================================================================
+# RSI THRESHOLDS (from rsi_thresholds.yaml)
+# ===========================================================================
+# RSI Thresholds by Stability Score
+# Based on 35-symbol validation study (Feb 2026)
+# Median RSI: 40.4 across all stability levels
+#
+# Problem: Fixed RSI neutral threshold of 50 penalizes 34% of profitable
+# setups (88.6% Win Rate in RSI 40-50 range for stable stocks).
+# Solution: Adaptive thresholds based on stock stability score.
+
+rsi_thresholds:
+  description: "Adaptive RSI thresholds based on stock stability"
+  validation_date: "2026-02-13"
+  sample_size: 35
+
+  # Stability-based threshold tiers (checked in descending order)
+  # The threshold defines where "normal pullback" begins.
+  # RSI below threshold gets oversold penalty; RSI at/above threshold
+  # up to 50 is considered a normal pullback (no penalty).
+  tiers:
+    - name: high_stability
+      min_stability: 85
+      neutral_threshold: 50
+      rationale: "Stable stocks (85+): RSI 40-50 is normal pullback territory, not penalty zone"
+
+    - name: medium_stability
+      min_stability: 70
+      neutral_threshold: 45
+      rationale: "Medium stability (70-84): RSI up to 45 still qualifies as pullback"
+
+    - name: low_stability
+      min_stability: 60
+      neutral_threshold: 40
+      rationale: "Lower stability stocks need clearer oversold signal"
+
+    - name: very_low_stability
+      min_stability: 0
+      neutral_threshold: 35
+      rationale: "Very volatile stocks need lower threshold to avoid false signals"
+
+  # RSI score adjustments applied by pullback scoring
+  scoring:
+    severe_oversold:
+      max_rsi: 30
+      penalty: -1.5
+      description: "Extremely oversold, potential falling knife"
+
+    overbought:
+      min_rsi: 70
+      penalty: -0.5
+      description: "Overbought territory, may reverse"
+
+# ===========================================================================
+# VALIDATION CONFIG (from validation_config.yaml)
+# ===========================================================================
+# Validation & Reliability Configuration
+# =======================================
+# Parameters for backtesting validation, reliability scoring,
+# and statistical analysis. Tunable for Walk-Forward optimization.
+
+# =============================================================================
+# RELIABILITY SCORING (from reliability.py ScorerConfig)
+# =============================================================================
+reliability:
+  grade_thresholds:
+    A: 70.0                      # CI lower bound >= this = Grade A
+    B: 60.0
+    C: 50.0
+    D: 40.0                      # Below D = Grade F
+  min_grade_for_trade: "C"       # Minimum grade to recommend trade
+  min_score: 5.0                 # Minimum signal score
+  min_sample_size: 30            # Min trades for confidence
+
+# =============================================================================
+# STATISTICAL ANALYSIS (from statistical_calc.py)
+# =============================================================================
+statistical:
+  # Sharpe ratio defaults
+  risk_free_rate: 0.05           # Annualized risk-free rate (5%)
+  periods_per_year: 12.0         # Assumed periods per year (monthly)
+  # Correlation predictive power brackets
+  significance_p_value: 0.05     # Max p-value for significance
+  correlation_strength:
+    strong: 0.5                  # |r| >= this = "strong"
+    moderate: 0.3                # |r| >= this = "moderate"
+    weak: 0.1                    # |r| >= this = "weak"
+
+# =============================================================================
+# SIGNAL VALIDATION (from signal_validation.py)
+# =============================================================================
+signal_validation:
+  min_trades_per_bucket: 30      # Min trades per score bucket for significance

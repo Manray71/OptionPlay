@@ -35,7 +35,7 @@ def sample_yaml(tmp_path):
             },
         },
     }
-    yaml_path = tmp_path / "scoring_weights.yaml"
+    yaml_path = tmp_path / "scoring.yaml"
     with open(yaml_path, "w") as f:
         yaml.dump(config, f)
     return str(yaml_path)

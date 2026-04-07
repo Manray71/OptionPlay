@@ -23,7 +23,7 @@ import yaml
 def _load_trading_rules_config() -> Dict[str, Any]:
     """Load tunable trading rules from config/trading_rules.yaml."""
     try:
-        config_path = Path(__file__).resolve().parents[2] / "config" / "trading_rules.yaml"
+        config_path = Path(__file__).resolve().parents[2] / "config" / "trading.yaml"
         if config_path.exists():
             with open(config_path) as f:
                 return yaml.safe_load(f) or {}

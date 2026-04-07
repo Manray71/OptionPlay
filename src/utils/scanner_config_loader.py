@@ -30,8 +30,8 @@ import yaml
 logger = logging.getLogger(__name__)
 
 _CONFIG_DIR = Path(__file__).resolve().parents[2] / "config"
-_RSI_CONFIG_PATH = _CONFIG_DIR / "rsi_thresholds.yaml"
-_SCANNER_CONFIG_PATH = _CONFIG_DIR / "scanner_config.yaml"
+_RSI_CONFIG_PATH = _CONFIG_DIR / "scoring.yaml"
+_SCANNER_CONFIG_PATH = _CONFIG_DIR / "system.yaml"
 
 # ---------------------------------------------------------------------------
 # Data classes
@@ -80,11 +80,16 @@ class ScannerConfig:
             logger.warning("RSI config not found at %s, using defaults", rsi_path)
             self._set_default_rsi_tiers()
 
-        # Load scanner config
+        # Load scanner config (consolidated into system.yaml under scanner_config: key)
         scanner_path = scanner_config_path or _SCANNER_CONFIG_PATH
         if scanner_path.exists():
             with open(scanner_path) as f:
-                self._scanner_data = yaml.safe_load(f) or {}
+                raw = yaml.safe_load(f) or {}
+            # Support both standalone (scanner: top-level) and consolidated (scanner_config: key)
+            if "scanner_config" in raw:
+                self._scanner_data = {"scanner": raw["scanner_config"]}
+            else:
+                self._scanner_data = raw
             logger.info("Scanner config loaded from %s", scanner_path)
         else:
             logger.warning("Scanner config not found at %s, using defaults", scanner_path)
