@@ -1,0 +1,11 @@
+=== NACHHER ===
+Module src/:
+     156
+LOC:
+   67723 total
+YAML config/:
+    6093 total
+Scripts:
+       8
+Tests:
+     135

@@ -4,9 +4,9 @@ Session-Kontext für Claude Code. Enthält DB-Schema, API-Beispiele und Code-Kon
 Für alle Trading-Regeln → siehe `docs/PLAYBOOK.md`
 
 **Version:** 5.0.0
-**Zuletzt aktualisiert:** 2026-04-06
-**Test-Coverage:** 80%+ (7,771 Tests)
-**Codebase:** 225 Module | ~96,000 LOC (src/) | 156 Testdateien
+**Zuletzt aktualisiert:** 2026-04-07
+**Test-Coverage:** 80%+ (5,937 Tests)
+**Codebase:** 156 Module | ~67,700 LOC (src/) | 135 Testdateien
 
 ---
 
@@ -155,6 +155,17 @@ ORDER BY earnings_date ASC LIMIT 1;
 
 ---
 
+## Config-Dateien (v5.0.0 — konsolidiert)
+
+| Datei | Inhalt |
+|-------|--------|
+| `config/trading.yaml` | Trading Rules + VIX-Profile + Roll-Strategie + Regime v2 + Sector RS |
+| `config/scoring.yaml` | Scoring Weights + Analyzer Thresholds + Enhanced Scoring + RSI + Validation |
+| `config/system.yaml` | Settings + Scanner Config + Liquidity Blacklist |
+| `config/watchlists.yaml` | Symbol-Listen (default_275, extended_600) |
+
+---
+
 ## Code-Konventionen
 
 ### Sicherheitsregel: API-Keys
@@ -219,24 +230,20 @@ MCPError (Basis)
 
 ---
 
-## Scripts für Daten-Updates
+## Scripts (8 verbleibend)
 
 ```bash
 python scripts/populate_fundamentals.py      # Fundamentals + Stability
 python scripts/collect_earnings_eps.py       # EPS-Daten
+python scripts/collect_earnings_tradier.py   # Earnings via Tradier
 python scripts/calculate_derived_metrics.py  # IV Rank, Correlation, HV
 python scripts/daily_data_fetcher.py         # VIX täglich (Cronjob)
 python scripts/sync_daily_to_price_data.py   # OHLCV: daily_prices → price_data
+python scripts/classify_liquidity.py         # Liquidity-Tier Klassifizierung
+python scripts/morning_workflow.py           # Täglicher Morning Report
 ```
 
-### ML-Training Scripts
-
-```bash
-python scripts/full_walkforward_train.py     # Full Walk-Forward (280 Jobs, ~45 Min)
-python scripts/fast_weight_train.py          # Schnelles Component-Weight-Training
-python scripts/fast_strategy_train.py        # Schnelles Strategy-Training
-python scripts/train_stability_thresholds.py # Stability-Cutoffs per Strategy × Regime (~2 Min)
-```
+*ML-Training Scripts wurden in v5.0.0 entfernt (backtesting gelöscht).*
 
 **Trainings-Output:** `~/.optionplay/models/`
 - `component_weights.json` — ML-Gewichte pro Scoring-Komponente
@@ -254,21 +261,20 @@ python scripts/train_stability_thresholds.py # Stability-Cutoffs per Strategy ×
 | `docs/PLAYBOOK.md` | **DAS Regelwerk** — Entry, Exit, Sizing, VIX, Disziplin |
 | `docs/ARCHITECTURE.md` | System-Architektur |
 | `CLAUDE.md` | Diese Datei — DB, API, Code |
-| `SKILL.md` | MCP-Tool-Referenz (53 Tools + 55 Aliases) |
+| `SKILL.md` | MCP-Tool-Referenz (25 Tools + 28 Aliases) |
 
 ---
 
 ## Architektur-Hinweise für Weiterentwicklung
 
-### Trading-Strategien (5 Analyzer)
+### Trading-Strategien (2 Analyzer)
 
 | Strategie | Datei | Max Score | Min Score | WF Threshold | OOS WR |
 |-----------|-------|-----------|-----------|-------------|--------|
 | **Pullback** | `analyzers/pullback.py` | 14.0 (P95) | 3.5 | 4.5 | 88.3% |
 | **Bounce** | `analyzers/bounce.py` | 10.0 | 3.5 | 6.0 | 91.6% |
-| **ATH Breakout** | `analyzers/ath_breakout.py` | 10.0 | 4.0 | 6.0 | 88.9% |
-| **Earnings Dip** | `analyzers/earnings_dip.py` | 9.5 | 3.5 | 5.0 | 86.7% |
-| **Trend Continuation** | `analyzers/trend_continuation.py` | 10.5 | 3.5 | 5.5 | 87.7% |
+
+*Gelöscht in v5.0.0: ATH Breakout, Earnings Dip, Trend Continuation*
 
 - **Min Score**: Analyzer-Schwelle fuer Signal-Generierung
 - **WF Threshold**: Walk-Forward-trainierte optimale Schwelle (2026-02-09)
@@ -278,7 +284,7 @@ Alle Scores werden via `score_normalization.py` auf 0-10 Skala normalisiert.
 
 ### Scoring-System (3 Stufen)
 
-1. **Komponenten-Scoring**: Jeder Analyzer vergibt Punkte pro Indikator (`config/scoring_weights.yaml`)
+1. **Komponenten-Scoring**: Jeder Analyzer vergibt Punkte pro Indikator (`config/scoring.yaml`)
 2. **ML-Weights**: `FeatureScoringMixin` wendet trainierte Gewichte an (`~/.optionplay/models/component_weights.json`)
    - Walk-Forward-trainiert (18/6/6 Monate, 7 Epochen, 2020-2025)
    - Sector-Factors pro Strategie × Sektor (12 Sektoren)
@@ -306,7 +312,7 @@ VIX 40: spread_width=$10.00, min_score=7.0, max_positions=0
 - **Delta bleibt fix** bei -0.20 (±0.03) — "Delta ist heilig"
 - **Term Structure Overlay**: Contango → Score -0.5, Backwardation → Score +1.0 (nur VIX > 20)
 - **MarketRegime.UNKNOWN entfernt** — `Optional[VIXRegime] = None` stattdessen
-- **Feature-Flag**: `config/settings.yaml → scanner.vix_regime_version: 2`
+- **Feature-Flag**: Aktiviert in v5.0.0 (`config/trading.yaml → vix_regime_v2.enabled: true`)
 
 ### Sector RS (RRG-Quadranten)
 
@@ -318,7 +324,7 @@ Ersetzt `SectorCycleService` (multiplikativ) durch `SectorRSService` (additiv):
 
 - **Score-Modifier**: Leading +0.5, Improving +0.3, Weakening -0.3, Lagging -0.5
 - **Berechnung**: RS-Ratio (EMA-basiert vs SPY) + RS-Momentum (5d ROC)
-- **Config**: `config/strategies.yaml → sector_rs`
+- **Config**: `config/trading.yaml → sector_rs`
 - **MCP Tool**: `optionplay_sector_status` zeigt RRG-Tabelle
 
 ### Bekannte kritische Issues
@@ -351,19 +357,10 @@ Ersetzt `SectorCycleService` (multiplikativ) durch `SectorRSService` (additiv):
 Wenn `volumes[-1] == 0`, wird der letzte non-zero Volume-Wert verwendet.
 Betrifft: `AnalysisContext`, `PullbackAnalyzer`, `BounceAnalyzer`, `ATHBreakoutAnalyzer`.
 
-### Backtesting Sub-Packages (nach Phase 6)
+### Backtesting (gelöscht in v5.0.0)
 
-```
-src/backtesting/                    44 Module | 17,611 LOC
-├── core/                           Engine, Metrics, Simulator, DB
-├── simulation/                     Options-Simulator, Real-Backtester
-├── training/                       Walk-Forward, Regime, ML-Optimizer
-├── validation/                     Signal-Validation, Reliability
-├── ensemble/                       Meta-Learner, Rotation, Selector (5 Strategien)
-├── tracking/                       Trade-CRUD, Storage (Price/VIX/Options)
-├── models/                         25 Dataclasses (reine Datenmodelle)
-└── data_collector.py               Daten-Pipeline
-```
+`src/backtesting/` wurde komplett entfernt (56 Module, 18,937 LOC).
+Trainierte Modelle bleiben in `~/.optionplay/models/`.
 
 ### Strategy-Refactor Sessions (2026-02)
 

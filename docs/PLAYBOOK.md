@@ -3,7 +3,8 @@
 Einziges, verbindliches Regelwerk für Bull-Put-Spread Trading.
 Alle anderen Dokumente verweisen hierher. Bei Widersprüchen gilt dieses Dokument.
 
-**Letzte Aktualisierung:** 2026-02-08
+**Letzte Aktualisierung:** 2026-04-07
+**Version:** 5.0.0
 **Konsolidiert aus:** REGELWERK.md, ML-Training (Jan 2026), Verlustanalyse, Backtest-Ergebnisse
 
 ---
@@ -27,7 +28,7 @@ Jeder Trade muss ALLE harten Filter bestehen. Kein Filter darf übersprungen wer
 
 | Filter | Schwelle | Aktion bei Verletzung |
 |--------|----------|----------------------|
-| IV Rank | 30% – 80% | WARNING — Trade möglich, aber Prämie prüfen |
+| IV Rank | 50% – 80% | WARNING — Trade möglich, aber Prämie prüfen |
 | Open Interest | ✅ >700 (hoch) ⚠️ 100–700 (niedrig) ❌ <100 (sehr niedrig) | WARNING/REJECT — Liquiditätsrisiko |
 | Bid-Ask Spread | < $0.20 | WARNING — Ausführungsrisiko |
 
@@ -36,11 +37,11 @@ Jeder Trade muss ALLE harten Filter bestehen. Kein Filter darf übersprungen wer
 ```
 1. Blacklist-Check     → sofort raus wenn gelistet
 2. Stability ≥ 70     → NO-GO bei Trade Execution (Scanner: ≥50 mit Tier-System)
-3. Earnings > 45 Tage → sofort raus wenn zu nah (Dip-Strategie: kürzliche Earnings erlaubt)
+3. Earnings > 45 Tage → sofort raus wenn zu nah
 4. VIX < 30           → sofort raus wenn ≥ 30
 5. Preis $20-$1500     → sofort raus wenn außerhalb
 6. Volumen > 500k     → sofort raus wenn zu dünn
-7. IV Rank 30-80%     → WARNING wenn außerhalb
+7. IV Rank 50-80%     → WARNING wenn außerhalb
 8. Score-Ranking       → sortieren, beste zuerst
 ```
 
@@ -53,7 +54,7 @@ Der Scanner filtert Symbole mit Earnings innerhalb von 45 Tagen VOR dem Scan (Pr
 1. **Pre-Filter** (`_apply_earnings_prefilter`): Entfernt Symbole mit anstehenden Earnings < 45 Tage aus der Scan-Liste, BEVOR die Analyse startet. Spart Rechenzeit.
 2. **Per-Symbol-Filter** (`_should_skip_for_earnings`): Prüft jedes Symbol nochmals einzeln während des Scans.
 
-**Ausnahme Earnings-Dip-Strategie:** Im `ALL`- oder `BEST_SIGNAL`-Modus werden Earnings-Dip-Kandidaten (`include_dip_candidates=True`) vom Pre-Filter ausgenommen, da die Earnings-Dip-Strategie explizit kürzliche Earnings benötigt. Der Per-Symbol-Filter greift dann nur für die anderen Strategien.
+**~~Ausnahme Earnings-Dip-Strategie~~ [GELOSCHT]:** Die Earnings-Dip-Strategie wurde in v5.0.0 entfernt. Der Pre-Filter gilt nun ausnahmslos für alle Strategien.
 
 **Wichtig:** Der 45-Tage-Abstand bezieht sich auf das nächste Earnings-Datum ab dem Scan-Zeitpunkt. Liegt das Earnings-Datum in der Vergangenheit (bereits berichtet), greift der Filter nicht.
 
@@ -78,15 +79,15 @@ Ex-Dividend-Tage verursachen einen Kursrückgang in Höhe der Dividende. Ohne Er
 
 | Parameter | Wert | Toleranz |
 |-----------|------|----------|
-| **DTE** | 60–90 Tage | Optimal: 75 |
-| **Short Put Delta** | -0.20 | ±0.03 (Bereich -0.17 bis -0.23) |
+| **DTE** | 35–50 Tage | Optimal: 45 |
+| **Short Put Delta** | -0.16 bis -0.20 je VIX-Profil | ±0.03 |
 | **Long Put Delta** | -0.05 | ±0.02 (Bereich -0.03 bis -0.07) |
 | **Spread-Breite** | Dynamisch | Ergibt sich aus Delta-Differenz |
 | **Min Credit** | 10% der Spread-Breite | Unter 10% → kein Trade |
 
 ### Delta-Logik
 
-Die Spread-Breite ist KEIN fixer Dollar-Betrag und KEIN fixer Prozentsatz. Sie ergibt sich dynamisch aus der Platzierung von Short Put (Delta -0.20) und Long Put (Delta -0.05).
+Die Spread-Breite ist KEIN fixer Dollar-Betrag und KEIN fixer Prozentsatz. Sie ergibt sich dynamisch aus der Platzierung von Short Put (Delta -0.16 bis -0.20 je VIX-Profil) und Long Put (Delta -0.05).
 
 **Beispiel AAPL bei $185:**
 - Short Put: $175 (Delta ≈ -0.20) 
@@ -102,16 +103,16 @@ Die Spread-Breite ist KEIN fixer Dollar-Betrag und KEIN fixer Prozentsatz. Sie e
 
 ### Delta ist heilig
 
-Das Delta darf NICHT verändert werden um höhere Credits zu erzielen. Wenn bei Delta -0.20 die Prämie zu niedrig ist, ist das Symbol für die aktuelle Marktlage nicht geeignet. Symbol wechseln, nicht Delta anpassen.
+Das Delta darf NICHT über -0.20 hinaus angepasst werden um höhere Credits zu erzielen. Der Bereich -0.16 bis -0.20 wird vom VIX-Profil bestimmt. Wenn die Prämie zu niedrig ist, ist das Symbol für die aktuelle Marktlage nicht geeignet. Symbol wechseln, nicht Delta anpassen.
 
 ### DTE-Auswahl
 
 | DTE | Bewertung |
 |-----|-----------|
-| < 30 | ZU KURZ — Gamma-Risiko zu hoch |
-| 30-59 | UNERWÜNSCHT — nur wenn 60+ nicht verfügbar |
-| **60-90** | **OPTIMAL** — bester Theta-Decay bei überschaubarem Risiko |
-| > 90 | ZU LANG — zu wenig Zeitverfall pro Tag |
+| < 21 | ZU KURZ — Gamma-Risiko zu hoch |
+| 21-34 | UNERWÜNSCHT — nur wenn 35+ nicht verfügbar |
+| **35-50** | **OPTIMAL** — bester Theta-Decay bei überschaubarem Risiko |
+| > 50 | ZU LANG — zu wenig Zeitverfall pro Tag |
 
 ---
 
@@ -200,7 +201,7 @@ Warum 50% und nicht mehr warten: Die Verlustanalyse zeigt, dass Trades die bei 5
 Rollen ist nur erlaubt wenn:
 1. Position ist profitabel oder maximal am Break-Even
 2. Das Symbol besteht noch alle Entry-Filter (Stability, Earnings, VIX)
-3. Neues Expiration liegt 60-90 DTE entfernt
+3. Neues Expiration liegt 35-50 DTE entfernt
 4. Neuer Credit ist akzeptabel (≥ 10% Spread-Breite)
 
 Rollen ist NICHT erlaubt wenn:
@@ -272,9 +273,9 @@ Jeder Trade braucht eine schriftliche Begründung VOR dem Entry:
 Symbol:     ___________
 Datum:      ___________
 Begründung: Warum JETZT dieses Symbol?
-Setup:      Welche Strategie (Pullback/Bounce/Breakout)?
+Setup:      Welche Strategie (Pullback/Bounce)?
 Stability:  ___ (≥70?)
-Earnings:   ___ Tage (>60?)
+Earnings:   ___ Tage (>45?)
 VIX:        ___ (Regime: ___)
 Short Put:  $___  (Delta: ___)
 Long Put:   $___  (Delta: ___)
@@ -362,8 +363,8 @@ ENTRY:
   ☐ Earnings > 45 Tage
   ☐ VIX < 30
   ☐ Preis $20-$1500, Volumen > 500k
-  ☐ DTE 60-90
-  ☐ Short Delta ≈ -0.20, Long Delta ≈ -0.05
+  ☐ DTE 35-50
+  ☐ Short Delta ≈ -0.16 bis -0.20 (je VIX-Profil), Long Delta ≈ -0.05
   ☐ Credit ≥ 10% Spread-Breite
   ☐ Max 2% Portfolio-Risiko
   ☐ Sektor-Limit nicht überschritten
@@ -385,8 +386,8 @@ WÄHREND DES TRADES:
 
 | Regel | Quelle | Frühere Werte |
 |-------|--------|--------------|
-| DTE 60-90 | ML-Training + Verlustanalyse | REGELWERK hatte 30-60 |
-| Delta -0.20 | Verlustanalyse | REGELWERK hatte -0.30 |
+| DTE 35-50 | v5.0.0 Optimierung | v4: 60-90, REGELWERK: 30-60 |
+| Delta -0.16 bis -0.20 | v5.0.0 VIX-Profil | v4: fix -0.20, REGELWERK: -0.30 |
 | Stability ≥ 70 | ML-Training (r=0.24) | Nicht in REGELWERK vorhanden |
 | Exit 50% | Verlustanalyse | TRAINING_SUMMARY hatte 100% |
 | Stop Loss 200% flat | Manuelle Entscheidung | REGELWERK hatte VIX-Staffelung |
