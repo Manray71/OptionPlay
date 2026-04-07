@@ -1136,3 +1136,28 @@ watchlists:
       - XLU       # Utilities
       - SMH       # Semiconductors
       - ARKK      # ARK Innovation
+      # v5.0.0 additions
+      - HUBS      # HubSpot
+      - CFLT      # Confluent
+      - ESTC      # Elastic
+      - PODD      # Insulet
+      - IDXX      # IDEXX Laboratories
+      - VEEV      # Veeva Systems
+      - INCY      # Incyte
+      - EXAS      # Exact Sciences
+      - POOL      # Pool Corp
+      - MPWR      # Monolithic Power
+      - ONON      # On Holding
+      - RH        # RH (Restoration Hardware)
+      - CBOE      # Cboe Global Markets
+      - MKTX      # MarketAxess
+      - WEX       # WEX Inc
+      - RYAN      # Ryan Specialty
+      - ODFL      # Old Dominion Freight
+      - LSTR      # Landstar System
+      - SAIA      # Saia Inc
+      - TTEK      # Tetra Tech
+      - GLD       # Gold ETF
+      - TLT       # 20+ Year Treasury
+      - HYG       # High Yield Corporate
+      - XBI       # Biotech ETF
