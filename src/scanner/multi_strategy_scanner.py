@@ -36,24 +36,6 @@ from ..constants.trading_rules import (
 )
 from ..models.base import SignalStrength, SignalType, TradeSignal
 
-# Optional dependencies — these may not be available in all environments
-try:
-    from ..backtesting import ReliabilityScorer, ScorerConfig
-except ImportError:
-    ReliabilityScorer = None
-    ScorerConfig = None
-
-try:
-    from ..backtesting import (
-        OUTCOME_DB_PATH,
-        calculate_symbol_stability,
-        get_symbol_stability_score,
-    )
-except ImportError:
-    calculate_symbol_stability = None
-    get_symbol_stability_score = None
-    OUTCOME_DB_PATH = None
-
 try:
     from ..cache.symbol_fundamentals import (
         SymbolFundamentals,
@@ -85,7 +67,18 @@ _wr_cfg = _scfg.get_win_rate_config()
 _dd_cfg = _scfg.get_drawdown_config()
 _fund_cfg = _scfg.get_fundamentals_prefilter()
 _out_cfg = _scfg.get_output_config()
-_adj_labels = _scfg.get_adjustment_labels()
+
+# Load vix_regime_v2 feature flag from trading.yaml
+def _load_vix_regime_v2_enabled() -> bool:
+    import yaml
+    _cfg_path = Path(__file__).resolve().parents[2] / "config" / "trading.yaml"
+    try:
+        with open(_cfg_path) as f:
+            return yaml.safe_load(f).get("vix_regime_v2", {}).get("enabled", True)
+    except Exception:
+        return True
+
+_VIX_REGIME_V2_ENABLED = _load_vix_regime_v2_enabled()
 
 
 class ScanMode(Enum):
@@ -220,7 +213,7 @@ class ScanConfig:
     # =========================================================================
     # VIX REGIME V2 + SECTOR RS (Phase 2)
     # =========================================================================
-    enable_regime_v2: bool = True  # v2 interpolated min_score gate (activated v5.0.0)
+    enable_regime_v2: bool = _VIX_REGIME_V2_ENABLED  # from config/trading.yaml
     enable_sector_rs: bool = True  # Additive Sector RS modifier (activated v5.0.0)
 
 
@@ -337,13 +330,12 @@ class MultiStrategyScanner:
         self,
         config: Optional[ScanConfig] = None,
         analyzer_pool: Optional[AnalyzerPool] = None,
-        reliability_scorer: Optional["ReliabilityScorer"] = None,
     ) -> None:
         self.config = config or ScanConfig()
         self._analyzers: Dict[str, BaseAnalyzer] = {}
         self._earnings_cache: Dict[str, Optional[date]] = {}
         self._iv_cache: Dict[str, Optional[float]] = {}  # Symbol -> IV-Rank
-        self._vix_cache: Optional[float] = None  # Aktueller VIX für Reliability
+        self._vix_cache: Optional[float] = None  # Aktueller VIX für Regime
         self._last_scan: Optional[ScanResult] = None
 
         # Analyzer Pool für Object Pooling
@@ -356,16 +348,6 @@ class MultiStrategyScanner:
         # Registriere Standard-Analyzer (Fallback wenn Pool nicht verwendet)
         if not self._use_pool:
             self._register_default_analyzers()
-
-        # Reliability Scorer (Phase 3)
-        self._reliability_scorer: Optional["ReliabilityScorer"] = None
-        if self.config.enable_reliability_scoring and ReliabilityScorer is not None:
-            self._reliability_scorer = reliability_scorer or self._create_reliability_scorer()
-
-        # Symbol Stability Cache (Phase 4 - Outcome-basiert)
-        self._stability_cache: Dict[str, Dict] = {}
-        if self.config.enable_stability_scoring and calculate_symbol_stability is not None:
-            self._load_stability_cache()
 
         # Fundamentals Cache (Phase 6 - symbol_fundamentals Integration)
         self._fundamentals_cache: Dict[str, "SymbolFundamentals"] = {}
@@ -402,28 +384,6 @@ class MultiStrategyScanner:
                 logger.info("BatchScorer enabled for vectorized re-scoring")
         except Exception as e:
             logger.debug(f"BatchScorer not available: {e}")
-
-    def _load_stability_cache(self) -> None:
-        """Lädt Symbol-Stabilitätsdaten aus der Outcome-Datenbank"""
-        if calculate_symbol_stability is None:
-            return
-
-        try:
-            if OUTCOME_DB_PATH and OUTCOME_DB_PATH.exists():
-                self._stability_cache = calculate_symbol_stability(OUTCOME_DB_PATH)
-                if self._stability_cache:
-                    stable_count = sum(
-                        1 for d in self._stability_cache.values() if d.get("recommended")
-                    )
-                    volatile_count = sum(
-                        1 for d in self._stability_cache.values() if d.get("blacklisted")
-                    )
-                    logger.info(
-                        f"Loaded stability data for {len(self._stability_cache)} symbols "
-                        f"({stable_count} stable, {volatile_count} volatile)"
-                    )
-        except Exception as e:
-            logger.warning(f"Could not load stability cache: {e}")
 
     def _load_fundamentals_cache(self) -> None:
         """Lädt Fundamentaldaten aus der symbol_fundamentals Tabelle"""
@@ -612,36 +572,6 @@ class MultiStrategyScanner:
                 logger.debug(f"  ... and {len(filtered) - 5} more")
 
         return passed, filtered
-
-    def get_symbol_stability(self, symbol: str) -> Optional[Dict]:
-        """
-        Gibt Stabilitätsdaten für ein Symbol zurück.
-
-        Returns:
-            Dict mit stability_score, win_rate, avg_drawdown etc. oder None
-        """
-        return self._stability_cache.get(symbol)
-
-    def _create_reliability_scorer(self) -> Optional["ReliabilityScorer"]:
-        """Erstellt den Reliability Scorer"""
-        if ReliabilityScorer is None:
-            logger.warning("ReliabilityScorer not available - reliability scoring disabled")
-            return None
-
-        try:
-            if self.config.reliability_model_path:
-                # Lade trainiertes Modell
-                scorer = ReliabilityScorer.from_trained_model(self.config.reliability_model_path)
-                logger.info(f"Loaded reliability model from {self.config.reliability_model_path}")
-            else:
-                # Default Scorer ohne Trainingsdaten
-                scorer = ReliabilityScorer()
-                logger.info("Using default reliability scorer (no trained model)")
-
-            return scorer
-        except Exception as e:
-            logger.warning(f"Could not create reliability scorer: {e}")
-            return None
 
     def set_vix(self, vix: float) -> None:
         """
@@ -994,12 +924,6 @@ class MultiStrategyScanner:
         if context is not None:
             self._set_dividend_context(context, symbol)
 
-        # Inject stability_score for adaptive RSI thresholds
-        if context is not None and context.stability_score is None:
-            stability_data = self._stability_cache.get(symbol)
-            if stability_data:
-                context.stability_score = stability_data.get("stability_score")
-
         for strategy_name in strategies_to_use:
             try:
                 # VIX regime: check if strategy is enabled for current regime
@@ -1104,14 +1028,6 @@ class MultiStrategyScanner:
                         signal.details["regime_v2_label"] = v2_params.regime_label.value
                         signal.details["regime_v2_min_score"] = v2_params.min_score
 
-                # Reliability Scoring (Phase 3)
-                if self._reliability_scorer and signal.score >= self.config.min_score:
-                    self._add_reliability_to_signal(signal)
-
-                # Stability Scoring (Phase 4 - Outcome-basiert)
-                if self.config.enable_stability_scoring:
-                    self._add_stability_to_signal(signal)
-
                 # Nur Signale über min_score
                 if signal.score >= self.config.min_score:
                     signals.append(signal)
@@ -1132,165 +1048,6 @@ class MultiStrategyScanner:
 
         # Limit pro Symbol
         return signals[: self.config.max_results_per_symbol]
-
-    def _add_reliability_to_signal(self, signal: TradeSignal) -> None:
-        """
-        Fügt Reliability-Informationen zu einem Signal hinzu.
-
-        Args:
-            signal: TradeSignal das erweitert werden soll
-        """
-        if not self._reliability_scorer:
-            return
-
-        try:
-            # Score Breakdown aus Details extrahieren wenn verfügbar
-            score_breakdown = None
-            if signal.details and "score_breakdown" in signal.details:
-                score_breakdown = signal.details["score_breakdown"]
-
-            # Reliability berechnen
-            result = self._reliability_scorer.score(
-                pullback_score=signal.score,
-                score_breakdown=score_breakdown,
-                vix=self._vix_cache,
-            )
-
-            # Zum Signal hinzufügen
-            signal.reliability_grade = result.grade
-            signal.reliability_win_rate = result.historical_win_rate
-            signal.reliability_ci = result.confidence_interval
-            signal.reliability_warnings = result.warnings.copy()
-
-            # Auch in Details speichern für JSON-Export
-            if signal.details is not None:
-                signal.details["reliability"] = {
-                    "grade": result.grade,
-                    "win_rate": result.historical_win_rate,
-                    "confidence_interval": result.confidence_interval,
-                    "regime": result.regime,
-                    "should_trade": result.should_trade,
-                }
-
-        except Exception as e:
-            logger.debug(f"Could not add reliability to signal: {e}")
-
-    def _add_stability_to_signal(self, signal: TradeSignal) -> None:
-        """
-        Fügt Symbol-Stabilitätsinformationen zu einem Signal hinzu und
-        passt den Score basierend auf historischen Backtest-Ergebnissen an.
-
-        Anpassungen:
-        1. Win Rate Integration: Score wird proportional zur historischen Win Rate skaliert
-        2. Drawdown Penalty: Hohe Drawdowns reduzieren den Score
-        3. Stability Boost: Stabile Symbole erhalten zusätzlichen Bonus
-
-        Formel: adjusted_score = base_score * win_rate_multiplier * drawdown_factor
-
-        Args:
-            signal: TradeSignal das erweitert werden soll
-        """
-        stability_data = self._stability_cache.get(signal.symbol)
-        original_score = signal.score
-
-        if stability_data:
-            stability_score = stability_data.get("stability_score", 0)
-            historical_wr = stability_data.get("win_rate", 0)  # 0-100
-            avg_drawdown = stability_data.get("avg_drawdown", 0)
-
-            # 1. Win Rate Integration (proportional)
-            # Formel: multiplier = base + (win_rate / divisor)
-            # Bei WR=90%: 0.7 + 0.30 = 1.0 (kein Boost, volle Stärke)
-            # Bei WR=70%: 0.7 + 0.23 = 0.93 (leichte Reduktion)
-            # Bei WR=50%: 0.7 + 0.17 = 0.87 (stärkere Reduktion)
-            if self.config.enable_win_rate_integration and historical_wr > 0:
-                win_rate_multiplier = (
-                    self.config.win_rate_base_multiplier
-                    + historical_wr / self.config.win_rate_divisor
-                )
-                signal.score = signal.score * win_rate_multiplier
-
-            # 2. Drawdown Penalty
-            # Hoher Drawdown = höheres Risiko = Score-Reduktion
-            if (
-                self.config.enable_drawdown_adjustment
-                and avg_drawdown > self.config.drawdown_penalty_threshold
-            ):
-                excess_drawdown = avg_drawdown - self.config.drawdown_penalty_threshold
-                drawdown_penalty = excess_drawdown * self.config.drawdown_penalty_per_pct
-                signal.score = signal.score * (
-                    1.0 - min(drawdown_penalty, _dd_cfg.get("max_penalty_pct", 0.3))
-                )
-
-            # 3. Legacy Stability Boost (für rückwärts Kompatibilität)
-            _sb = _stab_boost
-            if stability_score >= _sb.get("premium_score", 80):
-                signal.score = signal.score + (
-                    self.config.stability_boost_amount * _sb.get("premium_multiplier", 0.5)
-                )
-            elif stability_score >= self.config.stability_boost_threshold:
-                signal.score = signal.score + (
-                    self.config.stability_boost_amount * _sb.get("good_multiplier", 0.25)
-                )
-
-            # Round to 1 decimal
-            signal.score = round(signal.score, 1)
-
-            # Warnung für volatile Symbole
-            if self.config.warn_on_volatile_symbols and stability_data.get("blacklisted"):
-                if (
-                    not hasattr(signal, "reliability_warnings")
-                    or signal.reliability_warnings is None
-                ):
-                    signal.reliability_warnings = []
-                signal.reliability_warnings.append(
-                    f"⚠️ Volatile Symbol: Historische WR nur {historical_wr:.0f}%, "
-                    f"Avg Drawdown {avg_drawdown:.1f}%"
-                )
-
-            # Stability-Info in Details speichern (erweitert)
-            if signal.details is not None:
-                signal.details["stability"] = {
-                    "score": stability_score,
-                    "historical_win_rate": historical_wr,
-                    "avg_drawdown": avg_drawdown,
-                    "avg_days_below_short": stability_data.get("avg_days_below", 0),
-                    "total_backtest_trades": stability_data.get("total_trades", 0),
-                    "recommended": stability_data.get("recommended", False),
-                    "blacklisted": stability_data.get("blacklisted", False),
-                    # Neue Felder für Transparenz
-                    "original_score": original_score,
-                    "score_adjustment": round(signal.score - original_score, 2),
-                    "adjustment_reason": self._get_adjustment_reason(
-                        historical_wr, avg_drawdown, stability_score
-                    ),
-                }
-
-    def _get_adjustment_reason(
-        self, win_rate: float, avg_drawdown: float, stability_score: float
-    ) -> str:
-        """Erklärt die Score-Anpassung für Transparenz."""
-        _wr_labels = _adj_labels.get("win_rate", {})
-        _dd_labels = _adj_labels.get("drawdown", {})
-        _st_labels = _adj_labels.get("stability", {})
-        reasons = []
-
-        if win_rate >= _wr_labels.get("excellent", 90):
-            reasons.append(f"Exzellente WR ({win_rate:.0f}%)")
-        elif win_rate >= _wr_labels.get("very_good", 85):
-            reasons.append(f"Sehr gute WR ({win_rate:.0f}%)")
-        elif win_rate < _wr_labels.get("low", 75):
-            reasons.append(f"Niedrige WR ({win_rate:.0f}%) → Score reduziert")
-
-        if avg_drawdown > _dd_labels.get("high", 15):
-            reasons.append(f"Hoher Drawdown ({avg_drawdown:.1f}%) → Penalty")
-        elif avg_drawdown < _dd_labels.get("low", 5):
-            reasons.append(f"Niedriger Drawdown ({avg_drawdown:.1f}%)")
-
-        if stability_score >= _st_labels.get("very_stable", 80):
-            reasons.append(f"Sehr stabil (Score {stability_score:.0f})")
-
-        return " | ".join(reasons) if reasons else "Standard"
 
     def _batch_rescore_signals(self, signals: List[TradeSignal]) -> List[TradeSignal]:
         """

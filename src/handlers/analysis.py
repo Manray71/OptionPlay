@@ -329,113 +329,10 @@ class AnalysisHandlerMixin(BaseHandlerMixin):
         Returns:
             Formatted Markdown ensemble recommendation
         """
-        try:
-            from ..backtesting import (
-                EnsembleSelector,
-                create_strategy_score,
-            )
-        except ImportError:
-            return (
-                "[!] Ensemble recommendation unavailable "
-                "(backtesting module not installed)."
-            )
-
-        symbol = validate_symbol(symbol)
-
-        # Get current VIX for regime context
-        vix = await self.get_vix()
-
-        # Run multi-strategy analysis to get scores
-        scanner = self._get_scanner()
-
-        historical_days = max(self._config.settings.performance.historical_days, 260)
-        data = await self._fetch_historical_cached(symbol, days=historical_days)
-
-        if not data:
-            return f"No historical data available for {symbol}"
-
-        prices, volumes, highs, lows, *_ = data
-        results = scanner.analyze_symbol(symbol, prices, volumes, highs, lows)
-
-        if not results:
-            return f"No analysis results for {symbol}"
-
-        # Convert to StrategyScore format
-        strategy_scores = {}
-        for result in results:
-            breakdown = {}
-            if result.score_breakdown:
-                for comp, data_val in result.score_breakdown.items():
-                    if isinstance(data_val, dict):
-                        score_val = data_val.get("score", data_val.get("value", 0))
-                    else:
-                        score_val = data_val
-                    breakdown[f"{comp}_score"] = float(score_val) if score_val else 0
-
-            strategy_scores[result.strategy] = create_strategy_score(
-                strategy=result.strategy,
-                raw_score=result.score,
-                breakdown=breakdown,
-                confidence=min(1.0, result.score / 10.0) if result.score else 0.5,
-            )
-
-        if not strategy_scores:
-            return f"No valid strategy scores for {symbol}"
-
-        # Load trained ensemble selector
-        try:
-            selector = EnsembleSelector.load_trained_model()
-        except Exception as e:
-            logger.warning(f"Could not load trained ensemble model: {e}")
-            selector = EnsembleSelector()
-
-        # Get recommendation
-        rec = selector.get_recommendation(symbol, strategy_scores, vix=vix)
-
-        # Format output
-        b = MarkdownBuilder()
-        b.h1(f"Ensemble Recommendation: {symbol}").blank()
-
-        # Primary Recommendation
-        b.h2("Recommended Strategy")
-        strategy_icons = {
-            "pullback": "[PB]",
-            "bounce": "[BN]",
-        }
-
-        icon = strategy_icons.get(rec.recommended_strategy, "[?]")
-        b.kv_line("Strategy", f"{icon} **{rec.recommended_strategy.upper()}**")
-        b.kv_line("Score", f"{rec.recommended_score:.1f}")
-        b.kv_line("Confidence", f"{rec.ensemble_confidence:.0%}")
-        b.kv_line("Method", rec.selection_method.value)
-        b.blank()
-
-        b.kv_line("Reason", rec.selection_reason)
-        b.blank()
-
-        # All Strategy Scores
-        b.h2("All Strategies")
-        b.text("| Strategy | Score | Confidence | Adjusted |")
-        b.text("|----------|-------|------------|----------|")
-
-        for strat, score in sorted(
-            rec.strategy_scores.items(), key=lambda x: x[1].adjusted_score, reverse=True
-        ):
-            marker = " *" if strat == rec.recommended_strategy else ""
-            b.text(
-                f"| {strat}{marker} | {score.weighted_score:.1f} | "
-                f"{score.confidence:.0%} | {score.adjusted_score:.1f} |"
-            )
-
-        b.blank()
-
-        # Context
-        b.h2("Context")
-        b.kv_line("VIX", f"{vix:.2f}" if vix else "N/A")
-        b.kv_line("Regime", rec.regime or "unknown")
-        b.kv_line("Diversification", f"{rec.diversification_benefit:.0%}")
-
-        return b.build()
+        return (
+            "[!] Ensemble strategy recommendation removed in v5.0.0 "
+            "(backtesting module deleted)."
+        )
 
     async def get_ensemble_status(self) -> str:
         """
@@ -444,69 +341,10 @@ class AnalysisHandlerMixin(BaseHandlerMixin):
         Returns:
             Formatted Markdown status
         """
-        try:
-            from ..backtesting import EnsembleSelector
-        except ImportError:
-            return (
-                "[!] Ensemble status unavailable "
-                "(backtesting module not installed)."
-            )
-
-        vix = await self.get_vix()
-
-        try:
-            selector = EnsembleSelector.load_trained_model()
-        except Exception as e:
-            logger.warning(f"Could not load ensemble model: {e}")
-            return "[!] No trained ensemble model. Run `train_ensemble_v2.py` to train."
-
-        b = MarkdownBuilder()
-        b.h1("Ensemble Strategy Status").blank()
-
-        # Current regime
-        if vix:
-            regime = (
-                "low_vol"
-                if vix < VIX_LOW_VOL_MAX
-                else (
-                    "normal"
-                    if vix < VIX_NORMAL_MAX
-                    else "elevated" if vix < VIX_ELEVATED_MAX else "high_vol"
-                )
-            )
-            b.h2("Current Context")
-            b.kv_line("VIX", f"{vix:.2f}")
-            b.kv_line("Regime", regime.upper())
-            b.blank()
-
-        # Rotation Status
-        rotation = selector.get_rotation_status()
-        if rotation:
-            b.h2("Strategy Rotation")
-            b.kv_line("Days Since Rotation", str(rotation.get("days_since_rotation", 0)))
-            b.kv_line("Total Rotations", str(rotation.get("rotation_count", 0)))
-
-            if rotation.get("last_rotation_reason"):
-                b.kv_line("Last Trigger", rotation["last_rotation_reason"])
-
-            b.blank()
-
-            # Current Preferences
-            b.h3("Current Preferences")
-            prefs = rotation.get("current_preferences", {})
-            for strat, pref in sorted(prefs.items(), key=lambda x: -x[1]):
-                bar = "#" * int(pref * 20)
-                b.text(f"{strat:<15} {pref:>5.1%} {bar}")
-
-            b.blank()
-
-        # Method info
-        b.h2("Selector Info")
-        b.kv_line("Method", selector.method.value)
-        b.kv_line("Rotation Enabled", "Yes" if selector.enable_rotation else "No")
-        b.kv_line("Min Score Threshold", f"{selector.min_score_threshold:.1f}")
-
-        return b.build()
+        return (
+            "[!] Ensemble status removed in v5.0.0 "
+            "(backtesting module deleted)."
+        )
 
     @mcp_endpoint(operation="strike recommendation", symbol_param="symbol")
     async def recommend_strikes(

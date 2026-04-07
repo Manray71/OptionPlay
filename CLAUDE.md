@@ -302,12 +302,16 @@ Ersetzt das alte 5-Stufen-System durch gleitende Skalierung:
 | `src/constants/trading_rules.py` | `VIXRegime` Enum (6 Stufen inkl. NO_TRADING), `get_regime_rules_v2()` |
 
 **Ankerpunkte** (VIX → Parameter):
-```
-VIX 10: spread_width=$2.50, min_score=3.5, max_positions=6
-VIX 20: spread_width=$5.00, min_score=4.5, max_positions=4
-VIX 30: spread_width=$7.50, min_score=5.5, max_positions=2
-VIX 40: spread_width=$10.00, min_score=7.0, max_positions=0
-```
+
+| VIX | Spread Width | Min Score | Earnings Buffer | Max Positions |
+|-----|-------------|-----------|-----------------|---------------|
+| 10  | $2.50       | 3.5       | 60d             | 6             |
+| 15  | $5.00       | 4.0       | 60d             | 5             |
+| 20  | $5.00       | 4.5       | 60d             | 4             |
+| 25  | $5.00       | 5.0       | 60d             | 3             |
+| 30  | $7.50       | 5.5       | 75d             | 2             |
+| 35  | $10.00      | 6.0       | 90d             | 1             |
+| 40  | $10.00      | 7.0       | 90d             | 0 (Pause)     |
 
 - **Delta bleibt fix** bei -0.20 (±0.03) — "Delta ist heilig"
 - **Term Structure Overlay**: Contango → Score -0.5, Backwardation → Score +1.0 (nur VIX > 20)

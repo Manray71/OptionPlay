@@ -311,103 +311,10 @@ class RiskHandler(BaseHandler):
         Returns:
             Formatted simulation results
         """
-        import math
-
-        try:
-            from ..backtesting import PriceSimulator
-        except ImportError:
-            return (
-                "[!] Monte Carlo simulation unavailable "
-                "(backtesting module not installed)."
-            )
-        from ..utils.markdown_builder import MarkdownBuilder
-        from ..utils.validation import validate_symbol
-
-        symbol = validate_symbol(symbol)
-
-        quote = await self._get_quote_cached(symbol)
-        if not quote or not quote.last:
-            return f"Cannot get quote for {symbol}"
-
-        current_price = quote.last
-
-        if volatility is None:
-            data = await self._fetch_historical_cached(symbol, days=30)
-            if data:
-                prices = data[0]
-                returns = [math.log(prices[i] / prices[i - 1]) for i in range(1, len(prices))]
-                daily_vol = (
-                    sum((r - sum(returns) / len(returns)) ** 2 for r in returns) / len(returns)
-                ) ** 0.5
-                volatility = daily_vol * math.sqrt(252)
-            else:
-                volatility = 0.25
-
-        final_prices = []
-        for i in range(num_simulations):
-            price_path = PriceSimulator.generate_price_path(
-                start_price=current_price,
-                days=dte,
-                volatility=volatility,
-                drift=0.0,
-                seed=i,
-            )
-            final_prices.append(price_path[-1])
-
-        max_profit = 0
-        max_loss = 0
-        partial_profit = 0
-        partial_loss = 0
-        breakeven = short_strike - net_credit
-
-        for price in final_prices:
-            if price >= short_strike:
-                max_profit += 1
-            elif price >= breakeven:
-                partial_profit += 1
-            elif price >= long_strike:
-                partial_loss += 1
-            else:
-                max_loss += 1
-
-        total = len(final_prices)
-        prob_profit = (max_profit + partial_profit) / total
-        prob_max_profit = max_profit / total
-        prob_max_loss = max_loss / total
-
-        b = MarkdownBuilder()
-        b.h1(f"Monte Carlo Simulation: {symbol}").blank()
-
-        b.h2("Simulation Parameters")
-        b.kv_line("Current Price", f"${current_price:.2f}")
-        b.kv_line("Volatility", f"{volatility:.1%}")
-        b.kv_line("DTE", str(dte))
-        b.kv_line("Simulations", f"{num_simulations:,}")
-        b.blank()
-
-        b.h2("Spread Details")
-        b.kv_line("Short Strike", f"${short_strike:.2f}")
-        b.kv_line("Long Strike", f"${long_strike:.2f}")
-        b.kv_line("Net Credit", f"${net_credit:.2f}")
-        b.kv_line("Breakeven", f"${breakeven:.2f}")
-        b.blank()
-
-        b.h2("Outcome Probabilities")
-        b.kv_line("Prob. of Profit", f"{prob_profit:.1%}")
-        b.kv_line("Prob. Max Profit", f"{prob_max_profit:.1%}")
-        b.kv_line("Prob. Max Loss", f"{prob_max_loss:.1%}")
-        b.blank()
-
-        b.h2("Outcome Distribution")
-        rows = [
-            ["Max Profit (>= short)", f"{max_profit:,}", f"{prob_max_profit:.1%}"],
-            ["Partial Profit", f"{partial_profit:,}", f"{partial_profit/total:.1%}"],
-            ["Partial Loss", f"{partial_loss:,}", f"{partial_loss/total:.1%}"],
-            ["Max Loss (<= long)", f"{max_loss:,}", f"{prob_max_loss:.1%}"],
-        ]
-        b.table(["Outcome", "Count", "Probability"], rows)
-
-        return b.build()
+        return (
+            "[!] Monte Carlo simulation removed in v5.0.0 "
+            "(backtesting module deleted)."
+        )
 
     # --- Shared helper methods ---
 

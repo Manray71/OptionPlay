@@ -384,54 +384,6 @@ class PortfolioManager:
         )
         self._trades.append(trade)
 
-    def _notify_ensemble(
-        self,
-        position: BullPutSpread,
-        outcome: bool,
-        pnl: float,
-        strategy: Optional[str] = None,
-    ):
-        """
-        Notify ensemble meta-learner of trade outcome.
-
-        Extracts strategy from position tags (e.g. "strategy:pullback")
-        or uses the provided strategy parameter.
-        """
-        # Determine strategy from tags or parameter
-        if strategy is None:
-            for tag in position.tags:
-                if tag.startswith("strategy:"):
-                    strategy = tag.split(":", 1)[1]
-                    break
-
-        if strategy is None:
-            logger.debug(
-                f"No strategy tag for {position.symbol} ({position.id}), "
-                f"skipping ensemble notification"
-            )
-            return
-
-        try:
-            from ..backtesting.ensemble.selector import EnsembleSelector
-
-            selector = EnsembleSelector.load_trained_model()
-            credit = position.total_credit
-            pnl_percent = (pnl / credit * 100) if credit > 0 else 0.0
-
-            selector.update_with_result(
-                symbol=position.symbol,
-                strategy=strategy,
-                outcome=outcome,
-                pnl_percent=pnl_percent,
-                signal_date=date.today(),
-            )
-            logger.info(
-                f"Ensemble notified: {position.symbol} {strategy} "
-                f"{'WIN' if outcome else 'LOSS'} ({pnl_percent:+.1f}%)"
-            )
-        except Exception as e:
-            logger.warning(f"Could not notify ensemble: {e}")
-
     # =========================================================================
     # POSITION MANAGEMENT
     # =========================================================================
@@ -546,7 +498,7 @@ class PortfolioManager:
             position_id: Position ID
             close_premium: Premium paid to close (per contract)
             notes: Close notes
-            strategy: Strategy name for ensemble feedback (optional)
+            strategy: Strategy name (optional)
 
         Returns:
             Updated position
@@ -579,10 +531,6 @@ class PortfolioManager:
 
         logger.info(f"Closed position {position_id}: {position.symbol} " f"P&L: ${pnl:.2f}")
 
-        # Notify ensemble of trade outcome
-        if pnl is not None:
-            self._notify_ensemble(position, outcome=pnl > 0, pnl=pnl, strategy=strategy)
-
         return position
 
     def expire_position(
@@ -597,7 +545,7 @@ class PortfolioManager:
         Args:
             position_id: Position ID
             notes: Notes
-            strategy: Strategy name for ensemble feedback (optional)
+            strategy: Strategy name (optional)
 
         Returns:
             Updated position
@@ -631,9 +579,6 @@ class PortfolioManager:
             f"Position expired: {position_id} - {position.symbol} " f"Full profit: ${pnl:.2f}"
         )
 
-        # Notify ensemble - expired worthless is always a win
-        self._notify_ensemble(position, outcome=True, pnl=pnl, strategy=strategy)
-
         return position
 
     def assign_position(
@@ -648,7 +593,7 @@ class PortfolioManager:
         Args:
             position_id: Position ID
             notes: Notes
-            strategy: Strategy name for ensemble feedback (optional)
+            strategy: Strategy name (optional)
 
         Returns:
             Updated position
@@ -681,9 +626,6 @@ class PortfolioManager:
             f"Position assigned: {position_id} - {position.symbol} "
             f"Loss: ${position.max_loss:.2f}"
         )
-
-        # Notify ensemble - assignment is always a loss
-        self._notify_ensemble(position, outcome=False, pnl=pnl, strategy=strategy)
 
         return position
 

@@ -498,7 +498,6 @@ trained_weights:
     gap: 1.490
     stabilization: 1.604
     dip_magnitude: 1.179
-    ath_breakout: 1.529
     vwap: 1.614
     market_context: 1.368
 
@@ -518,49 +517,8 @@ trained_weights:
     gap: 1.019
     stabilization: 0.819
     dip_magnitude: 1.404
-    ath_breakout: 1.125
     vwap: 0.969
     market_context: 0.651
-
-  ath_breakout:
-    rsi: 1.103
-    support: 0.849
-    fibonacci: 0.817
-    moving_average: 1.252
-    volume: 0.800
-    macd: 0.735
-    stochastic: 0.924
-    keltner: 1.665
-    trend: 0.549
-    momentum: 0.622
-    relative_strength: 1.243
-    candlestick: 1.521
-    gap: 1.403
-    stabilization: 1.363
-    dip_magnitude: 1.644
-    ath_breakout: 1.465
-    vwap: 0.766
-    market_context: 1.585
-
-  earnings_dip:
-    rsi: 0.977
-    support: 1.440
-    fibonacci: 1.567
-    moving_average: 1.564
-    volume: 0.938
-    macd: 1.854
-    stochastic: 1.230
-    keltner: 1.655
-    trend: 0.694
-    momentum: 1.532
-    relative_strength: 1.967
-    candlestick: 1.846
-    gap: 0.734
-    stabilization: 0.749
-    dip_magnitude: 0.512
-    ath_breakout: 1.220
-    vwap: 1.197
-    market_context: 0.641
 
 # =========================================================================
 # ROLL STRATEGY PARAMETERS (from 2026-01-29 Training)
@@ -586,24 +544,6 @@ roll_strategy:
     min_credit_recovery_pct: 0.49   # Mind. 49% Credit Recovery
     support_buffer_pct: 4.1     # 4.1% unter Support
     # Performance: 87.3% WR, 65.7% Roll Success, $19.69 avg P&L
-
-  ath_breakout:
-    trigger_pct: -50.0          # Roll bei -50% Verlust
-    dte_extension: 88           # Auf +88 DTE rollen
-    dte_extension_max: 87       # Max DTE nach Roll
-    max_rolls: 5                # Maximal 5 Rolls
-    min_credit_recovery_pct: 0.78   # Mind. 78% Credit Recovery
-    support_buffer_pct: 2.5     # 2.5% unter Support
-    # Performance: 81.2% WR, 62.2% Roll Success, -$2.37 avg P&L
-
-  earnings_dip:
-    trigger_pct: -50.0          # Roll bei -50% Verlust
-    dte_extension: 73           # Auf +73 DTE rollen
-    dte_extension_max: 106      # Max DTE nach Roll
-    max_rolls: 5                # Maximal 5 Rolls
-    min_credit_recovery_pct: 0.79   # Mind. 79% Credit Recovery
-    support_buffer_pct: 3.5     # 3.5% unter Support
-    # Performance: 80.7% WR, 58.3% Roll Success, $4.29 avg P&L
 
 # =========================================================================
 # TRAINING SUMMARY (2026-01-29)

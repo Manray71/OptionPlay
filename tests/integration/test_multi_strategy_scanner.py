@@ -1129,33 +1129,6 @@ class TestVIXManagement:
 # Stability Scoring Tests
 # =============================================================================
 
-class TestStabilityScoring:
-    """Tests for stability scoring"""
-
-    def test_get_symbol_stability(self):
-        """Should return stability data if available"""
-        scanner = MultiStrategyScanner()
-
-        # Manually set stability data
-        scanner._stability_cache["AAPL"] = {
-            'stability_score': 85,
-            'win_rate': 90,
-            'avg_drawdown': 5.0,
-        }
-
-        data = scanner.get_symbol_stability("AAPL")
-
-        assert data is not None
-        assert data['stability_score'] == 85
-
-    def test_get_symbol_stability_not_found(self):
-        """Should return None for unknown symbol"""
-        scanner = MultiStrategyScanner()
-
-        data = scanner.get_symbol_stability("UNKNOWN")
-
-        assert data is None
-
 
 # =============================================================================
 # Stability-First Filter Tests (Phase 6)
@@ -1503,69 +1476,6 @@ class TestQuickScan:
 # =============================================================================
 # Adjustment Reason Tests
 # =============================================================================
-
-class TestAdjustmentReason:
-    """Tests for _get_adjustment_reason method"""
-
-    def test_excellent_win_rate(self):
-        """Should explain excellent win rate"""
-        scanner = MultiStrategyScanner()
-
-        reason = scanner._get_adjustment_reason(92.0, 5.0, 85.0)
-
-        assert "Exzellente WR" in reason
-
-    def test_very_good_win_rate(self):
-        """Should explain very good win rate"""
-        scanner = MultiStrategyScanner()
-
-        reason = scanner._get_adjustment_reason(87.0, 5.0, 75.0)
-
-        assert "Sehr gute WR" in reason
-
-    def test_low_win_rate(self):
-        """Should explain low win rate penalty"""
-        scanner = MultiStrategyScanner()
-
-        reason = scanner._get_adjustment_reason(65.0, 5.0, 60.0)
-
-        assert "Niedrige WR" in reason
-        assert "reduziert" in reason
-
-    def test_high_drawdown_penalty(self):
-        """Should explain high drawdown penalty"""
-        scanner = MultiStrategyScanner()
-
-        reason = scanner._get_adjustment_reason(80.0, 18.0, 75.0)
-
-        assert "Hoher Drawdown" in reason
-        assert "Penalty" in reason
-
-    def test_low_drawdown_positive(self):
-        """Should mention low drawdown positively"""
-        scanner = MultiStrategyScanner()
-
-        reason = scanner._get_adjustment_reason(80.0, 3.0, 75.0)
-
-        assert "Niedriger Drawdown" in reason
-
-    def test_very_stable_symbol(self):
-        """Should mention very stable symbols"""
-        scanner = MultiStrategyScanner()
-
-        reason = scanner._get_adjustment_reason(85.0, 5.0, 85.0)
-
-        assert "Sehr stabil" in reason
-
-    def test_standard_case(self):
-        """Standard case should return Standard"""
-        scanner = MultiStrategyScanner()
-
-        reason = scanner._get_adjustment_reason(80.0, 8.0, 65.0)
-
-        # No special conditions - should be Standard
-        assert "Standard" in reason or len(reason) > 0
-
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
