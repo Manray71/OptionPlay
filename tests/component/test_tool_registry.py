@@ -13,7 +13,6 @@ from src.mcp_tool_registry import (
     ToolRegistry,
     EMPTY_SCHEMA,
     SYMBOL_SCHEMA,
-    SYMBOLS_SCHEMA,
     SCAN_SCHEMA,
 )
 
@@ -321,12 +320,6 @@ class TestSchemas:
         assert "symbol" in SYMBOL_SCHEMA["properties"]
         assert "required" in SYMBOL_SCHEMA
         assert "symbol" in SYMBOL_SCHEMA["required"]
-
-    def test_symbols_schema(self):
-        """Test SYMBOLS_SCHEMA structure."""
-        assert SYMBOLS_SCHEMA["type"] == "object"
-        assert "symbols" in SYMBOLS_SCHEMA["properties"]
-        assert SYMBOLS_SCHEMA["properties"]["symbols"]["type"] == "array"
 
     def test_scan_schema(self):
         """Test SCAN_SCHEMA structure."""

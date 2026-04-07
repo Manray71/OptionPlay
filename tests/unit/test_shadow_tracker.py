@@ -1928,26 +1928,12 @@ class TestMCPToolRegistration:
         tools = {t.name: t for t in tool_registry.list_tools()}
         assert "optionplay_shadow_stats" in tools
 
-    def test_shadow_log_registered(self):
-        from src.mcp_tool_registry import tool_registry
-
-        tools = {t.name: t for t in tool_registry.list_tools()}
-        assert "optionplay_shadow_log" in tools
-
-    def test_shadow_detail_registered(self):
-        from src.mcp_tool_registry import tool_registry
-
-        tools = {t.name: t for t in tool_registry.list_tools()}
-        assert "optionplay_shadow_detail" in tools
-
     def test_shadow_aliases_registered(self):
         from src.mcp_tool_registry import tool_registry
 
         aliases = tool_registry._aliases
         assert "shadow_review" in aliases or "shadow" in aliases
         assert "shadow_stats" in aliases
-        assert "shadow_log" in aliases
-        assert "shadow_detail" in aliases
 
     def test_shadow_tools_have_input_schema(self):
         from src.mcp_tool_registry import tool_registry
@@ -1956,16 +1942,14 @@ class TestMCPToolRegistration:
         for name in [
             "optionplay_shadow_review",
             "optionplay_shadow_stats",
-            "optionplay_shadow_log",
-            "optionplay_shadow_detail",
         ]:
             assert tools[name].inputSchema is not None
 
     def test_shadow_tools_dispatchable(self):
-        """All 4 shadow tools resolve via dispatch (alias and canonical)."""
+        """Shadow tools resolve via dispatch (alias and canonical)."""
         from src.mcp_tool_registry import tool_registry
 
-        for alias in ["shadow_review", "shadow_stats", "shadow_log", "shadow_detail"]:
+        for alias in ["shadow_review", "shadow_stats"]:
             canonical = tool_registry.resolve_alias(alias)
             assert canonical is not None, f"Alias {alias} not resolvable"
             tool_def = tool_registry.get_tool(canonical)

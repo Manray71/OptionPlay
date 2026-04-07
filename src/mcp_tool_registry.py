@@ -4,10 +4,8 @@ OptionPlay MCP Tool Registry v4.1.0
 
 Zentrales Registry für alle MCP Tools mit Handler-Definitionen.
 
-Stats (2026-02-09):
-- 54 Tools + 56 Aliases = 110 MCP Endpoints
-- 80.19% Test Coverage
-- ML-Training: Walk-Forward (2026-02-09) + Stability Thresholds
+Stats (2026-04-07):
+- 25 Tools (reduced from 54)
 
 Pattern:
     @tool_registry.register(
@@ -26,7 +24,6 @@ Alle Tools sind hier definiert mit:
 - Handler-Funktion
 """
 
-import json
 import logging
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Union
@@ -38,14 +35,12 @@ try:
         ENTRY_EARNINGS_MIN_DAYS,
         SPREAD_DTE_MAX,
         SPREAD_DTE_MIN,
-        SPREAD_DTE_TARGET,
     )
 except ImportError:
     from constants.trading_rules import (
         ENTRY_EARNINGS_MIN_DAYS,
         SPREAD_DTE_MAX,
         SPREAD_DTE_MIN,
-        SPREAD_DTE_TARGET,
     )
 
 logger = logging.getLogger(__name__)
@@ -209,17 +204,6 @@ SYMBOL_SCHEMA = {
     "required": ["symbol"],
 }
 
-SYMBOLS_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "symbols": {
-            "type": "array",
-            "items": {"type": "string"},
-            "description": "List of ticker symbols",
-        }
-    },
-}
-
 SCAN_SCHEMA = {
     "type": "object",
     "properties": {
@@ -240,7 +224,7 @@ SCAN_SCHEMA = {
 
 
 # =============================================================================
-# VIX & STRATEGY TOOLS (6)
+# VIX & STRATEGY TOOLS (3)
 # =============================================================================
 
 
@@ -277,29 +261,6 @@ async def handle_regime_status(server: Any, arguments: ToolArguments) -> str:
     return await server.handlers.vix.get_regime_status()
 
 
-@tool_registry.register(
-    name="optionplay_strategy_for_stock",
-    description="Get strategy recommendation based on stock price and VIX.",
-    input_schema=SYMBOL_SCHEMA,
-    aliases=["strategy_stock"],
-)
-async def handle_strategy_for_stock(server: Any, arguments: ToolArguments) -> str:
-    return await server.handlers.vix.get_strategy_for_stock(arguments["symbol"])
-
-
-@tool_registry.register(
-    name="optionplay_events",
-    description="Get upcoming market events (FOMC, OPEX, CPI, NFP). Helps plan around macro events.",
-    input_schema={
-        "type": "object",
-        "properties": {
-            "days": {"type": "number", "description": "Days to look ahead (default: 30)"}
-        },
-    },
-    aliases=["events"],
-)
-async def handle_events(server: Any, arguments: ToolArguments) -> str:
-    return await server.handlers.vix.get_event_calendar(days=arguments.get("days", 30))
 
 
 @tool_registry.register(
@@ -313,7 +274,7 @@ async def handle_health(server: Any, arguments: ToolArguments) -> str:
 
 
 # =============================================================================
-# SCAN TOOLS (7)
+# SCAN TOOLS (3)
 # =============================================================================
 
 
@@ -344,21 +305,6 @@ async def handle_scan_bounce(server: Any, arguments: ToolArguments) -> str:
         min_score=arguments.get("min_score", 5.0),
     )
 
-
-
-@tool_registry.register(
-    name="optionplay_scan_multi",
-    description="Multi-Strategy Scan - runs all strategies and returns the best signal per symbol.",
-    input_schema=SCAN_SCHEMA,
-    aliases=["multi"],
-)
-async def handle_scan_multi(server: Any, arguments: ToolArguments) -> str:
-    return await server.handlers.scan.scan_multi_strategy(
-        symbols=arguments.get("symbols"),
-        max_results=arguments.get("max_results", 20),
-        min_score=arguments.get("min_score", 3.5),
-        list_type=arguments.get("list_type", "stable"),
-    )
 
 
 @tool_registry.register(
@@ -399,32 +345,8 @@ async def handle_daily_picks(server: Any, arguments: ToolArguments) -> str:
     )
 
 
-@tool_registry.register(
-    name="optionplay_earnings_prefilter",
-    description="Pre-filter watchlist by earnings dates. Returns only symbols with earnings > X days away. Should be FIRST step before any scan.",
-    input_schema={
-        "type": "object",
-        "properties": {
-            "min_days": {"type": "number", "description": "Minimum days to earnings (default: 45)"},
-            "symbols": {"type": "array", "items": {"type": "string"}},
-            "show_excluded": {
-                "type": "boolean",
-                "description": "Show excluded symbols (default: false)",
-            },
-        },
-    },
-    aliases=["prefilter"],
-)
-async def handle_earnings_prefilter(server: Any, arguments: ToolArguments) -> str:
-    return await server.handlers.scan.earnings_prefilter(
-        min_days=arguments.get("min_days", ENTRY_EARNINGS_MIN_DAYS),
-        symbols=arguments.get("symbols"),
-        show_excluded=arguments.get("show_excluded", False),
-    )
-
-
 # =============================================================================
-# QUOTE & DATA TOOLS (7)
+# QUOTE & DATA TOOLS (4)
 # =============================================================================
 
 
@@ -482,25 +404,6 @@ async def handle_earnings(server: Any, arguments: ToolArguments) -> str:
     )
 
 
-@tool_registry.register(
-    name="optionplay_historical",
-    description="Get historical price data for a symbol. Shows recent price action.",
-    input_schema={
-        "type": "object",
-        "properties": {
-            "symbol": {"type": "string"},
-            "days": {"type": "number", "description": "Days of history (default: 30)"},
-        },
-        "required": ["symbol"],
-    },
-    aliases=["historical"],
-)
-async def handle_historical(server: Any, arguments: ToolArguments) -> str:
-    return await server.handlers.quote.get_historical_data(
-        symbol=arguments["symbol"],
-        days=arguments.get("days", 30),
-    )
-
 
 @tool_registry.register(
     name="optionplay_expirations",
@@ -511,15 +414,6 @@ async def handle_historical(server: Any, arguments: ToolArguments) -> str:
 async def handle_expirations(server: Any, arguments: ToolArguments) -> str:
     return await server.handlers.quote.get_expirations(symbol=arguments["symbol"])
 
-
-@tool_registry.register(
-    name="optionplay_validate",
-    description="Validate if a symbol is safe for trading based on earnings and events.",
-    input_schema=SYMBOL_SCHEMA,
-    aliases=["validate"],
-)
-async def handle_validate(server: Any, arguments: ToolArguments) -> str:
-    return await server.handlers.quote.validate_for_trading(symbol=arguments["symbol"])
 
 
 @tool_registry.register(
@@ -567,22 +461,8 @@ async def handle_monitor_positions(server: Any, arguments: ToolArguments) -> str
     return await server.handlers.monitor.monitor_positions()
 
 
-@tool_registry.register(
-    name="optionplay_max_pain",
-    description="Calculate Max Pain level for symbols. Shows where maximum options pain occurs.",
-    input_schema={
-        "type": "object",
-        "properties": {"symbols": {"type": "array", "items": {"type": "string"}}},
-        "required": ["symbols"],
-    },
-    aliases=["max_pain"],
-)
-async def handle_max_pain(server: Any, arguments: ToolArguments) -> str:
-    return await server.handlers.ibkr.get_max_pain(symbols=arguments["symbols"])
-
-
 # =============================================================================
-# ANALYSIS TOOLS (5)
+# ANALYSIS TOOLS (3)
 # =============================================================================
 
 
@@ -596,15 +476,6 @@ async def handle_analyze(server: Any, arguments: ToolArguments) -> str:
     return await server.handlers.analysis.analyze_symbol(arguments["symbol"])
 
 
-@tool_registry.register(
-    name="optionplay_analyze_multi",
-    description="Multi-Strategy Analysis for a single symbol - analyzes which strategies are suitable.",
-    input_schema=SYMBOL_SCHEMA,
-    aliases=["analyze_multi"],
-)
-async def handle_analyze_multi(server: Any, arguments: ToolArguments) -> str:
-    return await server.handlers.analysis.analyze_multi_strategy(arguments["symbol"])
-
 
 @tool_registry.register(
     name="optionplay_ensemble",
@@ -615,15 +486,6 @@ async def handle_analyze_multi(server: Any, arguments: ToolArguments) -> str:
 async def handle_ensemble(server: Any, arguments: ToolArguments) -> str:
     return await server.handlers.analysis.get_ensemble_recommendation(arguments["symbol"])
 
-
-@tool_registry.register(
-    name="optionplay_ensemble_status",
-    description="Get ensemble selector and strategy rotation status. Shows current strategy preferences and meta-learner insights.",
-    input_schema=EMPTY_SCHEMA,
-    aliases=["ensemble_status"],
-)
-async def handle_ensemble_status(server: Any, arguments: ToolArguments) -> str:
-    return await server.handlers.analysis.get_ensemble_status()
 
 
 @tool_registry.register(
@@ -654,7 +516,7 @@ async def handle_recommend_strikes(server: Any, arguments: ToolArguments) -> str
 
 
 # =============================================================================
-# PORTFOLIO TOOLS (13)
+# PORTFOLIO TOOLS (6)
 # =============================================================================
 
 
@@ -684,20 +546,6 @@ def handle_portfolio(server: Any, arguments: ToolArguments) -> str:
 def handle_portfolio_positions(server: Any, arguments: ToolArguments) -> str:
     return server.handlers.portfolio.portfolio_positions(status=arguments.get("status", "all"))
 
-
-@tool_registry.register(
-    name="optionplay_portfolio_position",
-    description="Get detailed view of a single position including current status and P&L.",
-    input_schema={
-        "type": "object",
-        "properties": {"position_id": {"type": "string", "description": "Position ID to view"}},
-        "required": ["position_id"],
-    },
-    aliases=["pf_position"],
-    is_async=False,
-)
-def handle_portfolio_position(server: Any, arguments: ToolArguments) -> str:
-    return server.handlers.portfolio.portfolio_position(position_id=arguments["position_id"])
 
 
 @tool_registry.register(
@@ -769,58 +617,8 @@ def handle_portfolio_expire(server: Any, arguments: ToolArguments) -> str:
     return server.handlers.portfolio.portfolio_expire(position_id=arguments["position_id"])
 
 
-@tool_registry.register(
-    name="optionplay_portfolio_expiring",
-    description="List positions expiring within specified days.",
-    input_schema={
-        "type": "object",
-        "properties": {
-            "days": {"type": "number", "description": "Days to look ahead (default: 7)"}
-        },
-    },
-    aliases=["pf_expiring"],
-    is_async=False,
-)
-def handle_portfolio_expiring(server: Any, arguments: ToolArguments) -> str:
-    return server.handlers.portfolio.portfolio_expiring(days=arguments.get("days", 7))
 
 
-@tool_registry.register(
-    name="optionplay_portfolio_trades",
-    description="Show trade history with recent entries and exits.",
-    input_schema={
-        "type": "object",
-        "properties": {
-            "limit": {"type": "number", "description": "Max trades to show (default: 20)"}
-        },
-    },
-    aliases=["pf_trades"],
-    is_async=False,
-)
-def handle_portfolio_trades(server: Any, arguments: ToolArguments) -> str:
-    return server.handlers.portfolio.portfolio_trades(limit=arguments.get("limit", 20))
-
-
-@tool_registry.register(
-    name="optionplay_portfolio_pnl",
-    description="Show realized P&L grouped by symbol.",
-    input_schema=EMPTY_SCHEMA,
-    aliases=["pf_pnl"],
-    is_async=False,
-)
-def handle_portfolio_pnl(server: Any, arguments: ToolArguments) -> str:
-    return server.handlers.portfolio.portfolio_pnl_symbols()
-
-
-@tool_registry.register(
-    name="optionplay_portfolio_monthly",
-    description="Show monthly P&L report. Track performance over time.",
-    input_schema=EMPTY_SCHEMA,
-    aliases=["pf_monthly"],
-    is_async=False,
-)
-def handle_portfolio_monthly(server: Any, arguments: ToolArguments) -> str:
-    return server.handlers.portfolio.portfolio_pnl_monthly()
 
 
 @tool_registry.register(
@@ -844,223 +642,12 @@ def handle_portfolio_check(server: Any, arguments: ToolArguments) -> str:
     )
 
 
-@tool_registry.register(
-    name="optionplay_portfolio_constraints",
-    description="Show current constraint configuration and status (max positions, sector limits, daily/weekly risk limits).",
-    input_schema=EMPTY_SCHEMA,
-    aliases=["pf_constraints"],
-    is_async=False,
-)
-def handle_portfolio_constraints(server: Any, arguments: ToolArguments) -> str:
-    return server.handlers.portfolio.portfolio_constraints()
+
 
 
 # =============================================================================
-# IBKR TOOLS (7)
+# RISK TOOLS (1)
 # =============================================================================
-
-
-@tool_registry.register(
-    name="optionplay_ibkr_status",
-    description="Check IBKR/TWS connection status.",
-    input_schema=EMPTY_SCHEMA,
-    aliases=["ibkr"],
-)
-async def handle_ibkr_status(server: Any, arguments: ToolArguments) -> str:
-    return await server.handlers.ibkr.get_ibkr_status()
-
-
-@tool_registry.register(
-    name="optionplay_ibkr_portfolio",
-    description="Get LIVE portfolio positions from Interactive Brokers TWS. This is the PRIMARY portfolio tool for actual positions.",
-    input_schema=EMPTY_SCHEMA,
-    aliases=["ibkr_portfolio"],
-)
-async def handle_ibkr_portfolio(server: Any, arguments: ToolArguments) -> str:
-    return await server.handlers.ibkr.get_ibkr_portfolio()
-
-
-@tool_registry.register(
-    name="optionplay_ibkr_spreads",
-    description="Get identified spread positions from IBKR/TWS.",
-    input_schema=EMPTY_SCHEMA,
-    aliases=["ibkr_spreads"],
-)
-async def handle_ibkr_spreads(server: Any, arguments: ToolArguments) -> str:
-    return await server.handlers.ibkr.get_ibkr_spreads()
-
-
-@tool_registry.register(
-    name="optionplay_ibkr_vix",
-    description="Get live VIX from IBKR with source indicator.",
-    input_schema=EMPTY_SCHEMA,
-    aliases=["ibkr_vix"],
-)
-async def handle_ibkr_vix(server: Any, arguments: ToolArguments) -> str:
-    return await server.handlers.ibkr.get_ibkr_vix()
-
-
-@tool_registry.register(
-    name="optionplay_ibkr_quotes",
-    description="Get batch quotes for watchlist from IBKR.",
-    input_schema={
-        "type": "object",
-        "properties": {
-            "symbols": {"type": "array", "items": {"type": "string"}},
-            "batch_size": {"type": "number", "description": "Symbols per batch (default: 50)"},
-        },
-    },
-    aliases=["ibkr_quotes"],
-)
-async def handle_ibkr_quotes(server: Any, arguments: ToolArguments) -> str:
-    return await server.handlers.ibkr.get_ibkr_quotes(
-        symbols=arguments.get("symbols"),
-        batch_size=arguments.get("batch_size", 50),
-    )
-
-
-@tool_registry.register(
-    name="optionplay_news",
-    description="Get recent news headlines for symbols via IBKR. Requires TWS connection.",
-    input_schema={
-        "type": "object",
-        "properties": {
-            "symbols": {"type": "array", "items": {"type": "string"}},
-            "days": {"type": "number", "description": "Days to look back (default: 5)"},
-        },
-        "required": ["symbols"],
-    },
-    aliases=["news"],
-)
-async def handle_news(server: Any, arguments: ToolArguments) -> str:
-    return await server.handlers.ibkr.get_news(
-        symbols=arguments["symbols"],
-        days=arguments.get("days", 5),
-    )
-
-
-# =============================================================================
-# REPORT TOOLS (2)
-# =============================================================================
-
-
-@tool_registry.register(
-    name="optionplay_report",
-    description="Generate a detailed PDF report for a trading candidate. Saved to reports/ directory.",
-    input_schema={
-        "type": "object",
-        "properties": {
-            "symbol": {"type": "string"},
-            "strategy": {"type": "string", "description": "Strategy type (default: pullback)"},
-            "include_options": {
-                "type": "boolean",
-                "description": "Include options chain (default: true)",
-            },
-            "include_news": {"type": "boolean", "description": "Include news (default: true)"},
-        },
-        "required": ["symbol"],
-    },
-    aliases=["report"],
-)
-async def handle_report(server: Any, arguments: ToolArguments) -> str:
-    return await server.handlers.report.generate_report(
-        symbol=arguments["symbol"],
-        strategy=arguments.get("strategy"),
-        include_options=arguments.get("include_options", True),
-        include_news=arguments.get("include_news", True),
-    )
-
-
-@tool_registry.register(
-    name="optionplay_scan_report",
-    description="Generate comprehensive multi-symbol PDF scan report with 13 pages. Saved to reports/ directory.",
-    input_schema={
-        "type": "object",
-        "properties": {
-            "strategy": {
-                "type": "string",
-                "description": "Strategy: pullback, bounce, multi (default: multi)",
-            },
-            "symbols": {"type": "array", "items": {"type": "string"}},
-            "min_score": {"type": "number", "description": "Minimum score (default: 5.0)"},
-            "max_candidates": {"type": "number", "description": "Max candidates (default: 20)"},
-        },
-    },
-    aliases=["scan_report"],
-)
-async def handle_scan_report(server: Any, arguments: ToolArguments) -> str:
-    return await server.handlers.report.generate_scan_report(
-        strategy=arguments.get("strategy", "multi"),
-        symbols=arguments.get("symbols"),
-        min_score=arguments.get("min_score", 5.0),
-        max_candidates=arguments.get("max_candidates", 20),
-    )
-
-
-# =============================================================================
-# RISK TOOLS (4)
-# =============================================================================
-
-
-@tool_registry.register(
-    name="optionplay_position_size",
-    description="Calculate optimal position size using Kelly Criterion. Adjusts for VIX, signal quality, and portfolio exposure.",
-    input_schema={
-        "type": "object",
-        "properties": {
-            "account_size": {"type": "number", "description": "Total account size in USD"},
-            "max_loss_per_contract": {
-                "type": "number",
-                "description": "Maximum loss per contract in USD",
-            },
-            "win_rate": {"type": "number", "description": "Historical win rate (default: 0.65)"},
-            "avg_win": {"type": "number", "description": "Average win in USD (default: 100)"},
-            "avg_loss": {"type": "number", "description": "Average loss in USD (default: 350)"},
-            "signal_score": {
-                "type": "number",
-                "description": "Signal quality score (default: 7.0)",
-            },
-            "reliability_grade": {"type": "string", "description": "A, B, or C grade"},
-            "current_exposure": {
-                "type": "number",
-                "description": "Current portfolio exposure (default: 0)",
-            },
-        },
-        "required": ["account_size", "max_loss_per_contract"],
-    },
-    aliases=["position_size"],
-)
-async def handle_position_size(server: Any, arguments: ToolArguments) -> str:
-    return await server.handlers.risk.calculate_position_size(
-        account_size=arguments["account_size"],
-        max_loss_per_contract=arguments["max_loss_per_contract"],
-        win_rate=arguments.get("win_rate", 0.65),
-        avg_win=arguments.get("avg_win", 100),
-        avg_loss=arguments.get("avg_loss", 350),
-        signal_score=arguments.get("signal_score", 7.0),
-        reliability_grade=arguments.get("reliability_grade"),
-        current_exposure=arguments.get("current_exposure", 0),
-    )
-
-
-@tool_registry.register(
-    name="optionplay_stop_loss",
-    description="Get recommended stop loss level for a credit spread. Adjusts based on VIX regime.",
-    input_schema={
-        "type": "object",
-        "properties": {
-            "net_credit": {"type": "number", "description": "Net credit received"},
-            "spread_width": {"type": "number", "description": "Spread width in USD"},
-        },
-        "required": ["net_credit", "spread_width"],
-    },
-    aliases=["stop_loss"],
-)
-async def handle_stop_loss(server: Any, arguments: ToolArguments) -> str:
-    return await server.handlers.risk.recommend_stop_loss(
-        net_credit=arguments["net_credit"],
-        spread_width=arguments["spread_width"],
-    )
 
 
 @tool_registry.register(
@@ -1091,67 +678,8 @@ async def handle_spread_analysis(server: Any, arguments: ToolArguments) -> str:
     )
 
 
-@tool_registry.register(
-    name="optionplay_monte_carlo",
-    description="Run Monte Carlo simulation for a Bull-Put-Spread. Simulates price paths to estimate outcome probabilities.",
-    input_schema={
-        "type": "object",
-        "properties": {
-            "symbol": {"type": "string"},
-            "short_strike": {"type": "number"},
-            "long_strike": {"type": "number"},
-            "net_credit": {"type": "number"},
-            "dte": {"type": "number", "description": "Days to expiration (default: 75)"},
-            "num_simulations": {
-                "type": "number",
-                "description": "Number of simulations (default: 500)",
-            },
-            "volatility": {"type": "number", "description": "Override volatility (optional)"},
-        },
-        "required": ["symbol", "short_strike", "long_strike", "net_credit"],
-    },
-    aliases=["monte_carlo"],
-)
-async def handle_monte_carlo(server: Any, arguments: ToolArguments) -> str:
-    return await server.handlers.risk.run_monte_carlo(
-        symbol=arguments["symbol"],
-        short_strike=arguments["short_strike"],
-        long_strike=arguments["long_strike"],
-        net_credit=arguments["net_credit"],
-        dte=arguments.get("dte", SPREAD_DTE_TARGET),
-        num_simulations=arguments.get("num_simulations", 500),
-        volatility=arguments.get("volatility"),
-    )
-
-
 # =============================================================================
-# SYSTEM TOOLS (2)
-# =============================================================================
-
-
-@tool_registry.register(
-    name="optionplay_cache_stats",
-    description="Show cache statistics for historical data, quotes, and scan results.",
-    input_schema=EMPTY_SCHEMA,
-    aliases=["cache_stats"],
-)
-async def handle_cache_stats(server: Any, arguments: ToolArguments) -> str:
-    return await server.get_cache_stats()
-
-
-@tool_registry.register(
-    name="optionplay_watchlist_info",
-    description="Show information about the current watchlist including total symbols and sectors.",
-    input_schema=EMPTY_SCHEMA,
-    aliases=["watchlist"],
-    is_async=False,
-)
-def handle_watchlist_info(server: Any, arguments: ToolArguments) -> str:
-    return server.get_watchlist_info()
-
-
-# =============================================================================
-# SECTOR CYCLE TOOLS (1)
+# SECTOR & SYSTEM TOOLS (2)
 # =============================================================================
 
 
@@ -1281,185 +809,18 @@ async def handle_shadow_stats(server: Any, arguments: ToolArguments) -> str:
         tracker.close()
 
 
-@tool_registry.register(
-    name="optionplay_shadow_log",
-    description=(
-        "Manually log a shadow trade. Runs tradability check against the live "
-        "options chain before logging. Use this when you want to track a specific "
-        "trade idea outside of daily_picks."
-    ),
-    input_schema={
-        "type": "object",
-        "properties": {
-            "symbol": {"type": "string", "description": "Ticker symbol (e.g. AAPL)"},
-            "strategy": {
-                "type": "string",
-                "enum": [
-                    "pullback",
-                    "bounce",
-                ],
-                "description": "Trading strategy",
-            },
-            "score": {"type": "number", "description": "Signal score (0-10)"},
-            "short_strike": {"type": "number", "description": "Short put strike price"},
-            "long_strike": {"type": "number", "description": "Long put strike price"},
-            "expiration": {"type": "string", "description": "Expiration date (YYYY-MM-DD)"},
-            "price_at_log": {"type": "number", "description": "Current underlying price"},
-        },
-        "required": [
-            "symbol",
-            "strategy",
-            "score",
-            "short_strike",
-            "long_strike",
-            "expiration",
-            "price_at_log",
-        ],
-    },
-    aliases=["shadow_log"],
-)
-async def handle_shadow_log(server: Any, arguments: ToolArguments) -> str:
-    from .shadow_tracker import ShadowTracker, check_tradability
-
-    symbol = arguments["symbol"].upper()
-    strategy = arguments["strategy"]
-    score = float(arguments["score"])
-    short_strike = float(arguments["short_strike"])
-    long_strike = float(arguments["long_strike"])
-    expiration = arguments["expiration"]
-    price_at_log = float(arguments["price_at_log"])
-    spread_width = short_strike - long_strike
-
-    if spread_width <= 0:
-        return "**Error:** short_strike must be greater than long_strike."
-
-    # Get Tradier provider
-    provider = None
-    if hasattr(server, "handlers"):
-        ctx = server.handlers._context
-        if ctx.ibkr_connected and ctx.ibkr_provider:
-            provider = ctx.ibkr_provider
-
-    if not provider:
-        return "**Error:** Tradier provider not available. Cannot run tradability check."
-
-    # Run tradability check
-    tradeable, reason, details = await check_tradability(
-        provider, symbol, expiration, short_strike, long_strike
-    )
-
-    tracker = ShadowTracker()
-    try:
-        if not tradeable:
-            # Log rejection
-            rej_id = tracker.log_rejection(
-                source="manual",
-                symbol=symbol,
-                strategy=strategy,
-                score=score,
-                rejection_reason=reason,
-                short_strike=short_strike,
-                long_strike=long_strike,
-                actual_credit=details.get("net_credit"),
-                short_oi=details.get("short_oi"),
-                details=json.dumps(details),
-            )
-            return (
-                f"**NOT TRADEABLE** — {reason}\n\n"
-                f"Rejection logged (ID: `{rej_id}`)\n\n"
-                f"Details: {json.dumps(details, indent=2)}"
-            )
-
-        # Calculate DTE
-        from datetime import date as _date
-
-        dte = (_date.fromisoformat(expiration) - _date.today()).days
-        est_credit = details.get("net_credit", 0.0)
-
-        trade_id = tracker.log_trade(
-            source="manual",
-            symbol=symbol,
-            strategy=strategy,
-            score=score,
-            short_strike=short_strike,
-            long_strike=long_strike,
-            spread_width=spread_width,
-            est_credit=est_credit,
-            expiration=expiration,
-            dte=dte,
-            price_at_log=price_at_log,
-            short_bid=details.get("short_bid"),
-            short_ask=details.get("short_ask"),
-            short_oi=details.get("short_oi"),
-            long_bid=details.get("long_bid"),
-            long_ask=details.get("long_ask"),
-            long_oi=details.get("long_oi"),
-        )
-
-        if trade_id is None:
-            return f"**Duplicate:** A trade for {symbol} {short_strike}/{long_strike} already exists today."
-
-        return (
-            f"**TRADEABLE** — Shadow trade logged\n\n"
-            f"- **Trade ID:** `{trade_id}`\n"
-            f"- **Symbol:** {symbol}\n"
-            f"- **Strategy:** {strategy}\n"
-            f"- **Score:** {score:.1f}\n"
-            f"- **Strikes:** {short_strike:.0f}/{long_strike:.0f}\n"
-            f"- **Est. Credit:** ${est_credit:.2f}\n"
-            f"- **Expiration:** {expiration} (DTE: {dte})\n"
-            f"- **Short Bid/Ask:** ${details.get('short_bid', 0):.2f}/${details.get('short_ask', 0):.2f}\n"
-            f"- **Long Bid/Ask:** ${details.get('long_bid', 0):.2f}/${details.get('long_ask', 0):.2f}"
-        )
-    finally:
-        tracker.close()
-
-
-@tool_registry.register(
-    name="optionplay_shadow_detail",
-    description=(
-        "Show full details of a single shadow trade by ID. "
-        "Displays all fields including options market data at logging, "
-        "current status, and resolution details."
-    ),
-    input_schema={
-        "type": "object",
-        "properties": {
-            "trade_id": {
-                "type": "string",
-                "description": "Trade UUID (from shadow_review or shadow_log output)",
-            },
-        },
-        "required": ["trade_id"],
-    },
-    aliases=["shadow_detail"],
-)
-async def handle_shadow_detail(server: Any, arguments: ToolArguments) -> str:
-    from .shadow_tracker import ShadowTracker, format_detail_output
-
-    trade_id = arguments["trade_id"]
-
-    tracker = ShadowTracker()
-    try:
-        trade = tracker.get_trade(trade_id)
-        return format_detail_output(trade)
-    finally:
-        tracker.close()
-
 
 # =============================================================================
 # SUMMARY
 # =============================================================================
-# Total: 58 Tools + 61 Aliases = 119 MCP endpoints
+# Total: 25 Tools
 #
 # Categories:
-# - VIX & Strategy: 6 tools (inkl. sector_status)
-# - Scan: 7 tools (inkl. daily_picks)
-# - Quote & Data: 7 tools
-# - Analysis: 5 tools
-# - Portfolio: 13 tools
-# - IBKR: 7 tools (inkl. news, max_pain)
-# - Reports: 2 tools
-# - Risk: 4 tools
-# - System: 2 tools
-# - Shadow Tracker: 4 tools
+# - VIX & Strategy: 3 tools (vix, regime_status, sector_status)
+# - Scan: 3 tools (scan, scan_bounce, daily_picks)
+# - Quote & Data: 5 tools (quote, options, expirations, earnings, validate_trade)
+# - Analysis: 3 tools (analyze, ensemble, recommend_strikes)
+# - Portfolio: 7 tools (portfolio, positions, add, close, expire, check, monitor)
+# - Risk: 1 tool (spread_analysis)
+# - System: 1 tool (health)
+# - Shadow Tracker: 2 tools (shadow_review, shadow_stats)
