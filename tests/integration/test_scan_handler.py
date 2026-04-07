@@ -193,7 +193,7 @@ class MockScanHandler(ScanHandlerMixin):
     async def _ensure_connected(self):
         pass
 
-    async def _apply_earnings_prefilter(self, symbols, min_days, for_earnings_dip=False, include_dip_candidates=False):
+    async def _apply_earnings_prefilter(self, symbols, min_days, **kwargs):
         # Return symbols unchanged with mock stats
         return symbols, 0, 0
 
@@ -541,7 +541,7 @@ class TestExecuteScan:
         mock_scanner.scan_async = AsyncMock(return_value=mock_scan_result)
 
         # Mock earnings prefilter to exclude some symbols
-        async def mock_prefilter(symbols, min_days, for_earnings_dip=False, include_dip_candidates=False):
+        async def mock_prefilter(symbols, min_days, **kwargs):
             return ["AAPL"], 1, 1  # Excluded 1 symbol, 1 cache hit
 
         with patch.object(handler, '_apply_earnings_prefilter', side_effect=mock_prefilter):
@@ -1077,8 +1077,8 @@ class TestDailyPicks:
         # Track prefilter calls
         prefilter_called = []
 
-        async def mock_prefilter(symbols, min_days, for_earnings_dip=False, include_dip_candidates=False):
-            prefilter_called.append((symbols, min_days, for_earnings_dip))
+        async def mock_prefilter(symbols, min_days, **kwargs):
+            prefilter_called.append((symbols, min_days))
             return symbols, 0, 0
 
         with patch.object(handler, '_apply_earnings_prefilter', side_effect=mock_prefilter):
