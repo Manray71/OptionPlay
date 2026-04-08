@@ -32,6 +32,16 @@ Datum: 2026-04-07
 - README.md (Web): Version auf v5.0.0 aktualisiert, Features und Config-Dateien synchronisiert
 - `vix_strategy.py`: DEPRECATED-Marker korrekt — betrifft nur `MarketRegime` Alias, Modul selbst aktiv genutzt
 
+## TWS-Umstellung (Phase 8)
+
+- Zielport: 7497 (TWS Paper)
+- Geänderte Dateien CORE: `config/system.yaml` (port 4001 → 7497)
+- Geänderte Dateien WEB: `json_routes.py` (IBKR_PORT default 4001 → 7497), `ibkr_quote.py` (4001 → 7497), `ibkr_news.py` (4001 → 7497)
+- VIX-Test via TWS: nicht separat getestet (VIX via Tradier primär)
+- Verbindungstest via TWS: OK (`_ensure_connected()` auf 127.0.0.1:7497)
+- Fallback-Kette: Tradier primär, TWS sekundär (unverändert)
+- readonly-Flag: aktiv (hardcoded `readonly=True` in `connection.py:190`)
+
 ## Test-Ergebnis
 
 - OptionPlay Core: 5895 passed, 36 skipped, 0 failed
