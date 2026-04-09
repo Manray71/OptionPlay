@@ -26,7 +26,6 @@ from src.utils.rate_limiter import (
     retry_with_backoff,
     get_limiter,
     get_marketdata_limiter,
-    get_tradier_limiter,
     get_yahoo_limiter,
     _limiters,
 )
@@ -994,14 +993,6 @@ class TestGlobalLimiterFactory:
 
         assert limiter.name == "marketdata"
         assert limiter.calls_per_minute == 100
-        assert isinstance(limiter, AdaptiveRateLimiter)
-
-    def test_get_tradier_limiter(self):
-        """Test get_tradier_limiter factory."""
-        limiter = get_tradier_limiter()
-
-        assert limiter.name == "tradier"
-        assert limiter.calls_per_minute == 120
         assert isinstance(limiter, AdaptiveRateLimiter)
 
     def test_get_yahoo_limiter(self):

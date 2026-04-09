@@ -4,7 +4,7 @@
 #
 # Data sources:
 # - yfinance: Sector, Industry, Market Cap, Beta, Inst. Ownership
-# - Tradier: 52-Week High/Low, Average Volume
+# - IBKR/yfinance: 52-Week High/Low, Average Volume
 # - Calculated: SPY Correlation, IV Rank (from own data)
 #
 # Usage:
@@ -60,7 +60,7 @@ class SymbolFundamentals:
     # Risk metrics
     beta: Optional[float] = None
 
-    # Price levels (Tradier or yfinance)
+    # Price levels (IBKR or yfinance)
     week_52_high: Optional[float] = None
     week_52_low: Optional[float] = None
     current_price: Optional[float] = None

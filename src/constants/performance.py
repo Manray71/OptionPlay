@@ -36,7 +36,6 @@ MAX_CONCURRENT_SCANS = 5  # Max parallel symbol scans
 # Rate Limiting
 BATCH_DELAY = 1.0  # Delay between batches (seconds)
 RATE_LIMIT_PER_MINUTE = 100  # Max requests per minute (Marketdata)
-TRADIER_RATE_LIMIT = 120  # Tradier rate limit
 
 
 # =============================================================================

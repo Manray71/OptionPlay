@@ -62,8 +62,6 @@ class ServerContext:
         deduplicator: "RequestDeduplicator" = None,
         container: Optional["ServiceContainer"] = None,
         server_state: Optional["ServerState"] = None,
-        # Legacy compat — accepts tradier_provider but stores as ibkr_provider
-        tradier_provider: Optional[Any] = None,
     ) -> None:
         self.config = config
         self.provider = provider
@@ -98,8 +96,6 @@ class ServerContext:
         self.scanner: Optional["MultiStrategyScanner"] = None
         self.ibkr_bridge = None
 
-        self.tradier_api_key: Optional[str] = None
-
 
 class BaseHandler:
     """
@@ -118,11 +114,6 @@ class BaseHandler:
 
     @property
     def ibkr_provider(self) -> Optional["IBKRDataProvider"]:
-        return self._ctx.ibkr_provider
-
-    # Legacy compat alias
-    @property
-    def tradier_provider(self) -> Optional[Any]:
         return self._ctx.ibkr_provider
 
     async def _ensure_ibkr_connected(self) -> Optional["IBKRDataProvider"]:
@@ -154,10 +145,6 @@ class BaseHandler:
             self._logger.debug(f"IBKR connection failed: {e}")
 
         return self._ctx.ibkr_provider if self._ctx.ibkr_connected else None
-
-    # Legacy compat aliases
-    async def _ensure_tradier_connected(self) -> Optional[Any]:
-        return await self._ensure_ibkr_connected()
 
     async def _ensure_connected(self) -> Optional[Any]:
         return await self._ensure_ibkr_connected()

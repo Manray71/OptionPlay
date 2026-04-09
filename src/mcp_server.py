@@ -307,10 +307,6 @@ class OptionPlayServer:
 
         return self._ibkr_provider if self._ibkr_connected else None
 
-    # Legacy aliases
-    async def _ensure_tradier_connected(self) -> Optional[IBKRDataProvider]:
-        return await self._ensure_ibkr_connected()
-
     async def _ensure_connected(self) -> Optional[IBKRDataProvider]:
         return await self._ensure_ibkr_connected()
 
@@ -673,8 +669,8 @@ class OptionPlayServer:
             ibkr_host=ibkr_host,
             ibkr_port=ibkr_port,
             metrics_stats=metrics.to_dict(),
-            tradier_available=True,  # IBKR always available (no API key needed)
-            tradier_connected=self._ibkr_connected,
+            ibkr_provider_available=True,  # IBKR always available (no API key needed)
+            ibkr_provider_connected=self._ibkr_connected,
             local_db_enabled=self._local_db_enabled,
             local_db_stats=local_db_stats,
         )

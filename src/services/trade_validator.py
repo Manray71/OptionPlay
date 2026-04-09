@@ -180,7 +180,7 @@ class TradeValidator:
     - symbol_fundamentals DB for stability, sector, price
     - earnings_history DB for earnings dates
     - VIX from cache or DB
-    - Quote provider (Tradier/IBKR) for live volume data
+    - Quote provider (IBKR) for live volume data
     """
 
     def __init__(self, quote_provider: Any = None) -> None:

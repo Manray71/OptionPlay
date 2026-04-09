@@ -116,7 +116,7 @@ class MockSpreadValidation:
     max_loss_per_contract: Optional[float]
     spread_theta: Optional[float]
     reason: str = ""
-    data_source: str = "Tradier"
+    data_source: str = "Provider"
 
 
 @dataclass
@@ -184,7 +184,7 @@ class MockScanHandler(ScanHandlerMixin):
         self._scan_cache_hits = 0
         self._scan_cache_misses = 0
         self._earnings_fetcher = None
-        self._tradier = None
+        self._ibkr = None
         self._ibkr_connected = False
         self._ibkr_provider = None
         self._ibkr = None

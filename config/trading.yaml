@@ -423,7 +423,7 @@ profiles:
 # =========================================================================
 auto_selection:
   enabled: true
-  vix_source: "tradier"
+  vix_source: "yahoo"
   fallback_profile: "standard"
 
   vix_mapping:

@@ -115,7 +115,7 @@ def mock_provider():
 
 @pytest.fixture
 def server(mock_api_key, mock_provider):
-    """Create server instance with mocked Tradier provider."""
+    """Create server instance with mocked IBKR provider."""
     with patch('src.mcp_server.get_marketdata_limiter') as mock_limiter:
         mock_limiter.return_value = MagicMock(
             acquire=AsyncMock(),
@@ -159,8 +159,8 @@ class TestVIXOperations:
     
     @pytest.mark.asyncio
     async def test_get_vix(self, server, mock_provider):
-        """Test VIX retrieval via Tradier quote."""
-        # Tradier's get_quote("VIX") returns MockQuote with last=185.50
+        """Test VIX retrieval via IBKR quote."""
+        # IBKR's get_quote("VIX") returns MockQuote with last=185.50
         vix = await server.handlers.vix.get_vix()
         assert vix == 185.50  # MockQuote.last
 

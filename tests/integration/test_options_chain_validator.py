@@ -296,15 +296,15 @@ class TestOptimalExpiration:
 
 
 class TestProviderFallback:
-    """Test IBKR → Tradier fallback behavior."""
+    """Test IBKR → Provider fallback behavior."""
 
     @pytest.mark.asyncio
-    async def test_tradier_used_without_ibkr(self):
-        """Without IBKR, should use Tradier."""
+    async def test_provider_used_without_ibkr(self):
+        """Without IBKR, should use provider fallback."""
         provider = _make_provider()
         validator = OptionsChainValidator(options_provider=provider)
         result = await validator.validate_spread("AAPL")
-        assert result.data_source == "Tradier"
+        assert result.data_source == "Provider"
 
     @pytest.mark.asyncio
     async def test_ibkr_used_when_connected(self):
@@ -319,11 +319,11 @@ class TestProviderFallback:
         validator = OptionsChainValidator(options_provider=provider, ibkr_bridge=ibkr)
         result = await validator.validate_spread("AAPL")
         # IBKR should be tried first
-        assert result.data_source in ("IBKR", "Tradier")
+        assert result.data_source in ("IBKR", "Provider")
 
     @pytest.mark.asyncio
-    async def test_falls_back_to_tradier_on_ibkr_error(self):
-        """If IBKR fails, should fall back to Tradier."""
+    async def test_falls_back_to_provider_on_ibkr_error(self):
+        """If IBKR fails, should fall back to provider."""
         provider = _make_provider()
 
         ibkr = MagicMock()
@@ -333,7 +333,7 @@ class TestProviderFallback:
         validator = OptionsChainValidator(options_provider=provider, ibkr_bridge=ibkr)
         result = await validator.validate_spread("AAPL")
         assert result.tradeable is True
-        assert result.data_source == "Tradier"
+        assert result.data_source == "Provider"
 
 
 class TestErrorHandling:

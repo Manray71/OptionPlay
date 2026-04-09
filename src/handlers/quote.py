@@ -75,7 +75,7 @@ class QuoteHandlerMixin(BaseHandlerMixin):
         quote = await self._get_quote_cached(symbol)
         underlying_price = quote.last if quote else None
 
-        # Get options chain (Tradier -> IBKR fallback, no Marketdata ATM)
+        # Get options chain via IBKR
         options = await self._get_options_chain_with_fallback(
             symbol, dte_min=dte_min, dte_max=dte_max, right=right
         )
@@ -470,16 +470,16 @@ class QuoteHandlerMixin(BaseHandlerMixin):
 
         expirations = None
 
-        # Try Tradier first
+        # Try IBKR first
         if self._ibkr_connected and self._ibkr_provider:
             try:
                 expirations = await self._ibkr_provider.get_expirations(symbol)
                 if expirations:
-                    logger.debug(f"Expirations from Tradier: {len(expirations)}")
+                    logger.debug(f"Expirations from IBKR: {len(expirations)}")
             except Exception as e:
-                logger.debug(f"Tradier expirations failed: {e}")
+                logger.debug(f"IBKR expirations failed: {e}")
 
-        # Fallback to Marketdata
+        # Fallback to provider
         if not expirations:
             provider = await self._ensure_connected()
             await self._rate_limiter.acquire()

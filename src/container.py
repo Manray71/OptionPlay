@@ -336,14 +336,6 @@ class ServiceContainer:
 
         return self.ibkr_provider
 
-    # Legacy alias
-    async def ensure_tradier_provider(self, api_key: Optional[str] = None) -> Any:
-        return await self.ensure_ibkr_provider()
-
-    def is_tradier_configured(self) -> bool:
-        """Check if IBKR is available (legacy name)."""
-        return True  # IBKR needs no API key
-
     async def disconnect(self) -> None:
         """Disconnect all services that have connections."""
         if self.provider and hasattr(self.provider, "disconnect"):

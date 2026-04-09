@@ -3,7 +3,7 @@ Options Chain Validator — prüft ob ein Bull-Put-Spread echte Marktdaten hat.
 
 Datenquellen-Priorität:
   1. IBKR (wenn TWS verbunden) — Live Bid/Ask
-  2. Tradier — Delayed, aber zuverlässig
+  2. Provider-Fallback — Delayed, aber zuverlässig
 
 Verwendet wird:
   - trading_rules.py für alle Konstanten (DTE, Delta, Credit)
@@ -140,7 +140,7 @@ class OptionsChainValidator:
         """
         Args:
             options_provider: Provider mit get_option_chain() und get_expirations()
-                            (Tradier oder MarketData)
+                            (IBKR oder MarketData)
             ibkr_bridge: Optional IBKR-Bridge für Live-Daten
         """
         self._provider = options_provider
@@ -297,7 +297,7 @@ class OptionsChainValidator:
         """
         Gibt Liste von (expiration_date, dte) im gültigen DTE-Fenster zurück.
 
-        Versucht zuerst IBKR, dann Tradier.
+        Versucht zuerst IBKR, dann Provider-Fallback.
         """
         today = date.today()
         expirations = []
@@ -324,16 +324,16 @@ class OptionsChainValidator:
             except Exception as e:
                 logger.warning(f"IBKR Expirations für {symbol} fehlgeschlagen: {e}")
 
-        # Tradier Fallback
+        # Provider Fallback
         try:
             all_exps = await self._provider.get_expirations(symbol)
-            self._data_source = "Tradier"
+            self._data_source = "Provider"
             for exp in all_exps:
                 dte = (exp - today).days
                 if SPREAD_DTE_MIN <= dte <= SPREAD_DTE_MAX:
                     expirations.append((exp, dte))
         except Exception as e:
-            logger.error(f"Tradier Expirations für {symbol} fehlgeschlagen: {e}")
+            logger.error(f"Provider Expirations für {symbol} fehlgeschlagen: {e}")
 
         return sorted(expirations, key=lambda x: x[1])
 
@@ -345,7 +345,7 @@ class OptionsChainValidator:
         """
         Ruft Put-Options für Symbol+Expiration ab.
 
-        Provider-Kaskade: IBKR → Tradier
+        Provider-Kaskade: IBKR → Provider-Fallback
         """
         option_quotes = []
 
@@ -364,15 +364,15 @@ class OptionsChainValidator:
             except Exception as e:
                 logger.warning(f"IBKR Chain für {symbol} {expiration} fehlgeschlagen: {e}")
 
-        # Tradier Fallback
+        # Provider Fallback
         if not option_quotes:
             try:
                 option_quotes = await self._provider.get_option_chain(
                     symbol, expiry=expiration, right="P"
                 )
-                self._data_source = "Tradier"
+                self._data_source = "Provider"
             except Exception as e:
-                logger.error(f"Tradier Chain für {symbol} {expiration} fehlgeschlagen: {e}")
+                logger.error(f"Provider Chain für {symbol} {expiration} fehlgeschlagen: {e}")
                 return []
 
         if not option_quotes:

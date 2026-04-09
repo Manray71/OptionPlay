@@ -3,7 +3,7 @@
 """
 Extended tests for src/mcp_server.py covering:
 - Container-based initialization
-- Tradier provider integration
+- IBKR provider integration
 - Local database provider
 - Connection retry logic
 - Cache management
@@ -50,7 +50,7 @@ class MockConfig:
             min_stability = ENTRY_STABILITY_MIN
             max_candidates = 20
 
-        class Tradier:
+        class IBKRSettings:
             is_production = False
             environment = "sandbox"
 
@@ -64,7 +64,7 @@ class MockConfig:
         circuit_breaker = CircuitBreaker()
         api_connection = ApiConnection()
         scanner = Scanner()
-        tradier = Tradier()
+        ibkr = IBKRSettings()
         data_sources = DataSources()
 
     settings = Settings()
@@ -239,8 +239,8 @@ class TestServerInitializationWithoutContainer:
 # CONNECTION TESTS
 # =============================================================================
 
-class TestTradierConnection:
-    """Tests for Tradier provider connection."""
+class TestIBKRConnection:
+    """Tests for IBKR provider connection."""
 
     @pytest.mark.asyncio
     async def test_ensure_ibkr_connection_failure_logs_warning(self, mock_api_key):
@@ -472,8 +472,8 @@ class TestScannerMethods:
 
         assert scanner is not None
 
-    def test_get_multi_scanner_iv_filter_disabled_without_tradier(self, mock_api_key, mock_container):
-        """Test: IV filter disabled when Tradier not connected."""
+    def test_get_multi_scanner_iv_filter_disabled_without_ibkr(self, mock_api_key, mock_container):
+        """Test: IV filter disabled when IBKR not connected."""
         server = OptionPlayServer(container=mock_container)
         server._ibkr_connected = False
 
@@ -521,11 +521,11 @@ class TestHealthCheck:
             result = await server.health_check()
 
             assert result == "Health with IBKR: OK"
-            # Verify the HealthCheckData was passed with Tradier info
+            # Verify the HealthCheckData was passed with IBKR provider info
             call_args = mock_formatters.health_check.format.call_args
             health_data = call_args[0][0]
-            assert health_data.tradier_available is True
-            assert health_data.tradier_connected is True
+            assert health_data.ibkr_provider_available is True
+            assert health_data.ibkr_provider_connected is True
 
     @pytest.mark.asyncio
     async def test_health_check_with_local_db_enabled(self, mock_api_key, mock_container):
@@ -566,7 +566,7 @@ class TestHealthCheck:
                     # Verify IBKR info was included
                     call_args = mock_formatters.health_check.format.call_args
                     health_data = call_args[0][0]
-                    assert health_data.tradier_available is True
+                    assert health_data.ibkr_provider_available is True
                     assert health_data.ibkr_host == "127.0.0.1"
                     assert health_data.ibkr_port == 7497
 
@@ -578,8 +578,8 @@ class TestHealthCheck:
 class TestUtilityMethods:
     """Tests for utility methods."""
 
-    def test_get_active_provider_name_tradier(self, mock_api_key, mock_container):
-        """Test: Returns Tradier when connected."""
+    def test_get_active_provider_name_ibkr(self, mock_api_key, mock_container):
+        """Test: Returns IBKR when connected."""
         server = OptionPlayServer(container=mock_container)
         server._ibkr_connected = True
 

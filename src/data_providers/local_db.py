@@ -212,7 +212,7 @@ class LocalDBProvider(DataProvider):
         Get option chain - NOT SUPPORTED by local DB.
 
         Local DB has options_prices but not in real-time format.
-        Use Tradier or Marketdata.app for option chains.
+        Use IBKR or Marketdata.app for option chains.
         """
         logger.debug(f"get_option_chain not supported by local DB for {symbol}")
         return []
@@ -221,7 +221,7 @@ class LocalDBProvider(DataProvider):
         """
         Get available expirations - NOT SUPPORTED by local DB.
 
-        Use Tradier or Marketdata.app for expirations.
+        Use IBKR or Marketdata.app for expirations.
         """
         logger.debug(f"get_expirations not supported by local DB for {symbol}")
         return []
@@ -231,7 +231,7 @@ class LocalDBProvider(DataProvider):
         Get IV data - NOT SUPPORTED by local DB.
 
         IV data should come from options_greeks table but that requires
-        additional implementation. Use Tradier for real-time IV.
+        additional implementation. Use IBKR for real-time IV.
         """
         logger.debug(f"get_iv_data not supported by local DB for {symbol}")
         return None

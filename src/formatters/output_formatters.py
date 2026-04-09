@@ -494,11 +494,9 @@ class HealthCheckData:
     ibkr_host: Optional[str] = None
     ibkr_port: Optional[int] = None
     metrics_stats: Optional[Dict[str, Any]] = None  # Application metrics
-    # IBKR DataProvider status (legacy field names kept for compat)
-    tradier_available: bool = False  # Now: IBKR provider available
-    tradier_connected: bool = False  # Now: IBKR provider connected
-    tradier_api_key_masked: Optional[str] = None  # Unused (IBKR has no API key)
-    tradier_environment: Optional[str] = None  # Unused
+    # IBKR DataProvider connection status
+    ibkr_provider_available: bool = False
+    ibkr_provider_connected: bool = False
     local_db_enabled: bool = False
     local_db_stats: Optional[Dict[str, Any]] = None
 
@@ -577,7 +575,7 @@ class HealthCheckFormatter(BaseFormatter):
 
         # IBKR DataProvider
         b.blank().h2("IBKR DataProvider")
-        if data.tradier_connected:
+        if data.ibkr_provider_connected:
             b.kv_line("Status", "✅ Connected")
             b.kv_line("Features", "Quotes, Options Chain + Greeks, Historical Data, VIX")
         else:

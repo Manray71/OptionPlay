@@ -137,7 +137,7 @@ class HistoricalBar:
 #     iv_high_52w: Optional[float]     # 52-Wochen-Hoch
 #     iv_low_52w: Optional[float]      # 52-Wochen-Tief
 #     data_points: int                 # Anzahl historischer Datenpunkte
-#     source: IVSource                 # Enum: TRADIER, YAHOO, IBKR, etc.
+#     source: IVSource                 # Enum: IBKR, YAHOO, etc.
 #     updated_at: str                  # ISO Timestamp
 #
 # =============================================================================
@@ -146,7 +146,7 @@ class HistoricalBar:
 class DataProvider(ABC):
     """
     Abstrakte Basisklasse für Datenquellen.
-    Jede Quelle (Tradier, IBKR, etc.) implementiert dieses Interface.
+    Jede Quelle (IBKR, Yahoo Finance, etc.) implementiert dieses Interface.
     """
 
     @property

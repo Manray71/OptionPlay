@@ -559,8 +559,8 @@ class TestGetExpirations:
         assert "Total" in result
 
     @pytest.mark.asyncio
-    async def test_get_expirations_tradier_first(self):
-        """Test expirations uses Tradier provider first."""
+    async def test_get_expirations_ibkr_first(self):
+        """Test expirations uses IBKR provider first."""
         from src.handlers.quote import QuoteHandlerMixin
 
         class TestHandler(QuoteHandlerMixin):
@@ -584,13 +584,13 @@ class TestGetExpirations:
 
         result = await test_handler.get_expirations("AAPL")
 
-        # Tradier should be called
+        # IBKR should be called
         test_handler._ibkr_provider.get_expirations.assert_called_once_with("AAPL")
         assert "1" in result  # Total: 1
 
     @pytest.mark.asyncio
     async def test_get_expirations_fallback_to_marketdata(self):
-        """Test expirations falls back to Marketdata when Tradier fails."""
+        """Test expirations falls back to Marketdata when IBKR fails."""
         from src.handlers.quote import QuoteHandlerMixin
 
         class TestHandler(QuoteHandlerMixin):
@@ -599,7 +599,7 @@ class TestGetExpirations:
                 self._rate_limiter = MockRateLimiter()
                 self._ibkr_connected = True
                 self._ibkr_provider = MagicMock()
-                self._ibkr_provider.get_expirations = AsyncMock(side_effect=Exception("Tradier error"))
+                self._ibkr_provider.get_expirations = AsyncMock(side_effect=Exception("IBKR error"))
 
             async def _ensure_connected(self):
                 mock_provider = MagicMock()
@@ -1499,8 +1499,8 @@ class TestProviderSelection:
     """Tests for provider selection logic."""
 
     @pytest.mark.asyncio
-    async def test_tradier_preferred_for_expirations(self):
-        """Test that Tradier is preferred for expirations."""
+    async def test_ibkr_preferred_for_expirations(self):
+        """Test that IBKR is preferred for expirations."""
         from src.handlers.quote import QuoteHandlerMixin
 
         class TestHandler(QuoteHandlerMixin):
@@ -1524,14 +1524,14 @@ class TestProviderSelection:
 
         await test_handler.get_expirations("AAPL")
 
-        # Tradier should be called
+        # IBKR should be called
         test_handler._ibkr_provider.get_expirations.assert_called_once()
-        # Marketdata should NOT be called since Tradier succeeded
+        # Marketdata should NOT be called since IBKR succeeded
         assert not test_handler._marketdata_called
 
     @pytest.mark.asyncio
-    async def test_marketdata_fallback_when_tradier_unavailable(self):
-        """Test Marketdata is used when Tradier not connected."""
+    async def test_marketdata_fallback_when_ibkr_unavailable(self):
+        """Test Marketdata is used when IBKR not connected."""
         from src.handlers.quote import QuoteHandlerMixin
 
         class TestHandler(QuoteHandlerMixin):

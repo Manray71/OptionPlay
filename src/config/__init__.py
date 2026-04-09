@@ -61,7 +61,6 @@ from .models import (  # Indicator configs; Strategy-specific configs; Infrastru
     Settings,
     StochasticScoringConfig,
     SupportConfig,
-    TradierConfig,
     TrainedWeights,
     TrainedWeightsConfig,
     TrendStrengthConfig,
@@ -119,7 +118,6 @@ __all__ = [
     "BounceCandlestickConfig",
     # Infrastructure Configs
     "ConnectionConfig",
-    "TradierConfig",
     "DataSourcesConfig",
     "LocalDatabaseConfig",
     # Trained Weights

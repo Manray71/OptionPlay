@@ -28,7 +28,6 @@ from .models import (
     ScannerConfig,
     Settings,
     SupportConfig,
-    TradierConfig,
     TrainedWeights,
     TrainedWeightsConfig,
     VolumeConfig,
@@ -193,7 +192,7 @@ class ConfigLoader:
                     min_data_points=local_db.get("min_data_points", 60),
                 ),
                 provider_priority=ds.get(
-                    "provider_priority", ["local_db", "tradier", "marketdata", "yahoo"]
+                    "provider_priority", ["local_db", "ibkr", "yahoo"]
                 ),
             )
 
@@ -206,24 +205,6 @@ class ConfigLoader:
                 client_id=conn.get("client_id", 1),
                 timeout=conn.get("timeout_seconds", 30),
                 max_retries=conn.get("max_retries", 3),
-            )
-
-        # Tradier (can be under 'connection' or at root level)
-        trad = None
-        if "connection" in raw and "tradier" in raw["connection"]:
-            trad = raw["connection"]["tradier"]
-        elif "tradier" in raw:
-            trad = raw["tradier"]
-
-        if trad:
-            settings.tradier = TradierConfig(
-                enabled=trad.get("enabled", True),
-                environment=trad.get("environment", "sandbox"),
-                api_key=trad.get("api_key", ""),
-                timeout_seconds=trad.get("timeout_seconds", 30),
-                max_retries=trad.get("max_retries", 3),
-                retry_delay_seconds=trad.get("retry_delay_seconds", 1.0),
-                rate_limit_per_minute=trad.get("rate_limit_per_minute", 120),
             )
 
         # Pullback Scoring

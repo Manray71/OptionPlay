@@ -12,6 +12,9 @@
 # - Finale Trade-Validierung: IBKR (wenn verfügbar)
 # - VIX: Yahoo Finance (zuverlässiger als Marketdata.app)
 # - Earnings: Multi-Source mit Cache
+#
+# Note: Tradier has been replaced by IBKR TWS Bridge.
+# ProviderType.TRADIER is kept for backward compatibility (DB enum values).
 
 import asyncio
 import logging
@@ -100,7 +103,7 @@ class ProviderOrchestrator:
         ProviderType.MARKETDATA: ProviderConfig(
             name="Marketdata.app",
             enabled=True,
-            priority=3,  # Niedriger als Tradier
+            priority=2,
             rate_limit_per_minute=100,
             supports=[
                 DataType.QUOTE,
@@ -108,19 +111,6 @@ class ProviderOrchestrator:
                 DataType.OPTIONS_CHAIN,
                 DataType.EARNINGS,
                 DataType.SCAN,
-            ],
-        ),
-        ProviderType.TRADIER: ProviderConfig(
-            name="Tradier",
-            enabled=False,  # Wird aktiviert wenn API Key vorhanden
-            priority=2,  # Höher als Marketdata, niedriger als IBKR
-            rate_limit_per_minute=120,
-            supports=[
-                DataType.QUOTE,
-                DataType.HISTORICAL,
-                DataType.OPTIONS_CHAIN,
-                DataType.SCAN,
-                DataType.IV_RANK,
             ],
         ),
         ProviderType.IBKR: ProviderConfig(
@@ -141,7 +131,7 @@ class ProviderOrchestrator:
         ProviderType.YAHOO: ProviderConfig(
             name="Yahoo Finance",
             enabled=True,
-            priority=4,  # Niedrigste Priorität
+            priority=3,
             rate_limit_per_minute=120,
             supports=[
                 DataType.VIX,
@@ -152,19 +142,16 @@ class ProviderOrchestrator:
     }
 
     # Routing-Präferenzen pro Datentyp
-    # Reihenfolge: IBKR (live) > Tradier (API) > Marketdata > Yahoo (fallback)
+    # Reihenfolge: IBKR (live) > Marketdata > Yahoo (fallback)
     ROUTING_PREFERENCES = {
-        DataType.QUOTE: [ProviderType.IBKR, ProviderType.TRADIER, ProviderType.MARKETDATA],
-        DataType.HISTORICAL: [ProviderType.TRADIER, ProviderType.MARKETDATA, ProviderType.IBKR],
-        DataType.OPTIONS_CHAIN: [ProviderType.IBKR, ProviderType.TRADIER, ProviderType.MARKETDATA],
+        DataType.QUOTE: [ProviderType.IBKR, ProviderType.MARKETDATA],
+        DataType.HISTORICAL: [ProviderType.MARKETDATA, ProviderType.IBKR],
+        DataType.OPTIONS_CHAIN: [ProviderType.IBKR, ProviderType.MARKETDATA],
         DataType.VIX: [ProviderType.IBKR, ProviderType.YAHOO, ProviderType.MARKETDATA],
-        DataType.EARNINGS: [
-            ProviderType.YAHOO,
-            ProviderType.MARKETDATA,
-        ],  # Tradier hat keine Earnings
-        DataType.SCAN: [ProviderType.TRADIER, ProviderType.MARKETDATA],  # Tradier für Bulk-Scans
+        DataType.EARNINGS: [ProviderType.YAHOO, ProviderType.MARKETDATA],
+        DataType.SCAN: [ProviderType.MARKETDATA],
         DataType.NEWS: [ProviderType.IBKR],  # NUR IBKR liefert News
-        DataType.IV_RANK: [ProviderType.IBKR, ProviderType.TRADIER, ProviderType.MARKETDATA],
+        DataType.IV_RANK: [ProviderType.IBKR, ProviderType.MARKETDATA],
         DataType.MAX_PAIN: [ProviderType.IBKR],  # Nur IBKR hat präzise OI-Daten
         DataType.STRIKE_RECOMMENDATION: [ProviderType.IBKR],  # VIX-integriert
     }
@@ -183,12 +170,7 @@ class ProviderOrchestrator:
         }
         self.stats: Dict[ProviderType, ProviderStats] = {p: ProviderStats() for p in ProviderType}
         self._ibkr_connected = False
-        self._tradier_connected = False
         self._last_daily_reset = datetime.now().date()
-
-    def enable_tradier(self, enabled: bool = True) -> None:
-        """Legacy alias — routes to enable_ibkr."""
-        self.enable_ibkr(enabled)
 
     def enable_ibkr(self, connected: bool = True) -> None:
         """Aktiviert/Deaktiviert IBKR Provider."""
@@ -226,11 +208,6 @@ class ProviderOrchestrator:
                     continue
                 if not prefer_accuracy and data_type == DataType.SCAN:
                     continue  # Scans nie über IBKR
-
-            # Tradier nur wenn verbunden/aktiviert
-            if provider_type == ProviderType.TRADIER:
-                if not self._tradier_connected:
-                    continue
 
             # Daily Limit prüfen
             stats = self.stats[provider_type]
@@ -311,8 +288,6 @@ class ProviderOrchestrator:
 
             if provider_type == ProviderType.IBKR:
                 status[config.name]["connected"] = self._ibkr_connected
-            if provider_type == ProviderType.TRADIER:
-                status[config.name]["connected"] = self._tradier_connected
 
         return status
 

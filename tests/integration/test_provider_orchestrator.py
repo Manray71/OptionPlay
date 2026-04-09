@@ -58,7 +58,7 @@ class TestProviderType:
         """Test all expected provider types exist."""
         assert ProviderType.MARKETDATA.value == "marketdata"
         assert ProviderType.IBKR.value == "ibkr"
-        assert ProviderType.IBKR.value == "ibkr"
+        assert ProviderType.TRADIER.value == "tradier"
         assert ProviderType.YAHOO.value == "yahoo"
 
     def test_enum_count(self):
@@ -215,9 +215,8 @@ class TestProviderOrchestratorInit:
     """Tests for ProviderOrchestrator initialization."""
 
     def test_init_creates_providers(self, fresh_orchestrator):
-        """Test initialization creates all providers."""
+        """Test initialization creates all active providers."""
         assert ProviderType.MARKETDATA in fresh_orchestrator.providers
-        assert ProviderType.IBKR in fresh_orchestrator.providers
         assert ProviderType.IBKR in fresh_orchestrator.providers
         assert ProviderType.YAHOO in fresh_orchestrator.providers
 
@@ -235,20 +234,12 @@ class TestProviderOrchestratorInit:
         """Test IBKR is disabled by default."""
         assert fresh_orchestrator.providers[ProviderType.IBKR].enabled is False
 
-    def test_tradier_disabled_by_default(self, fresh_orchestrator):
-        """Test Tradier is disabled by default."""
-        assert fresh_orchestrator.providers[ProviderType.IBKR].enabled is False
-
     def test_yahoo_enabled_by_default(self, fresh_orchestrator):
         """Test Yahoo is enabled by default."""
         assert fresh_orchestrator.providers[ProviderType.YAHOO].enabled is True
 
     def test_ibkr_connected_false_by_default(self, fresh_orchestrator):
         """Test IBKR connected flag is False by default."""
-        assert fresh_orchestrator._ibkr_connected is False
-
-    def test_ibkr_connected_false_by_default(self, fresh_orchestrator):
-        """Test Tradier connected flag is False by default."""
         assert fresh_orchestrator._ibkr_connected is False
 
     def test_last_daily_reset_is_today(self, fresh_orchestrator):
@@ -274,14 +265,6 @@ class TestProviderOrchestratorInit:
             assert stats.requests_total == 0
             assert stats.errors_today == 0
 
-    @pytest.mark.skip(reason="Tradier routing removed — IBKR is sole provider")
-    def test_provider_priorities(self, fresh_orchestrator):
-        """Test provider priorities are set correctly."""
-        assert fresh_orchestrator.providers[ProviderType.IBKR].priority == 1
-        assert fresh_orchestrator.providers[ProviderType.IBKR].priority == 2
-        assert fresh_orchestrator.providers[ProviderType.MARKETDATA].priority == 3
-        assert fresh_orchestrator.providers[ProviderType.YAHOO].priority == 4
-
 
 # =============================================================================
 # ENABLE/DISABLE TESTS
@@ -305,29 +288,9 @@ class TestEnableDisable:
         assert fresh_orchestrator.providers[ProviderType.IBKR].enabled is False
         assert fresh_orchestrator._ibkr_connected is False
 
-    def test_enable_tradier(self, fresh_orchestrator):
-        """Test enabling Tradier."""
-        fresh_orchestrator.enable_tradier(True)
-
-        assert fresh_orchestrator.providers[ProviderType.IBKR].enabled is True
-        assert fresh_orchestrator._ibkr_connected is True
-
-    def test_disable_tradier(self, fresh_orchestrator):
-        """Test disabling Tradier."""
-        fresh_orchestrator.enable_tradier(True)
-        fresh_orchestrator.enable_tradier(False)
-
-        assert fresh_orchestrator.providers[ProviderType.IBKR].enabled is False
-        assert fresh_orchestrator._ibkr_connected is False
-
     def test_enable_ibkr_default_param(self, fresh_orchestrator):
         """Test enable_ibkr default parameter is True."""
         fresh_orchestrator.enable_ibkr()
-        assert fresh_orchestrator._ibkr_connected is True
-
-    def test_enable_tradier_default_param(self, fresh_orchestrator):
-        """Test enable_tradier default parameter is True."""
-        fresh_orchestrator.enable_tradier()
         assert fresh_orchestrator._ibkr_connected is True
 
 
@@ -339,26 +302,13 @@ class TestGetBestProvider:
     """Tests for get_best_provider method."""
 
     def test_get_best_for_quote_returns_marketdata(self, fresh_orchestrator):
-        """Test QUOTE returns Marketdata (IBKR/Tradier disabled)."""
+        """Test QUOTE returns Marketdata when IBKR is disabled."""
         result = fresh_orchestrator.get_best_provider(DataType.QUOTE)
         assert result == ProviderType.MARKETDATA
 
     def test_get_best_for_quote_with_ibkr_enabled(self, fresh_orchestrator):
         """Test QUOTE returns IBKR when enabled."""
         fresh_orchestrator.enable_ibkr(True)
-        result = fresh_orchestrator.get_best_provider(DataType.QUOTE)
-        assert result == ProviderType.IBKR
-
-    def test_get_best_for_quote_with_tradier_enabled(self, fresh_orchestrator):
-        """Test QUOTE returns Tradier when enabled (IBKR disabled)."""
-        fresh_orchestrator.enable_tradier(True)
-        result = fresh_orchestrator.get_best_provider(DataType.QUOTE)
-        assert result == ProviderType.IBKR
-
-    def test_get_best_for_quote_prefers_ibkr_over_tradier(self, fresh_orchestrator):
-        """Test QUOTE prefers IBKR over Tradier when both enabled."""
-        fresh_orchestrator.enable_ibkr(True)
-        fresh_orchestrator.enable_tradier(True)
         result = fresh_orchestrator.get_best_provider(DataType.QUOTE)
         assert result == ProviderType.IBKR
 
@@ -386,13 +336,6 @@ class TestGetBestProvider:
         result = fresh_orchestrator.get_best_provider(DataType.SCAN)
         # IBKR is skipped for SCAN
         assert result == ProviderType.MARKETDATA
-
-    @pytest.mark.skip(reason="Tradier routing removed — IBKR is sole provider")
-    def test_get_best_for_scan_with_tradier_enabled(self, fresh_orchestrator):
-        """Test SCAN returns Tradier when enabled."""
-        fresh_orchestrator.enable_tradier(True)
-        result = fresh_orchestrator.get_best_provider(DataType.SCAN)
-        assert result == ProviderType.IBKR
 
     def test_get_best_for_news_with_ibkr(self, fresh_orchestrator):
         """Test NEWS returns IBKR when enabled."""
@@ -427,13 +370,6 @@ class TestGetBestProvider:
         result = fresh_orchestrator.get_best_provider(DataType.HISTORICAL)
         assert result == ProviderType.MARKETDATA
 
-    @pytest.mark.skip(reason="Tradier routing removed — IBKR is sole provider")
-    def test_get_best_for_historical_with_tradier(self, fresh_orchestrator):
-        """Test HISTORICAL prefers Tradier when enabled."""
-        fresh_orchestrator.enable_tradier(True)
-        result = fresh_orchestrator.get_best_provider(DataType.HISTORICAL)
-        assert result == ProviderType.IBKR
-
     def test_get_best_for_options_chain(self, fresh_orchestrator):
         """Test OPTIONS_CHAIN returns Marketdata by default."""
         result = fresh_orchestrator.get_best_provider(DataType.OPTIONS_CHAIN)
@@ -446,16 +382,14 @@ class TestGetBestProvider:
         assert result == ProviderType.IBKR
 
     def test_get_best_for_iv_rank(self, fresh_orchestrator):
-        """Test IV_RANK returns Marketdata by default."""
-        # Marketdata supports IV_RANK but is not in routing preferences for it
+        """Test IV_RANK returns None when IBKR is disabled."""
+        # IBKR is first in routing preferences for IV_RANK; no other provider handles it
         result = fresh_orchestrator.get_best_provider(DataType.IV_RANK)
-        # IBKR first in preferences, then Tradier, then Marketdata
-        # None are enabled except Marketdata but it doesn't support IV_RANK in routing
         assert result is None or result == ProviderType.MARKETDATA
 
-    def test_get_best_for_iv_rank_with_tradier(self, fresh_orchestrator):
-        """Test IV_RANK returns Tradier when enabled."""
-        fresh_orchestrator.enable_tradier(True)
+    def test_get_best_for_iv_rank_with_ibkr(self, fresh_orchestrator):
+        """Test IV_RANK returns IBKR when enabled."""
+        fresh_orchestrator.enable_ibkr(True)
         result = fresh_orchestrator.get_best_provider(DataType.IV_RANK)
         assert result == ProviderType.IBKR
 
@@ -494,11 +428,11 @@ class TestDailyLimit:
 
     def test_fallback_to_next_provider_when_limit_reached(self, fresh_orchestrator):
         """Test fallback to next provider when primary hits limit."""
-        fresh_orchestrator.enable_tradier(True)
+        fresh_orchestrator.enable_ibkr(True)
         fresh_orchestrator.providers[ProviderType.IBKR].daily_limit = 5
         fresh_orchestrator.stats[ProviderType.IBKR].requests_today = 5
 
-        # Should skip Tradier and use Marketdata for SCAN
+        # Should skip IBKR and use Marketdata for SCAN
         result = fresh_orchestrator.get_best_provider(DataType.SCAN)
         assert result == ProviderType.MARKETDATA
 
@@ -535,27 +469,11 @@ class TestGetFallbackProviders:
         fallbacks = fresh_orchestrator.get_fallback_providers(DataType.NEWS)
         assert fallbacks == []
 
-    @pytest.mark.skip(reason="Tradier routing removed — IBKR is sole provider")
-    def test_get_fallbacks_with_multiple_enabled(self, fresh_orchestrator):
-        """Test fallbacks with multiple providers enabled."""
-        fresh_orchestrator.enable_tradier(True)
-        fresh_orchestrator.enable_ibkr(True)
-
-        fallbacks = fresh_orchestrator.get_fallback_providers(
-            DataType.QUOTE,
-            exclude=ProviderType.IBKR
-        )
-
-        assert ProviderType.IBKR in fallbacks
-        assert ProviderType.MARKETDATA in fallbacks
-        assert ProviderType.IBKR not in fallbacks
-
     def test_get_fallbacks_respects_enabled_state(self, fresh_orchestrator):
         """Test fallbacks only include enabled providers."""
         fallbacks = fresh_orchestrator.get_fallback_providers(DataType.QUOTE)
 
-        # Tradier and IBKR are disabled
-        assert ProviderType.IBKR not in fallbacks
+        # IBKR is disabled by default
         assert ProviderType.IBKR not in fallbacks
 
     def test_get_fallbacks_for_unknown_data_type(self, fresh_orchestrator):
@@ -750,10 +668,9 @@ class TestGetProviderStatus:
         assert isinstance(status, dict)
 
     def test_status_contains_all_providers(self, fresh_orchestrator):
-        """Test status contains all providers."""
+        """Test status contains all active providers."""
         status = fresh_orchestrator.get_provider_status()
         assert "Marketdata.app" in status
-        assert "Tradier" in status
         assert "IBKR/TWS" in status
         assert "Yahoo Finance" in status
 
@@ -776,20 +693,12 @@ class TestGetProviderStatus:
         status = fresh_orchestrator.get_provider_status()
         assert "connected" in status["IBKR/TWS"]
 
-    def test_status_tradier_has_connected_field(self, fresh_orchestrator):
-        """Test Tradier status includes connected field."""
-        status = fresh_orchestrator.get_provider_status()
-        assert "connected" in status["Tradier"]
-
-    @pytest.mark.skip(reason="Tradier routing removed — IBKR is sole provider")
     def test_status_connected_reflects_state(self, fresh_orchestrator):
-        """Test connected field reflects actual state."""
+        """Test connected field reflects actual IBKR state."""
         fresh_orchestrator.enable_ibkr(True)
-        fresh_orchestrator.enable_tradier(True)
 
         status = fresh_orchestrator.get_provider_status()
         assert status["IBKR/TWS"]["connected"] is True
-        assert status["Tradier"]["connected"] is True
 
     def test_status_latency_rounded(self, fresh_orchestrator):
         """Test latency is rounded in status."""
@@ -927,12 +836,11 @@ class TestConvenienceFunctions:
         assert "# Data Provider Status" in result
 
     def test_format_provider_status_contains_providers(self, reset_singleton):
-        """Test format output contains all providers."""
+        """Test format output contains all active providers."""
         result = format_provider_status()
         assert "Marketdata.app" in result
         assert "Yahoo Finance" in result
         assert "IBKR/TWS" in result
-        assert "Tradier" in result
 
     def test_format_provider_status_contains_stats(self, reset_singleton):
         """Test format output contains stats."""
@@ -968,11 +876,10 @@ class TestRoutingPreferences:
             # All data types should have at least one provider preference
             assert isinstance(preferences, list)
 
-    @pytest.mark.skip(reason="Tradier routing removed — IBKR is sole provider")
     def test_quote_routing_order(self, fresh_orchestrator):
-        """Test QUOTE routing order."""
+        """Test QUOTE routing order: IBKR first, then Marketdata."""
         preferences = fresh_orchestrator.ROUTING_PREFERENCES[DataType.QUOTE]
-        assert preferences == [ProviderType.IBKR, ProviderType.IBKR, ProviderType.MARKETDATA]
+        assert preferences == [ProviderType.IBKR, ProviderType.MARKETDATA]
 
     def test_vix_routing_order(self, fresh_orchestrator):
         """Test VIX routing order."""
@@ -1015,14 +922,6 @@ class TestProviderSupport:
         assert DataType.NEWS in config.supports
         assert DataType.MAX_PAIN in config.supports
         assert DataType.STRIKE_RECOMMENDATION in config.supports
-
-    @pytest.mark.skip(reason="Tradier routing removed — IBKR is sole provider")
-    def test_tradier_supports(self, fresh_orchestrator):
-        """Test Tradier supported data types."""
-        config = fresh_orchestrator.providers[ProviderType.IBKR]
-        assert DataType.QUOTE in config.supports
-        assert DataType.SCAN in config.supports
-        assert DataType.IV_RANK in config.supports
 
 
 # =============================================================================

@@ -139,7 +139,7 @@ class IVCache:
         history = cache.get_history("AAPL")
 
         # History aktualisieren
-        cache.update_history("AAPL", [0.25, 0.28, 0.32, ...], IVSource.TRADIER)
+        cache.update_history("AAPL", [0.25, 0.28, 0.32, ...], IVSource.IBKR)
 
         # Neuen IV-Wert hinzufügen
         cache.add_iv_point("AAPL", 0.30)
@@ -486,7 +486,7 @@ class IVFetcher:
     Holt IV-Daten mit automatischem Caching.
 
     Unterstützte Quellen:
-    - Tradier Options Chain (primär)
+    - IBKR Options Chain (primär)
     - Yahoo Finance (fallback)
 
     Verwendung:
@@ -560,7 +560,7 @@ class IVFetcher:
         und verwendet dessen mid_iv oder smv_vol.
 
         Args:
-            options_chain: Liste von Options-Dicts (Tradier Format)
+            options_chain: Liste von Options-Dicts
             underlying_price: Aktueller Aktienkurs
 
         Returns:
@@ -584,7 +584,7 @@ class IVFetcher:
         if not atm_option:
             return None
 
-        # IV extrahieren (Tradier Format)
+        # IV extrahieren
         greeks = atm_option.get("greeks", {})
 
         # Präferenz: smv_vol > mid_iv > (bid_iv + ask_iv) / 2
@@ -607,7 +607,7 @@ class IVFetcher:
 
         Args:
             symbol: Ticker-Symbol
-            options_chain: Tradier Options-Chain
+            options_chain: Options-Chain
             underlying_price: Aktueller Aktienkurs
 
         Returns:

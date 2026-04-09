@@ -133,7 +133,7 @@ class MaxPainCalculator:
     Verwendung:
         calc = MaxPainCalculator()
 
-        # Aus Tradier Options-Chain
+        # Aus Options-Chain
         result = calc.calculate_from_chain(
             symbol="AAPL",
             options_chain=chain_data,
@@ -260,7 +260,7 @@ class MaxPainCalculator:
         expiry: Optional[str] = None,
     ) -> Optional[MaxPainResult]:
         """
-        Berechnet Max Pain aus einer Tradier-Style Options-Chain.
+        Berechnet Max Pain aus einer Options-Chain.
 
         Args:
             symbol: Ticker-Symbol
@@ -281,7 +281,7 @@ class MaxPainCalculator:
         for opt in options_chain:
             strike = opt.get("strike", 0)
 
-            # Option Type (Tradier: 'option_type' oder 'type')
+            # Option Type ('option_type' oder 'type')
             opt_type = opt.get("option_type", opt.get("type", "")).lower()
 
             # Open Interest
@@ -289,7 +289,7 @@ class MaxPainCalculator:
 
             # Expiry extrahieren wenn nicht angegeben
             if not chain_expiry:
-                # Tradier Format: AAPL250321C00175000 oder expiration_date Feld
+                # OCC Format: AAPL250321C00175000 oder expiration_date Feld
                 chain_expiry = opt.get("expiration_date", "")
                 if not chain_expiry:
                     # Aus Symbol extrahieren

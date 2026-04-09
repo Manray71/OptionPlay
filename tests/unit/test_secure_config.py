@@ -794,7 +794,7 @@ class TestSecureConfigValidation:
     def teardown_method(self):
         """Cleanup after each test."""
         reset_secure_config()
-        for key in ["MARKETDATA_API_KEY", "TRADIER_API_KEY", "UNKNOWN_KEY"]:
+        for key in ["MARKETDATA_API_KEY", "UNKNOWN_KEY"]:
             if key in os.environ:
                 del os.environ[key]
 
@@ -825,23 +825,6 @@ class TestSecureConfigValidation:
         with pytest.raises(ValueError, match="invalid format"):
             config.get_api_key("MARKETDATA_API_KEY", validate=True)
 
-    def test_validate_valid_tradier_key(self):
-        """Valid Tradier API key passes validation."""
-        os.environ["TRADIER_API_KEY"] = "validTradierApiKey123456"
-
-        config = SecureConfig()
-        key = config.get_api_key("TRADIER_API_KEY", validate=True)
-
-        assert key == "validTradierApiKey123456"
-
-    def test_validate_invalid_tradier_key(self):
-        """Invalid Tradier key fails validation."""
-        os.environ["TRADIER_API_KEY"] = "short"
-
-        config = SecureConfig()
-
-        with pytest.raises(ValueError, match="invalid format"):
-            config.get_api_key("TRADIER_API_KEY", validate=True)
 
     def test_validate_unknown_key_always_passes(self):
         """Unknown key names pass validation (no pattern defined)."""

@@ -125,7 +125,6 @@ class SecureConfig:
     # Bekannte API-Key Formate für Validierung
     KEY_PATTERNS = {
         "MARKETDATA_API_KEY": r"^[A-Za-z0-9_-]{20,100}$",
-        "TRADIER_API_KEY": r"^[A-Za-z0-9]{20,50}$",
     }
 
     def __init__(

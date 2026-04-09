@@ -84,11 +84,6 @@ class BaseHandlerMixin:
         """Ensure connection to IBKR."""
         raise NotImplementedError
 
-    # Legacy alias
-    async def _ensure_tradier_connected(self) -> Optional[Any]:
-        """Legacy alias for _ensure_ibkr_connected."""
-        return await self._ensure_ibkr_connected()
-
     async def _fetch_historical_cached(
         self, symbol: str, days: Optional[int] = None
     ) -> Optional[tuple[Any, ...]]:

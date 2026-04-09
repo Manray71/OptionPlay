@@ -400,7 +400,7 @@ class AnalysisHandlerMixin(BaseHandlerMixin):
         )
         fib_levels = calculate_fibonacci(recent_high, recent_low)
 
-        # Get options chain (Tradier -> IBKR fallback, no Marketdata ATM)
+        # Get options chain via IBKR
         options = await self._get_options_chain_with_fallback(
             symbol, dte_min=dte_min, dte_max=dte_max, right="P"
         )
@@ -459,7 +459,7 @@ class AnalysisHandlerMixin(BaseHandlerMixin):
         b.kv_line("Quality", rec.quality.value if rec.quality else "N/A")
         # Show data source for transparency
         source_labels = {
-            "provider": "Live (Tradier/ORATS)",
+            "provider": "Live (IBKR)",
             "black_scholes": "Black-Scholes (geschätzt)",
             "heuristic": "Heuristik (geschätzt)",
         }

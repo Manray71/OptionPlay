@@ -15,7 +15,7 @@
 # ============================================================================
 # Für historische Preisdaten (Scanner, Analysen) wird folgende Priorität verwendet:
 # 1. Lokale SQLite-Datenbank (~/.optionplay/trades.db) - Schnellste Option
-# 2. API-Provider (Tradier) - Fallback für fehlende/aktuelle Daten
+# 2. API-Provider (IBKR TWS) - Fallback für fehlende/aktuelle Daten
 #
 # Die lokale DB enthält 356 Symbole mit Daten von 2021-01-04 bis heute.
 # Daten werden aus der options_prices Tabelle (underlying_price) extrahiert.
@@ -34,7 +34,7 @@ data_sources:
   # Reihenfolge: Erste verfügbare Quelle wird genutzt
   provider_priority:
     - "local_db"                      # 1. Lokale Datenbank (schnellste)
-    - "tradier"                       # 2. Tradier API
+    - "ibkr"                          # 2. IBKR TWS
     - "marketdata"                    # 3. Marketdata.app
     - "yahoo"                         # 4. Yahoo Finance (Fallback)
 
@@ -49,38 +49,6 @@ connection:
     timeout_seconds: 30
     max_retries: 3
     retry_delay_seconds: 5
-
-  # Tradier API - Alternative/Ergänzung
-  # Tradier bietet kostenloses Basis-Abo mit delayed Quotes und
-  # Premium-Optionen mit Real-time Daten und ORATS Greeks.
-  #
-  # Vorteile:
-  # - Bessere Greeks aus ORATS-Daten
-  # - Höhere Rate Limits (120/min vs 100/min)
-  # - Brokerage-Integration möglich
-  #
-  # Setup:
-  # 1. Konto erstellen: https://tradier.com
-  # 2. API Key holen: Settings > API Access
-  # 3. Environment Variable setzen: export TRADIER_API_KEY="your_key"
-  #
-  tradier:
-    enabled: true
-    environment: "production"     # "sandbox" oder "production"
-    base_url_sandbox: "https://sandbox.tradier.com"
-    base_url_production: "https://api.tradier.com"
-    api_key: ""                   # Via Environment Variable: TRADIER_API_KEY
-    timeout_seconds: 30
-    max_retries: 3
-    retry_delay_seconds: 1.0
-    rate_limit_per_minute: 120    # Tradier Standard-Limit
-    # Greeks und IV kommen von ORATS (in Options-Chain enthalten)
-    # Historische IV ist NICHT verfügbar - verwende HV-Schätzung
-    #
-    # Provider-Priorität (automatisches Routing):
-    # 1. IBKR/TWS (wenn verbunden) - Live-Daten
-    # 2. Tradier (wenn API Key gesetzt) - Premium-Daten
-    # 3. Yahoo Finance - Kostenloser Fallback für VIX/Earnings
 
   # Fallback-Quellen
   yahoo_finance:
@@ -301,7 +269,7 @@ options_analysis:
 # ============================================================================
 iv_calculation:
   lookback_days: 252              # Trading-Tage für 52-Wochen-Range
-  data_source: "tradier"          # Primäre Quelle
+  data_source: "ibkr"             # Primäre Quelle
   fallback_source: "calculated"   # Aus historischer Volatilität berechnen
 
   # Historische Volatilität als Fallback

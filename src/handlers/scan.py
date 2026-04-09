@@ -543,7 +543,7 @@ class ScanHandlerMixin(BaseHandlerMixin):
                 return prefetch_cache[symbol]
             return await self._fetch_historical_cached(symbol, days=historical_days)
 
-        # Options fetcher for liquidity assessment (Tradier -> IBKR fallback)
+        # Options fetcher for liquidity assessment via IBKR
         async def options_fetcher(symbol: str) -> list[Any]:
             """Fetch options chain for liquidity check."""
             try:
@@ -602,10 +602,7 @@ class ScanHandlerMixin(BaseHandlerMixin):
         ibkr_bridge = None
 
         try:
-            # Tradier is the primary provider for options chains
-            if hasattr(self, "_tradier") and self._tradier:
-                options_provider = self._tradier
-            elif hasattr(self, "_provider") and self._provider:
+            if hasattr(self, "_provider") and self._provider:
                 options_provider = self._provider
         except Exception as e:
             logger.debug(f"Could not get options provider: {e}")

@@ -4,7 +4,6 @@
 #
 # Extrahiert aus config_loader.py im Rahmen des Recursive Logic Refactorings (Phase 2.2)
 
-import os
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
@@ -64,33 +63,6 @@ class ConnectionConfig:
     client_id: int = 1
     timeout: int = 30
     max_retries: int = 3
-
-
-@dataclass
-class TradierConfig:
-    """Tradier API Konfiguration"""
-
-    enabled: bool = True
-    environment: str = "sandbox"  # "sandbox" oder "production"
-    api_key: str = ""
-    timeout_seconds: int = 30
-    max_retries: int = 3
-    retry_delay_seconds: float = 1.0
-    rate_limit_per_minute: int = 120
-
-    def __post_init__(self) -> None:
-        if not self.api_key:
-            self.api_key = os.environ.get("TRADIER_API_KEY", "")
-
-    @property
-    def is_production(self) -> bool:
-        return self.environment == "production"
-
-    @property
-    def base_url(self) -> str:
-        if self.is_production:
-            return "https://api.tradier.com"
-        return "https://sandbox.tradier.com"
 
 
 # =============================================================================
@@ -560,7 +532,7 @@ class DataSourcesConfig:
 
     local_database: LocalDatabaseConfig = field(default_factory=LocalDatabaseConfig)
     provider_priority: List[str] = field(
-        default_factory=lambda: ["local_db", "tradier", "marketdata", "yahoo"]
+        default_factory=lambda: ["local_db", "ibkr", "yahoo"]
     )
 
 
@@ -575,7 +547,6 @@ class Settings:
 
     data_sources: DataSourcesConfig = field(default_factory=DataSourcesConfig)
     connection: ConnectionConfig = field(default_factory=ConnectionConfig)
-    tradier: TradierConfig = field(default_factory=TradierConfig)
     pullback_scoring: PullbackScoringConfig = field(default_factory=PullbackScoringConfig)
     filters: FilterConfig = field(default_factory=FilterConfig)
     options: OptionsConfig = field(default_factory=OptionsConfig)

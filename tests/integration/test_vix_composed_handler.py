@@ -29,7 +29,6 @@ class MockServerContext:
         # Mutable state
         self.connected = False
         self.ibkr_connected = False
-        self.tradier_api_key = None
         self.current_vix = None
         self.vix_updated = None
 
@@ -109,8 +108,8 @@ class TestVixHandlerGetVix:
         mock_ibkr.get_vix_value.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_get_vix_falls_back_to_tradier(self, vix_handler, mock_context):
-        """Test get_vix falls back to IBKR quote if IBKR fails."""
+    async def test_get_vix_falls_back_to_ibkr_quote(self, vix_handler, mock_context):
+        """Test get_vix falls back to IBKR quote if IBKR bridge fails."""
         mock_ibkr = AsyncMock()
         mock_ibkr.get_vix_value = AsyncMock(side_effect=Exception("IBKR error"))
         mock_context.ibkr_bridge = mock_ibkr
@@ -308,7 +307,7 @@ class TestVixHandlerStrategyForStock:
 
     @pytest.fixture
     def mock_context(self):
-        """Create mock server context with Tradier provider for quote fetching."""
+        """Create mock server context with IBKR provider for quote fetching."""
         ctx = MockServerContext()
         mock_ibkr = AsyncMock()
         mock_ibkr.connect = AsyncMock(return_value=True)
@@ -468,7 +467,7 @@ class TestVixHandlerHelpers:
 
     @pytest.fixture
     def mock_context(self):
-        """Create mock server context with Tradier."""
+        """Create mock server context with IBKR."""
         ctx = MockServerContext()
         mock_ibkr = AsyncMock()
         mock_ibkr.connect = AsyncMock(return_value=True)
@@ -490,18 +489,17 @@ class TestVixHandlerHelpers:
         return handler
 
     @pytest.mark.asyncio
-    async def test_ensure_connected_returns_tradier(self, vix_handler, mock_context):
-        """Test _ensure_connected returns Tradier provider."""
+    async def test_ensure_connected_returns_ibkr(self, vix_handler, mock_context):
+        """Test _ensure_connected returns IBKR provider."""
         result = await vix_handler._ensure_connected()
 
         assert result is mock_context.ibkr_provider
 
     @pytest.mark.asyncio
-    async def test_ensure_connected_returns_none_without_tradier(self, vix_handler, mock_context):
-        """Test _ensure_connected returns None if no Tradier/IBKR available."""
+    async def test_ensure_connected_returns_none_without_ibkr(self, vix_handler, mock_context):
+        """Test _ensure_connected returns None if no IBKR available."""
         mock_context.ibkr_provider = None
         mock_context.ibkr_connected = False
-        mock_context.tradier_api_key = None
 
         with patch(
             "src.data_providers.ibkr_provider.IBKRDataProvider",

@@ -193,7 +193,7 @@ async def check_tradability(
     """Check if a bull-put-spread is tradeable against the live options chain.
 
     Args:
-        provider: TradierProvider (or compatible) with get_option_chain().
+        provider: Options provider (IBKR or compatible) with get_option_chain().
         symbol: Underlying symbol (e.g. "AAPL").
         expiration: Expiration date as "YYYY-MM-DD".
         short_strike: Short put strike price.
@@ -1157,7 +1157,7 @@ async def resolve_trade(
 
     Args:
         trade: Dict from ShadowTracker.get_trade()
-        provider: TradierProvider (or compatible) for live data
+        provider: Options provider (IBKR or compatible) for live data
 
     Returns:
         Dict with resolution fields if resolved, None if trade stays open.
