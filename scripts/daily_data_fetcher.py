@@ -8,6 +8,7 @@ Designed to run as a cronjob after market close.
 
 Features:
 - VIX closing prices from Yahoo Finance
+- OHLCV daily prices via IBKR TWS Bridge
 - Gap detection and automatic backfill
 - Weekly fundamentals update via yfinance (Sundays)
 - Comprehensive logging
@@ -15,6 +16,9 @@ Features:
 Usage:
     # Normal run (fetch missing VIX data)
     python scripts/daily_data_fetcher.py
+
+    # Update OHLCV daily prices via IBKR (requires TWS running)
+    python scripts/daily_data_fetcher.py --update-prices
 
     # Backfill mode (fetch last N days)
     python scripts/daily_data_fetcher.py --backfill 30
@@ -37,6 +41,7 @@ Created: 2026-02-01
 """
 
 import argparse
+import asyncio
 import logging
 import sqlite3
 import sys
@@ -424,6 +429,92 @@ def _fetch_yahoo_earnings_date(symbol: str) -> Optional[date]:
     return None
 
 
+async def fetch_daily_prices(
+    days: int, logger: logging.Logger, dry_run: bool = False
+) -> int:
+    """
+    Fetch OHLCV daily prices for all watchlist symbols via IBKR TWS.
+
+    Requires TWS (port 7497) to be running. Uses IBKRDataProvider with
+    built-in rate limiting (6 concurrent historical requests).
+
+    Returns number of symbols successfully updated.
+    """
+    logger.info(f"Fetching OHLCV daily prices via IBKR TWS ({days} days)...")
+
+    if dry_run:
+        logger.info("[DRY RUN] Would fetch daily prices via IBKR")
+        return 0
+
+    try:
+        from src.data_providers.ibkr_provider import IBKRDataProvider
+        from src.data_providers.local_db import LocalDBProvider
+        from src.config.watchlist_loader import WatchlistLoader
+    except ImportError as e:
+        logger.error(f"Import error: {e}")
+        return 0
+
+    # Load watchlist
+    loader = WatchlistLoader()
+    symbols = loader.get_all_symbols()
+    if not symbols:
+        logger.warning("No symbols in watchlist")
+        return 0
+
+    logger.info(f"Watchlist: {len(symbols)} symbols")
+
+    # Connect to IBKR TWS
+    provider = IBKRDataProvider(host="127.0.0.1", port=7497)
+    if not await provider.connect():
+        logger.error("Cannot connect to IBKR TWS (port 7497). Is TWS running?")
+        return 0
+
+    logger.info("IBKR TWS connected")
+
+    # Prepare local DB for saving
+    local_db = LocalDBProvider()
+
+    stored = 0
+    skipped = 0
+    errors = 0
+
+    try:
+        for i, symbol in enumerate(symbols, 1):
+            try:
+                bars = await provider.get_historical(symbol, days=days)
+
+                if bars:
+                    count = await local_db.save_daily_prices(symbol, bars)
+                    stored += 1
+                    logger.debug(
+                        f"  [{i}/{len(symbols)}] {symbol}: {count} bars saved "
+                        f"({bars[0].date} to {bars[-1].date})"
+                    )
+                else:
+                    skipped += 1
+                    logger.debug(f"  [{i}/{len(symbols)}] {symbol}: No data from IBKR")
+
+            except Exception as e:
+                errors += 1
+                logger.debug(f"  [{i}/{len(symbols)}] {symbol}: Error - {e}")
+
+            # Progress log every 50 symbols
+            if i % 50 == 0:
+                logger.info(
+                    f"  Progress: {i}/{len(symbols)} "
+                    f"(stored={stored}, skipped={skipped}, errors={errors})"
+                )
+
+    finally:
+        await provider.disconnect()
+
+    logger.info(
+        f"Daily prices: {stored} stored, {skipped} skipped, "
+        f"{errors} errors, {len(symbols)} total"
+    )
+    return stored
+
+
 def print_status(conn: sqlite3.Connection, logger: logging.Logger):
     """Print current data status."""
     # VIX status
@@ -495,6 +586,16 @@ Examples:
         help="Only fetch VIX data (skip automatic Sunday fundamentals update)",
     )
     parser.add_argument(
+        "--update-prices",
+        "-p",
+        type=int,
+        nargs="?",
+        const=90,
+        default=None,
+        metavar="DAYS",
+        help="Fetch OHLCV daily prices via IBKR TWS (default: 90 days, requires TWS)",
+    )
+    parser.add_argument(
         "--update-earnings",
         "-e",
         action="store_true",
@@ -539,6 +640,13 @@ Examples:
             count = fetch_missing_vix(conn, logger, args.dry_run)
             total_updates += count
             logger.info(f"VIX update: {count} new records")
+
+        # OHLCV daily prices via IBKR
+        if args.update_prices is not None:
+            count = asyncio.run(
+                fetch_daily_prices(args.update_prices, logger, args.dry_run)
+            )
+            total_updates += count
 
         # Future earnings update (daily or forced)
         if args.update_earnings:
