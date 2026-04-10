@@ -515,6 +515,200 @@ async def fetch_daily_prices(
     return stored
 
 
+def _build_occ_symbol(underlying: str, expiry: date, strike: float, right: str) -> str:
+    """Build standard OCC option symbol (e.g. 'AAPL  260417P00150000')."""
+    strike_int = int(round(strike * 1000))
+    return f"{underlying:<6}{expiry.strftime('%y%m%d')}{right}{strike_int:08d}"
+
+
+def _save_options_snapshot_to_db(
+    conn: sqlite3.Connection,
+    quotes: list,
+    quote_date: str,
+    logger: logging.Logger,
+) -> Tuple[int, int]:
+    """
+    Save OptionQuote list to options_prices + options_greeks tables.
+
+    Returns (prices_count, greeks_count).
+    """
+    prices_saved = 0
+    greeks_saved = 0
+
+    for q in quotes:
+        try:
+            occ = _build_occ_symbol(q.underlying, q.expiry, q.strike, q.right)
+            mid = round((q.bid + q.ask) / 2, 4) if q.bid and q.ask else q.last
+            dte = (q.expiry - date.fromisoformat(quote_date)).days
+
+            # Moneyness: for puts strike/underlying, for calls underlying/strike
+            if q.underlying_price and q.underlying_price > 0:
+                if q.right == "P":
+                    moneyness = round(q.strike / q.underlying_price, 8)
+                else:
+                    moneyness = round(q.underlying_price / q.strike, 8)
+            else:
+                moneyness = None
+
+            # Insert into options_prices
+            cursor = conn.execute(
+                """
+                INSERT OR REPLACE INTO options_prices
+                (occ_symbol, underlying, expiration, strike, option_type,
+                 quote_date, bid, ask, mid, last, volume, open_interest,
+                 underlying_price, dte, moneyness)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    occ,
+                    q.underlying,
+                    q.expiry.isoformat(),
+                    q.strike,
+                    q.right,
+                    quote_date,
+                    q.bid,
+                    q.ask,
+                    mid,
+                    q.last,
+                    q.volume,
+                    q.open_interest,
+                    q.underlying_price,
+                    dte,
+                    moneyness,
+                ),
+            )
+            price_id = cursor.lastrowid
+            prices_saved += 1
+
+            # Insert into options_greeks (only if we have Greeks data)
+            if any(v is not None for v in [q.delta, q.gamma, q.theta, q.vega, q.implied_volatility]):
+                conn.execute(
+                    """
+                    INSERT OR REPLACE INTO options_greeks
+                    (options_price_id, occ_symbol, quote_date,
+                     iv_calculated, iv_method, delta, gamma, theta, vega)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        price_id,
+                        occ,
+                        quote_date,
+                        q.implied_volatility,
+                        "ibkr_model",
+                        q.delta,
+                        q.gamma,
+                        q.theta,
+                        q.vega,
+                    ),
+                )
+                greeks_saved += 1
+
+        except Exception as e:
+            logger.debug(f"  Failed to save {q.underlying} {q.strike}{q.right}: {e}")
+
+    return prices_saved, greeks_saved
+
+
+async def fetch_options_snapshot(
+    logger: logging.Logger, dry_run: bool = False
+) -> int:
+    """
+    Fetch daily options snapshot for all watchlist symbols via IBKR TWS.
+
+    Saves Puts and Calls (DTE 30-90) to options_prices + options_greeks.
+    Requires TWS (port 7497) to be running.
+
+    Returns number of symbols successfully processed.
+    """
+    logger.info("Fetching options snapshot via IBKR TWS (DTE 30-90, Puts + Calls)...")
+
+    if dry_run:
+        logger.info("[DRY RUN] Would fetch options snapshot via IBKR")
+        return 0
+
+    try:
+        from src.data_providers.ibkr_provider import IBKRDataProvider
+        from src.config.watchlist_loader import WatchlistLoader
+    except ImportError as e:
+        logger.error(f"Import error: {e}")
+        return 0
+
+    loader = WatchlistLoader()
+    symbols = loader.get_all_symbols()
+    if not symbols:
+        logger.warning("No symbols in watchlist")
+        return 0
+
+    logger.info(f"Watchlist: {len(symbols)} symbols")
+
+    # Connect to IBKR TWS
+    provider = IBKRDataProvider(host="127.0.0.1", port=7497)
+    if not await provider.connect():
+        logger.error("Cannot connect to IBKR TWS (port 7497). Is TWS running?")
+        return 0
+
+    logger.info("IBKR TWS connected")
+
+    conn = sqlite3.connect(DB_PATH)
+    today = date.today().isoformat()
+    stored_symbols = 0
+    total_prices = 0
+    total_greeks = 0
+    errors = 0
+
+    try:
+        for i, symbol in enumerate(symbols, 1):
+            try:
+                # Fetch Puts + Calls
+                puts = await provider.get_option_chain(
+                    symbol, dte_min=30, dte_max=90, right="P"
+                )
+                calls = await provider.get_option_chain(
+                    symbol, dte_min=30, dte_max=90, right="C"
+                )
+                all_quotes = (puts or []) + (calls or [])
+
+                if all_quotes:
+                    p_count, g_count = _save_options_snapshot_to_db(
+                        conn, all_quotes, today, logger
+                    )
+                    total_prices += p_count
+                    total_greeks += g_count
+                    stored_symbols += 1
+                    logger.debug(
+                        f"  [{i}/{len(symbols)}] {symbol}: "
+                        f"{p_count} prices, {g_count} greeks "
+                        f"({len(puts or [])}P + {len(calls or [])}C)"
+                    )
+                else:
+                    logger.debug(f"  [{i}/{len(symbols)}] {symbol}: No options data")
+
+            except Exception as e:
+                errors += 1
+                logger.debug(f"  [{i}/{len(symbols)}] {symbol}: Error - {e}")
+
+            # Progress + commit every 25 symbols
+            if i % 25 == 0:
+                conn.commit()
+                logger.info(
+                    f"  Progress: {i}/{len(symbols)} — "
+                    f"{total_prices} prices, {total_greeks} greeks, {errors} errors"
+                )
+
+        conn.commit()
+
+    finally:
+        conn.close()
+        await provider.disconnect()
+
+    logger.info(
+        f"Options snapshot: {stored_symbols} symbols, "
+        f"{total_prices} prices, {total_greeks} greeks, "
+        f"{errors} errors"
+    )
+    return stored_symbols
+
+
 def print_status(conn: sqlite3.Connection, logger: logging.Logger):
     """Print current data status."""
     # VIX status
@@ -596,6 +790,12 @@ Examples:
         help="Fetch OHLCV daily prices via IBKR TWS (default: 90 days, requires TWS)",
     )
     parser.add_argument(
+        "--snapshot-options",
+        "-o",
+        action="store_true",
+        help="Snapshot options prices + Greeks via IBKR TWS (Puts + Calls, DTE 30-90)",
+    )
+    parser.add_argument(
         "--update-earnings",
         "-e",
         action="store_true",
@@ -640,6 +840,13 @@ Examples:
             count = fetch_missing_vix(conn, logger, args.dry_run)
             total_updates += count
             logger.info(f"VIX update: {count} new records")
+
+        # Options snapshot via IBKR
+        if args.snapshot_options:
+            count = asyncio.run(
+                fetch_options_snapshot(logger, args.dry_run)
+            )
+            total_updates += count
 
         # OHLCV daily prices via IBKR
         if args.update_prices is not None:
