@@ -86,47 +86,6 @@ class TestScanHandler:
         assert isinstance(result, str)
 
 
-class TestQuoteHandler:
-    """Tests for quote handler methods."""
-
-    @pytest.mark.asyncio
-    async def test_get_quote_validates_symbol(self):
-        """Test quote validates symbol format."""
-        from src.handlers.quote import QuoteHandlerMixin
-
-        class MockServer(QuoteHandlerMixin):
-            async def _get_quote_cached(self, symbol):
-                return MagicMock(last=100.0, bid=99.95, ask=100.05, volume=1000000)
-
-        server = MockServer()
-
-        # Invalid symbol should return error
-        result = await server.get_quote("123INVALID")
-        assert "Validation Error" in result or "Error" in result
-
-    @pytest.mark.asyncio
-    async def test_get_quote_formats_response(self):
-        """Test quote formats response correctly."""
-        from src.handlers.quote import QuoteHandlerMixin
-
-        class MockServer(QuoteHandlerMixin):
-            async def _get_quote_cached(self, symbol):
-                quote = MagicMock()
-                quote.last = 185.50
-                quote.bid = 185.45
-                quote.ask = 185.55
-                quote.volume = 50000000
-                quote.change = 2.5
-                quote.change_pct = 1.37
-                return quote
-
-        server = MockServer()
-        result = await server.get_quote("AAPL")
-
-        assert "Quote: AAPL" in result
-        assert "185.50" in result
-
-
 class TestAnalysisHandler:
     """Tests for analysis handler methods."""
 
@@ -154,7 +113,6 @@ class TestHandlerIntegration:
             BaseHandlerMixin,
             VixHandlerMixin,
             ScanHandlerMixin,
-            QuoteHandlerMixin,
             AnalysisHandlerMixin,
         )
 
@@ -162,7 +120,6 @@ class TestHandlerIntegration:
         class CombinedServer(
             VixHandlerMixin,
             ScanHandlerMixin,
-            QuoteHandlerMixin,
             AnalysisHandlerMixin,
             BaseHandlerMixin,
         ):
@@ -173,15 +130,8 @@ class TestHandlerIntegration:
 
     def test_handler_method_names_exist(self):
         """Test key handler methods exist."""
-        from src.handlers import (
-            VixHandlerMixin,
-            QuoteHandlerMixin,
-        )
+        from src.handlers import VixHandlerMixin
 
         # Check VIX handler has key methods
         assert hasattr(VixHandlerMixin, 'get_vix')
         assert hasattr(VixHandlerMixin, 'get_strategy_recommendation')
-
-        # Check Quote handler has key methods
-        assert hasattr(QuoteHandlerMixin, 'get_quote')
-        assert hasattr(QuoteHandlerMixin, 'get_options_chain')
