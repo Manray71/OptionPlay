@@ -7,9 +7,8 @@ The pullback analyzer identifies stocks in an **uptrend** that have temporarily 
 **Key files:**
 - `src/analyzers/pullback.py` — Main analyzer with gates and scoring orchestration
 - `src/analyzers/pullback_scoring.py` — Individual scoring component methods
-- `config/scoring_weights.yaml` — Trained weights per regime/sector
-- `config/scanner_config.yaml` — Stability tiers and min_score thresholds
-- `config/rsi_thresholds.yaml` — Adaptive RSI thresholds by stability
+- `config/scoring.yaml` — Trained weights per regime/sector + RSI thresholds
+- `config/system.yaml` — Stability tiers and min_score thresholds
 
 ---
 
@@ -149,7 +148,8 @@ Based on normalized score (0–10 scale):
 ```
 Scanner (/api/json/scan)
   └─ scan_handler._fetch_historical_cached(symbol)
-       └─ TradierProvider.get_historical_for_scanner() → Tradier API
+       └─ IBKRProvider.get_historical_for_scanner() → IBKR TWS (Port 7497)
+            └─ Fallback: local_db.py → SQLite trades.db
   └─ AnalysisContext.from_data() — pre-computes indicators
   └─ SPY market_context pre-fetched for batch
   └─ PullbackAnalyzer.analyze(symbol, prices, volumes, highs, lows, context)
