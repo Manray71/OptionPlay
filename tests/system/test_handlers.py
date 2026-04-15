@@ -173,7 +173,6 @@ class TestHandlerIntegration:
             ScanHandlerMixin,
             QuoteHandlerMixin,
             PortfolioHandlerMixin,
-            IbkrHandlerMixin,
             AnalysisHandlerMixin,
             RiskHandlerMixin,
         )
@@ -184,7 +183,6 @@ class TestHandlerIntegration:
             ScanHandlerMixin,
             QuoteHandlerMixin,
             PortfolioHandlerMixin,
-            IbkrHandlerMixin,
             AnalysisHandlerMixin,
             RiskHandlerMixin,
             BaseHandlerMixin,
