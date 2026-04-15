@@ -425,14 +425,6 @@ risk_management:
   max_loss_per_spread: 500        # Max. Verlust pro Spread ($)
 
 # ============================================================================
-# ROLL-STRATEGIE PARAMETER (ML-Trainiert 2026-01-30)
-# ============================================================================
-# Optimierte Parameter aus 4,471 historischen Trades
-# Gesamtstatistik: 87.2% Win Rate, 68.5% Roll Success Rate
-# Roll-Strategie-Parameter: siehe config/trading.yaml
-
-
-# ============================================================================
 # SHADOW TRADE TRACKER
 # ============================================================================
 # Protokolliert daily_picks-Empfehlungen und trackt deren Ausgang.
