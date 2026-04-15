@@ -84,7 +84,7 @@ CREATE TABLE earnings_history (
     eps_surprise REAL,
     eps_surprise_pct REAL,
     time_of_day TEXT,             -- "bmo" / "amc"
-    source TEXT DEFAULT 'yfinance',
+    source TEXT DEFAULT 'marketdata',
     UNIQUE(symbol, earnings_date)
 );
 ```
@@ -316,7 +316,7 @@ Ersetzt das alte 5-Stufen-System durch gleitende Skalierung:
 - **Delta bleibt fix** bei -0.20 (±0.03) — "Delta ist heilig"
 - **Term Structure Overlay**: Contango → Score -0.5, Backwardation → Score +1.0 (nur VIX > 20)
 - **MarketRegime.UNKNOWN entfernt** — `Optional[VIXRegime] = None` stattdessen
-- **Feature-Flag**: Aktiviert in v5.0.0 (`config/trading.yaml → vix_regime_v2.enabled: true`)
+- **Always active**: v2 is the only regime system; `_VIX_REGIME_V2_ENABLED` defaults to True in scanner
 
 ### Sector RS (RRG-Quadranten)
 
