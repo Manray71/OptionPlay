@@ -265,6 +265,19 @@ python scripts/morning_workflow.py           # Täglicher Morning Report
 
 ---
 
+## DTE Conventions
+
+Two uses of DTE in the codebase — same numeric values (35-50), different context:
+
+| Range | Purpose | Source |
+|-------|---------|--------|
+| 35-50 days | Entry signal selection (per-strategy `dte_minimum/maximum` in `options_analysis`) | `config/trading.yaml → spread.dte_min/max` |
+| 35-50 days | Options chain query defaults (`SPREAD_DTE_MIN/MAX` via `trading_rules.py`) | Same YAML keys, fallback hardcoded 60-90 |
+
+The hardcoded fallback in `trading_rules.py` is `_spread_cfg.get("dte_min", 60)` / `_spread_cfg.get("dte_max", 90)` (60-90). At runtime, trading.yaml overrides to 35-50. The 60-90 range only applies if trading.yaml is missing.
+
+---
+
 ## Architektur-Hinweise für Weiterentwicklung
 
 ### Trading-Strategien (2 Analyzer)

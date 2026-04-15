@@ -32,9 +32,12 @@ entry:
 # =============================================================================
 # Delta targets excluded — hardcoded in trading_rules.py
 spread:
-  dte_min: 35                  # Minimum DTE (Tastytrade)
-  dte_max: 50                  # Maximum DTE (Tastytrade)
-  dte_target: 45               # Optimal DTE (Tastytrade)
+  # DTE convention: same range used for both entry signal selection and options chain
+  # query (IBKR/local DB). Hardcoded fallback in trading_rules.py is 60-90 but
+  # these values (35-50) take precedence at runtime via SPREAD_DTE_MIN/MAX.
+  dte_min: 35                  # Entry signal + chain query lower bound (Tastytrade)
+  dte_max: 50                  # Entry signal + chain query upper bound (Tastytrade)
+  dte_target: 45               # Optimal DTE target (Tastytrade)
   min_credit_pct: 10.0         # Min credit as % of spread width
   min_credit_absolute: 20.0    # Min absolute credit per contract (USD)
   fee_warning_threshold: 40.0  # Warn when credit < this (fee erosion)
