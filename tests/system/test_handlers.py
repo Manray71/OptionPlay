@@ -174,7 +174,6 @@ class TestHandlerIntegration:
             QuoteHandlerMixin,
             PortfolioHandlerMixin,
             AnalysisHandlerMixin,
-            RiskHandlerMixin,
         )
 
         # This should not raise
@@ -184,7 +183,6 @@ class TestHandlerIntegration:
             QuoteHandlerMixin,
             PortfolioHandlerMixin,
             AnalysisHandlerMixin,
-            RiskHandlerMixin,
             BaseHandlerMixin,
         ):
             pass

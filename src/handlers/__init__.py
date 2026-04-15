@@ -46,7 +46,6 @@ from .portfolio import PortfolioHandlerMixin
 from .portfolio_composed import PortfolioHandler
 from .quote import QuoteHandlerMixin
 from .quote_composed import QuoteHandler
-from .risk import RiskHandlerMixin
 from .risk_composed import RiskHandler
 from .scan import ScanHandlerMixin
 from .scan_composed import ScanHandler
@@ -79,5 +78,4 @@ __all__ = [
     "QuoteHandlerMixin",
     "AnalysisHandlerMixin",
     "PortfolioHandlerMixin",
-    "RiskHandlerMixin",
 ]
