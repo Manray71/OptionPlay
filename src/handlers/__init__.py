@@ -41,7 +41,6 @@ from .handler_container import (
     create_handler_container_from_server,
 )
 from .ibkr_composed import IbkrHandler
-from .monitor import MonitorHandlerMixin
 from .monitor_composed import MonitorHandler
 from .portfolio import PortfolioHandlerMixin
 from .portfolio_composed import PortfolioHandler
@@ -83,5 +82,4 @@ __all__ = [
     "PortfolioHandlerMixin",
     "RiskHandlerMixin",
     "ValidateHandlerMixin",
-    "MonitorHandlerMixin",
 ]

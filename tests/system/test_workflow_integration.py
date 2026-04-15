@@ -42,7 +42,6 @@ from src.services.position_monitor import (
     estimate_pnl_from_theta,
 )
 from src.handlers.validate import ValidateHandlerMixin
-from src.handlers.monitor import MonitorHandlerMixin
 
 
 # =============================================================================
@@ -148,17 +147,6 @@ def _make_monitor(earnings=None):
 
 class MockValidateServer(ValidateHandlerMixin):
     """Minimal server with ValidateHandlerMixin."""
-
-    def __init__(self, vix=18.0):
-        self._ibkr_bridge = None
-        self._vix = vix
-
-    async def get_vix(self):
-        return self._vix
-
-
-class MockMonitorServer(MonitorHandlerMixin):
-    """Minimal server with MonitorHandlerMixin."""
 
     def __init__(self, vix=18.0):
         self._ibkr_bridge = None
@@ -375,61 +363,6 @@ class TestMonitorWorkflow:
         assert result.positions_count == 2
         assert len(result.hold_signals) == 1
         assert len(result.close_signals) == 1
-
-
-# =============================================================================
-# MONITOR HANDLER INTEGRATION
-# =============================================================================
-
-class TestMonitorHandlerWorkflow:
-    """Test Monitor handler Markdown output end-to-end."""
-
-    @pytest.fixture(autouse=True)
-    def setup(self):
-        reset_position_monitor()
-
-    @pytest.fixture
-    def server(self):
-        return MockMonitorServer(vix=18.0)
-
-    @pytest.mark.asyncio
-    async def test_no_positions_message(self, server):
-        """No positions → informative message."""
-        with patch("src.portfolio.get_portfolio_manager") as mock_pm:
-            mock_pm.return_value.get_open_positions.return_value = []
-
-            result = await server.monitor_positions.__wrapped__(server)
-
-        assert "Position Monitor" in result
-        assert "Keine offenen Positionen" in result
-
-    @pytest.mark.asyncio
-    async def test_positions_show_signals(self, server):
-        """Positions → each gets a signal in output."""
-        mock_pm = MagicMock()
-        mock_position = MagicMock()
-        mock_position.id = "test_AAPL"
-        mock_position.symbol = "AAPL"
-        mock_position.short_leg = MagicMock()
-        mock_position.short_leg.strike = 175.0
-        mock_position.long_leg = MagicMock()
-        mock_position.long_leg.strike = 170.0
-        mock_position.spread_width = 5.0
-        mock_position.net_credit = 1.50
-        mock_position.contracts = 1
-        mock_position.max_profit = 150.0
-        mock_position.max_loss = 350.0
-        mock_position.breakeven = 173.50
-        mock_position.expiration = (date.today() + timedelta(days=45)).isoformat()
-        mock_position.days_to_expiration = 45
-        mock_pm.return_value.get_open_positions.return_value = [mock_position]
-
-        with patch("src.portfolio.get_portfolio_manager", return_value=mock_pm.return_value), \
-             patch("src.cache.get_earnings_history_manager", return_value=_safe_earnings_mock()):
-            result = await server.monitor_positions.__wrapped__(server)
-
-        assert "AAPL" in result
-        assert "HOLD" in result or "CLOSE" in result
 
 
 # =============================================================================
