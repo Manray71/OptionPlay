@@ -24,6 +24,12 @@ from .output_formatters import (  # Main registry; Individual formatters
     SymbolAnalysisFormatter,
     formatters,
 )
+from .pick_formatter import (
+    format_picks_markdown,
+    format_picks_v2,
+    format_single_pick,
+    format_single_pick_v2,
+)
 from .portfolio_formatter import (
     PortfolioFormatter,
     portfolio_formatter,
@@ -45,4 +51,9 @@ __all__ = [
     "SymbolAnalysisFormatter",
     "PortfolioFormatter",
     "portfolio_formatter",
+    # Pick Formatter
+    "format_picks_markdown",
+    "format_picks_v2",
+    "format_single_pick",
+    "format_single_pick_v2",
 ]
