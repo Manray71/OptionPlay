@@ -567,15 +567,6 @@ roll_strategy:
 # =========================================================================
 
 # =========================================================================
-# VIX REGIME V2 (Phase 2 — Continuous Interpolation)
-# =========================================================================
-# Replaces discrete 4-profile system with 7-anchor-point interpolation.
-# Feature-flagged: set enabled=true + scanner.enable_regime_v2=true
-vix_regime_v2:
-  enabled: true  # Activated in v5.0.0
-  term_structure_overlay: true  # Contango/backwardation adjustments
-
-# =========================================================================
 # SECTOR RELATIVE STRENGTH (Phase 2 — RRG Quadrants)
 # =========================================================================
 # Replaces SectorCycleService multiplicative factors with additive modifiers.
