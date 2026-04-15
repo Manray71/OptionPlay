@@ -41,7 +41,6 @@ from src.services.position_monitor import (
     snapshot_from_internal,
     estimate_pnl_from_theta,
 )
-from src.handlers.validate import ValidateHandlerMixin
 
 
 # =============================================================================
@@ -145,17 +144,6 @@ def _make_monitor(earnings=None):
 # MOCK SERVERS
 # =============================================================================
 
-class MockValidateServer(ValidateHandlerMixin):
-    """Minimal server with ValidateHandlerMixin."""
-
-    def __init__(self, vix=18.0):
-        self._ibkr_bridge = None
-        self._vix = vix
-
-    async def get_vix(self):
-        return self._vix
-
-
 # =============================================================================
 # JOB 2: TRADE VALIDATOR WORKFLOW
 # =============================================================================
@@ -234,24 +222,6 @@ class TestValidateWorkflow:
 
         # In Danger Zone, stability 75 < 80 required → NO-GO or WARNING
         assert result.decision in (TradeDecision.NO_GO, TradeDecision.WARNING)
-
-    @pytest.mark.asyncio
-    async def test_validate_handler_output_format(self):
-        """Handler validate_trade returns formatted Markdown with decision."""
-        server = MockValidateServer(vix=18.0)
-        fundamentals = _fundamentals_mock("AAPL", stability_score=85.0)
-
-        with patch("src.cache.get_fundamentals_manager") as fm, \
-             patch("src.cache.get_earnings_history_manager") as em:
-            fm.return_value = _fundamentals_manager_mock(fundamentals)
-            em.return_value = _safe_earnings_mock()
-
-            result = await server.validate_trade.__wrapped__(server, symbol="AAPL")
-
-        assert "[GO]" in result
-        assert "AAPL" in result
-        # Contains VIX regime info
-        assert "NORMAL" in result or "VIX" in result
 
 
 # =============================================================================

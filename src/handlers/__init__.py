@@ -50,7 +50,6 @@ from .risk import RiskHandlerMixin
 from .risk_composed import RiskHandler
 from .scan import ScanHandlerMixin
 from .scan_composed import ScanHandler
-from .validate import ValidateHandlerMixin
 from .validate_composed import ValidateHandler
 from .vix import VixHandlerMixin
 
@@ -81,5 +80,4 @@ __all__ = [
     "AnalysisHandlerMixin",
     "PortfolioHandlerMixin",
     "RiskHandlerMixin",
-    "ValidateHandlerMixin",
 ]
