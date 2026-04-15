@@ -110,11 +110,78 @@ class IVCacheEntry:
     updated: str
 
 
-# =============================================================================
-# IV CALCULATIONS (delegated to iv_calculator.py)
-# =============================================================================
+# === IV Math (formerly iv_calculator.py) ===
 
-from .iv_calculator import calculate_iv_percentile, calculate_iv_rank  # noqa: F401
+import math as _math
+
+try:
+    from ..constants.trading_rules import VIX_DANGER_ZONE_MAX, VIX_NO_TRADING_THRESHOLD
+except ImportError:
+    from constants.trading_rules import VIX_DANGER_ZONE_MAX, VIX_NO_TRADING_THRESHOLD
+
+
+def calculate_iv_rank(current_iv: float, iv_history: List[float]) -> Optional[float]:
+    """IV-Rank = (Current IV - 52w Low) / (52w High - 52w Low) * 100"""
+    if not iv_history or len(iv_history) < 20:
+        return None
+    if current_iv is None or current_iv <= 0:
+        return None
+    iv_high = max(iv_history)
+    iv_low = min(iv_history)
+    if iv_high == iv_low:
+        return 50.0
+    iv_rank = (current_iv - iv_low) / (iv_high - iv_low) * 100
+    return max(0.0, min(100.0, iv_rank))
+
+
+def calculate_iv_percentile(current_iv: float, iv_history: List[float]) -> Optional[float]:
+    """Percentile of days with lower IV than current_iv."""
+    if not iv_history or len(iv_history) < 20:
+        return None
+    if current_iv is None or current_iv <= 0:
+        return None
+    days_below = sum(1 for iv in iv_history if iv < current_iv)
+    return round(days_below / len(iv_history) * 100, 1)
+
+
+def _calculate_historical_volatility(prices: List[float], window: int = 20) -> List[float]:
+    """HV = StdDev(log returns) * sqrt(252), annualized."""
+    if len(prices) < window + 1:
+        return []
+    log_returns = []
+    for i in range(1, len(prices)):
+        if prices[i - 1] > 0 and prices[i] > 0:
+            log_returns.append(_math.log(prices[i] / prices[i - 1]))
+        else:
+            log_returns.append(0)
+    hv_values = []
+    for i in range(window - 1, len(log_returns)):
+        window_returns = log_returns[i - window + 1 : i + 1]
+        mean = sum(window_returns) / len(window_returns)
+        variance = sum((r - mean) ** 2 for r in window_returns) / len(window_returns)
+        hv_values.append(_math.sqrt(variance) * _math.sqrt(252))
+    return hv_values
+
+
+def _estimate_iv_from_hv(
+    hv_values: List[float],
+    vix_history: Optional[List[float]] = None,
+    iv_premium: float = 1.15,
+) -> List[float]:
+    """Estimate IV from HV with VIX adjustment (15% vol-risk premium default)."""
+    if not hv_values:
+        return []
+    estimated_iv = []
+    for i, hv in enumerate(hv_values):
+        iv = hv * iv_premium
+        if vix_history and i < len(vix_history):
+            vix = vix_history[i]
+            if vix > VIX_NO_TRADING_THRESHOLD:
+                iv *= 1.2
+            elif vix > VIX_DANGER_ZONE_MAX:
+                iv *= 1.1
+        estimated_iv.append(round(iv, 4))
+    return estimated_iv
 
 # =============================================================================
 # IV CACHE CLASS
@@ -751,13 +818,8 @@ class HistoricalIVFetcher:
         prices: List[float],
         window: int = 20,
     ) -> List[float]:
-        """Berechnet historische Volatilität (HV) aus Preisen.
-
-        Delegates to iv_calculator.calculate_historical_volatility().
-        """
-        from .iv_calculator import calculate_historical_volatility as calc_hv
-
-        return calc_hv(prices, window)
+        """Berechnet historische Volatilität (HV) aus Preisen."""
+        return _calculate_historical_volatility(prices, window)
 
     def estimate_iv_from_hv(
         self,
@@ -765,13 +827,8 @@ class HistoricalIVFetcher:
         vix_history: Optional[List[float]] = None,
         iv_premium: float = 1.15,
     ) -> List[float]:
-        """Schätzt IV aus historischer Volatilität.
-
-        Delegates to iv_calculator.estimate_iv_from_hv().
-        """
-        from .iv_calculator import estimate_iv_from_hv as est_iv
-
-        return est_iv(hv_values, vix_history, iv_premium)
+        """Schätzt IV aus historischer Volatilität."""
+        return _estimate_iv_from_hv(hv_values, vix_history, iv_premium)
 
     def fetch_vix_history(self, days: int = 252) -> List[float]:
         """
