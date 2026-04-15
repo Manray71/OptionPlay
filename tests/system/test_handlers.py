@@ -145,23 +145,6 @@ class TestAnalysisHandler:
         assert "Validation Error" in result or "Error" in result
 
 
-class TestPortfolioHandler:
-    """Tests for portfolio handler methods."""
-
-    def test_portfolio_positions_returns_markdown(self):
-        """Test portfolio positions returns markdown format."""
-        from src.handlers.portfolio import PortfolioHandlerMixin
-
-        class MockServer(PortfolioHandlerMixin):
-            pass
-
-        server = MockServer()
-        # Use correct method name
-        result = server.portfolio_positions()
-
-        assert isinstance(result, str)
-
-
 class TestHandlerIntegration:
     """Integration tests for handler mixins."""
 
@@ -172,7 +155,6 @@ class TestHandlerIntegration:
             VixHandlerMixin,
             ScanHandlerMixin,
             QuoteHandlerMixin,
-            PortfolioHandlerMixin,
             AnalysisHandlerMixin,
         )
 
@@ -181,7 +163,6 @@ class TestHandlerIntegration:
             VixHandlerMixin,
             ScanHandlerMixin,
             QuoteHandlerMixin,
-            PortfolioHandlerMixin,
             AnalysisHandlerMixin,
             BaseHandlerMixin,
         ):
@@ -195,7 +176,6 @@ class TestHandlerIntegration:
         from src.handlers import (
             VixHandlerMixin,
             QuoteHandlerMixin,
-            PortfolioHandlerMixin,
         )
 
         # Check VIX handler has key methods
@@ -205,7 +185,3 @@ class TestHandlerIntegration:
         # Check Quote handler has key methods
         assert hasattr(QuoteHandlerMixin, 'get_quote')
         assert hasattr(QuoteHandlerMixin, 'get_options_chain')
-
-        # Check Portfolio handler has key methods
-        assert hasattr(PortfolioHandlerMixin, 'portfolio_positions')
-        assert hasattr(PortfolioHandlerMixin, 'portfolio_summary')

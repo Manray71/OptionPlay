@@ -42,7 +42,6 @@ from .handler_container import (
 )
 from .ibkr_composed import IbkrHandler
 from .monitor_composed import MonitorHandler
-from .portfolio import PortfolioHandlerMixin
 from .portfolio_composed import PortfolioHandler
 from .quote import QuoteHandlerMixin
 from .quote_composed import QuoteHandler
@@ -77,5 +76,4 @@ __all__ = [
     "ScanHandlerMixin",
     "QuoteHandlerMixin",
     "AnalysisHandlerMixin",
-    "PortfolioHandlerMixin",
 ]
