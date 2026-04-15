@@ -22,7 +22,6 @@ Modules:
 - analysis_composed: Symbol analysis, ensemble recommendations
 - portfolio_composed: Portfolio management operations
 - ibkr_composed: IBKR Bridge features
-- report_composed: PDF report generation
 - risk_composed: Position sizing and stop loss
 - validate_composed: Trade validation against PLAYBOOK rules
 - monitor_composed: Position monitoring for exit signals
@@ -49,8 +48,6 @@ from .portfolio import PortfolioHandlerMixin
 from .portfolio_composed import PortfolioHandler
 from .quote import QuoteHandlerMixin
 from .quote_composed import QuoteHandler
-from .report import ReportHandlerMixin
-from .report_composed import ReportHandler
 from .risk import RiskHandlerMixin
 from .risk_composed import RiskHandler
 from .scan import ScanHandlerMixin
@@ -75,7 +72,6 @@ __all__ = [
     "AnalysisHandler",
     "PortfolioHandler",
     "IbkrHandler",
-    "ReportHandler",
     "RiskHandler",
     "ValidateHandler",
     "MonitorHandler",
@@ -87,7 +83,6 @@ __all__ = [
     "AnalysisHandlerMixin",
     "PortfolioHandlerMixin",
     "IbkrHandlerMixin",
-    "ReportHandlerMixin",
     "RiskHandlerMixin",
     "ValidateHandlerMixin",
     "MonitorHandlerMixin",

@@ -19,7 +19,6 @@ Modules:
 - handlers.analysis: Symbol analysis, ensemble recommendations
 - handlers.portfolio: Portfolio management
 - handlers.ibkr: IBKR Bridge features
-- handlers.report: PDF report generation
 - handlers.risk: Position sizing, stop loss, spread analysis
 
 Usage:
@@ -86,7 +85,6 @@ class OptionPlayServer:
     - server.handlers.analysis: Symbol analysis, ensemble
     - server.handlers.portfolio: Portfolio management
     - server.handlers.ibkr: IBKR Bridge features
-    - server.handlers.report: PDF report generation
     - server.handlers.risk: Position sizing, stop loss
     - server.handlers.validate: Trade validation
     - server.handlers.monitor: Position monitoring

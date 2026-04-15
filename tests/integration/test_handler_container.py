@@ -172,7 +172,6 @@ class TestHandlerContainer:
         assert container._analysis is None
         assert container._portfolio is None
         assert container._ibkr is None
-        assert container._report is None
         assert container._risk is None
 
     def test_vix_property_lazy_init(self):
@@ -221,13 +220,6 @@ class TestHandlerContainer:
         container = HandlerContainer(ctx)
 
         assert container._ibkr is None  # Initially None
-
-    def test_report_property_lazy_init(self):
-        """Test report property creates handler on first access."""
-        ctx = self.create_context()
-        container = HandlerContainer(ctx)
-
-        assert container._report is None  # Initially None
 
     def test_risk_property_lazy_init(self):
         """Test risk property creates handler on first access."""

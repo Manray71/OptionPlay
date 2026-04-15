@@ -175,7 +175,6 @@ class TestHandlerIntegration:
             PortfolioHandlerMixin,
             IbkrHandlerMixin,
             AnalysisHandlerMixin,
-            ReportHandlerMixin,
             RiskHandlerMixin,
         )
 
@@ -187,7 +186,6 @@ class TestHandlerIntegration:
             PortfolioHandlerMixin,
             IbkrHandlerMixin,
             AnalysisHandlerMixin,
-            ReportHandlerMixin,
             RiskHandlerMixin,
             BaseHandlerMixin,
         ):
