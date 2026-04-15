@@ -397,34 +397,43 @@ def fetch_future_earnings(logger: logging.Logger, dry_run: bool = False) -> int:
 
 def _fetch_yahoo_earnings_date(symbol: str) -> Optional[date]:
     """
-    Fetch next earnings date for a symbol from Yahoo Finance API.
+    Fetch next earnings date for a symbol via yfinance library.
 
     Returns earnings date or None if not found.
     """
-    import json
-    import urllib.request
+    import yfinance as yf
 
-    # Handle special ticker formats (BRK.B -> BRK-B for Yahoo)
-    yahoo_symbol = symbol.replace(".", "-")
+    ticker = yf.Ticker(symbol)
 
-    url = (
-        f"https://query1.finance.yahoo.com/v10/finance/quoteSummary/"
-        f"{yahoo_symbol}?modules=calendarEvents"
-    )
+    # Try .calendar first (returns dict with 'Earnings Date' key)
+    try:
+        cal = ticker.calendar
+        if cal is not None and not cal.empty:
+            earnings_col = None
+            for col in ("Earnings Date", "earningsDate"):
+                if col in cal.columns:
+                    earnings_col = col
+                    break
+            if earnings_col:
+                val = cal[earnings_col].iloc[0]
+                if hasattr(val, "date"):
+                    return val.date()
+                if val:
+                    return date.fromisoformat(str(val)[:10])
+    except Exception:
+        pass
 
-    req = urllib.request.Request(url)
-    req.add_header("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)")
-
-    with urllib.request.urlopen(req, timeout=10) as response:
-        data = json.loads(response.read().decode())
-
-    calendar = data.get("quoteSummary", {}).get("result", [{}])[0].get("calendarEvents", {})
-    earnings_dates = calendar.get("earnings", {}).get("earningsDate", [])
-
-    if earnings_dates:
-        timestamp = earnings_dates[0].get("raw")
-        if timestamp:
-            return datetime.fromtimestamp(timestamp).date()
+    # Fallback: .earnings_dates (newer yfinance versions)
+    try:
+        ed = ticker.earnings_dates
+        if ed is not None and not ed.empty:
+            today = date.today()
+            for idx in ed.index:
+                d = idx.date() if hasattr(idx, "date") else date.fromisoformat(str(idx)[:10])
+                if d >= today:
+                    return d
+    except Exception:
+        pass
 
     return None
 

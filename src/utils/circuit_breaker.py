@@ -410,8 +410,8 @@ class CircuitBreakerRegistry:
     Verwendung:
         registry = CircuitBreakerRegistry()
 
-        api_breaker = registry.get_or_create("marketdata_api")
-        ibkr_breaker = registry.get_or_create("ibkr", failure_threshold=3)
+        ibkr_breaker = registry.get_or_create("ibkr_api")
+        ibkr_strict = registry.get_or_create("ibkr", failure_threshold=3)
 
         # Alle Stats
         all_stats = registry.all_stats()

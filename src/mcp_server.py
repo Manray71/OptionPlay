@@ -56,7 +56,7 @@ from .state.server_state import ServerState
 from .utils.circuit_breaker import CircuitBreaker, CircuitBreakerOpen, get_circuit_breaker
 from .utils.metrics import metrics
 from .utils.provider_orchestrator import ProviderType, get_orchestrator
-from .utils.rate_limiter import get_marketdata_limiter
+from .utils.rate_limiter import get_limiter
 from .utils.request_dedup import get_request_deduplicator
 from .utils.secure_config import get_api_key, mask_api_key
 from .utils.validation import is_etf
@@ -113,7 +113,7 @@ class OptionPlayServer:
         Initialize OptionPlay server.
 
         Args:
-            api_key: Marketdata.app API key (optional, reads from env if not provided)
+            api_key: Unused — kept for backward compatibility (IBKR TWS is sole live provider)
             container: Dependency injection container (optional)
 
         Raises:
@@ -133,13 +133,13 @@ class OptionPlayServer:
             cb_cfg = self._config.settings.circuit_breaker
 
             self._provider = None  # IBKR is sole live provider
-            self._rate_limiter = get_marketdata_limiter()
+            self._rate_limiter = get_limiter("ibkr", calls_per_minute=30, adaptive=True)
             self._historical_cache = get_historical_cache(
                 ttl_seconds=perf.cache_ttl_seconds, max_entries=perf.cache_max_entries
             )
 
             self._circuit_breaker = get_circuit_breaker(
-                name="marketdata_api",
+                name="ibkr_api",
                 failure_threshold=cb_cfg.failure_threshold,
                 recovery_timeout=cb_cfg.recovery_timeout,
             )

@@ -130,7 +130,7 @@ class ServiceResult(Generic[T]):
         error: Fehlermeldung bei Misserfolg
         warnings: Optionale Warnungen
         status: Detaillierter Status (success/failure/partial)
-        source: Datenquelle (z.B. "marketdata", "yahoo", "cache")
+        source: Datenquelle (z.B. "ibkr", "yahoo", "cache")
         cached: Ob Daten aus Cache kommen
         timestamp: Zeitpunkt der Operation
         duration_ms: Dauer in Millisekunden

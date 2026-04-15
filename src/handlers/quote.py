@@ -155,7 +155,7 @@ class QuoteHandlerMixin(BaseHandlerMixin):
         days_to_earnings = None
         source_used = "unknown"
 
-        # 1. Try Marketdata.app
+        # 1. Try IBKR TWS
         try:
             provider = await self._ensure_connected()
             await self._rate_limiter.acquire()
@@ -165,9 +165,9 @@ class QuoteHandlerMixin(BaseHandlerMixin):
             if earnings and earnings.earnings_date:
                 earnings_date = earnings.earnings_date
                 days_to_earnings = earnings.days_to_earnings
-                source_used = "marketdata"
+                source_used = "ibkr"
         except Exception as e:
-            logger.debug(f"Marketdata.app earnings failed for {symbol}: {e}")
+            logger.debug(f"IBKR TWS earnings failed for {symbol}: {e}")
 
         # 2. Fallback to Yahoo Finance direct
         if not earnings_date:
@@ -219,7 +219,7 @@ class QuoteHandlerMixin(BaseHandlerMixin):
         symbol = validate_symbol(symbol)
         results: List[EarningsResult] = []
 
-        async def fetch_marketdata() -> EarningsResult:
+        async def fetch_ibkr() -> EarningsResult:
             try:
                 provider = await self._ensure_connected()
                 await self._rate_limiter.acquire()
@@ -228,16 +228,16 @@ class QuoteHandlerMixin(BaseHandlerMixin):
 
                 if earnings and earnings.earnings_date:
                     return create_earnings_result(
-                        source="marketdata",
+                        source="ibkr",
                         earnings_date=earnings.earnings_date,
                         days_to_earnings=earnings.days_to_earnings,
                     )
                 return create_earnings_result(
-                    source="marketdata", earnings_date=None, days_to_earnings=None
+                    source="ibkr", earnings_date=None, days_to_earnings=None
                 )
             except Exception as e:
                 return create_earnings_result(
-                    source="marketdata", earnings_date=None, days_to_earnings=None, error=str(e)
+                    source="ibkr", earnings_date=None, days_to_earnings=None, error=str(e)
                 )
 
         async def fetch_yahoo() -> EarningsResult:
@@ -273,7 +273,7 @@ class QuoteHandlerMixin(BaseHandlerMixin):
                     source="yfinance", earnings_date=None, days_to_earnings=None, error=str(e)
                 )
 
-        results = await asyncio.gather(fetch_marketdata(), fetch_yahoo(), fetch_yfinance())
+        results = await asyncio.gather(fetch_ibkr(), fetch_yahoo(), fetch_yfinance())
 
         aggregator = get_earnings_aggregator()
         aggregated = aggregator.aggregate(symbol, list(results))

@@ -245,7 +245,7 @@ watchlists:
           - FANG   # Diamondback Energy
           # HES entfernt - wird von Chevron übernommen
           - OKE    # ONEOK
-          # MRO entfernt - nicht bei Marketdata.app verfügbar
+          # MRO entfernt - nicht verfügbar
           - APA    # APA Corp
           - EQT    # EQT Corp
           - PR     # Permian Resources

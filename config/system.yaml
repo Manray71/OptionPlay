@@ -35,8 +35,7 @@ data_sources:
   provider_priority:
     - "local_db"                      # 1. Lokale Datenbank (schnellste)
     - "ibkr"                          # 2. IBKR TWS
-    - "marketdata"                    # 3. Marketdata.app
-    - "yahoo"                         # 4. Yahoo Finance (Fallback)
+    - "yahoo"                         # 3. Yahoo Finance (Fallback)
 
 # ============================================================================
 # VERBINDUNGS-EINSTELLUNGEN

@@ -316,7 +316,7 @@ def format_error_response(
 
     if isinstance(error, ConnectionError):
         b.h1(f"❌ Connection Error{context}").blank()
-        b.text("Could not connect to Marketdata.app API.").blank()
+        b.text("Could not connect to IBKR TWS API.").blank()
         b.text("**Possible causes:**")
         b.bullet("Network connectivity issues")
         b.bullet("API service is down")

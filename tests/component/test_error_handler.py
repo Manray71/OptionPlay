@@ -46,7 +46,7 @@ class TestFormatErrorResponse:
         
         assert "❌ Connection Error" in result
         assert "AAPL" in result
-        assert "Marketdata.app" in result
+        assert "IBKR TWS" in result
     
     def test_timeout_error(self):
         """Test formatting of TimeoutError."""

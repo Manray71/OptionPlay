@@ -336,14 +336,24 @@ class SymbolFundamentalsManager:
                             (data["current_price"] / data["week_52_high"] - 1) * 100, 2
                         )
 
+                    # Preserve liquidity_tier / avg_put_oi — never overwrite with NULL
+                    preserved = ("liquidity_tier", "avg_put_oi")
+                    for col in preserved:
+                        if data.get(col) is None:
+                            data.pop(col, None)
+
                     columns = list(data.keys())
                     placeholders = ", ".join(["?" for _ in columns])
                     columns_str = ", ".join(columns)
+                    update_str = ", ".join(
+                        f"{c} = excluded.{c}" for c in columns if c != "symbol"
+                    )
 
                     cursor.execute(
                         f"""
-                        INSERT OR REPLACE INTO symbol_fundamentals ({columns_str})
+                        INSERT INTO symbol_fundamentals ({columns_str})
                         VALUES ({placeholders})
+                        ON CONFLICT(symbol) DO UPDATE SET {update_str}
                     """,
                         list(data.values()),
                     )
@@ -392,14 +402,24 @@ class SymbolFundamentalsManager:
                                 (data["current_price"] / data["week_52_high"] - 1) * 100, 2
                             )
 
+                        # Preserve liquidity_tier / avg_put_oi — never overwrite with NULL
+                        preserved = ("liquidity_tier", "avg_put_oi")
+                        for col in preserved:
+                            if data.get(col) is None:
+                                data.pop(col, None)
+
                         columns = list(data.keys())
                         placeholders = ", ".join(["?" for _ in columns])
                         columns_str = ", ".join(columns)
+                        update_str = ", ".join(
+                            f"{c} = excluded.{c}" for c in columns if c != "symbol"
+                        )
 
                         cursor.execute(
                             f"""
-                            INSERT OR REPLACE INTO symbol_fundamentals ({columns_str})
+                            INSERT INTO symbol_fundamentals ({columns_str})
                             VALUES ({placeholders})
+                            ON CONFLICT(symbol) DO UPDATE SET {update_str}
                         """,
                             list(data.values()),
                         )

@@ -6,7 +6,7 @@ Service für VIX-Daten und Strategie-Empfehlungen.
 Verantwortlichkeiten:
 - VIX abrufen (mit Caching)
 - Strategie-Empfehlung basierend auf VIX
-- Multi-Source Fallback (Marketdata → Yahoo)
+- Multi-Source Fallback (IBKR → Yahoo Finance)
 
 Verwendung:
     from src.services import VIXService
@@ -47,7 +47,7 @@ class VIXService(BaseService):
 
     Features:
     - VIX mit 5-Minuten-Cache
-    - Multi-Source Fallback (Marketdata.app → Yahoo Finance)
+    - Multi-Source Fallback (IBKR TWS → Yahoo Finance)
     - VIX-basierte Strategie-Auswahl
 
     Attributes:
@@ -63,7 +63,7 @@ class VIXService(BaseService):
         """
         Holt aktuellen VIX (mit 5-Minuten-Cache).
 
-        Verwendet Marketdata.app als primäre Quelle,
+        Verwendet IBKR TWS als primäre Quelle,
         Yahoo Finance als Fallback.
 
         Args:
@@ -84,15 +84,15 @@ class VIXService(BaseService):
         vix = None
         source = "unknown"
 
-        # 1. Try Marketdata.app
+        # 1. Try IBKR TWS
         try:
             provider = await self._get_provider()
             async with self._rate_limited():
                 vix = await provider.get_vix()
             if vix:
-                source = "marketdata"
+                source = "ibkr"
         except Exception as e:
-            self._logger.debug(f"Marketdata.app VIX failed: {e}")
+            self._logger.debug(f"IBKR TWS VIX failed: {e}")
 
         # 2. Fallback to Yahoo Finance
         if vix is None:
@@ -181,15 +181,15 @@ class VIXService(BaseService):
 
         start_time = datetime.now()
 
-        async def fetch_marketdata() -> Optional[tuple[Any, ...]]:
+        async def fetch_ibkr() -> Optional[tuple[Any, ...]]:
             try:
                 provider = await self._get_provider()
                 async with self._rate_limited():
                     vix = await provider.get_vix()
                 if vix:
-                    return (vix, "marketdata")
+                    return (vix, "ibkr")
             except Exception as e:
-                logger.debug(f"VIX fetch from marketdata failed: {e}")
+                logger.debug(f"VIX fetch from IBKR failed: {e}")
             return None
 
         async def fetch_yahoo() -> Optional[tuple[Any, ...]]:
@@ -203,7 +203,7 @@ class VIXService(BaseService):
 
         # Run both concurrently
         tasks = [
-            asyncio.create_task(fetch_marketdata()),
+            asyncio.create_task(fetch_ibkr()),
             asyncio.create_task(fetch_yahoo()),
         ]
 

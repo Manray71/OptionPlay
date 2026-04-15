@@ -727,7 +727,7 @@ class TestGetEarnings:
             call_args = mock_formatters.earnings.format.call_args
             assert call_args[1]['earnings_date'] == "2026-04-25"
             assert call_args[1]['days_to_earnings'] == 80
-            assert call_args[1]['source'] == "marketdata"
+            assert call_args[1]['source'] == "ibkr"
 
     @pytest.mark.asyncio
     async def test_get_earnings_fallback_yahoo_direct(self):

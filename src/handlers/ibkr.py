@@ -130,14 +130,14 @@ class IbkrHandlerMixin(BaseHandlerMixin):
             vix = await self.get_vix()
             b.h1("VIX").blank()
             b.kv("VIX", vix, fmt=".2f")
-            b.kv("Source", "Yahoo/Marketdata (IBKR not available)")
+            b.kv("Source", "Yahoo (IBKR not available)")
             return b.build()
 
         if not await self._ibkr_bridge.is_available():
             vix = await self.get_vix()
             b.h1("VIX").blank()
             b.kv("VIX", vix, fmt=".2f")
-            b.kv("Source", "Yahoo/Marketdata (TWS not connected)")
+            b.kv("Source", "Yahoo (TWS not connected)")
             return b.build()
 
         vix_data = await self._ibkr_bridge.get_vix()
@@ -150,7 +150,7 @@ class IbkrHandlerMixin(BaseHandlerMixin):
             vix = await self.get_vix()
             b.h1("VIX").blank()
             b.kv("VIX", vix, fmt=".2f")
-            b.kv("Source", "Yahoo/Marketdata")
+            b.kv("Source", "Yahoo")
 
         return b.build()
 

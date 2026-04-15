@@ -114,7 +114,7 @@ class ServiceContainer:
     ibkr_provider: Optional["IBKRDataProvider"] = None
 
     # Active provider name (for routing)
-    active_provider: str = field(default="marketdata", repr=False)
+    active_provider: str = field(default="ibkr", repr=False)
 
     # Internal state
     _initialized: bool = field(default=False, repr=False)
@@ -160,22 +160,18 @@ class ServiceContainer:
         from .utils.circuit_breaker import CircuitBreaker, get_circuit_breaker_registry
         from .utils.earnings_aggregator import get_earnings_aggregator
         from .utils.historical_cache import get_historical_cache as get_historical_data_cache
-        from .utils.rate_limiter import get_marketdata_limiter
+        from .utils.rate_limiter import get_limiter
         from .utils.scanner_config_loader import get_scanner_config
-        from .utils.secure_config import get_api_key
 
         # Load configuration
         config = get_config()
 
-        # Get API key
-        resolved_api_key = api_key or get_api_key("MARKETDATA_API_KEY")
-
-        # Get rate limiter (uses default 100 req/min for marketdata)
-        rate_limiter = get_marketdata_limiter()
+        # Get rate limiter (generic, 30 req/min for IBKR TWS)
+        rate_limiter = get_limiter("ibkr", calls_per_minute=30, adaptive=True)
 
         # Create circuit breaker
         circuit_breaker = CircuitBreaker(
-            name="marketdata_api",
+            name="ibkr_api",
             failure_threshold=config.settings.circuit_breaker.failure_threshold,
             recovery_timeout=config.settings.circuit_breaker.recovery_timeout,
             half_open_max_calls=config.settings.circuit_breaker.half_open_max_calls,

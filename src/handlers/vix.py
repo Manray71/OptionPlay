@@ -77,7 +77,7 @@ class VixHandlerMixin(BaseHandlerMixin):
         """
         Get current VIX (with 5-minute cache).
 
-        Uses Marketdata.app as primary source, Yahoo Finance as fallback.
+        Uses IBKR TWS as primary source, Yahoo Finance as fallback.
 
         Args:
             force_refresh: Force refresh even if cached value exists
@@ -96,16 +96,16 @@ class VixHandlerMixin(BaseHandlerMixin):
         vix = None
         source = "unknown"
 
-        # 1. Try Marketdata.app
+        # 1. Try IBKR TWS
         try:
             provider = await self._ensure_connected()
             await self._rate_limiter.acquire()
             vix = await provider.get_vix()
             if vix:
-                source = "marketdata"
+                source = "ibkr"
             self._rate_limiter.record_success()
         except Exception as e:
-            logger.debug(f"Marketdata.app VIX failed: {e}")
+            logger.debug(f"IBKR TWS VIX failed: {e}")
 
         # 2. Fallback to Yahoo Finance
         if vix is None:

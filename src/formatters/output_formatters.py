@@ -422,7 +422,7 @@ class EarningsFormatter(BaseFormatter):
         else:
             b.kv("Earnings Date", "Not available")
             b.blank()
-            b.note("No earnings date found (Marketdata + Yahoo).")
+            b.note("No earnings date found (IBKR + Yahoo).")
             b.hint(f"Check manually: https://finance.yahoo.com/quote/{symbol}/analysis")
 
         return b.build()
@@ -511,7 +511,7 @@ class HealthCheckFormatter(BaseFormatter):
 
         b.kv("Version", data.version)
         b.kv("API Key", data.api_key_masked)
-        b.kv("Marketdata.app", "✅ Connected" if data.connected else "❌ Not connected")
+        b.kv("IBKR TWS", "✅ Connected" if data.connected else "❌ Not connected")
         b.blank()
 
         # VIX
@@ -567,7 +567,7 @@ class HealthCheckFormatter(BaseFormatter):
 
         # Rate Limiter
         rl = data.rate_limiter_stats
-        b.h2("Rate Limiter (Marketdata.app)")
+        b.h2("Rate Limiter (IBKR)")
         b.kv_line("Requests", rl["total_requests"])
         b.kv_line("Waits", rl["total_waits"])
         b.kv_line("Avg Wait", f"{rl['avg_wait_time']:.3f}s")
