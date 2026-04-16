@@ -79,12 +79,29 @@ def fetch_earnings_from_yfinance(symbol: str) -> List[Dict[str, Any]]:
         logger.error("yfinance nicht installiert. Run: pip install yfinance")
         return []
 
-    try:
-        ticker = yf.Ticker(symbol)
-        earnings_dates = ticker.earnings_dates
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            ticker = yf.Ticker(symbol)
+            earnings_dates = ticker.earnings_dates
 
-        if earnings_dates is None or earnings_dates.empty:
-            return []
+            if earnings_dates is None or earnings_dates.empty:
+                return []
+            break
+        except Exception as e:
+            err_str = str(e).lower()
+            if "rate" in err_str or "too many" in err_str or "429" in err_str:
+                wait = 30 * (attempt + 1)
+                logger.warning(f"Rate limited on {symbol}, waiting {wait}s (attempt {attempt+1}/{max_retries})")
+                time.sleep(wait)
+                if attempt == max_retries - 1:
+                    logger.error(f"Rate limited on {symbol} after {max_retries} retries, skipping")
+                    return []
+            else:
+                logger.warning(f"Fehler beim Abrufen von yfinance Earnings für {symbol}: {e}")
+                return []
+
+    try:
 
         results = []
         now = pd.Timestamp.now(tz="UTC")
@@ -136,7 +153,7 @@ def fetch_earnings_from_yfinance(symbol: str) -> List[Dict[str, Any]]:
         return results
 
     except Exception as e:
-        logger.warning(f"Fehler beim Abrufen von yfinance Earnings für {symbol}: {e}")
+        logger.warning(f"Fehler beim Parsen von {symbol} Earnings-Daten: {e}")
         return []
 
 
@@ -315,8 +332,8 @@ def main():
         "--delay",
         "-d",
         type=float,
-        default=0.3,
-        help="Delay zwischen API-Aufrufen in Sekunden (default: 0.3)",
+        default=1.5,
+        help="Delay zwischen API-Aufrufen in Sekunden (default: 1.5)",
     )
     parser.add_argument("--stats", action="store_true", help="Nur Statistiken anzeigen")
 

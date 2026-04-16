@@ -338,18 +338,16 @@ class TestServerCorePostInit:
     """Tests for __post_init__ behavior."""
 
     def test_post_init_no_api_key(self):
-        """__post_init__ should handle missing API key."""
-        with patch('src.services.server_core.get_api_key', side_effect=ValueError("No key")):
-            core = ServerCore()
-            # Should not raise, just log warning
-            assert core._api_key == ""
+        """__post_init__ should handle missing API key (IBKR needs none)."""
+        core = ServerCore()
+        # IBKR needs no API key, defaults to empty
+        assert core._api_key == ""
 
     def test_post_init_with_api_key(self):
         """__post_init__ should use provided API key."""
-        with patch('src.services.server_core.get_api_key', return_value="env_key"):
-            core = ServerCore(_api_key="explicit_key")
-            # Explicit key should be used
-            assert core._api_key == "explicit_key"
+        core = ServerCore(_api_key="explicit_key")
+        # Explicit key should be used
+        assert core._api_key == "explicit_key"
 
 
 class TestServerCoreCreateDefault:
@@ -359,20 +357,18 @@ class TestServerCoreCreateDefault:
         """create_default should use provided API key."""
         with patch('src.services.server_core.ServiceContainer') as mock_container:
             mock_container.create_default.return_value = Mock()
-            with patch('src.services.server_core.get_api_key', return_value=""):
-                core = ServerCore.create_default(api_key="my_key")
+            core = ServerCore.create_default(api_key="my_key")
 
         assert core._api_key == "my_key"
         mock_container.create_default.assert_called_once_with(api_key="my_key")
 
-    def test_create_default_uses_env_key(self):
-        """create_default should use env key when not provided."""
+    def test_create_default_uses_empty_key(self):
+        """create_default should use empty key when not provided (IBKR needs none)."""
         with patch('src.services.server_core.ServiceContainer') as mock_container:
             mock_container.create_default.return_value = Mock()
-            with patch('src.services.server_core.get_api_key', return_value="env_key"):
-                core = ServerCore.create_default()
+            core = ServerCore.create_default()
 
-        assert core._api_key == "env_key"
+        assert core._api_key == ""
 
 
 class TestServerCoreServiceContext:

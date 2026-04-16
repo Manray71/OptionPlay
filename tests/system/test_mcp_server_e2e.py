@@ -58,7 +58,7 @@ class MockEarnings:
 @pytest.fixture
 def mock_api_key():
     """Mock API key for tests."""
-    with patch.dict('os.environ', {'MARKETDATA_API_KEY': 'test_api_key_12345'}):
+    with patch.dict('os.environ', {}):
         yield
 
 
@@ -116,27 +116,16 @@ def mock_provider():
 @pytest.fixture
 def server(mock_api_key, mock_provider):
     """Create server instance with mocked IBKR provider."""
-    with patch('src.mcp_server.get_marketdata_limiter') as mock_limiter:
-        mock_limiter.return_value = MagicMock(
-            acquire=AsyncMock(),
-            record_success=MagicMock(),
-            stats=MagicMock(return_value={
-                'total_requests': 10,
-                'total_waits': 2,
-                'avg_wait_time': 0.05,
-                'available_tokens': 8.5
-            })
-        )
-        server = OptionPlayServer(api_key="test_key")
-        server._ibkr_provider = mock_provider
-        server._ibkr_connected = True
-        server._connected = True
-        # Disable bridge so get_vix() reaches ibkr_provider.get_quote("VIX") path
-        server._ibkr_bridge = None
-        # Clear VIX cache so the mock path is always exercised
-        server._current_vix = None
-        server._vix_updated = None
-        yield server
+    server = OptionPlayServer(api_key="test_key")
+    server._ibkr_provider = mock_provider
+    server._ibkr_connected = True
+    server._connected = True
+    # Disable bridge so get_vix() reaches ibkr_provider.get_quote("VIX") path
+    server._ibkr_bridge = None
+    # Clear VIX cache so the mock path is always exercised
+    server._current_vix = None
+    server._vix_updated = None
+    yield server
 
 
 class TestServerInitialization:
@@ -144,10 +133,9 @@ class TestServerInitialization:
     
     def test_init_with_api_key(self, mock_api_key):
         """Test initialization — IBKR needs no API key."""
-        with patch('src.mcp_server.get_marketdata_limiter'):
-            server = OptionPlayServer(api_key="explicit_key")
-            # IBKR provider is lazy-initialized, no API key needed
-            assert server._ibkr_provider is None or server._provider is None
+        server = OptionPlayServer(api_key="explicit_key")
+        # IBKR provider is lazy-initialized, no API key needed
+        assert server._provider is None
 
     def test_version(self, server):
         """Test server version."""

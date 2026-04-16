@@ -32,9 +32,7 @@ from typing import TYPE_CHECKING, Any, Optional
 from ..config import get_config
 from ..container import ServiceContainer
 from ..state import ConnectionStatus, ServerState
-from ..utils.circuit_breaker import CircuitBreakerOpen, get_circuit_breaker
-from ..utils.rate_limiter import get_marketdata_limiter
-from ..utils.secure_config import get_api_key, mask_api_key
+from ..utils.circuit_breaker import CircuitBreakerOpen
 
 if TYPE_CHECKING:
     from ..data_providers.ibkr_provider import IBKRDataProvider
@@ -84,11 +82,7 @@ class ServerCore:
 
     def __post_init__(self) -> None:
         """Initialize after dataclass creation."""
-        if not self._api_key:
-            try:
-                self._api_key = get_api_key("MARKETDATA_API_KEY", required=True)
-            except ValueError:
-                logger.warning("No API key found, will need to be provided later")
+        pass  # IBKR TWS does not require an API key
 
     # =========================================================================
     # FACTORY METHODS
@@ -106,11 +100,10 @@ class ServerCore:
             Konfigurierter ServerCore
         """
         container = ServiceContainer.create_default(api_key=api_key)
-        resolved_key = api_key or get_api_key("MARKETDATA_API_KEY", required=False) or ""
 
         return cls(
             container=container,
-            _api_key=resolved_key,
+            _api_key=api_key or "",
         )
 
     @classmethod
@@ -226,7 +219,7 @@ class ServerCore:
             if self.container and self.container.circuit_breaker:
                 if not self.container.circuit_breaker.can_execute():
                     retry_after = self.container.circuit_breaker.get_retry_after()
-                    raise CircuitBreakerOpen("marketdata_api", retry_after)
+                    raise CircuitBreakerOpen("ibkr_api", retry_after)
 
             # Initialize provider
             if self._provider is None:
@@ -248,7 +241,7 @@ class ServerCore:
                 if self.container and self.container.circuit_breaker:
                     self.container.circuit_breaker.record_success()
 
-                logger.info(f"Connected to Marketdata.app (key: {mask_api_key(self._api_key)})")
+                logger.info("Connected to IBKR TWS")
                 return True
             else:
                 self.state.connection.mark_failed("Connection returned False")

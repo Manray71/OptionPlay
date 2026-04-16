@@ -131,7 +131,6 @@ DEPRECATION_MESSAGES = {
     "get_scan_config": "container.config.get_scan_config()",
     "get_watchlist_loader": "container.config.get_watchlist_loader()",
     # Provider singletons
-    "get_marketdata_limiter": "container.rate_limiter",
     "get_circuit_breaker": "container.circuit_breaker",
     "get_circuit_breaker_registry": "container.circuit_breaker_registry",
     "get_request_deduplicator": "container.request_deduplicator",

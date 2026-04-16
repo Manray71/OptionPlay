@@ -54,7 +54,7 @@ class EarningsRecord:
     eps_surprise: Optional[float] = None
     eps_surprise_pct: Optional[float] = None
     time_of_day: Optional[str] = None  # 'bmo', 'amc', 'dmh'
-    source: str = "marketdata"
+    source: str = "ibkr"
 
     def to_dict(self) -> Dict[str, Any]:
         """Converts to dictionary"""
@@ -130,7 +130,7 @@ class EarningsHistoryManager:
                         eps_surprise REAL,
                         eps_surprise_pct REAL,
                         time_of_day TEXT,
-                        source TEXT DEFAULT 'marketdata',
+                        source TEXT DEFAULT 'ibkr',
                         collected_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         UNIQUE(symbol, earnings_date)
                     )
@@ -158,14 +158,14 @@ class EarningsHistoryManager:
     # =========================================================================
 
     def save_earnings(
-        self, symbol: str, earnings_list: List[Dict[str, Any]], source: str = "marketdata"
+        self, symbol: str, earnings_list: List[Dict[str, Any]], source: str = "ibkr"
     ) -> int:
         """
         Saves multiple earnings entries for a symbol.
 
         Args:
             symbol: Ticker symbol
-            earnings_list: List of earnings dicts (from MarketDataProvider)
+            earnings_list: List of earnings dicts
             source: Data source
 
         Returns:

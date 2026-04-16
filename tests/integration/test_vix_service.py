@@ -233,7 +233,7 @@ class TestGetVix:
         assert result.success
         assert result.data == 22.5
         assert result.cached is False
-        assert result.source == "marketdata"
+        assert result.source == "ibkr"
 
     @pytest.mark.asyncio
     async def test_get_vix_uses_cache_when_valid(self, service):
@@ -260,7 +260,7 @@ class TestGetVix:
         assert result.success
         assert result.data == 18.5  # From mock provider
         assert result.cached is False
-        assert result.source == "marketdata"
+        assert result.source == "ibkr"
 
     @pytest.mark.asyncio
     async def test_get_vix_force_refresh_ignores_cache(self, service):
@@ -848,7 +848,7 @@ class TestCachingBehavior:
         result = await service.get_vix()
 
         assert result.cached is False
-        assert result.source == "marketdata"
+        assert result.source == "ibkr"
 
     @pytest.mark.asyncio
     async def test_cache_update_timestamp(self, service):
@@ -1063,7 +1063,7 @@ class TestVixServiceIntegration:
         # First: provider works
         service._context._provider._vix_value = 19.0
         result1 = await service.get_vix(force_refresh=True)
-        assert result1.source == "marketdata"
+        assert result1.source == "ibkr"
 
         # Second: provider fails, yahoo works
         service._context._provider._should_fail = True
@@ -1168,7 +1168,7 @@ class TestEdgeCases:
 
         assert result.success
         assert result.data == 5.0
-        assert result.source == "marketdata"
+        assert result.source == "ibkr"
 
     @pytest.mark.asyncio
     async def test_very_high_vix_handled(self, service):

@@ -189,7 +189,7 @@ class MockEarningsFetcher:
 @pytest.fixture
 def mock_api_key():
     """Mock API key environment."""
-    with patch.dict('os.environ', {'MARKETDATA_API_KEY': 'test_key_12345'}):
+    with patch.dict('os.environ', {}):
         yield
 
 
@@ -212,25 +212,20 @@ def mock_config():
 class TestServerInitializationWithoutContainer:
     """Tests for initialization without container."""
 
-    @patch('src.mcp_server.get_api_key')
     @patch('src.mcp_server.get_config')
-    @patch('src.mcp_server.get_marketdata_limiter')
     @patch('src.mcp_server.get_historical_cache')
     @patch('src.mcp_server.get_circuit_breaker')
     def test_init_without_container_creates_components(
-        self, mock_cb, mock_cache, mock_limiter, mock_config, mock_key
+        self, mock_cb, mock_cache, mock_config
     ):
         """Test: Without container, creates all components."""
-        mock_key.return_value = "test_key"
         mock_config.return_value = MockConfig()
-        mock_limiter.return_value = MagicMock()
         mock_cache.return_value = MagicMock()
         mock_cb.return_value = MagicMock()
 
         server = OptionPlayServer()
 
         assert server._provider is None  # Created on connect
-        mock_limiter.assert_called_once()
         mock_cache.assert_called_once()
         mock_cb.assert_called_once()
 

@@ -25,7 +25,7 @@ class EarningsSource(Enum):
         Confidence weight for this source (higher = more reliable).
 
         Based on historical reliability:
-        - Marketdata.app: Professional API, generally accurate
+        - MARKETDATA: Legacy/backward-compat value (Marketdata.app removed as live provider)
         - Yahoo Direct: Official API, good for upcoming earnings
         - yfinance: Library wrapper, sometimes stale data
         """
@@ -324,7 +324,7 @@ def create_earnings_result(
     Create EarningsResult from raw data.
 
     Args:
-        source: Source name (marketdata, yahoo_direct, yfinance)
+        source: Source name (ibkr, yahoo_direct, yfinance)
         earnings_date: ISO date string or None
         days_to_earnings: Days until earnings or None
         error: Error message if fetch failed

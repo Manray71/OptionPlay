@@ -7,11 +7,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.cache.iv_cache import (
+from src.cache import (
     calculate_iv_rank,
     calculate_iv_percentile,
     IVData,
-    IVSource
+    IVSource,
 )
 
 
@@ -224,7 +224,7 @@ class TestHistoricalVolatilityCalculation:
     @pytest.fixture
     def fetcher(self, tmp_path):
         """Fetcher mit temporärem Cache"""
-        from src.cache.iv_cache import HistoricalIVFetcher, IVCache
+        from src.cache import HistoricalIVFetcher, IVCache
         cache_file = tmp_path / "test_iv_cache.json"
         cache = IVCache(cache_file=cache_file)
         return HistoricalIVFetcher(cache=cache)
@@ -282,7 +282,7 @@ class TestIVEstimation:
     
     @pytest.fixture
     def fetcher(self, tmp_path):
-        from src.cache.iv_cache import HistoricalIVFetcher, IVCache
+        from src.cache import HistoricalIVFetcher, IVCache
         cache_file = tmp_path / "test_iv_cache.json"
         cache = IVCache(cache_file=cache_file)
         return HistoricalIVFetcher(cache=cache)
@@ -324,7 +324,7 @@ class TestCacheIntegration:
     
     @pytest.fixture
     def fetcher(self, tmp_path):
-        from src.cache.iv_cache import HistoricalIVFetcher, IVCache
+        from src.cache import HistoricalIVFetcher, IVCache
         cache_file = tmp_path / "test_iv_cache.json"
         cache = IVCache(cache_file=cache_file)
         return HistoricalIVFetcher(cache=cache)

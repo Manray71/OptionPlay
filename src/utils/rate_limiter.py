@@ -423,7 +423,7 @@ def get_limiter(provider: str, calls_per_minute: int = 100, adaptive: bool = Tru
     Erstellt einen neuen Limiter wenn keiner existiert.
 
     Args:
-        provider: Provider-Name (z.B. "marketdata", "ibkr")
+        provider: Provider-Name (z.B. "ibkr", "yahoo")
         calls_per_minute: Rate Limit
         adaptive: True für AdaptiveRateLimiter
 
@@ -439,23 +439,6 @@ def get_limiter(provider: str, calls_per_minute: int = 100, adaptive: bool = Tru
             _limiters[provider] = RateLimiter(calls_per_minute=calls_per_minute, name=provider)
 
     return _limiters[provider]
-
-
-def get_marketdata_limiter() -> AdaptiveRateLimiter:
-    """
-    Rate Limiter für Marketdata.app (100 req/min).
-
-    .. deprecated:: 3.5.0
-        Use ``ServiceContainer.rate_limiter`` instead. Will be removed in v4.0.
-    """
-    try:
-        from .deprecation import warn_singleton_usage
-
-        warn_singleton_usage("get_marketdata_limiter", "container.rate_limiter")
-    except ImportError:
-        pass
-
-    return get_limiter("marketdata", calls_per_minute=100, adaptive=True)
 
 
 def get_yahoo_limiter() -> RateLimiter:

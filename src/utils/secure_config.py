@@ -11,7 +11,7 @@
 # Verwendung:
 #     from utils.secure_config import get_api_key, mask_api_key
 #
-#     key = get_api_key("MARKETDATA_API_KEY")
+#     key = get_api_key("SOME_API_KEY")
 #     logger.info(f"Using key: {mask_api_key(key)}")
 
 import logging
@@ -116,16 +116,14 @@ class SecureConfig:
         config = SecureConfig()
 
         # Key wird erst bei Zugriff geladen
-        key = config.get_api_key("MARKETDATA_API_KEY")
+        key = config.get_api_key("SOME_API_KEY")
 
         # Mit Validierung
-        key = config.get_api_key("MARKETDATA_API_KEY", validate=True)
+        key = config.get_api_key("SOME_API_KEY", validate=True)
     """
 
     # Bekannte API-Key Formate für Validierung
-    KEY_PATTERNS = {
-        "MARKETDATA_API_KEY": r"^[A-Za-z0-9_-]{20,100}$",
-    }
+    KEY_PATTERNS: dict = {}
 
     def __init__(
         self,
@@ -248,7 +246,7 @@ class SecureConfig:
         4. .env Datei
 
         Args:
-            key_name: Name des Keys (z.B. "MARKETDATA_API_KEY")
+            key_name: Name des Keys (z.B. "IBKR_CLIENT_ID")
             required: Wenn True, wirft Exception wenn nicht gefunden
             validate: Wenn True, validiert Key-Format
 
@@ -450,7 +448,7 @@ def get_api_key(key_name: str, required: bool = True, validate: bool = False) ->
     Verwendet die globale SecureConfig-Instanz.
 
     Examples:
-        >>> key = get_api_key("MARKETDATA_API_KEY")
+        >>> key = get_api_key("SOME_API_KEY")
         >>> key = get_api_key("OPTIONAL_KEY", required=False)
     """
     return get_secure_config().get_api_key(key_name, required, validate)

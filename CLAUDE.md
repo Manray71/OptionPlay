@@ -230,12 +230,11 @@ MCPError (Basis)
 
 ---
 
-## Scripts (8 verbleibend)
+## Scripts (7 verbleibend)
 
 ```bash
 python scripts/populate_fundamentals.py      # Fundamentals + Stability
 python scripts/collect_earnings_eps.py       # EPS-Daten
-python scripts/collect_earnings_tradier.py   # Earnings via Tradier
 python scripts/calculate_derived_metrics.py  # IV Rank, Correlation, HV
 python scripts/daily_data_fetcher.py         # VIX täglich (Cronjob)
 python scripts/sync_daily_to_price_data.py   # OHLCV: daily_prices → price_data

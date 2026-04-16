@@ -602,8 +602,12 @@ class SectorRSService:
                 if reverse and reverse != sector:
                     all_sector += manager.get_symbols_by_sector(reverse)
                 # Filter Tier 1+2, sort by avg_put_oi
+                # Fallback: if liquidity classification hasn't run yet (most tiers NULL),
+                # include all sector symbols so RRG still works
+                tier_qualified = [f for f in all_sector if (f.liquidity_tier or 99) <= 2]
+                pool = tier_qualified if len(tier_qualified) >= 3 else all_sector
                 top_stocks = sorted(
-                    [f for f in all_sector if (f.liquidity_tier or 99) <= 2],
+                    pool,
                     key=lambda f: f.avg_put_oi or 0,
                     reverse=True,
                 )[:limit]

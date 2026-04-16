@@ -48,8 +48,8 @@ from ..services.vix_strategy import (
     StrategyRecommendation,
     VIXStrategySelector,
 )
-from .pick_formatter import format_picks_markdown as _format_picks_markdown
-from .pick_formatter import format_single_pick as _format_single_pick
+from ..formatters.pick_formatter import format_picks_markdown as _format_picks_markdown
+from ..formatters.pick_formatter import format_single_pick as _format_single_pick
 from .recommendation_ranking import RecommendationRankingMixin
 from .signal_filter import (
     apply_blacklist_filter,

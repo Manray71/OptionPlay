@@ -222,8 +222,8 @@ class TestCreateServiceContext:
 
         assert context.api_key == "provided_key"
 
-    def test_uses_environment_key_when_not_provided(self):
-        """Test uses environment API key when not provided."""
+    def test_uses_empty_key_when_not_provided(self):
+        """Test uses empty API key when not provided (IBKR needs no key)."""
         with patch('src.services.base.get_config') as mock_config:
             mock_settings = MagicMock()
             mock_settings.performance.cache_ttl_seconds = 300
@@ -232,10 +232,9 @@ class TestCreateServiceContext:
             mock_settings.circuit_breaker.recovery_timeout = 30
             mock_config.return_value.settings = mock_settings
 
-            with patch('src.services.base.get_api_key', return_value="env_key"):
-                context = create_service_context()
+            context = create_service_context()
 
-        assert context.api_key == "env_key"
+        assert context.api_key == ""
 
 
 # =============================================================================

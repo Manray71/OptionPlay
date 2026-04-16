@@ -15,10 +15,7 @@ from .pool import (
 )
 from .pullback import PullbackAnalyzer
 
-try:
-    from .batch_scorer import BatchScorer
-except ImportError:
-    BatchScorer = None  # type: ignore[assignment,misc]  # optional dependency; None sentinel for availability check
+from .batch_scorer import BatchScorer
 from .score_normalization import (
     STRATEGY_SCORE_CONFIGS,
     ScoreNormalizer,

@@ -21,7 +21,7 @@ from .dividend_history import (  # Classes; Functions
     get_dividend_history_manager,
     reset_dividend_history_manager,
 )
-from .earnings_cache import (  # Classes; Functions
+from .earnings_cache_impl import (  # Classes; Functions
     EarningsCache,
     EarningsCacheEntry,
     EarningsFetcher,
@@ -47,7 +47,7 @@ from .historical_cache import (  # Classes; Functions
     get_historical_cache,
     reset_historical_cache,
 )
-from .iv_cache import (  # Classes; Functions
+from .iv_cache_impl import (  # Classes; Functions
     HistoricalIVFetcher,
     IVCache,
     IVCacheEntry,

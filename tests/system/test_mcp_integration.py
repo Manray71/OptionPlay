@@ -22,7 +22,7 @@ class TestMCPServerInitialization:
     @pytest.fixture
     def mock_env(self, monkeypatch):
         """Mock environment variables"""
-        monkeypatch.setenv("MARKETDATA_API_KEY", "test_api_key_12345")
+        monkeypatch.delenv("MARKETDATA_API_KEY", raising=False)
     
     def test_server_initializes_circuit_breaker(self, mock_env):
         """Server sollte Circuit Breaker initialisieren"""

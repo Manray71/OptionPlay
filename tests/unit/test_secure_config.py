@@ -794,37 +794,18 @@ class TestSecureConfigValidation:
     def teardown_method(self):
         """Cleanup after each test."""
         reset_secure_config()
-        for key in ["MARKETDATA_API_KEY", "UNKNOWN_KEY"]:
+        for key in ["TEST_API_KEY", "UNKNOWN_KEY"]:
             if key in os.environ:
                 del os.environ[key]
 
-    def test_validate_valid_marketdata_key(self):
-        """Valid Marketdata API key passes validation."""
-        os.environ["MARKETDATA_API_KEY"] = "valid_api_key_12345678901234567890"
+    def test_validate_valid_api_key(self):
+        """Valid API key passes validation."""
+        os.environ["TEST_API_KEY"] = "valid_api_key_12345678901234567890"
 
         config = SecureConfig()
-        key = config.get_api_key("MARKETDATA_API_KEY", validate=True)
+        key = config.get_api_key("TEST_API_KEY")
 
         assert key == "valid_api_key_12345678901234567890"
-
-    def test_validate_invalid_marketdata_key_too_short(self):
-        """Too short Marketdata key fails validation."""
-        os.environ["MARKETDATA_API_KEY"] = "too_short"
-
-        config = SecureConfig()
-
-        with pytest.raises(ValueError, match="invalid format"):
-            config.get_api_key("MARKETDATA_API_KEY", validate=True)
-
-    def test_validate_invalid_marketdata_key_bad_chars(self):
-        """Marketdata key with invalid characters fails validation."""
-        os.environ["MARKETDATA_API_KEY"] = "invalid!@#$%key_with_special_chars"
-
-        config = SecureConfig()
-
-        with pytest.raises(ValueError, match="invalid format"):
-            config.get_api_key("MARKETDATA_API_KEY", validate=True)
-
 
     def test_validate_unknown_key_always_passes(self):
         """Unknown key names pass validation (no pattern defined)."""
@@ -835,25 +816,13 @@ class TestSecureConfigValidation:
 
         assert key == "any_value"
 
-    def test_validation_error_includes_masked_key(self):
-        """Validation error includes masked key value."""
-        os.environ["MARKETDATA_API_KEY"] = "short"
-
-        config = SecureConfig()
-
-        with pytest.raises(ValueError) as exc_info:
-            config.get_api_key("MARKETDATA_API_KEY", validate=True)
-
-        # Should have masked key in error message
-        assert "s...t" in str(exc_info.value) or "short" not in str(exc_info.value)
-
     def test_no_validation_by_default(self):
         """Validation is not performed by default."""
-        os.environ["MARKETDATA_API_KEY"] = "short"
+        os.environ["TEST_API_KEY"] = "short"
 
         config = SecureConfig()
         # Should not raise when validate=False (default)
-        key = config.get_api_key("MARKETDATA_API_KEY")
+        key = config.get_api_key("TEST_API_KEY")
 
         assert key == "short"
 
@@ -894,11 +863,11 @@ class TestGlobalFunctions:
         assert key is None
 
     def test_get_api_key_global_validate(self):
-        """Global get_api_key supports validation."""
-        os.environ["MARKETDATA_API_KEY"] = "short"
+        """Global get_api_key supports validation (unknown keys always pass)."""
+        os.environ["GLOBAL_TEST_KEY"] = "any_value_that_passes"
 
-        with pytest.raises(ValueError, match="invalid format"):
-            get_api_key("MARKETDATA_API_KEY", validate=True)
+        key = get_api_key("GLOBAL_TEST_KEY", validate=True)
+        assert key == "any_value_that_passes"
 
     def test_get_secure_config_singleton(self):
         """get_secure_config returns same instance."""

@@ -33,8 +33,8 @@ from typing import Any, Optional
 from ..cache import HistoricalCache, get_historical_cache
 from ..config import get_config
 from ..utils.circuit_breaker import CircuitBreaker, CircuitBreakerOpen, get_circuit_breaker
-from ..utils.rate_limiter import AdaptiveRateLimiter, get_marketdata_limiter
-from ..utils.secure_config import get_api_key, mask_api_key
+from ..utils.rate_limiter import AdaptiveRateLimiter, get_limiter
+from ..utils.secure_config import mask_api_key
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +48,7 @@ class ServiceContext:
     ohne dass jeder Service seine eigene Verbindung aufbaut.
 
     Attributes:
-        api_key: Marketdata.app API Key
+        api_key: API Key (unused for IBKR TWS, kept for interface compatibility)
         config: Configuration (optional, falls back to get_config())
         provider: Shared IBKRDataProvider (lazy init)
         rate_limiter: Shared Rate Limiter
@@ -59,7 +59,7 @@ class ServiceContext:
 
     api_key: str
     config: Optional[Any] = None  # ConfigLoader
-    rate_limiter: AdaptiveRateLimiter = field(default_factory=get_marketdata_limiter)
+    rate_limiter: AdaptiveRateLimiter = field(default_factory=lambda: get_limiter("ibkr", calls_per_minute=30, adaptive=True))
     historical_cache: Optional[HistoricalCache] = None
     _circuit_breaker: Optional[CircuitBreaker] = None
     _provider: Optional[Any] = None  # IBKRDataProvider
@@ -81,7 +81,7 @@ class ServiceContext:
 
         if self._circuit_breaker is None:
             self._circuit_breaker = get_circuit_breaker(
-                name="marketdata_api",
+                name="ibkr_api",
                 failure_threshold=cb_cfg.failure_threshold,
                 recovery_timeout=cb_cfg.recovery_timeout,
             )
@@ -116,7 +116,7 @@ class ServiceContext:
         """Verbindet den Provider mit Retry-Logik."""
         if not self._circuit_breaker.can_execute():
             retry_after = self._circuit_breaker.get_retry_after()
-            raise CircuitBreakerOpen("marketdata_api", retry_after)
+            raise CircuitBreakerOpen("ibkr_api", retry_after)
 
         api_conn = self.config.settings.api_connection
 
@@ -128,7 +128,7 @@ class ServiceContext:
                     self._connected = True
                     self.rate_limiter.record_success()
                     self._circuit_breaker.record_success()
-                    logger.info("Connected to Marketdata.app")
+                    logger.info("Connected to IBKR TWS")
                     return
             except CircuitBreakerOpen:
                 raise
@@ -139,7 +139,7 @@ class ServiceContext:
                     await asyncio.sleep(api_conn.retry_base_delay**attempt)
 
         raise ConnectionError(
-            f"Cannot connect to Marketdata.app after {api_conn.max_retries} attempts"
+            f"Cannot connect to IBKR TWS after {api_conn.max_retries} attempts"
         )
 
     async def disconnect(self) -> None:
@@ -147,7 +147,7 @@ class ServiceContext:
         if self._provider and self._connected:
             await self._provider.disconnect()
             self._connected = False
-            logger.info("Disconnected from Marketdata.app")
+            logger.info("Disconnected from IBKR TWS")
 
 
 class BaseService(ABC):
@@ -218,15 +218,9 @@ def create_service_context(api_key: Optional[str] = None) -> ServiceContext:
     Factory-Funktion für ServiceContext.
 
     Args:
-        api_key: Optional API Key (sonst aus Umgebungsvariable)
+        api_key: Optional API Key (not used by IBKR TWS, kept for interface compatibility)
 
     Returns:
         Konfigurierter ServiceContext
-
-    Raises:
-        ValueError: Wenn kein API Key gefunden
     """
-    if not api_key:
-        api_key = get_api_key("MARKETDATA_API_KEY", required=True)
-
-    return ServiceContext(api_key=api_key)
+    return ServiceContext(api_key=api_key or "")

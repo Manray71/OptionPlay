@@ -14,7 +14,7 @@ from datetime import datetime
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.cache.earnings_cache import EarningsCache, EarningsInfo, EarningsSource
+from src.cache import EarningsCache, EarningsInfo, EarningsSource
 
 
 class TestEarningsCacheThreadSafety:
@@ -140,7 +140,7 @@ class TestRetryOnFailureDecorator:
     
     def test_retry_decorator_success_first_try(self):
         """Test: Erfolg beim ersten Versuch"""
-        from src.cache.earnings_cache import retry_on_failure
+        from src.cache.earnings_cache_impl import retry_on_failure
         
         call_count = 0
         
@@ -157,7 +157,7 @@ class TestRetryOnFailureDecorator:
     
     def test_retry_decorator_success_after_retry(self):
         """Test: Erfolg nach Retry"""
-        from src.cache.earnings_cache import retry_on_failure
+        from src.cache.earnings_cache_impl import retry_on_failure
         
         call_count = 0
         
@@ -176,7 +176,7 @@ class TestRetryOnFailureDecorator:
     
     def test_retry_decorator_returns_none_on_exhaustion(self):
         """Test: Gibt None zurück nach allen Retries (graceful degradation)"""
-        from src.cache.earnings_cache import retry_on_failure
+        from src.cache.earnings_cache_impl import retry_on_failure
         
         call_count = 0
         
@@ -193,7 +193,7 @@ class TestRetryOnFailureDecorator:
     
     def test_retry_decorator_only_catches_specified_exceptions(self):
         """Test: Nur spezifizierte Exceptions werden gefangen"""
-        from src.cache.earnings_cache import retry_on_failure
+        from src.cache.earnings_cache_impl import retry_on_failure
         
         @retry_on_failure(max_retries=3, delay=0.01, exceptions=(ValueError,))
         def raises_type_error():

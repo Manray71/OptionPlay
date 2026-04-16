@@ -212,7 +212,7 @@ class LocalDBProvider(DataProvider):
         Get option chain - NOT SUPPORTED by local DB.
 
         Local DB has options_prices but not in real-time format.
-        Use IBKR or Marketdata.app for option chains.
+        Use IBKR for option chains.
         """
         logger.debug(f"get_option_chain not supported by local DB for {symbol}")
         return []
@@ -221,7 +221,7 @@ class LocalDBProvider(DataProvider):
         """
         Get available expirations - NOT SUPPORTED by local DB.
 
-        Use IBKR or Marketdata.app for expirations.
+        Use IBKR for expirations.
         """
         logger.debug(f"get_expirations not supported by local DB for {symbol}")
         return []

@@ -3,18 +3,17 @@
 # Intelligente Multi-Provider-Strategie mit Rate Limiting
 #
 # Provider-Hierarchie:
-# 1. IBKR/TWS - Präzise Live-Daten (rate-limitiert, nur für finale Validierung)
-# 2. Marketdata.app - Bulk-Daten, historische Daten, Scans
-# 3. Yahoo Finance - Kostenloser Fallback für VIX, Earnings
+# 1. IBKR/TWS - Live-Daten, Options-Chain, Greeks (primärer Provider)
+# 2. Yahoo Finance - VIX, Earnings (kostenloser Fallback)
 #
 # Strategie:
-# - Scans und historische Daten: Marketdata.app
-# - Finale Trade-Validierung: IBKR (wenn verfügbar)
-# - VIX: Yahoo Finance (zuverlässiger als Marketdata.app)
-# - Earnings: Multi-Source mit Cache
+# - Live-Quotes, Options-Chain: IBKR TWS
+# - VIX: Yahoo Finance (zuverlässig, kostenlos)
+# - Earnings: Multi-Source mit Cache (Yahoo → yfinance)
 #
-# Note: Tradier has been replaced by IBKR TWS Bridge.
-# ProviderType.TRADIER is kept for backward compatibility (DB enum values).
+# Note: Tradier and Marketdata.app have been removed as live data providers.
+# ProviderType.TRADIER and ProviderType.MARKETDATA are kept for backward
+# compatibility (DB enum values).
 
 import asyncio
 import logging
@@ -83,10 +82,10 @@ class ProviderOrchestrator:
     Orchestriert mehrere Data Provider für optimale Performance.
 
     Routing-Logik:
-    - Bulk-Scans: Marketdata.app (schnell, hohe Rate Limits)
-    - Live-Quotes für Trading: IBKR (wenn verbunden)
-    - VIX: Yahoo Finance (zuverlässig)
-    - Earnings: Cache → Yahoo → Marketdata
+    - Bulk-Scans: IBKR TWS (primärer Provider)
+    - Live-Quotes für Trading: IBKR TWS
+    - VIX: Yahoo Finance (zuverlässig, kostenlos) mit IBKR Fallback
+    - Earnings: Cache → Yahoo → yfinance
 
     Verwendung:
         orchestrator = ProviderOrchestrator()
@@ -100,28 +99,16 @@ class ProviderOrchestrator:
 
     # Default Provider-Konfiguration
     DEFAULT_PROVIDERS = {
-        ProviderType.MARKETDATA: ProviderConfig(
-            name="Marketdata.app",
-            enabled=True,
-            priority=2,
-            rate_limit_per_minute=100,
-            supports=[
-                DataType.QUOTE,
-                DataType.HISTORICAL,
-                DataType.OPTIONS_CHAIN,
-                DataType.EARNINGS,
-                DataType.SCAN,
-            ],
-        ),
         ProviderType.IBKR: ProviderConfig(
             name="IBKR/TWS",
-            enabled=False,  # Muss explizit aktiviert werden
+            enabled=True,  # Primary live data provider
             priority=1,  # Höchste Priorität für Live-Daten
             rate_limit_per_minute=30,  # Konservativ für TWS
             supports=[
                 DataType.QUOTE,
                 DataType.HISTORICAL,
                 DataType.OPTIONS_CHAIN,
+                DataType.SCAN,
                 DataType.NEWS,  # IBKR liefert News!
                 DataType.IV_RANK,
                 DataType.MAX_PAIN,
@@ -142,16 +129,16 @@ class ProviderOrchestrator:
     }
 
     # Routing-Präferenzen pro Datentyp
-    # Reihenfolge: IBKR (live) > Marketdata > Yahoo (fallback)
+    # Reihenfolge: IBKR (live) > Yahoo (fallback für VIX/Earnings)
     ROUTING_PREFERENCES = {
-        DataType.QUOTE: [ProviderType.IBKR, ProviderType.MARKETDATA],
-        DataType.HISTORICAL: [ProviderType.MARKETDATA, ProviderType.IBKR],
-        DataType.OPTIONS_CHAIN: [ProviderType.IBKR, ProviderType.MARKETDATA],
-        DataType.VIX: [ProviderType.IBKR, ProviderType.YAHOO, ProviderType.MARKETDATA],
-        DataType.EARNINGS: [ProviderType.YAHOO, ProviderType.MARKETDATA],
-        DataType.SCAN: [ProviderType.MARKETDATA],
+        DataType.QUOTE: [ProviderType.IBKR],
+        DataType.HISTORICAL: [ProviderType.IBKR],
+        DataType.OPTIONS_CHAIN: [ProviderType.IBKR],
+        DataType.VIX: [ProviderType.IBKR, ProviderType.YAHOO],
+        DataType.EARNINGS: [ProviderType.YAHOO],
+        DataType.SCAN: [ProviderType.IBKR],
         DataType.NEWS: [ProviderType.IBKR],  # NUR IBKR liefert News
-        DataType.IV_RANK: [ProviderType.IBKR, ProviderType.MARKETDATA],
+        DataType.IV_RANK: [ProviderType.IBKR],
         DataType.MAX_PAIN: [ProviderType.IBKR],  # Nur IBKR hat präzise OI-Daten
         DataType.STRIKE_RECOMMENDATION: [ProviderType.IBKR],  # VIX-integriert
     }
@@ -202,12 +189,10 @@ class ProviderOrchestrator:
             if data_type not in config.supports:
                 continue
 
-            # IBKR nur wenn verbunden und für Accuracy-Anfragen
+            # IBKR nur wenn verbunden
             if provider_type == ProviderType.IBKR:
                 if not self._ibkr_connected:
                     continue
-                if not prefer_accuracy and data_type == DataType.SCAN:
-                    continue  # Scans nie über IBKR
 
             # Daily Limit prüfen
             stats = self.stats[provider_type]
@@ -306,14 +291,14 @@ class ProviderOrchestrator:
         # Rate Limit prüfen (max 30/min für IBKR)
         stats = self.stats[ProviderType.IBKR]
         if stats.requests_today > 500:  # Konservatives Daily Limit
-            logger.warning("IBKR Daily Limit fast erreicht, verwende Marketdata.app")
+            logger.warning("IBKR Daily Limit fast erreicht")
             return False
 
         return True
 
     def get_scan_provider(self) -> ProviderType:
-        """Gibt Provider für Bulk-Scans zurück (immer Marketdata.app)."""
-        return ProviderType.MARKETDATA
+        """Gibt Provider für Bulk-Scans zurück (IBKR TWS)."""
+        return ProviderType.IBKR
 
     def get_vix_provider(self) -> ProviderType:
         """Gibt Provider für VIX zurück (bevorzugt Yahoo)."""
