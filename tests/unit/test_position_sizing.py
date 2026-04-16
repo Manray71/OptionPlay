@@ -456,6 +456,48 @@ class TestEdgeCases:
         assert result.limiting_factor in ["portfolio_risk_full", "kelly_too_low", "insufficient_edge"]
 
 
+class TestPositionSizerConfigFromYaml:
+    """B.3.3: PositionSizerConfig.from_yaml() eliminates dataclass-vs-YAML drift."""
+
+    def test_position_sizer_config_from_yaml_reads_max_risk_per_trade(self):
+        """from_yaml() liest max_risk_per_trade_pct aus trading.yaml (aktuell 2.5%)."""
+        from src.constants.trading_rules import SIZING_MAX_RISK_PER_TRADE_PCT
+
+        config = PositionSizerConfig.from_yaml()
+        expected_fraction = SIZING_MAX_RISK_PER_TRADE_PCT / 100.0
+        assert config.max_risk_per_trade == pytest.approx(expected_fraction)
+
+    def test_position_sizer_config_from_yaml_reads_max_portfolio_allocation(self):
+        """from_yaml() liest max_portfolio_allocation aus trading.yaml (aktuell 50%)."""
+        from src.constants.trading_rules import SIZING_MAX_PORTFOLIO_ALLOCATION
+
+        config = PositionSizerConfig.from_yaml()
+        expected_fraction = SIZING_MAX_PORTFOLIO_ALLOCATION / 100.0
+        assert config.max_portfolio_allocation == pytest.approx(expected_fraction)
+
+    def test_position_sizer_uses_yaml_value_when_constructed_via_from_yaml(self):
+        """Regression: PositionSizer ohne explizite Config verwendet YAML-Werte.
+
+        Verifiziert dass trading.yaml-Änderungen tatsächlich greifen,
+        nicht stillschweigend durch Dataclass-Defaults überschrieben werden.
+        """
+        from src.constants.trading_rules import SIZING_MAX_RISK_PER_TRADE_PCT
+
+        sizer = PositionSizer(account_size=100_000)  # kein config-Argument
+        expected_fraction = SIZING_MAX_RISK_PER_TRADE_PCT / 100.0
+        assert sizer.config.max_risk_per_trade == pytest.approx(expected_fraction)
+
+    def test_position_sizer_config_from_yaml_preserves_other_defaults(self):
+        """from_yaml() überschreibt nur bekannte YAML-Felder; andere Defaults bleiben."""
+        config = PositionSizerConfig.from_yaml()
+        default = PositionSizerConfig()
+
+        # Kelly-Settings sollten unverändert sein
+        assert config.kelly_mode == default.kelly_mode
+        assert config.kelly_cap == default.kelly_cap
+        assert config.max_portfolio_risk == default.max_portfolio_risk
+
+
 class TestMaxPortfolioAllocation:
     """B.3.2-light: Notional-basierte max_portfolio_allocation Schranke.
 

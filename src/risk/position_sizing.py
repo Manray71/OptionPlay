@@ -176,6 +176,28 @@ class PositionSizerConfig:
     # Echte Margin bindet ~70-80% des Notionals; 50% Notional-Grenze ist konservative Näherung.
     max_portfolio_allocation: float = 0.50  # 50% des Portfolios als Notional-Schranke
 
+    @classmethod
+    def from_yaml(cls) -> "PositionSizerConfig":
+        """Lade YAML-Werte aus trading.yaml in PositionSizerConfig.
+
+        Liest:
+        - sizing.max_risk_per_trade_pct → max_risk_per_trade (pct → fraction)
+        - sizing.max_portfolio_allocation → max_portfolio_allocation (pct → fraction)
+
+        Alle anderen Felder behalten ihre Dataclass-Defaults.
+        Eliminiert Drift zwischen trading.yaml und hartkodierten Dataclass-Defaults
+        (analog OQ-2 fix für IV Rank ScanConfig).
+        """
+        from src.constants.trading_rules import (
+            SIZING_MAX_RISK_PER_TRADE_PCT,
+            SIZING_MAX_PORTFOLIO_ALLOCATION,
+        )
+
+        return cls(
+            max_risk_per_trade=SIZING_MAX_RISK_PER_TRADE_PCT / 100.0,
+            max_portfolio_allocation=SIZING_MAX_PORTFOLIO_ALLOCATION / 100.0,
+        )
+
 
 class PositionSizer:
     """
@@ -204,7 +226,7 @@ class PositionSizer:
             current_exposure: Aktuelles Risiko im Portfolio
         """
         self.account_size = account_size
-        self.config = config or PositionSizerConfig()
+        self.config = config or PositionSizerConfig.from_yaml()
         self.current_exposure = current_exposure
 
     def calculate_kelly_fraction(
