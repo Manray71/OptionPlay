@@ -60,14 +60,14 @@ vix_regimes:
       new_trades_allowed: true
       max_positions: 10
       max_per_sector: 2
-      risk_per_trade_pct: 2.0
+      risk_per_trade_pct: 2.5  # 2.5% in low/normal VIX (Friend-Style); reduziert in higher VIX-Regimes
       profit_exit_pct: 50.0
     normal:
       stability_min: 65.0
       new_trades_allowed: true
       max_positions: 10
       max_per_sector: 2
-      risk_per_trade_pct: 2.0
+      risk_per_trade_pct: 2.5  # 2.5% in low/normal VIX (Friend-Style); reduziert in higher VIX-Regimes
       profit_exit_pct: 50.0
     danger_zone:
       stability_min: 80.0
@@ -125,7 +125,7 @@ roll:
 # POSITION SIZING (PLAYBOOK §5)
 # =============================================================================
 sizing:
-  max_risk_per_trade_pct: 2.0  # Max 2% portfolio risk per trade
+  max_risk_per_trade_pct: 2.5  # 2.5% in low/normal VIX (Friend-Style); reduziert in higher VIX-Regimes
   max_open_positions: 10       # Max open positions (VIX < 20)
   max_per_sector: 2            # Max positions per sector
   max_new_trades_per_day: 2    # Max new trades per day

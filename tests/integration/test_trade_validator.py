@@ -309,9 +309,9 @@ class TestPositionSizing:
 
         assert sizing["spread_width"] == 10.0
         assert sizing["max_loss_per_contract"] == 750.0  # ($10 - $2.50) * 100
-        assert sizing["risk_pct"] == 2.0
-        assert sizing["max_risk_usd"] == 1600.0  # 80k * 2%
-        assert sizing["recommended_contracts"] == 2  # $1600 / $750 = 2.13 -> 2
+        assert sizing["risk_pct"] == 2.5
+        assert sizing["max_risk_usd"] == 2000.0  # 80k * 2.5%
+        assert sizing["recommended_contracts"] == 2  # $2000 / $750 = 2.67 -> 2
 
     def test_sizing_danger_zone_reduces_risk(self, validator, mock_fundamentals):
         """VIX 22 = Danger Zone = 1.5% risk."""
@@ -665,7 +665,7 @@ class TestPositionSizingExtended:
         assert "total_risk" in sizing
 
     def test_sizing_no_vix_uses_default(self, validator, mock_fundamentals):
-        """If VIX is None, default 2% risk is used."""
+        """If VIX is None, default 2.5% risk is used."""
         request = TradeValidationRequest(
             symbol="AAPL",
             short_strike=175.0,
@@ -674,7 +674,7 @@ class TestPositionSizingExtended:
             portfolio_value=80000.0,
         )
         sizing = validator._calculate_sizing(request, mock_fundamentals, None)
-        assert sizing["risk_pct"] == 2.0
+        assert sizing["risk_pct"] == 2.5
 
 
 class TestFullValidationExtended:

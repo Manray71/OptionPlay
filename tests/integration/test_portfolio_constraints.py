@@ -687,7 +687,7 @@ class TestVIXDynamicLimits:
         limits = checker.get_position_limits(vix=12.0)
         assert limits["max_positions"] == 10
         assert limits["max_per_sector"] == 2
-        assert limits["risk_per_trade_pct"] == 2.0
+        assert limits["risk_per_trade_pct"] == 2.5
         assert limits["new_trades_allowed"] is True
         assert limits["regime"] == "LOW_VOL"
 

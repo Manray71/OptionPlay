@@ -235,7 +235,7 @@ class TestPlaybookPositionSizing:
     """PLAYBOOK §5: Position Sizing."""
 
     def test_max_risk_per_trade(self):
-        assert SIZING_MAX_RISK_PER_TRADE_PCT == 2.0
+        assert SIZING_MAX_RISK_PER_TRADE_PCT == 2.5
 
     def test_max_positions(self):
         assert SIZING_MAX_OPEN_POSITIONS == 10
@@ -286,7 +286,7 @@ class TestTradingRulesConvenience:
         assert tr.DTE_MAX == 50
         assert tr.SHORT_DELTA == -0.20
         assert tr.LONG_DELTA == -0.05
-        assert tr.MAX_RISK_PCT == 2.0
+        assert tr.MAX_RISK_PCT == 2.5
         assert tr.MAX_POSITIONS == 10
         assert tr.MAX_PER_SECTOR == 2  # PLAYBOOK §5: Max 2 pro Sektor
         assert tr.PROFIT_EXIT_NORMAL == 50.0
@@ -413,11 +413,11 @@ class TestVIXRegimeRiskParameters:
 
     def test_low_vol_risk(self):
         rules = get_regime_rules(12.0)
-        assert rules.risk_per_trade_pct == 2.0
+        assert rules.risk_per_trade_pct == 2.5
 
     def test_normal_risk(self):
         rules = get_regime_rules(18.0)
-        assert rules.risk_per_trade_pct == 2.0
+        assert rules.risk_per_trade_pct == 2.5
 
     def test_danger_zone_risk(self):
         rules = get_regime_rules(22.0)
