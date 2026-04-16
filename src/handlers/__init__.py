@@ -10,10 +10,6 @@ Architecture:
   - Used by OptionPlayServer via server.handlers property
   - Cleaner architecture without MRO complexity
 
-  Legacy Mixins (deprecated, kept for test compatibility):
-  - VixHandlerMixin, ScanHandlerMixin, etc.
-  - No longer inherited by OptionPlayServer
-
 Modules:
 - handler_container: Composition-based handler system
 - vix_composed: VIX, strategy, and regime handlers
@@ -22,17 +18,12 @@ Modules:
 - analysis_composed: Symbol analysis, ensemble recommendations
 - portfolio_composed: Portfolio management operations
 - ibkr_composed: IBKR Bridge features
-- report_composed: PDF report generation
 - risk_composed: Position sizing and stop loss
 - validate_composed: Trade validation against PLAYBOOK rules
 - monitor_composed: Position monitoring for exit signals
 """
 
-from .analysis import AnalysisHandlerMixin
 from .analysis_composed import AnalysisHandler
-
-# Legacy Mixins (deprecated — kept for test compatibility)
-from .base import BaseHandlerMixin
 
 # Composition-based handler system (active)
 from .handler_container import (
@@ -41,23 +32,13 @@ from .handler_container import (
     ServerContext,
     create_handler_container_from_server,
 )
-from .ibkr import IbkrHandlerMixin
 from .ibkr_composed import IbkrHandler
-from .monitor import MonitorHandlerMixin
 from .monitor_composed import MonitorHandler
-from .portfolio import PortfolioHandlerMixin
 from .portfolio_composed import PortfolioHandler
-from .quote import QuoteHandlerMixin
 from .quote_composed import QuoteHandler
-from .report import ReportHandlerMixin
-from .report_composed import ReportHandler
-from .risk import RiskHandlerMixin
 from .risk_composed import RiskHandler
-from .scan import ScanHandlerMixin
 from .scan_composed import ScanHandler
-from .validate import ValidateHandlerMixin
 from .validate_composed import ValidateHandler
-from .vix import VixHandlerMixin
 
 # Composed handlers (active)
 from .vix_composed import VixHandler
@@ -75,20 +56,7 @@ __all__ = [
     "AnalysisHandler",
     "PortfolioHandler",
     "IbkrHandler",
-    "ReportHandler",
     "RiskHandler",
     "ValidateHandler",
     "MonitorHandler",
-    # Legacy Mixins (deprecated)
-    "BaseHandlerMixin",
-    "VixHandlerMixin",
-    "ScanHandlerMixin",
-    "QuoteHandlerMixin",
-    "AnalysisHandlerMixin",
-    "PortfolioHandlerMixin",
-    "IbkrHandlerMixin",
-    "ReportHandlerMixin",
-    "RiskHandlerMixin",
-    "ValidateHandlerMixin",
-    "MonitorHandlerMixin",
 ]

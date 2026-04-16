@@ -271,7 +271,6 @@ class HandlerContainer:
         self._analysis: Optional[Any] = None
         self._portfolio: Optional[Any] = None
         self._ibkr: Optional[Any] = None
-        self._report: Optional[Any] = None
         self._risk: Optional[Any] = None
         self._validate: Optional[Any] = None
         self._monitor: Optional[Any] = None
@@ -329,15 +328,6 @@ class HandlerContainer:
 
             self._ibkr = IbkrHandler(self._context)
         return self._ibkr
-
-    @property
-    def report(self) -> "ReportHandler":
-        """Report generation handler."""
-        if self._report is None:
-            from .report_composed import ReportHandler
-
-            self._report = ReportHandler(self._context)
-        return self._report
 
     @property
     def risk(self) -> "RiskHandler":
