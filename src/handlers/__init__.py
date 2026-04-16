@@ -27,7 +27,6 @@ Modules:
 - monitor_composed: Position monitoring for exit signals
 """
 
-from .analysis import AnalysisHandlerMixin
 from .analysis_composed import AnalysisHandler
 
 # Legacy Mixins (deprecated — kept for test compatibility)
@@ -73,5 +72,4 @@ __all__ = [
     "BaseHandlerMixin",
     "VixHandlerMixin",
     "ScanHandlerMixin",
-    "AnalysisHandlerMixin",
 ]

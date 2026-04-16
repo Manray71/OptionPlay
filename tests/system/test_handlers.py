@@ -86,24 +86,6 @@ class TestScanHandler:
         assert isinstance(result, str)
 
 
-class TestAnalysisHandler:
-    """Tests for analysis handler methods."""
-
-    @pytest.mark.asyncio
-    async def test_analyze_symbol_validates_input(self):
-        """Test symbol analysis validates input."""
-        from src.handlers.analysis import AnalysisHandlerMixin
-
-        class MockServer(AnalysisHandlerMixin):
-            pass
-
-        server = MockServer()
-
-        # Invalid symbol should return error
-        result = await server.analyze_symbol("!!!INVALID")
-        assert "Validation Error" in result or "Error" in result
-
-
 class TestHandlerIntegration:
     """Integration tests for handler mixins."""
 
@@ -113,14 +95,12 @@ class TestHandlerIntegration:
             BaseHandlerMixin,
             VixHandlerMixin,
             ScanHandlerMixin,
-            AnalysisHandlerMixin,
         )
 
         # This should not raise
         class CombinedServer(
             VixHandlerMixin,
             ScanHandlerMixin,
-            AnalysisHandlerMixin,
             BaseHandlerMixin,
         ):
             pass
