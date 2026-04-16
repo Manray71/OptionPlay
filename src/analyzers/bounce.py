@@ -37,6 +37,15 @@ from ..constants import (
 )
 
 # Import shared indicators
+from ..indicators.divergence import (
+    check_cmf_and_macd_falling,
+    check_cmf_early_warning,
+    check_distribution_pattern,
+    check_momentum_divergence,
+    check_price_mfi_divergence,
+    check_price_obv_divergence,
+    check_price_rsi_divergence,
+)
 from ..indicators.momentum import calculate_macd
 from ..indicators.support_resistance import find_support_levels as find_support_optimized
 from ..indicators.support_resistance import get_nearest_sr_levels
@@ -177,6 +186,15 @@ BOUNCE_DCB_RSI_OVERBOUGHT = _cfg.get("bounce.dcb.rsi_overbought", 70)
 
 # RSI Momentum
 BOUNCE_RSI_MOMENTUM_FADE = _cfg.get("bounce.rsi.momentum_fade", 50)
+
+# Bearish Divergence Penalties (negative values)
+BOUNCE_DIV_PENALTY_PRICE_RSI = _cfg.get("bounce.divergence.price_rsi", -2.0)
+BOUNCE_DIV_PENALTY_PRICE_OBV = _cfg.get("bounce.divergence.price_obv", -1.5)
+BOUNCE_DIV_PENALTY_PRICE_MFI = _cfg.get("bounce.divergence.price_mfi", -1.5)
+BOUNCE_DIV_PENALTY_CMF_MACD = _cfg.get("bounce.divergence.cmf_macd_falling", -1.0)
+BOUNCE_DIV_PENALTY_MOMENTUM = _cfg.get("bounce.divergence.momentum_divergence", -1.5)
+BOUNCE_DIV_PENALTY_DISTRIBUTION = _cfg.get("bounce.divergence.distribution_pattern", -3.0)
+BOUNCE_DIV_PENALTY_CMF_EARLY = _cfg.get("bounce.divergence.cmf_early_warning", -1.0)
 
 
 @dataclass
@@ -476,6 +494,15 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
                 sector_rs = getattr(sector_status, "sector_rs", None)
                 if sector_rs is not None and sector_rs < 0:
                     total_score *= BOUNCE_SECTOR_WEAK_MULT
+
+        # Bearish divergence penalties (applied before clamping)
+        total_score = self._apply_divergence_penalties(
+            prices=prices,
+            highs=highs,
+            lows=lows,
+            volumes=volumes,
+            score=total_score,
+        )
 
         total_score = clamp_score(total_score, BOUNCE_MAX_SCORE)
         breakdown.total_score = round(total_score, 1)
@@ -1257,3 +1284,75 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
         """Calculates target based on Risk/Reward"""
         risk = entry - stop
         return entry + (risk * self.config.target_risk_reward)
+
+    def _apply_divergence_penalties(
+        self,
+        prices: List[float],
+        highs: List[float],
+        lows: List[float],
+        volumes: List[int],
+        score: float,
+    ) -> float:
+        """Apply bearish divergence penalties to the score.
+
+        Runs all 7 divergence checks and sums detected penalties.
+        Applied AFTER main scoring, BEFORE normalization to 0-10 scale.
+
+        Returns:
+            Adjusted score (may be lower than input if divergences detected).
+        """
+        signals = [
+            check_price_rsi_divergence(
+                prices=prices,
+                lows=lows,
+                highs=highs,
+                severity=BOUNCE_DIV_PENALTY_PRICE_RSI,
+            ),
+            check_price_obv_divergence(
+                prices=prices,
+                volumes=volumes,
+                severity=BOUNCE_DIV_PENALTY_PRICE_OBV,
+            ),
+            check_price_mfi_divergence(
+                prices=prices,
+                highs=highs,
+                lows=lows,
+                volumes=volumes,
+                severity=BOUNCE_DIV_PENALTY_PRICE_MFI,
+            ),
+            check_cmf_and_macd_falling(
+                prices=prices,
+                highs=highs,
+                lows=lows,
+                volumes=volumes,
+                severity=BOUNCE_DIV_PENALTY_CMF_MACD,
+            ),
+            check_momentum_divergence(
+                prices=prices,
+                highs=highs,
+                lows=lows,
+                volumes=volumes,
+                severity=BOUNCE_DIV_PENALTY_MOMENTUM,
+            ),
+            check_distribution_pattern(
+                prices=prices,
+                highs=highs,
+                lows=lows,
+                volumes=volumes,
+                severity=BOUNCE_DIV_PENALTY_DISTRIBUTION,
+            ),
+            check_cmf_early_warning(
+                prices=prices,
+                highs=highs,
+                lows=lows,
+                volumes=volumes,
+                severity=BOUNCE_DIV_PENALTY_CMF_EARLY,
+            ),
+        ]
+
+        total_penalty = sum(sig.severity for sig in signals if sig.detected)
+        if total_penalty < 0:
+            logger.debug(
+                "BounceAnalyzer: bearish divergence penalties applied: %.2f", total_penalty
+            )
+        return score + total_penalty

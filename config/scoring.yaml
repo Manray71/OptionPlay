@@ -501,6 +501,14 @@ pullback:
     max_bars: 50
     strong_threshold: 0.7   # RSI divergence ratio for "strong"
     moderate_threshold: 0.4
+    # Bearish divergence penalties (applied as negative score adjustments)
+    price_rsi: -2.0
+    price_obv: -1.5
+    price_mfi: -1.5
+    cmf_macd_falling: -1.0
+    momentum_divergence: -1.5
+    distribution_pattern: -3.0
+    cmf_early_warning: -1.0
 
   # Divergence scoring
   divergence_scoring:
@@ -675,6 +683,16 @@ bounce:
     lookback: 20
     threshold: 2.0
     bonus: 0.75
+
+  # Bearish divergence penalties (applied as negative score adjustments)
+  divergence:
+    price_rsi: -2.0
+    price_obv: -1.5
+    price_mfi: -1.5
+    cmf_macd_falling: -1.0
+    momentum_divergence: -1.5
+    distribution_pattern: -3.0
+    cmf_early_warning: -1.0
 
   # Downtrend filter (B4)
   downtrend_filter:

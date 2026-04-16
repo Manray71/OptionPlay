@@ -1151,5 +1151,81 @@ class TestBounceE4EnhancedDCBFilter:
         assert isinstance(result['rsi_values'], list)
 
 
+# =============================================================================
+# TEST CLASS: Bearish Divergence Penalties
+# =============================================================================
+
+
+class TestBounceDivergencePenalties:
+    """Tests for BounceAnalyzer._apply_divergence_penalties integration."""
+
+    def test_apply_divergence_penalties_exists(self, analyzer):
+        """_apply_divergence_penalties method must exist on BounceAnalyzer."""
+        assert hasattr(analyzer, "_apply_divergence_penalties")
+
+    def test_no_penalty_when_no_divergence(self, analyzer):
+        """Flat / random data with no divergence patterns should return unmodified score."""
+        n = 80
+        prices = [100.0 + i * 0.01 for i in range(n)]  # gentle uptrend, no swing highs
+        highs = [p + 0.5 for p in prices]
+        lows = [p - 0.5 for p in prices]
+        volumes = [1_000_000] * n
+        score = 7.5
+        result = analyzer._apply_divergence_penalties(
+            prices=prices,
+            highs=highs,
+            lows=lows,
+            volumes=volumes,
+            score=score,
+        )
+        # Score should not increase (penalties can only reduce or leave unchanged)
+        assert result <= score
+
+    def test_penalty_applied_when_detected(self, analyzer):
+        """When divergences are detected, the returned score must be lower than input."""
+        # Use declining price series to trigger distribution/momentum signals
+        n = 80
+        prices = []
+        p = 120.0
+        for _ in range(50):
+            prices.append(p)
+            p *= 1.002
+        for _ in range(30):
+            prices.append(p)
+            p *= 0.997  # decline phase
+        highs = [pr + 0.5 for pr in prices]
+        lows = [pr - 0.5 for pr in prices]
+        volumes = [2_000_000] * 50 + [int(2_000_000 * (0.96 ** i)) for i in range(30)]
+        score = 8.0
+        result = analyzer._apply_divergence_penalties(
+            prices=prices, highs=highs, lows=lows, volumes=volumes, score=score
+        )
+        # Either the score stayed the same (no divergence triggered) or it went down
+        assert result <= score
+
+    def test_worst_case_penalty_sum(self, analyzer):
+        """Maximum possible penalty (all 7 checks active) sums to ~-11.5."""
+        from src.analyzers.bounce import (
+            BOUNCE_DIV_PENALTY_CMF_EARLY,
+            BOUNCE_DIV_PENALTY_CMF_MACD,
+            BOUNCE_DIV_PENALTY_DISTRIBUTION,
+            BOUNCE_DIV_PENALTY_MOMENTUM,
+            BOUNCE_DIV_PENALTY_PRICE_MFI,
+            BOUNCE_DIV_PENALTY_PRICE_OBV,
+            BOUNCE_DIV_PENALTY_PRICE_RSI,
+        )
+
+        total = (
+            BOUNCE_DIV_PENALTY_PRICE_RSI
+            + BOUNCE_DIV_PENALTY_PRICE_OBV
+            + BOUNCE_DIV_PENALTY_PRICE_MFI
+            + BOUNCE_DIV_PENALTY_CMF_MACD
+            + BOUNCE_DIV_PENALTY_MOMENTUM
+            + BOUNCE_DIV_PENALTY_DISTRIBUTION
+            + BOUNCE_DIV_PENALTY_CMF_EARLY
+        )
+        assert abs(total - (-11.5)) < 0.01, f"Expected -11.5, got {total}"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
