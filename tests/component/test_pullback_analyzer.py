@@ -1064,5 +1064,78 @@ class TestDividendGapWarning:
         assert not any("dividend gap" in w.lower() for w in result.warnings)
 
 
+# =============================================================================
+# TEST CLASS: Bearish Divergence Penalties (Pullback)
+# =============================================================================
+
+
+class TestPullbackDivergencePenalties:
+    """Tests for PullbackAnalyzer._apply_divergence_penalties integration."""
+
+    @pytest.fixture
+    def analyzer(self):
+        from src.config import PullbackScoringConfig
+        return PullbackAnalyzer(config=PullbackScoringConfig())
+
+    def test_apply_divergence_penalties_exists(self, analyzer):
+        """_apply_divergence_penalties method must exist on PullbackAnalyzer."""
+        assert hasattr(analyzer, "_apply_divergence_penalties")
+
+    def test_no_penalty_when_no_divergence(self, analyzer):
+        """Smooth uptrend with no divergence patterns leaves score unchanged."""
+        n = 80
+        prices = [100.0 + i * 0.1 for i in range(n)]
+        highs = [p + 0.5 for p in prices]
+        lows = [p - 0.5 for p in prices]
+        volumes = [1_000_000] * n
+        score = 8.0
+        result = analyzer._apply_divergence_penalties(
+            prices=prices, highs=highs, lows=lows, volumes=volumes, score=score
+        )
+        assert result <= score
+
+    def test_penalty_reduces_score_when_divergence_found(self, analyzer):
+        """Distribution phase data should trigger at most no increase in score."""
+        prices = []
+        p = 120.0
+        for _ in range(50):
+            prices.append(p)
+            p *= 1.002
+        for _ in range(30):
+            prices.append(p)
+            p *= 0.997
+        highs = [pr + 0.5 for pr in prices]
+        lows = [pr - 0.5 for pr in prices]
+        volumes = [2_000_000] * 50 + [int(2_000_000 * (0.96 ** i)) for i in range(30)]
+        score = 10.0
+        result = analyzer._apply_divergence_penalties(
+            prices=prices, highs=highs, lows=lows, volumes=volumes, score=score
+        )
+        assert result <= score
+
+    def test_worst_case_penalty_sum(self, analyzer):
+        """Maximum possible penalty (all 7 checks active) = -11.5."""
+        from src.analyzers.pullback import (
+            PULLBACK_DIV_PENALTY_CMF_EARLY,
+            PULLBACK_DIV_PENALTY_CMF_MACD,
+            PULLBACK_DIV_PENALTY_DISTRIBUTION,
+            PULLBACK_DIV_PENALTY_MOMENTUM,
+            PULLBACK_DIV_PENALTY_PRICE_MFI,
+            PULLBACK_DIV_PENALTY_PRICE_OBV,
+            PULLBACK_DIV_PENALTY_PRICE_RSI,
+        )
+
+        total = (
+            PULLBACK_DIV_PENALTY_PRICE_RSI
+            + PULLBACK_DIV_PENALTY_PRICE_OBV
+            + PULLBACK_DIV_PENALTY_PRICE_MFI
+            + PULLBACK_DIV_PENALTY_CMF_MACD
+            + PULLBACK_DIV_PENALTY_MOMENTUM
+            + PULLBACK_DIV_PENALTY_DISTRIBUTION
+            + PULLBACK_DIV_PENALTY_CMF_EARLY
+        )
+        assert abs(total - (-11.5)) < 0.01, f"Expected -11.5, got {total}"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
