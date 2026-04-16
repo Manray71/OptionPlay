@@ -30,7 +30,7 @@ Gesamt LOC-Delta: +179 (src/indicators/momentum.py), +283 (tests/unit/test_indic
 | **Total** | **28** |
 
 Tests vorher (test_indicators_momentum.py): 95 | Suite gesamt: 5.401
-Tests nachher (test_indicators_momentum.py): 123 | Suite gesamt: 5.429 (erwartet)
+Tests nachher (test_indicators_momentum.py): 123 | Suite gesamt: 5.514 (verifiziert, .venv/bin/python -m pytest)
 
 ---
 
