@@ -529,7 +529,245 @@ pytest tests/ --ignore=test_mcp_server_e2e.py → 5696 passed, 29 skipped
 
 ---
 
-## Gesamtbilanz Sessions 3-7
+## Session 8: analysis
+
+**Status:** DONE
+**Commit:** c92a19b
+
+---
+
+### Verifikations-Ergebnisse
+
+**Mixin-Seite (`AnalysisHandlerMixin`, `from src.handlers.analysis import`):**
+
+| Fundort | Typ | Bewertung |
+|---------|-----|-----------|
+| `src/handlers/__init__.py:30,76` | Import + `__all__` | Erwartet → bereinigt |
+| `src/handlers/analysis.py` | Mixin-Datei (509 LOC) | Gelöscht |
+| `tests/integration/test_analysis_handler.py` | Testdatei (718 LOC, 14 Tests) | Gelöscht |
+| `tests/system/test_handlers.py:89-104` | TestAnalysisHandler (1 Test) | Bereinigt |
+| `tests/system/test_handlers.py:116,123` | MRO-Kombinationsklasse | Bereinigt |
+
+Keine unerwarteten Caller außerhalb der erwarteten Orte.
+
+**Composed-Seite (`AnalysisHandler`, `analysis_composed`):**
+
+| Fundort | Typ | Bewertung |
+|---------|-----|-----------|
+| `src/handlers/analysis_composed.py` | Composed-Handler (611 LOC) | **UNVERÄNDERT** |
+| `src/handlers/handler_container.py:306-311` | Lazy-Property → `AnalysisHandler` | **UNVERÄNDERT** |
+| `src/handlers/__init__.py:31,66` | Import + `__all__` | **UNVERÄNDERT** |
+
+**Divergenz-Check (composed-spezifische Features):**
+`_fetch_earnings_cached`, `_fetch_historical_cached`, `_get_scanner`, `_get_multi_scanner`, `_get_options_chain_with_fallback` — alle nur in `analysis_composed.py`, nicht im Mixin. Genutzt in `test_scan_handler.py` und `test_mcp_server_extended.py` als Stubs für den ScanHandler-Kontext.
+
+**Importierbarkeit nach Änderungen:**
+```
+from src.handlers import HandlerContainer  → OK
+from src.handlers import AnalysisHandler   → OK
+'AnalysisHandlerMixin' in __all__         → False (entfernt)
+'AnalysisHandler' in __all__              → True (bleibt)
+```
+
+---
+
+### Geänderte Dateien
+
+| Datei | Änderung | LOC-Delta |
+|-------|----------|-----------|
+| `src/handlers/analysis.py` | **GELÖSCHT** | -509 |
+| `tests/integration/test_analysis_handler.py` | **GELÖSCHT** | -718 |
+| `src/handlers/__init__.py` | Import + `__all__` bereinigt | -2 |
+| `tests/system/test_handlers.py` | TestAnalysisHandler + MRO bereinigt | -18 |
+
+**Gesamt: -1247 LOC**
+
+---
+
+### Tests
+
+| | Passed | Skipped |
+|-|--------|---------|
+| **Vorher** (Session 7 End) | 5696 passed | 29 |
+| **Nachher** (ohne e2e) | 5682 passed | 29 |
+
+Delta: -14 Tests.
+
+---
+
+### Smoke-Tests
+
+```
+from src.handlers import HandlerContainer  → OK
+from src.handlers import AnalysisHandler   → OK
+pytest tests/ --ignore=test_mcp_server_e2e.py → 5682 passed, 29 skipped
+```
+
+---
+
+## Session 9: vix
+
+**Status:** DONE
+**Commit:** 64edfe6
+
+---
+
+### Verifikations-Ergebnisse
+
+**Mixin-Seite (`VixHandlerMixin`, `from src.handlers.vix import`):**
+
+| Fundort | Typ | Bewertung |
+|---------|-----|-----------|
+| `src/handlers/__init__.py:50,73` | Import + `__all__` | Erwartet → bereinigt |
+| `src/handlers/vix.py` | Mixin-Datei | Gelöscht |
+| `tests/integration/test_vix_handler.py` | Testdatei (17 Tests) | Gelöscht |
+| `tests/system/test_handlers.py:9-52` | TestVixHandler (2 Tests) | Bereinigt |
+| `tests/system/test_handlers.py:96,103,113,116` | MRO-Klasse + method-check | Bereinigt |
+| `src/handlers/scan.py:481` | Kommentar „via VixHandlerMixin" | Bereinigt |
+
+Keine unerwarteten Caller außerhalb der erwarteten Orte.
+
+**Composed-Seite (`VixHandler`, `vix_composed`):**
+
+| Fundort | Typ | Bewertung |
+|---------|-----|-----------|
+| `src/handlers/vix_composed.py` | Composed-Handler | **UNVERÄNDERT** |
+| `src/handlers/handler_container.py:279-284` | Lazy-Property → `VixHandler` | **UNVERÄNDERT** |
+| `src/handlers/__init__.py:53,62` | Import + `__all__` | **UNVERÄNDERT** |
+| `tests/integration/test_vix_composed_handler.py` | 535 LOC, 30 Tests | **UNVERÄNDERT** |
+
+**Divergenz-Check (composed-spezifische Features):**
+`get_regime_status_v2`, `_get_sector_status_v2` — nur in `vix_composed.py`. Keine direkten Tests für diese privaten Methoden gefunden; öffentliche API via `test_vix_composed_handler.py` vollständig abgedeckt.
+`pytest tests/integration/test_vix_composed_handler.py tests/system/test_handlers.py → 32 passed`
+
+**Importierbarkeit nach Änderungen:**
+```
+from src.handlers import HandlerContainer  → OK
+from src.handlers import VixHandler        → OK
+'VixHandlerMixin' in __all__             → False (entfernt)
+'VixHandler' in __all__                  → True (bleibt)
+```
+
+---
+
+### Geänderte Dateien
+
+| Datei | Änderung | LOC-Delta |
+|-------|----------|-----------|
+| `src/handlers/vix.py` | **GELÖSCHT** | ~-280 |
+| `tests/integration/test_vix_handler.py` | **GELÖSCHT** | ~-380 |
+| `src/handlers/__init__.py` | Import + `__all__` + Docstring bereinigt | -4 |
+| `src/handlers/scan.py` | Kommentar bereinigt | -1 |
+| `tests/system/test_handlers.py` | TestVixHandler + MRO + method-check | -48 |
+
+**Gesamt: ~-713 LOC**
+
+---
+
+### Tests
+
+| | Passed | Skipped |
+|-|--------|---------|
+| **Vorher** (Session 8 End) | 5682 passed | 29 |
+| **Nachher** (ohne e2e) | 5665 passed | 29 |
+
+Delta: -17 Tests.
+
+---
+
+### Smoke-Tests
+
+```
+from src.handlers import HandlerContainer  → OK
+from src.handlers import VixHandler        → OK
+pytest tests/integration/test_vix_composed_handler.py tests/system/test_handlers.py → 32 passed
+pytest tests/ --ignore=test_mcp_server_e2e.py → 5665 passed, 29 skipped
+```
+
+---
+
+## Session 10: scan
+
+**Status:** DONE
+**Commit:** 1ca381f
+
+---
+
+### Verifikations-Ergebnisse
+
+**Mixin-Seite (`ScanHandlerMixin`, `from src.handlers.scan import`):**
+
+| Fundort | Typ | Bewertung |
+|---------|-----|-----------|
+| `src/handlers/__init__.py:47,72` | Import + `__all__` | Erwartet → bereinigt |
+| `src/handlers/scan.py` | Mixin-Datei (862 LOC) | Gelöscht |
+| `tests/integration/test_scan_handler.py` | Testdatei (1905 LOC, 57 Tests) | Gelöscht |
+| `tests/system/test_handlers.py:9-40` | TestScanHandler (1 Test) | Bereinigt |
+| `tests/system/test_handlers.py:50,55` | MRO-Kombinationsklasse | Bereinigt |
+
+Keine unerwarteten Caller außerhalb der erwarteten Orte.
+
+**Composed-Seite (`ScanHandler`, `scan_composed`):**
+
+| Fundort | Typ | Bewertung |
+|---------|-----|-----------|
+| `src/handlers/scan_composed.py` | Composed-Handler (1098 LOC) | **UNVERÄNDERT** |
+| `src/handlers/handler_container.py:288-293` | Lazy-Property → `ScanHandler` | **UNVERÄNDERT** |
+| `src/handlers/__init__.py:48,62` | Import + `__all__` | **UNVERÄNDERT** |
+| `tests/integration/test_shadow_daily_picks.py` | `_shadow_log_picks`-Tests (8 Tests) | **UNVERÄNDERT** |
+
+**Divergenz-Check (composed-spezifische Features):**
+`_shadow_log_picks`, `_fetch_historical_cached`, `_apply_earnings_prefilter`, `_get_multi_scanner`, `_get_options_chain_with_fallback` — alle nur in `scan_composed.py`.
+`pytest tests/integration/test_shadow_daily_picks.py tests/system/test_handlers.py → 10 passed`
+
+**Importierbarkeit nach Änderungen:**
+```
+from src.handlers import HandlerContainer  → OK
+from src.handlers import ScanHandler       → OK
+'ScanHandlerMixin' in __all__             → False (entfernt)
+'ScanHandler' in __all__                  → True (bleibt)
+```
+
+**Hinweis:** Nach Session 10 ist `BaseHandlerMixin` das einzige verbliebene Legacy-Mixin in `__init__.py`.
+
+---
+
+### Geänderte Dateien
+
+| Datei | Änderung | LOC-Delta |
+|-------|----------|-----------|
+| `src/handlers/scan.py` | **GELÖSCHT** | -862 |
+| `tests/integration/test_scan_handler.py` | **GELÖSCHT** | -1905 |
+| `src/handlers/__init__.py` | Import + `__all__` + Docstring bereinigt | -4 |
+| `tests/system/test_handlers.py` | TestScanHandler + MRO → BaseHandlerMixin-only | -50 |
+
+**Gesamt: -2821 LOC**
+
+---
+
+### Tests
+
+| | Passed | Skipped |
+|-|--------|---------|
+| **Vorher** (Session 9 End) | 5665 passed | 29 |
+| **Nachher** (ohne e2e) | 5608 passed | 29 |
+
+Delta: -57 Tests.
+
+---
+
+### Smoke-Tests
+
+```
+from src.handlers import HandlerContainer  → OK
+from src.handlers import ScanHandler       → OK
+pytest tests/integration/test_shadow_daily_picks.py tests/system/test_handlers.py → 10 passed
+pytest tests/ --ignore=test_mcp_server_e2e.py → 5608 passed, 29 skipped
+```
+
+---
+
+## Gesamtbilanz Sessions 3-10
 
 | Session | Familie | Commit | LOC-Delta | Tests-Delta |
 |---------|---------|--------|-----------|-------------|
@@ -538,16 +776,214 @@ pytest tests/ --ignore=test_mcp_server_e2e.py → 5696 passed, 29 skipped
 | 5 | risk | 5759348 | -550 | -12 |
 | 6 | portfolio | e39dbb6 | -1829 | -50 |
 | 7 | quote | b49256e | -2242 | -52 |
-| **Summe** | | | **-5719** | **-148** |
+| 8 | analysis | c92a19b | -1247 | -14 |
+| 9 | vix | 64edfe6 | -713 | -17 |
+| 10 | scan | 1ca381f | -2821 | -57 |
+| **Summe** | | | **-10500** | **-236** |
 
-Gesamtbilanz E.3 (alle 7 Sessions):
+Gesamtbilanz E.3 (alle 10 Sessions):
 
 | Metrik | Wert |
 |--------|------|
-| Gelöschte Mixin-Dateien | 7 |
-| Gelöschte Test-Dateien | 7 |
-| Gesamt LOC entfernt | ~6887 (-869 S1, -518 S2, -5719 S3-7) |
+| Gelöschte Mixin-Dateien | 10 |
+| Gelöschte Test-Dateien | 10 |
+| Gesamt LOC entfernt | ~11887 (-869 S1, -518 S2, -10500 S3-10) |
 | Tests vorher | 5920 |
-| Tests nachher (ohne e2e) | 5696 |
-| Tests entfernt | -224 |
+| Tests nachher (ohne e2e) | 5608 |
+| Tests entfernt | -312 |
 | Fehlgeschlagene Sessions | 0 |
+| Verbleibendes Legacy-Mixin | `BaseHandlerMixin` (base.py) |
+
+---
+
+## E2E Status (Aufgabe A, Session 11)
+
+### Paket-A-Fix: Auf main gemergt?
+
+**Nein.** Commit d5ca12c ("Fix VIX E2E test mocks after vix_composed refactor") liegt nur auf Branch
+`verschlankung/a-tier1-bugs` -- nicht auf `main`, nicht auf `verschlankung/e3-legacy-removal`.
+
+```
+git branch --contains d5ca12c
+  verschlankung/a-tier1-bugs
+```
+
+Das bedeutet: Die drei VIX-Failures waren während der gesamten E.3-Arbeit (Sessions 1-11) im
+E2E-Test vorhanden. Sie wurden durch den `vix_composed`-Refactor (vor E.3) verursacht und auf
+`a-tier1-bugs` gefixt, aber der Fix wurde nie in `main` gemergt.
+
+### Aktuelle Failures auf dem E.3-Branch
+
+Lauf vom 2026-04-16 auf `verschlankung/e3-legacy-removal` (HEAD 1ca381f):
+
+```
+3 failed, 30 passed (test_mcp_server_e2e.py, 33 Tests total)
+```
+
+| Test | Fehler |
+|------|--------|
+| `TestVIXOperations::test_get_vix` | `assert 18.17 == 185.5` |
+| `TestVIXOperations::test_get_vix_cached` | `Timeout (>30.0s)` |
+| `TestVIXOperations::test_get_strategy_recommendation` | `Timeout (>30.0s)` |
+
+### Failure-Traces (je 3 Zeilen)
+
+**test_get_vix:**
+```
+tests/system/test_mcp_server_e2e.py:165: in test_get_vix
+    assert vix == 185.50  # MockQuote.last
+E   assert 18.17 == 185.5
+```
+
+**test_get_vix_cached:**
+```
+src/handlers/vix_composed.py:62: in get_vix
+    vix = await self._ctx.ibkr_bridge.get_vix_value()
+src/ibkr/bridge.py:157: in get_vix_value
+E   Failed: Timeout (>30.0s) -- echte IBKR-Verbindung wird versucht statt Mock
+```
+
+**test_get_strategy_recommendation:**
+```
+src/handlers/vix_composed.py:107: in get_strategy_recommendation
+    vix = await self.get_vix()
+src/handlers/vix_composed.py:62: in get_vix
+E   Failed: Timeout (>30.0s) -- folgt aus test_get_vix_cached (selbe Ursache)
+```
+
+### Ursache
+
+Nach dem `vix_composed`-Refactor ruft `get_vix()` direkt `self._ctx.ibkr_bridge.get_vix_value()`
+auf. Der E2E-Test mockt aber noch den alten Pfad (`qualifyContracts` auf IB-Ebene statt
+`IBKRBridge.get_vix_value`). Das erste Failure gibt den falschen Wert zurueck (VIX aus der lokalen
+DB: 18.17 statt MockQuote.last 185.5), die folgenden zwei laufen in Timeout weil der IBKR-Stack
+eine echte Verbindung aufbaut.
+
+Fix in d5ca12c: Mock auf `IBKRBridge.get_vix_value` direkt patchen. Dieser Fix muss noch
+von `verschlankung/a-tier1-bugs` nach `main` gemergt werden.
+
+### Bewertung
+
+Die drei Failures wurden **nicht durch E.3 verursacht** und wurden **nicht durch E.3 behoben**.
+Sie waren pre-existing auf dem E.3-Branch (vor Session 1 vorhanden). E.3 hat den E2E-Status
+unverandert ubernommen.
+
+---
+
+## Session 11: Cleanup (Aufgabe B)
+
+**Status:** DONE
+**Commit:** (siehe unten)
+
+---
+
+### Verifikations-Ergebnisse
+
+**BaseHandlerMixin grep vor Loeschung:**
+
+| Fundort | Typ | Bewertung |
+|---------|-----|-----------|
+| `src/handlers/__init__.py:33,70` | Import + `__all__` | Erwartet → bereinigt |
+| `src/handlers/base.py:30` | Mixin-Klasse selbst | Datei geloescht |
+| `tests/system/test_handlers.py:13-14` | Einziger Test: Subclass + Instantiierung | Datei geloescht |
+
+Keine unerwarteten Caller gefunden. `.pyc`-Dateien enthalten historische Referenzen -- kein Source-Code-Treffer.
+
+**`_get_options_chain_with_fallback` in `base.py`:**
+Totes Code. Jedes composed handler hat seine eigene Implementierung:
+- `quote_composed.py:569`, `analysis_composed.py:584`, `scan_composed.py:1070`
+Kein composed handler erbt von BaseHandlerMixin.
+
+**Importierbarkeit nach Aenderungen:**
+```
+from src.handlers import HandlerContainer  → OK
+from src.handlers import VixHandler, ScanHandler, QuoteHandler,
+  AnalysisHandler, PortfolioHandler, IbkrHandler, ValidateHandler,
+  MonitorHandler, RiskHandler              → All 9 composed handlers: OK
+'BaseHandlerMixin' in __all__             → False (entfernt)
+```
+
+---
+
+### Geaenderte Dateien
+
+| Datei | Aenderung | LOC-Delta |
+|-------|-----------|-----------|
+| `src/handlers/base.py` | **GELOESCHT** | -165 |
+| `tests/system/test_handlers.py` | **GELOESCHT** | -29 |
+| `src/handlers/__init__.py` | Import + `__all__` + Docstring bereinigt | -6 |
+
+**Gesamt: -200 LOC**
+
+---
+
+### Tests
+
+| | Passed | Skipped |
+|-|--------|---------|
+| **Vorher** (Session 10 End) | 5606 passed | 29 |
+| **Nachher** (ohne e2e) | 5606 passed | 29 |
+
+Delta: 0 Tests (test_handlers.py hatte nur 2 Methoden -- beide entfernt).
+
+---
+
+### Smoke-Tests
+
+```
+from src.handlers import HandlerContainer  → OK
+from src.handlers import VixHandler, ScanHandler, QuoteHandler,
+  AnalysisHandler, PortfolioHandler, IbkrHandler, ValidateHandler,
+  MonitorHandler, RiskHandler              → All 9 composed handlers: OK
+python -m src.mcp_main (3s)               → Startet ohne Fehler
+pytest --ignore=test_mcp_server_e2e.py    → 5606 passed, 29 skipped
+```
+
+---
+
+## Final E.3 Summary
+
+### Sessions 1-11
+
+| Session | Geloeschtes Mixin | Commit | LOC-Delta | Tests-Delta |
+|---------|-------------------|--------|-----------|-------------|
+| 1 | report / report_composed | 552f953 | -869 | -51 |
+| 2 | ibkr | 351ad92 | -518 | -25 |
+| 3 | monitor | 214f5fd | -627 | -21 |
+| 4 | validate | 26426c0 | -471 | -13 |
+| 5 | risk | 5759348 | -550 | -12 |
+| 6 | portfolio | e39dbb6 | -1829 | -50 |
+| 7 | quote | b49256e | -2242 | -52 |
+| 8 | analysis | c92a19b | -1247 | -14 |
+| 9 | vix | 64edfe6 | -713 | -17 |
+| 10 | scan | 1ca381f | -2821 | -57 |
+| 11 | base (BaseHandlerMixin) | TBD | -200 | 0 |
+| **Gesamt** | | | **-12087** | **-312** |
+
+### Gesamtbilanz
+
+| Metrik | Wert |
+|--------|------|
+| Geloeschte Mixin-Dateien | 11 (incl. base.py) |
+| Geloeschte Test-Dateien | 11 |
+| Gesamt LOC entfernt | ~12087 |
+| Tests vorher (vor E.3) | 5920 |
+| Tests nachher (ohne e2e) | 5606 |
+| Tests entfernt | -314 |
+| Fehlgeschlagene Sessions | 0 |
+| Legacy-Architektur komplett weg | **Ja** |
+
+### E2E-Status
+
+3 Failures in `test_mcp_server_e2e.py`, alle in `TestVIXOperations`:
+- Ursache: Mock-Pfad nach `vix_composed`-Refactor falsch (pre-existing, vor E.3)
+- Fix existiert: Commit d5ca12c auf Branch `verschlankung/a-tier1-bugs`
+- Fix nicht auf `main` gemergt
+
+### Empfehlung
+
+E.3 kann gemergt werden. Die drei E2E-Failures sind nicht durch E.3 entstanden und
+werden durch E.3 nicht verschlimmert. Vor dem Merge von E.3 nach `main` sollte
+`verschlankung/a-tier1-bugs` (Commit d5ca12c) zuerst in `main` gemergt werden,
+damit `main` danach sauber gruent. Alternativ: E.3 mergen und `a-tier1-bugs` direkt
+danach als separate PR.

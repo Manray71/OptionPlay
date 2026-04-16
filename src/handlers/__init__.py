@@ -10,10 +10,6 @@ Architecture:
   - Used by OptionPlayServer via server.handlers property
   - Cleaner architecture without MRO complexity
 
-  Legacy Mixins (deprecated, kept for test compatibility):
-  - BaseHandlerMixin only
-  - No longer inherited by OptionPlayServer
-
 Modules:
 - handler_container: Composition-based handler system
 - vix_composed: VIX, strategy, and regime handlers
@@ -28,9 +24,6 @@ Modules:
 """
 
 from .analysis_composed import AnalysisHandler
-
-# Legacy Mixins (deprecated — kept for test compatibility)
-from .base import BaseHandlerMixin
 
 # Composition-based handler system (active)
 from .handler_container import (
@@ -66,6 +59,4 @@ __all__ = [
     "RiskHandler",
     "ValidateHandler",
     "MonitorHandler",
-    # Legacy Mixins (deprecated)
-    "BaseHandlerMixin",
 ]
