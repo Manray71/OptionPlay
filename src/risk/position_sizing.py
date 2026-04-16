@@ -171,6 +171,11 @@ class PositionSizerConfig:
     default_stop_loss_pct: float = 100.0  # 100% des Credits (1:1 Risk/Reward)
     max_stop_loss_pct: float = 150.0  # Max 150% des Credits
 
+    # Notional-basierte Gesamt-Allokation (B.3.2-light)
+    # Approximation der Margin-Belastung bis B.3.4 (IBKR reqAccountSummary) echte Margin liefert.
+    # Echte Margin bindet ~70-80% des Notionals; 50% Notional-Grenze ist konservative Näherung.
+    max_portfolio_allocation: float = 0.50  # 50% des Portfolios als Notional-Schranke
+
 
 class PositionSizer:
     """
@@ -341,6 +346,8 @@ class PositionSizer:
         reliability_grade: Optional[str] = None,
         current_price: Optional[float] = None,
         contracts_multiplier: int = 100,
+        current_notional: float = 0.0,
+        spread_width: float = 0.0,
     ) -> PositionSizeResult:
         """
         Berechnet die optimale Positionsgröße.
@@ -397,18 +404,38 @@ class PositionSizer:
             max_capital_per_position = self.account_size * self.config.max_single_position_pct
             max_by_capital = int(max_capital_per_position / max_loss_per_contract)
 
+            # Max by Notional Allocation (B.3.2-light)
+            # Notional-basierte Approximation der Margin-Belastung bis B.3.4 (IBKR reqAccountSummary)
+            if spread_width > 0 and self.config.max_portfolio_allocation > 0:
+                notional_capacity = (
+                    self.account_size * self.config.max_portfolio_allocation
+                ) - current_notional
+                notional_capacity = max(0.0, notional_capacity)
+                max_new_notional_per_contract = spread_width * contracts_multiplier
+                max_by_notional = (
+                    int(notional_capacity / max_new_notional_per_contract)
+                    if max_new_notional_per_contract > 0
+                    else 0
+                )
+            else:
+                max_by_notional = 9999  # No notional constraint when spread_width not provided
+
             # Finaler Contract Count
-            contracts = int(min(kelly_optimal, max_by_risk, max_by_capital))
+            contracts = int(min(kelly_optimal, max_by_risk, max_by_capital, max_by_notional))
             contracts = max(0, contracts)
 
             # Bestimme limitierenden Faktor
             if contracts == 0:
-                if kelly_optimal < 1:
+                if notional_capacity <= 0 if spread_width > 0 else False:
+                    limiting_factor = "max_portfolio_allocation"
+                elif kelly_optimal < 1:
                     limiting_factor = "kelly_too_low"
                 elif available_risk < max_loss_per_contract:
                     limiting_factor = "portfolio_risk_full"
                 else:
                     limiting_factor = "insufficient_edge"
+            elif contracts == max_by_notional and max_by_notional < 9999:
+                limiting_factor = "max_portfolio_allocation"
             elif contracts == int(kelly_optimal):
                 limiting_factor = "kelly_optimal"
             elif contracts == max_by_risk:

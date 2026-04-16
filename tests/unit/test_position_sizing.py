@@ -456,5 +456,100 @@ class TestEdgeCases:
         assert result.limiting_factor in ["portfolio_risk_full", "kelly_too_low", "insufficient_edge"]
 
 
+class TestMaxPortfolioAllocation:
+    """B.3.2-light: Notional-basierte max_portfolio_allocation Schranke.
+
+    Hintergrund: Echte Margin (IBKR reqAccountSummary) steht erst in B.3.4 zur Verfügung.
+    Bis dahin dient der Notional-Wert (spread_width * 100 * contracts) als konservative
+    Approximation. Echte Margin bindet ca. 70-80% des Notionals.
+    """
+
+    def test_position_size_capped_by_max_portfolio_allocation(self):
+        """Wenn Notional-Kapazität begrenzt ist, wird contracts entsprechend gedeckelt.
+
+        Setup: Account 100k, Allocation 50% = 50k Notional erlaubt.
+        current_notional 48k → nur 2k Kapazität.
+        spread_width=10 → 10*100=1000 Notional/Contract → max 2 contracts by notional.
+        Kelly würde mehr erlauben → Notional ist der bindende Faktor.
+        """
+        config = PositionSizerConfig(max_portfolio_allocation=0.50)
+        sizer = PositionSizer(account_size=100_000, config=config)
+
+        result = sizer.calculate_position_size(
+            max_loss_per_contract=500,
+            win_rate=0.70,
+            avg_win=200,
+            avg_loss=100,
+            signal_score=8.0,
+            vix_level=15.0,
+            current_notional=48_000.0,  # 48k belegt → nur 2k Kapazität
+            spread_width=10.0,          # 1000 Notional/Contract → max 2 by notional
+        )
+
+        assert result.contracts <= 2
+        assert result.limiting_factor == "max_portfolio_allocation"
+
+    def test_position_size_zero_when_allocation_full(self):
+        """Keine neuen Contracts wenn Notional-Kapazität erschöpft."""
+        config = PositionSizerConfig(max_portfolio_allocation=0.50)
+        sizer = PositionSizer(account_size=100_000, config=config)
+
+        result = sizer.calculate_position_size(
+            max_loss_per_contract=500,
+            win_rate=0.70,
+            avg_win=200,
+            avg_loss=100,
+            signal_score=8.0,
+            vix_level=15.0,
+            current_notional=50_000.0,  # 100% der erlaubten Allokation bereits belegt
+            spread_width=10.0,
+        )
+
+        assert result.contracts == 0
+        assert result.limiting_factor == "max_portfolio_allocation"
+
+    def test_position_size_normal_when_allocation_low(self):
+        """Keine Einschränkung wenn Notional-Kapazität ausreichend vorhanden."""
+        config = PositionSizerConfig(max_portfolio_allocation=0.50)
+        sizer = PositionSizer(account_size=100_000, config=config)
+
+        result = sizer.calculate_position_size(
+            max_loss_per_contract=500,
+            win_rate=0.70,
+            avg_win=200,
+            avg_loss=100,
+            signal_score=8.0,
+            vix_level=15.0,
+            current_notional=0.0,   # Kein Notional belegt
+            spread_width=5.0,       # Enger Spread
+        )
+
+        # Bei freier Kapazität soll max_portfolio_allocation NICHT limitieren
+        assert result.limiting_factor != "max_portfolio_allocation"
+        assert result.contracts > 0
+
+    def test_no_notional_constraint_without_spread_width(self):
+        """Ohne spread_width Parameter greift die Notional-Schranke nicht (backward compat).
+
+        Dies ist ein Approximations-Test: Der Parameter ist optional, damit bestehende
+        Aufrufer ohne spread_width weiterhin funktionieren (bis B.3.4 IBKR Margin).
+        """
+        config = PositionSizerConfig(max_portfolio_allocation=0.50)
+        sizer = PositionSizer(account_size=100_000, config=config)
+
+        # current_notional sehr hoch, aber spread_width=0 (default) → keine Notional-Prüfung
+        result = sizer.calculate_position_size(
+            max_loss_per_contract=500,
+            win_rate=0.70,
+            avg_win=200,
+            avg_loss=100,
+            signal_score=8.0,
+            vix_level=15.0,
+            # spread_width nicht angegeben → kein Notional-Check
+        )
+
+        assert result.limiting_factor != "max_portfolio_allocation"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
