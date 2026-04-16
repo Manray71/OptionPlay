@@ -957,7 +957,7 @@ pytest --ignore=test_mcp_server_e2e.py    → 5606 passed, 29 skipped
 | 8 | analysis | c92a19b | -1247 | -14 |
 | 9 | vix | 64edfe6 | -713 | -17 |
 | 10 | scan | 1ca381f | -2821 | -57 |
-| 11 | base (BaseHandlerMixin) | TBD | -200 | 0 |
+| 11 | base (BaseHandlerMixin) | 1286106 | -200 | 0 |
 | **Gesamt** | | | **-12087** | **-312** |
 
 ### Gesamtbilanz
