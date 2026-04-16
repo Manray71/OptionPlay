@@ -1442,5 +1442,57 @@ class TestCMF:
         assert all(-1.0 <= v <= 1.0 for v in result)
 
 
+# =============================================================================
+# MACD SERIES TESTS
+# =============================================================================
+
+class TestMACDSeries:
+    """Tests for calculate_macd_series."""
+
+    def test_macd_series_empty(self):
+        from src.indicators.momentum import calculate_macd_series
+        assert calculate_macd_series([]) is None
+
+    def test_macd_series_insufficient_data(self):
+        from src.indicators.momentum import calculate_macd_series
+        # Needs at least slow+signal = 26+9 = 35 bars
+        prices = [100.0] * 34
+        assert calculate_macd_series(prices) is None
+
+    def test_macd_series_returns_dict_with_three_keys(self):
+        from src.indicators.momentum import calculate_macd_series
+        prices = [100.0 + i * 0.1 for i in range(50)]
+        result = calculate_macd_series(prices)
+        assert result is not None
+        assert set(result.keys()) == {"line", "signal", "histogram"}
+
+    def test_macd_series_all_three_lengths_equal(self):
+        from src.indicators.momentum import calculate_macd_series
+        prices = [100.0 + i * 0.1 for i in range(80)]
+        result = calculate_macd_series(prices)
+        assert result is not None
+        assert len(result["line"]) == len(result["signal"]) == len(result["histogram"])
+        assert len(result["line"]) > 0
+
+    def test_macd_series_histogram_equals_line_minus_signal(self):
+        from src.indicators.momentum import calculate_macd_series
+        prices = create_volatile_prices(100)
+        result = calculate_macd_series(prices)
+        assert result is not None
+        for line, sig, hist in zip(result["line"], result["signal"], result["histogram"]):
+            assert abs(hist - (line - sig)) < 1e-10
+
+    def test_macd_series_last_value_matches_scalar_macd(self):
+        from src.indicators.momentum import calculate_macd_series
+        prices = create_volatile_prices(100)
+        series = calculate_macd_series(prices)
+        scalar = calculate_macd(prices)
+        assert series is not None
+        assert scalar is not None
+        assert abs(series["line"][-1] - scalar.macd_line) < 1e-8
+        assert abs(series["signal"][-1] - scalar.signal_line) < 1e-8
+        assert abs(series["histogram"][-1] - scalar.histogram) < 1e-8
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

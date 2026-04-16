@@ -2,7 +2,7 @@
 # ==================================
 # RSI, MACD, Stochastic
 
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -553,6 +553,60 @@ def calculate_cmf_series(
         else:
             result.append(sum(mfv[i - period + 1 : i + 1]) / vol_sum)
     return result
+
+
+def calculate_macd_series(
+    prices: List[float],
+    fast_period: int = 12,
+    slow_period: int = 26,
+    signal_period: int = 9,
+) -> Optional[Dict[str, List[float]]]:
+    """Berechnet die MACD-Zeitreihen (Line, Signal, Histogram).
+
+    Neue Funktion neben calculate_macd() (Skalar); bestehende API bleibt
+    unberuehrt.
+
+    Args:
+        prices: Schlusskurse (aelteste zuerst)
+        fast_period, slow_period, signal_period: Standard-Params
+
+    Returns:
+        Dict mit drei Zeitreihen gleicher Laenge:
+          {'line': [...], 'signal': [...], 'histogram': [...]}
+        Bei unzureichenden Daten: None
+    """
+    min_len = slow_period + signal_period
+    if len(prices) < min_len:
+        return None
+
+    def _ema(data: List[float], period: int) -> List[float]:
+        multiplier = 2.0 / (period + 1)
+        values = [float(np.mean(data[:period]))]
+        for price in data[period:]:
+            values.append(price * multiplier + values[-1] * (1.0 - multiplier))
+        return values
+
+    ema_fast = _ema(prices, fast_period)
+    ema_slow = _ema(prices, slow_period)
+
+    # Align: ema_slow is shorter; offset into ema_fast so indices match
+    offset = slow_period - fast_period
+    macd_line = [ema_fast[i + offset] - ema_slow[i] for i in range(len(ema_slow))]
+
+    if len(macd_line) < signal_period:
+        return None
+
+    signal_line = _ema(macd_line, signal_period)
+
+    # Trim macd_line to match signal_line length (take last N values)
+    macd_trimmed = macd_line[len(macd_line) - len(signal_line) :]
+    histogram = [macd_trimmed[i] - signal_line[i] for i in range(len(signal_line))]
+
+    return {
+        "line": macd_trimmed,
+        "signal": signal_line,
+        "histogram": histogram,
+    }
 
 
 def calculate_stochastic(
