@@ -12,6 +12,14 @@ defaults:
 strategies:
   pullback:
     max_tier: 1
+    divergence:
+      price_rsi: -2.0
+      price_obv: -1.5
+      price_mfi: -1.5
+      cmf_macd_falling: -1.0
+      momentum_divergence: -1.5
+      distribution_pattern: -3.0
+      cmf_early_warning: -1.0
     weights:
       rsi: 3.7
       rsi_divergence: 3.6
@@ -88,6 +96,14 @@ strategies:
         sector_factor: 1.003
   bounce:
     max_tier: 1
+    divergence:
+      price_rsi: -2.0
+      price_obv: -1.5
+      price_mfi: -1.5
+      cmf_macd_falling: -1.0
+      momentum_divergence: -1.5
+      distribution_pattern: -3.0
+      cmf_early_warning: -1.0
     weights:
       support: 1.05
       rsi: 2.7
