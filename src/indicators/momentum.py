@@ -463,6 +463,52 @@ def calculate_obv_series(
     return obv
 
 
+def calculate_mfi_series(
+    highs: List[float],
+    lows: List[float],
+    closes: List[float],
+    volumes: List[int],
+    period: int = 14,
+) -> List[float]:
+    """Berechnet die MFI-Zeitreihe (Money Flow Index).
+
+    MFI ist ein Volume-gewichteter RSI: nutzt Typical Price und
+    Money Flow statt nur Schlusskurse.
+
+    Args:
+        highs, lows, closes: OHLC-Daten (gleiche Laenge)
+        volumes: Volumen pro Bar
+        period: Lookback fuer Summen (default 14)
+
+    Returns:
+        MFI-Werte, Laenge = len(closes) - period.
+        Bei unzureichenden Daten: []
+    """
+    if len(closes) < period + 1:
+        return []
+    if not (len(highs) == len(lows) == len(closes) == len(volumes)):
+        return []
+
+    typical_prices = [(highs[i] + lows[i] + closes[i]) / 3.0 for i in range(len(closes))]
+    raw_money_flow = [typical_prices[i] * volumes[i] for i in range(len(closes))]
+
+    result = []
+    for i in range(period, len(closes)):
+        pos_flow = 0.0
+        neg_flow = 0.0
+        for j in range(i - period + 1, i + 1):
+            if typical_prices[j] > typical_prices[j - 1]:
+                pos_flow += raw_money_flow[j]
+            elif typical_prices[j] < typical_prices[j - 1]:
+                neg_flow += raw_money_flow[j]
+        if neg_flow == 0.0:
+            result.append(100.0)
+        else:
+            money_ratio = pos_flow / neg_flow
+            result.append(100.0 - (100.0 / (1.0 + money_ratio)))
+    return result
+
+
 def calculate_stochastic(
     highs: List[float],
     lows: List[float],

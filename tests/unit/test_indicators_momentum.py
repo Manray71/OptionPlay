@@ -1275,5 +1275,85 @@ class TestOBV:
         assert result[4] == 3000.0   # up: +2500
 
 
+# =============================================================================
+# MFI TESTS
+# =============================================================================
+
+class TestMFI:
+    """Tests for calculate_mfi_series (Money Flow Index)."""
+
+    def test_mfi_empty_input(self):
+        from src.indicators.momentum import calculate_mfi_series
+        assert calculate_mfi_series([], [], [], []) == []
+
+    def test_mfi_insufficient_data(self):
+        from src.indicators.momentum import calculate_mfi_series
+        # Need period+1 bars; default period=14 → need 15
+        h = [101.0] * 10
+        l = [99.0] * 10
+        c = [100.0] * 10
+        v = [1000] * 10
+        assert calculate_mfi_series(h, l, c, v, period=14) == []
+
+    def test_mfi_mismatched_lengths(self):
+        from src.indicators.momentum import calculate_mfi_series
+        h = [101.0] * 20
+        l = [99.0] * 20
+        c = [100.0] * 20
+        v = [1000] * 15  # wrong length
+        assert calculate_mfi_series(h, l, c, v) == []
+
+    def test_mfi_all_rising(self):
+        from src.indicators.momentum import calculate_mfi_series
+        # Rising closes → high MFI values
+        n = 30
+        closes = [100.0 + i for i in range(n)]
+        highs = [c + 1.0 for c in closes]
+        lows = [c - 1.0 for c in closes]
+        volumes = [1000] * n
+        result = calculate_mfi_series(highs, lows, closes, volumes, period=14)
+        assert len(result) == n - 14
+        assert all(v > 50.0 for v in result)
+
+    def test_mfi_all_falling(self):
+        from src.indicators.momentum import calculate_mfi_series
+        n = 30
+        closes = [200.0 - i for i in range(n)]
+        highs = [c + 1.0 for c in closes]
+        lows = [c - 1.0 for c in closes]
+        volumes = [1000] * n
+        result = calculate_mfi_series(highs, lows, closes, volumes, period=14)
+        assert len(result) == n - 14
+        assert all(v < 50.0 for v in result)
+
+    def test_mfi_zero_negative_flow(self):
+        from src.indicators.momentum import calculate_mfi_series
+        # All typical prices strictly increasing → no negative flow → MFI == 100
+        n = 20
+        closes = [100.0 + i * 2 for i in range(n)]
+        highs = [c + 1.0 for c in closes]
+        lows = [c - 0.5 for c in closes]
+        volumes = [1000] * n
+        result = calculate_mfi_series(highs, lows, closes, volumes, period=14)
+        assert len(result) == n - 14
+        assert all(v == 100.0 for v in result)
+
+    def test_mfi_known_values(self):
+        from src.indicators.momentum import calculate_mfi_series
+        # Manually computed small example with period=2
+        # Bar 0: H=11, L=9, C=10 → TP=10, RMF=10000 (vol=1000)
+        # Bar 1: H=12, L=10, C=11 → TP=11, RMF=11000 (TP rises)
+        # Bar 2: H=11, L=9,  C=9  → TP=9.67, RMF=9670  (TP falls)
+        # Window i=2, j in [1,2]: j=1 pos+=11000, j=2 neg+=9670
+        # ratio = 11000/9670 ≈ 1.1376; mfi = 100 - 100/2.1376 ≈ 53.22
+        h = [11.0, 12.0, 11.0]
+        l = [9.0, 10.0, 9.0]
+        c = [10.0, 11.0, 9.0]
+        v = [1000, 1000, 1000]
+        result = calculate_mfi_series(h, l, c, v, period=2)
+        assert len(result) == 1
+        assert 50.0 < result[0] < 60.0
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
