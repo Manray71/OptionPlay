@@ -431,6 +431,38 @@ def _find_bearish_divergence(
     return None
 
 
+def calculate_obv_series(
+    closes: List[float],
+    volumes: List[int],
+) -> List[float]:
+    """Berechnet die OBV-Zeitreihe (On-Balance Volume).
+
+    OBV kumuliert Volumen: hoehere Schlusskurse addieren Volumen,
+    niedrigere subtrahieren es. Dient als Volume-Flow-Indikator.
+
+    Args:
+        closes: Schlusskurse (aelteste zuerst)
+        volumes: Volumen pro Bar (gleiche Laenge wie closes)
+
+    Returns:
+        OBV-Werte, gleiche Laenge wie closes.
+        Erster Wert ist 0.0 (Konvention).
+        Bei unzureichenden Daten (len < 2 oder Laengen ungleich): []
+    """
+    if len(closes) < 2 or len(closes) != len(volumes):
+        return []
+
+    obv = [0.0]
+    for i in range(1, len(closes)):
+        if closes[i] > closes[i - 1]:
+            obv.append(obv[-1] + volumes[i])
+        elif closes[i] < closes[i - 1]:
+            obv.append(obv[-1] - volumes[i])
+        else:
+            obv.append(obv[-1])
+    return obv
+
+
 def calculate_stochastic(
     highs: List[float],
     lows: List[float],

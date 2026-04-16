@@ -1211,5 +1211,69 @@ class TestMomentumIndicatorsIntegration:
         assert divergence is None or isinstance(divergence, RSIDivergenceResult)
 
 
+# =============================================================================
+# OBV TESTS
+# =============================================================================
+
+class TestOBV:
+    """Tests for calculate_obv_series (On-Balance Volume)."""
+
+    def test_obv_empty_input(self):
+        from src.indicators.momentum import calculate_obv_series
+        assert calculate_obv_series([], []) == []
+
+    def test_obv_mismatched_lengths(self):
+        from src.indicators.momentum import calculate_obv_series
+        assert calculate_obv_series([100.0, 101.0], [1000]) == []
+        assert calculate_obv_series([100.0], [1000, 2000]) == []
+
+    def test_obv_single_bar(self):
+        from src.indicators.momentum import calculate_obv_series
+        # len < 2 → []
+        assert calculate_obv_series([100.0], [500]) == []
+
+    def test_obv_rising_prices(self):
+        from src.indicators.momentum import calculate_obv_series
+        closes = [100.0, 101.0, 102.0, 103.0]
+        volumes = [1000, 1100, 1200, 1300]
+        result = calculate_obv_series(closes, volumes)
+        assert len(result) == 4
+        assert result[0] == 0.0
+        assert result[1] == 1100.0
+        assert result[2] == 2300.0
+        assert result[3] == 3600.0
+
+    def test_obv_falling_prices(self):
+        from src.indicators.momentum import calculate_obv_series
+        closes = [103.0, 102.0, 101.0, 100.0]
+        volumes = [1000, 1100, 1200, 1300]
+        result = calculate_obv_series(closes, volumes)
+        assert len(result) == 4
+        assert result[0] == 0.0
+        assert result[1] == -1100.0
+        assert result[2] == -2300.0
+        assert result[3] == -3600.0
+
+    def test_obv_unchanged_prices(self):
+        from src.indicators.momentum import calculate_obv_series
+        closes = [100.0, 100.0, 100.0]
+        volumes = [500, 600, 700]
+        result = calculate_obv_series(closes, volumes)
+        assert result == [0.0, 0.0, 0.0]
+
+    def test_obv_mixed_pattern(self):
+        from src.indicators.momentum import calculate_obv_series
+        # up, down, unchanged, up
+        closes = [100.0, 102.0, 101.0, 101.0, 103.0]
+        volumes = [1000, 2000, 1500, 800, 2500]
+        result = calculate_obv_series(closes, volumes)
+        assert len(result) == 5
+        assert result[0] == 0.0
+        assert result[1] == 2000.0   # up: +2000
+        assert result[2] == 500.0    # down: -1500
+        assert result[3] == 500.0    # unchanged
+        assert result[4] == 3000.0   # up: +2500
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
