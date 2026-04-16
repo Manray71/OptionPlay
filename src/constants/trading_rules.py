@@ -102,7 +102,8 @@ ENTRY_PRICE_MIN = _entry_cfg.get("price_min", 20.0)
 ENTRY_PRICE_MAX = _entry_cfg.get("price_max", 1500.0)
 ENTRY_VOLUME_MIN = _entry_cfg.get("volume_min", 500_000)
 
-# Soft filters - WARNING only
+# Hard-reject threshold: symbols below this IV Rank are
+# skipped per strategy (see _check_iv_filter in scanner)
 ENTRY_IV_RANK_MIN = _entry_cfg.get("iv_rank_min", 30.0)
 ENTRY_IV_RANK_MAX = _entry_cfg.get("iv_rank_max", 80.0)
 

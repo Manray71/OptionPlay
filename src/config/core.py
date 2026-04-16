@@ -141,12 +141,12 @@ def get_scan_config(
         iv_rank_minimum=(
             override_iv_rank_min
             if override_iv_rank_min is not None
-            else scanner_cfg.iv_rank_minimum
+            else filters_cfg.iv_rank_minimum
         ),
         iv_rank_maximum=(
             override_iv_rank_max
             if override_iv_rank_max is not None
-            else scanner_cfg.iv_rank_maximum
+            else filters_cfg.iv_rank_maximum
         ),
         enable_iv_filter=(
             enable_iv_filter if enable_iv_filter is not None else scanner_cfg.enable_iv_filter
