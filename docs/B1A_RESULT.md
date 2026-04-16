@@ -29,8 +29,8 @@ Gesamt LOC-Delta: +179 (src/indicators/momentum.py), +283 (tests/unit/test_indic
 | MACD-Serie | 6 |
 | **Total** | **28** |
 
-Tests vorher (test_indicators_momentum.py): 95
-Tests nachher: 123
+Tests vorher (test_indicators_momentum.py): 95 | Suite gesamt: 5.401
+Tests nachher (test_indicators_momentum.py): 123 | Suite gesamt: 5.429 (erwartet)
 
 ---
 
