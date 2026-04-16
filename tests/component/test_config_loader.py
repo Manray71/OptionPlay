@@ -262,7 +262,7 @@ profiles:
       earnings:
         exclude_days_before: 90
       implied_volatility:
-        iv_rank_minimum: 25
+        iv_rank_minimum: 20
     options_analysis:
       short_put:
         delta_target: -0.20
@@ -304,12 +304,22 @@ profiles:
     def test_apply_strategy(self, config_with_strategies):
         """apply_strategy should modify Settings"""
         config_with_strategies.load_all()
-        
+
         settings = config_with_strategies.apply_strategy("conservative")
-        
+
         assert settings.pullback_scoring.min_score_for_candidate == 6
         assert settings.filters.earnings_exclude_days == 90
         assert settings.options.delta_target == -0.20
+
+    def test_regime_profile_affects_scan_config_iv_rank(self, config_with_strategies):
+        """apply_strategy should propagate iv_rank_minimum into ScanConfig (OQ-2)"""
+        from src.scanner.multi_strategy_scanner import ScanConfig
+
+        config_with_strategies.load_all()
+        settings = config_with_strategies.apply_strategy("conservative")
+
+        scan_cfg = ScanConfig(iv_rank_minimum=settings.filters.iv_rank_minimum)
+        assert scan_cfg.iv_rank_minimum == 20  # Variante C
 
 
 class TestEdgeCases:
