@@ -1273,6 +1273,66 @@ class TestValidateWithSizing:
         assert result.sizing_recommendation is None
 
 
+class TestPortfolioValueCheck:
+    """B.3.1: portfolio_value is required — silent skip prevented."""
+
+    def test_check_portfolio_value_missing_returns_warning(self, validator):
+        """portfolio_value None → WARNING (risk-check skipped, not silently ignored)."""
+        result = validator._check_portfolio_value(None)
+        assert result.passed is False
+        assert result.decision == TradeDecision.WARNING
+        assert "portfolio_value fehlt" in result.message
+        assert result.details["risk_check_skipped"] is True
+
+    def test_check_portfolio_value_zero_returns_no_go(self, validator):
+        """portfolio_value 0 → NO_GO (invalid for risk-% calculation)."""
+        result = validator._check_portfolio_value(0.0)
+        assert result.passed is False
+        assert result.decision == TradeDecision.NO_GO
+        assert "ungültig" in result.message
+
+    def test_check_portfolio_value_valid_returns_go(self, validator):
+        """Valid portfolio_value → GO."""
+        result = validator._check_portfolio_value(80000.0)
+        assert result.passed is True
+        assert result.decision == TradeDecision.GO
+
+    @pytest.mark.asyncio
+    async def test_validate_trade_without_portfolio_value_returns_warning(self, validator):
+        """validate() with spread params but no portfolio_value → WARNING check present."""
+        request = TradeValidationRequest(
+            symbol="AAPL",
+            short_strike=175.0,
+            long_strike=165.0,
+            credit=2.50,
+            # No portfolio_value
+        )
+        result = await validator.validate(request, current_vix=18.0)
+
+        # Must have a portfolio_value WARNING check (not silently skipped)
+        pv_checks = [c for c in result.checks if c.name == "portfolio_value"]
+        assert len(pv_checks) == 1
+        assert pv_checks[0].decision == TradeDecision.WARNING
+        assert pv_checks[0].passed is False
+
+    @pytest.mark.asyncio
+    async def test_validate_trade_with_portfolio_value_zero_returns_no_go(self, validator):
+        """validate() with portfolio_value=0 → NO_GO (cannot calculate position size)."""
+        request = TradeValidationRequest(
+            symbol="AAPL",
+            short_strike=175.0,
+            long_strike=165.0,
+            credit=2.50,
+            portfolio_value=0.0,
+        )
+        result = await validator.validate(request, current_vix=18.0)
+
+        pv_checks = [c for c in result.checks if c.name == "portfolio_value"]
+        assert len(pv_checks) == 1
+        assert pv_checks[0].decision == TradeDecision.NO_GO
+        assert result.decision == TradeDecision.NO_GO
+
+
 class TestOverallDecisionLogic:
     """Tests for overall decision determination."""
 
