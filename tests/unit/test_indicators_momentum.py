@@ -1211,5 +1211,288 @@ class TestMomentumIndicatorsIntegration:
         assert divergence is None or isinstance(divergence, RSIDivergenceResult)
 
 
+# =============================================================================
+# OBV TESTS
+# =============================================================================
+
+class TestOBV:
+    """Tests for calculate_obv_series (On-Balance Volume)."""
+
+    def test_obv_empty_input(self):
+        from src.indicators.momentum import calculate_obv_series
+        assert calculate_obv_series([], []) == []
+
+    def test_obv_mismatched_lengths(self):
+        from src.indicators.momentum import calculate_obv_series
+        assert calculate_obv_series([100.0, 101.0], [1000]) == []
+        assert calculate_obv_series([100.0], [1000, 2000]) == []
+
+    def test_obv_single_bar(self):
+        from src.indicators.momentum import calculate_obv_series
+        # len < 2 → []
+        assert calculate_obv_series([100.0], [500]) == []
+
+    def test_obv_rising_prices(self):
+        from src.indicators.momentum import calculate_obv_series
+        closes = [100.0, 101.0, 102.0, 103.0]
+        volumes = [1000, 1100, 1200, 1300]
+        result = calculate_obv_series(closes, volumes)
+        assert len(result) == 4
+        assert result[0] == 0.0
+        assert result[1] == 1100.0
+        assert result[2] == 2300.0
+        assert result[3] == 3600.0
+
+    def test_obv_falling_prices(self):
+        from src.indicators.momentum import calculate_obv_series
+        closes = [103.0, 102.0, 101.0, 100.0]
+        volumes = [1000, 1100, 1200, 1300]
+        result = calculate_obv_series(closes, volumes)
+        assert len(result) == 4
+        assert result[0] == 0.0
+        assert result[1] == -1100.0
+        assert result[2] == -2300.0
+        assert result[3] == -3600.0
+
+    def test_obv_unchanged_prices(self):
+        from src.indicators.momentum import calculate_obv_series
+        closes = [100.0, 100.0, 100.0]
+        volumes = [500, 600, 700]
+        result = calculate_obv_series(closes, volumes)
+        assert result == [0.0, 0.0, 0.0]
+
+    def test_obv_mixed_pattern(self):
+        from src.indicators.momentum import calculate_obv_series
+        # up, down, unchanged, up
+        closes = [100.0, 102.0, 101.0, 101.0, 103.0]
+        volumes = [1000, 2000, 1500, 800, 2500]
+        result = calculate_obv_series(closes, volumes)
+        assert len(result) == 5
+        assert result[0] == 0.0
+        assert result[1] == 2000.0   # up: +2000
+        assert result[2] == 500.0    # down: -1500
+        assert result[3] == 500.0    # unchanged
+        assert result[4] == 3000.0   # up: +2500
+
+
+# =============================================================================
+# MFI TESTS
+# =============================================================================
+
+class TestMFI:
+    """Tests for calculate_mfi_series (Money Flow Index)."""
+
+    def test_mfi_empty_input(self):
+        from src.indicators.momentum import calculate_mfi_series
+        assert calculate_mfi_series([], [], [], []) == []
+
+    def test_mfi_insufficient_data(self):
+        from src.indicators.momentum import calculate_mfi_series
+        # Need period+1 bars; default period=14 → need 15
+        h = [101.0] * 10
+        l = [99.0] * 10
+        c = [100.0] * 10
+        v = [1000] * 10
+        assert calculate_mfi_series(h, l, c, v, period=14) == []
+
+    def test_mfi_mismatched_lengths(self):
+        from src.indicators.momentum import calculate_mfi_series
+        h = [101.0] * 20
+        l = [99.0] * 20
+        c = [100.0] * 20
+        v = [1000] * 15  # wrong length
+        assert calculate_mfi_series(h, l, c, v) == []
+
+    def test_mfi_all_rising(self):
+        from src.indicators.momentum import calculate_mfi_series
+        # Rising closes → high MFI values
+        n = 30
+        closes = [100.0 + i for i in range(n)]
+        highs = [c + 1.0 for c in closes]
+        lows = [c - 1.0 for c in closes]
+        volumes = [1000] * n
+        result = calculate_mfi_series(highs, lows, closes, volumes, period=14)
+        assert len(result) == n - 14
+        assert all(v > 50.0 for v in result)
+
+    def test_mfi_all_falling(self):
+        from src.indicators.momentum import calculate_mfi_series
+        n = 30
+        closes = [200.0 - i for i in range(n)]
+        highs = [c + 1.0 for c in closes]
+        lows = [c - 1.0 for c in closes]
+        volumes = [1000] * n
+        result = calculate_mfi_series(highs, lows, closes, volumes, period=14)
+        assert len(result) == n - 14
+        assert all(v < 50.0 for v in result)
+
+    def test_mfi_zero_negative_flow(self):
+        from src.indicators.momentum import calculate_mfi_series
+        # All typical prices strictly increasing → no negative flow → MFI == 100
+        n = 20
+        closes = [100.0 + i * 2 for i in range(n)]
+        highs = [c + 1.0 for c in closes]
+        lows = [c - 0.5 for c in closes]
+        volumes = [1000] * n
+        result = calculate_mfi_series(highs, lows, closes, volumes, period=14)
+        assert len(result) == n - 14
+        assert all(v == 100.0 for v in result)
+
+    def test_mfi_known_values(self):
+        from src.indicators.momentum import calculate_mfi_series
+        # Manually computed small example with period=2
+        # Bar 0: H=11, L=9, C=10 → TP=10, RMF=10000 (vol=1000)
+        # Bar 1: H=12, L=10, C=11 → TP=11, RMF=11000 (TP rises)
+        # Bar 2: H=11, L=9,  C=9  → TP=9.67, RMF=9670  (TP falls)
+        # Window i=2, j in [1,2]: j=1 pos+=11000, j=2 neg+=9670
+        # ratio = 11000/9670 ≈ 1.1376; mfi = 100 - 100/2.1376 ≈ 53.22
+        h = [11.0, 12.0, 11.0]
+        l = [9.0, 10.0, 9.0]
+        c = [10.0, 11.0, 9.0]
+        v = [1000, 1000, 1000]
+        result = calculate_mfi_series(h, l, c, v, period=2)
+        assert len(result) == 1
+        assert 50.0 < result[0] < 60.0
+
+
+# =============================================================================
+# CMF TESTS
+# =============================================================================
+
+class TestCMF:
+    """Tests for calculate_cmf_series (Chaikin Money Flow)."""
+
+    def test_cmf_empty_input(self):
+        from src.indicators.momentum import calculate_cmf_series
+        assert calculate_cmf_series([], [], [], []) == []
+
+    def test_cmf_insufficient_data(self):
+        from src.indicators.momentum import calculate_cmf_series
+        # period=20, len=10 → []
+        h = [101.0] * 10
+        l = [99.0] * 10
+        c = [100.0] * 10
+        v = [1000] * 10
+        assert calculate_cmf_series(h, l, c, v, period=20) == []
+
+    def test_cmf_mismatched_lengths(self):
+        from src.indicators.momentum import calculate_cmf_series
+        h = [101.0] * 25
+        l = [99.0] * 25
+        c = [100.0] * 25
+        v = [1000] * 20  # wrong length
+        assert calculate_cmf_series(h, l, c, v, period=20) == []
+
+    def test_cmf_equal_high_low(self):
+        from src.indicators.momentum import calculate_cmf_series
+        # H == L → mfm = 0, CMF = 0 (no division by zero)
+        n = 5
+        h = [100.0] * n
+        l = [100.0] * n
+        c = [100.0] * n
+        v = [1000] * n
+        result = calculate_cmf_series(h, l, c, v, period=5)
+        assert result == [0.0]
+
+    def test_cmf_zero_volume_sum(self):
+        from src.indicators.momentum import calculate_cmf_series
+        n = 5
+        h = [101.0] * n
+        l = [99.0] * n
+        c = [100.0] * n
+        v = [0] * n
+        result = calculate_cmf_series(h, l, c, v, period=5)
+        assert result == [0.0]
+
+    def test_cmf_accumulation_pattern(self):
+        from src.indicators.momentum import calculate_cmf_series
+        # Closes near highs → positive CMF (accumulation)
+        n = 25
+        highs = [110.0] * n
+        lows = [90.0] * n
+        closes = [109.0] * n  # close near high
+        volumes = [1000] * n
+        result = calculate_cmf_series(highs, lows, closes, volumes, period=20)
+        assert len(result) == n - 20 + 1
+        assert all(v > 0.0 for v in result)
+
+    def test_cmf_distribution_pattern(self):
+        from src.indicators.momentum import calculate_cmf_series
+        # Closes near lows → negative CMF (distribution)
+        n = 25
+        highs = [110.0] * n
+        lows = [90.0] * n
+        closes = [91.0] * n  # close near low
+        volumes = [1000] * n
+        result = calculate_cmf_series(highs, lows, closes, volumes, period=20)
+        assert len(result) == n - 20 + 1
+        assert all(v < 0.0 for v in result)
+
+    def test_cmf_value_bounds(self):
+        from src.indicators.momentum import calculate_cmf_series
+        # For normal OHLCV data, CMF must be in [-1, 1]
+        np.random.seed(7)
+        n = 60
+        closes = [100.0 + np.random.randn() for _ in range(n)]
+        highs = [c + abs(np.random.randn() * 0.5) for c in closes]
+        lows = [c - abs(np.random.randn() * 0.5) for c in closes]
+        volumes = [int(abs(np.random.normal(1000, 200))) + 1 for _ in range(n)]
+        result = calculate_cmf_series(highs, lows, closes, volumes, period=20)
+        assert len(result) > 0
+        assert all(-1.0 <= v <= 1.0 for v in result)
+
+
+# =============================================================================
+# MACD SERIES TESTS
+# =============================================================================
+
+class TestMACDSeries:
+    """Tests for calculate_macd_series."""
+
+    def test_macd_series_empty(self):
+        from src.indicators.momentum import calculate_macd_series
+        assert calculate_macd_series([]) is None
+
+    def test_macd_series_insufficient_data(self):
+        from src.indicators.momentum import calculate_macd_series
+        # Needs at least slow+signal = 26+9 = 35 bars
+        prices = [100.0] * 34
+        assert calculate_macd_series(prices) is None
+
+    def test_macd_series_returns_dict_with_three_keys(self):
+        from src.indicators.momentum import calculate_macd_series
+        prices = [100.0 + i * 0.1 for i in range(50)]
+        result = calculate_macd_series(prices)
+        assert result is not None
+        assert set(result.keys()) == {"line", "signal", "histogram"}
+
+    def test_macd_series_all_three_lengths_equal(self):
+        from src.indicators.momentum import calculate_macd_series
+        prices = [100.0 + i * 0.1 for i in range(80)]
+        result = calculate_macd_series(prices)
+        assert result is not None
+        assert len(result["line"]) == len(result["signal"]) == len(result["histogram"])
+        assert len(result["line"]) > 0
+
+    def test_macd_series_histogram_equals_line_minus_signal(self):
+        from src.indicators.momentum import calculate_macd_series
+        prices = create_volatile_prices(100)
+        result = calculate_macd_series(prices)
+        assert result is not None
+        for line, sig, hist in zip(result["line"], result["signal"], result["histogram"]):
+            assert abs(hist - (line - sig)) < 1e-10
+
+    def test_macd_series_last_value_matches_scalar_macd(self):
+        from src.indicators.momentum import calculate_macd_series
+        prices = create_volatile_prices(100)
+        series = calculate_macd_series(prices)
+        scalar = calculate_macd(prices)
+        assert series is not None
+        assert scalar is not None
+        assert abs(series["line"][-1] - scalar.macd_line) < 1e-8
+        assert abs(series["signal"][-1] - scalar.signal_line) < 1e-8
+        assert abs(series["histogram"][-1] - scalar.histogram) < 1e-8
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

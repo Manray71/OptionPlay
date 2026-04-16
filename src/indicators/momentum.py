@@ -2,7 +2,7 @@
 # ==================================
 # RSI, MACD, Stochastic
 
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -429,6 +429,184 @@ def _find_bearish_divergence(
                 )
 
     return None
+
+
+def calculate_obv_series(
+    closes: List[float],
+    volumes: List[int],
+) -> List[float]:
+    """Berechnet die OBV-Zeitreihe (On-Balance Volume).
+
+    OBV kumuliert Volumen: hoehere Schlusskurse addieren Volumen,
+    niedrigere subtrahieren es. Dient als Volume-Flow-Indikator.
+
+    Args:
+        closes: Schlusskurse (aelteste zuerst)
+        volumes: Volumen pro Bar (gleiche Laenge wie closes)
+
+    Returns:
+        OBV-Werte, gleiche Laenge wie closes.
+        Erster Wert ist 0.0 (Konvention).
+        Bei unzureichenden Daten (len < 2 oder Laengen ungleich): []
+    """
+    if len(closes) < 2 or len(closes) != len(volumes):
+        return []
+
+    obv = [0.0]
+    for i in range(1, len(closes)):
+        if closes[i] > closes[i - 1]:
+            obv.append(obv[-1] + volumes[i])
+        elif closes[i] < closes[i - 1]:
+            obv.append(obv[-1] - volumes[i])
+        else:
+            obv.append(obv[-1])
+    return obv
+
+
+def calculate_mfi_series(
+    highs: List[float],
+    lows: List[float],
+    closes: List[float],
+    volumes: List[int],
+    period: int = 14,
+) -> List[float]:
+    """Berechnet die MFI-Zeitreihe (Money Flow Index).
+
+    MFI ist ein Volume-gewichteter RSI: nutzt Typical Price und
+    Money Flow statt nur Schlusskurse.
+
+    Args:
+        highs, lows, closes: OHLC-Daten (gleiche Laenge)
+        volumes: Volumen pro Bar
+        period: Lookback fuer Summen (default 14)
+
+    Returns:
+        MFI-Werte, Laenge = len(closes) - period.
+        Bei unzureichenden Daten: []
+    """
+    if len(closes) < period + 1:
+        return []
+    if not (len(highs) == len(lows) == len(closes) == len(volumes)):
+        return []
+
+    typical_prices = [(highs[i] + lows[i] + closes[i]) / 3.0 for i in range(len(closes))]
+    raw_money_flow = [typical_prices[i] * volumes[i] for i in range(len(closes))]
+
+    result = []
+    for i in range(period, len(closes)):
+        pos_flow = 0.0
+        neg_flow = 0.0
+        for j in range(i - period + 1, i + 1):
+            if typical_prices[j] > typical_prices[j - 1]:
+                pos_flow += raw_money_flow[j]
+            elif typical_prices[j] < typical_prices[j - 1]:
+                neg_flow += raw_money_flow[j]
+        if neg_flow == 0.0:
+            result.append(100.0)
+        else:
+            money_ratio = pos_flow / neg_flow
+            result.append(100.0 - (100.0 / (1.0 + money_ratio)))
+    return result
+
+
+def calculate_cmf_series(
+    highs: List[float],
+    lows: List[float],
+    closes: List[float],
+    volumes: List[int],
+    period: int = 20,
+) -> List[float]:
+    """Berechnet die CMF-Zeitreihe (Chaikin Money Flow).
+
+    CMF nutzt High-Low-Range fuer Money Flow Volume; dividiert durch
+    Gesamtvolumen gibt den Anteil an Accumulation vs Distribution an.
+
+    Args:
+        highs, lows, closes, volumes: OHLCV-Daten (gleiche Laenge)
+        period: Lookback fuer Summen (default 20)
+
+    Returns:
+        CMF-Werte, Bereich typisch -1.0 bis 1.0.
+        Positiv = Accumulation, Negativ = Distribution.
+        Bei unzureichenden Daten: []
+    """
+    if len(closes) < period:
+        return []
+    if not (len(highs) == len(lows) == len(closes) == len(volumes)):
+        return []
+
+    mfm = []
+    for i in range(len(closes)):
+        hl_range = highs[i] - lows[i]
+        if hl_range == 0.0:
+            mfm.append(0.0)
+        else:
+            mfm.append(((closes[i] - lows[i]) - (highs[i] - closes[i])) / hl_range)
+
+    mfv = [mfm[i] * volumes[i] for i in range(len(closes))]
+
+    result = []
+    for i in range(period - 1, len(closes)):
+        vol_sum = sum(volumes[i - period + 1 : i + 1])
+        if vol_sum == 0:
+            result.append(0.0)
+        else:
+            result.append(sum(mfv[i - period + 1 : i + 1]) / vol_sum)
+    return result
+
+
+def calculate_macd_series(
+    prices: List[float],
+    fast_period: int = 12,
+    slow_period: int = 26,
+    signal_period: int = 9,
+) -> Optional[Dict[str, List[float]]]:
+    """Berechnet die MACD-Zeitreihen (Line, Signal, Histogram).
+
+    Neue Funktion neben calculate_macd() (Skalar); bestehende API bleibt
+    unberuehrt.
+
+    Args:
+        prices: Schlusskurse (aelteste zuerst)
+        fast_period, slow_period, signal_period: Standard-Params
+
+    Returns:
+        Dict mit drei Zeitreihen gleicher Laenge:
+          {'line': [...], 'signal': [...], 'histogram': [...]}
+        Bei unzureichenden Daten: None
+    """
+    min_len = slow_period + signal_period
+    if len(prices) < min_len:
+        return None
+
+    def _ema(data: List[float], period: int) -> List[float]:
+        multiplier = 2.0 / (period + 1)
+        values = [float(np.mean(data[:period]))]
+        for price in data[period:]:
+            values.append(price * multiplier + values[-1] * (1.0 - multiplier))
+        return values
+
+    ema_fast = _ema(prices, fast_period)
+    ema_slow = _ema(prices, slow_period)
+
+    # Align: ema_slow is shorter; offset into ema_fast so indices match
+    offset = slow_period - fast_period
+    macd_line = [ema_fast[i + offset] - ema_slow[i] for i in range(len(ema_slow))]
+
+    if len(macd_line) < signal_period:
+        return None
+
+    signal_line = _ema(macd_line, signal_period)
+
+    # Trim macd_line to match signal_line length (take last N values)
+    macd_trimmed = macd_line[len(macd_line) - len(signal_line) :]
+    histogram = [macd_trimmed[i] - signal_line[i] for i in range(len(signal_line))]
+
+    return {
+        "line": macd_trimmed,
+        "signal": signal_line,
+        "histogram": histogram,
+    }
 
 
 def calculate_stochastic(
