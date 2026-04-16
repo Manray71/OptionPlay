@@ -11,7 +11,7 @@ Architecture:
   - Cleaner architecture without MRO complexity
 
   Legacy Mixins (deprecated, kept for test compatibility):
-  - ScanHandlerMixin, BaseHandlerMixin
+  - BaseHandlerMixin only
   - No longer inherited by OptionPlayServer
 
 Modules:
@@ -44,7 +44,6 @@ from .monitor_composed import MonitorHandler
 from .portfolio_composed import PortfolioHandler
 from .quote_composed import QuoteHandler
 from .risk_composed import RiskHandler
-from .scan import ScanHandlerMixin
 from .scan_composed import ScanHandler
 from .validate_composed import ValidateHandler
 
@@ -69,5 +68,4 @@ __all__ = [
     "MonitorHandler",
     # Legacy Mixins (deprecated)
     "BaseHandlerMixin",
-    "ScanHandlerMixin",
 ]
