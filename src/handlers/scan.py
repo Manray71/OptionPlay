@@ -478,7 +478,7 @@ class ScanHandlerMixin(BaseHandlerMixin):
                     f"(earnings within {min_days} days)"
                 )
 
-        # Get current VIX via VixHandlerMixin.get_vix()
+        # Get current VIX
         vix_level = None
         try:
             vix_level = await self.get_vix()

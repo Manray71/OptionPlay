@@ -11,7 +11,7 @@ Architecture:
   - Cleaner architecture without MRO complexity
 
   Legacy Mixins (deprecated, kept for test compatibility):
-  - VixHandlerMixin, ScanHandlerMixin, etc.
+  - ScanHandlerMixin, BaseHandlerMixin
   - No longer inherited by OptionPlayServer
 
 Modules:
@@ -47,7 +47,6 @@ from .risk_composed import RiskHandler
 from .scan import ScanHandlerMixin
 from .scan_composed import ScanHandler
 from .validate_composed import ValidateHandler
-from .vix import VixHandlerMixin
 
 # Composed handlers (active)
 from .vix_composed import VixHandler
@@ -70,6 +69,5 @@ __all__ = [
     "MonitorHandler",
     # Legacy Mixins (deprecated)
     "BaseHandlerMixin",
-    "VixHandlerMixin",
     "ScanHandlerMixin",
 ]

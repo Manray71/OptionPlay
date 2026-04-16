@@ -6,52 +6,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from datetime import date, datetime
 
 
-class TestVixHandler:
-    """Tests for VIX handler methods."""
-
-    @pytest.fixture
-    def mock_server(self):
-        """Create a mock server with VIX handler methods."""
-        from src.handlers.vix import VixHandlerMixin
-
-        class MockServer(VixHandlerMixin):
-            def __init__(self):
-                self._current_vix = 18.5
-                self._vix_updated = datetime.now()
-                self._vix_source = "test"
-                self._config = MagicMock()
-                self._config.settings.api_connection.vix_cache_seconds = 60
-                self._rate_limiter = MagicMock()
-                self._rate_limiter.acquire = AsyncMock()
-                self._rate_limiter.record_success = MagicMock()
-
-            async def _ensure_connected(self):
-                provider = MagicMock()
-                provider.get_vix = AsyncMock(return_value=18.5)
-                return provider
-
-            async def _get_quote_cached(self, symbol):
-                return None
-
-        return MockServer()
-
-    @pytest.mark.asyncio
-    async def test_get_vix_returns_cached(self, mock_server):
-        """Test VIX returns cached value when fresh."""
-        result = await mock_server.get_vix()
-
-        assert result == 18.5
-
-    @pytest.mark.asyncio
-    async def test_get_strategy_recommendation_format(self, mock_server):
-        """Test strategy recommendation returns markdown."""
-        with patch.object(mock_server, 'get_vix', AsyncMock(return_value=18.5)):
-            result = await mock_server.get_strategy_recommendation()
-
-        assert "Strategy Recommendation" in result
-        assert "VIX" in result
-
-
 class TestScanHandler:
     """Tests for scan handler methods."""
 
@@ -93,13 +47,11 @@ class TestHandlerIntegration:
         """Test all handlers can be combined into single class."""
         from src.handlers import (
             BaseHandlerMixin,
-            VixHandlerMixin,
             ScanHandlerMixin,
         )
 
         # This should not raise
         class CombinedServer(
-            VixHandlerMixin,
             ScanHandlerMixin,
             BaseHandlerMixin,
         ):
@@ -109,9 +61,9 @@ class TestHandlerIntegration:
         assert server is not None
 
     def test_handler_method_names_exist(self):
-        """Test key handler methods exist."""
-        from src.handlers import VixHandlerMixin
+        """Test key handler methods exist on composed VixHandler."""
+        from src.handlers import VixHandler
 
         # Check VIX handler has key methods
-        assert hasattr(VixHandlerMixin, 'get_vix')
-        assert hasattr(VixHandlerMixin, 'get_strategy_recommendation')
+        assert hasattr(VixHandler, 'get_vix')
+        assert hasattr(VixHandler, 'get_strategy_recommendation')
