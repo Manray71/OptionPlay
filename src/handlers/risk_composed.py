@@ -67,7 +67,8 @@ class RiskHandler(BaseHandler):
 
         vix = await self._get_vix() or VIX_NORMAL_MAX
 
-        config = PositionSizerConfig(kelly_mode=KellyMode.HALF)
+        config = PositionSizerConfig.from_yaml()
+        config.kelly_mode = KellyMode.HALF
         sizer = PositionSizer(
             account_size=account_size,
             current_exposure=current_exposure,

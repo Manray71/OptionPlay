@@ -265,6 +265,10 @@ class TradeValidator:
         if open_positions is not None:
             checks.extend(self._check_portfolio(symbol, fundamentals, open_positions, current_vix))
 
+        # Portfolio value check (required for risk-% sizing)
+        if request.short_strike and request.long_strike and request.credit:
+            checks.append(self._check_portfolio_value(request.portfolio_value))
+
         # Position sizing recommendation
         sizing = None
         if (
@@ -924,6 +928,44 @@ class TradeValidator:
             recommended_contracts=recommended_contracts,
             total_credit=request.credit * recommended_contracts * 100,
             total_risk=max_loss_per_contract * recommended_contracts,
+        )
+
+    def _check_portfolio_value(
+        self, portfolio_value: Optional[float]
+    ) -> ValidationCheck:
+        """Check that portfolio_value is provided for risk-% sizing (B.3.1).
+
+        Ohne portfolio_value kann kein Risk-%-Check stattfinden — silent skip
+        wäre ein verstecktes Risiko-Loch.
+        """
+        if portfolio_value is None:
+            return ValidationCheck(
+                name="portfolio_value",
+                passed=False,
+                decision=TradeDecision.WARNING,
+                message=(
+                    "portfolio_value fehlt — Risk-%-Check übersprungen, "
+                    "manuelle Prüfung nötig"
+                ),
+                details={"portfolio_value": None, "risk_check_skipped": True},
+            )
+        if portfolio_value <= 0:
+            return ValidationCheck(
+                name="portfolio_value",
+                passed=False,
+                decision=TradeDecision.NO_GO,
+                message=(
+                    f"portfolio_value ungültig ({portfolio_value}) — "
+                    "Risk-%-Berechnung nicht möglich"
+                ),
+                details={"portfolio_value": portfolio_value},
+            )
+        return ValidationCheck(
+            name="portfolio_value",
+            passed=True,
+            decision=TradeDecision.GO,
+            message=f"Portfolio-Wert vorhanden: ${portfolio_value:,.0f}",
+            details={"portfolio_value": portfolio_value},
         )
 
     # =========================================================================
