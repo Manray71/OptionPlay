@@ -2,6 +2,16 @@
 # =================================
 # Wiederverwendbare technische Indikatoren
 
+from .divergence import (
+    DivergenceSignal,
+    check_cmf_and_macd_falling,
+    check_cmf_early_warning,
+    check_distribution_pattern,
+    check_momentum_divergence,
+    check_price_mfi_divergence,
+    check_price_obv_divergence,
+    check_price_rsi_divergence,
+)
 from .gap_analysis import (
     analyze_gap,
     calculate_gap_series,
@@ -44,6 +54,15 @@ from .volume_profile import (
 )
 
 __all__ = [
+    # Divergence checks
+    "DivergenceSignal",
+    "check_price_rsi_divergence",
+    "check_price_obv_divergence",
+    "check_price_mfi_divergence",
+    "check_cmf_and_macd_falling",
+    "check_momentum_divergence",
+    "check_distribution_pattern",
+    "check_cmf_early_warning",
     # Momentum
     "calculate_rsi",
     "calculate_rsi_series",

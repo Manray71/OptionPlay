@@ -60,6 +60,15 @@ from ..constants import (
 )
 
 # Import shared indicators
+from ..indicators.divergence import (
+    check_cmf_and_macd_falling,
+    check_cmf_early_warning,
+    check_distribution_pattern,
+    check_momentum_divergence,
+    check_price_mfi_divergence,
+    check_price_obv_divergence,
+    check_price_rsi_divergence,
+)
 from ..indicators.momentum import calculate_macd, calculate_rsi_divergence, calculate_stochastic
 
 # Import optimized support/resistance functions
@@ -117,6 +126,15 @@ PULLBACK_RESISTANCE_TOLERANCE_PCT = _cfg.get("pullback.resistance.tolerance_pct"
 PULLBACK_GAP_WARNING_MIN = _cfg.get("pullback.gap.warning_min_pct", -3.0)
 PULLBACK_GAP_WARNING_MAX = _cfg.get("pullback.gap.warning_max_pct", -1.0)
 PULLBACK_GAP_VOL_THRESHOLD = 0.8  # Not in YAML — structural, not a scoring tier
+
+# Bearish Divergence Penalties (negative values)
+PULLBACK_DIV_PENALTY_PRICE_RSI = _cfg.get("pullback.divergence.price_rsi", -2.0)
+PULLBACK_DIV_PENALTY_PRICE_OBV = _cfg.get("pullback.divergence.price_obv", -1.5)
+PULLBACK_DIV_PENALTY_PRICE_MFI = _cfg.get("pullback.divergence.price_mfi", -1.5)
+PULLBACK_DIV_PENALTY_CMF_MACD = _cfg.get("pullback.divergence.cmf_macd_falling", -1.0)
+PULLBACK_DIV_PENALTY_MOMENTUM = _cfg.get("pullback.divergence.momentum_divergence", -1.5)
+PULLBACK_DIV_PENALTY_DISTRIBUTION = _cfg.get("pullback.divergence.distribution_pattern", -3.0)
+PULLBACK_DIV_PENALTY_CMF_EARLY = _cfg.get("pullback.divergence.cmf_early_warning", -1.0)
 
 
 class PullbackAnalyzer(PullbackScoringMixin, BaseAnalyzer):
@@ -713,6 +731,15 @@ class PullbackAnalyzer(PullbackScoringMixin, BaseAnalyzer):
         if w and resolved.sector_factor != 1.0:
             breakdown.total_score *= resolved.sector_factor
 
+        # Bearish divergence penalties (additive to existing RSI divergence check above)
+        breakdown.total_score = self._apply_divergence_penalties(
+            prices=prices,
+            highs=highs,
+            lows=lows,
+            volumes=volumes,
+            score=breakdown.total_score,
+        )
+
         # Dynamic max_possible: sum of max weights for components that scored > 0.
         # This prevents components that are structurally impossible during a pullback
         # (e.g., MACD bullish cross, VWAP strong above) from diluting the score.
@@ -952,3 +979,81 @@ class PullbackAnalyzer(PullbackScoringMixin, BaseAnalyzer):
             "78.6%": high - diff * 0.786,
             "100.0%": low,
         }
+
+    def _apply_divergence_penalties(
+        self,
+        prices: List[float],
+        highs: List[float],
+        lows: List[float],
+        volumes: List[int],
+        score: float,
+    ) -> float:
+        """Apply bearish divergence penalties to the pullback score.
+
+        Runs all 7 divergence checks and sums detected penalties.
+        Applied AFTER main scoring (including the existing bullish RSI divergence
+        check in _score_rsi_divergence), BEFORE normalization to 0-10 scale.
+
+        Note: The existing calculate_rsi_divergence call above checks for BULLISH
+        divergence (a positive signal for pullback entries). This method checks for
+        BEARISH divergence (a negative signal indicating selling pressure). Both
+        can coexist without conflict.
+
+        Returns:
+            Adjusted score (may be lower than input if divergences detected).
+        """
+        signals = [
+            check_price_rsi_divergence(
+                prices=prices,
+                lows=lows,
+                highs=highs,
+                severity=PULLBACK_DIV_PENALTY_PRICE_RSI,
+            ),
+            check_price_obv_divergence(
+                prices=prices,
+                volumes=volumes,
+                severity=PULLBACK_DIV_PENALTY_PRICE_OBV,
+            ),
+            check_price_mfi_divergence(
+                prices=prices,
+                highs=highs,
+                lows=lows,
+                volumes=volumes,
+                severity=PULLBACK_DIV_PENALTY_PRICE_MFI,
+            ),
+            check_cmf_and_macd_falling(
+                prices=prices,
+                highs=highs,
+                lows=lows,
+                volumes=volumes,
+                severity=PULLBACK_DIV_PENALTY_CMF_MACD,
+            ),
+            check_momentum_divergence(
+                prices=prices,
+                highs=highs,
+                lows=lows,
+                volumes=volumes,
+                severity=PULLBACK_DIV_PENALTY_MOMENTUM,
+            ),
+            check_distribution_pattern(
+                prices=prices,
+                highs=highs,
+                lows=lows,
+                volumes=volumes,
+                severity=PULLBACK_DIV_PENALTY_DISTRIBUTION,
+            ),
+            check_cmf_early_warning(
+                prices=prices,
+                highs=highs,
+                lows=lows,
+                volumes=volumes,
+                severity=PULLBACK_DIV_PENALTY_CMF_EARLY,
+            ),
+        ]
+
+        total_penalty = sum(sig.severity for sig in signals if sig.detected)
+        if total_penalty < 0:
+            logger.debug(
+                "PullbackAnalyzer: bearish divergence penalties applied: %.2f", total_penalty
+            )
+        return score + total_penalty
