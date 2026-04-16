@@ -15,17 +15,8 @@ Verwendung in claude_desktop_config.json:
   }
 }
 
-Verfügbare Tools (53 + 55 Aliases = 108 Endpoints):
-- VIX & Strategy: vix, regime, strategy_stock, events, health, sector_status
-- Scans: scan, bounce, breakout, dip, multi, daily/picks/recommendations, prefilter
-- Quotes & Data: quote, options, earnings, historical, expirations, validate, check, monitor, max_pain
-- Analysis: analyze, analyze_multi, ensemble, ensemble_status, strikes
-- Portfolio: portfolio, pf_positions, pf_position, pf_add, pf_close, pf_expire,
-             pf_expiring, pf_trades, pf_pnl, pf_monthly, pf_check, pf_constraints
-- IBKR: ibkr, ibkr_portfolio, ibkr_spreads, ibkr_vix, ibkr_quotes, news
-- Reports: report, scan_report
-- Risk: position_size, stop_loss, spread_analysis, monte_carlo
-- System: cache_stats, watchlist
+Verfügbare Tools (25 Tools + 28 Aliases = 53 Endpoints):
+- See mcp_tool_registry.py for the full list of registered tools and aliases.
 """
 
 import asyncio

@@ -131,6 +131,11 @@ def server(mock_api_key, mock_provider):
         server._ibkr_provider = mock_provider
         server._ibkr_connected = True
         server._connected = True
+        # Disable bridge so get_vix() reaches ibkr_provider.get_quote("VIX") path
+        server._ibkr_bridge = None
+        # Clear VIX cache so the mock path is always exercised
+        server._current_vix = None
+        server._vix_updated = None
         yield server
 
 

@@ -84,7 +84,7 @@ CREATE TABLE earnings_history (
     eps_surprise REAL,
     eps_surprise_pct REAL,
     time_of_day TEXT,             -- "bmo" / "amc"
-    source TEXT DEFAULT 'yfinance',
+    source TEXT DEFAULT 'marketdata',
     UNIQUE(symbol, earnings_date)
 );
 ```
@@ -265,6 +265,19 @@ python scripts/morning_workflow.py           # Täglicher Morning Report
 
 ---
 
+## DTE Conventions
+
+Two uses of DTE in the codebase — same numeric values (35-50), different context:
+
+| Range | Purpose | Source |
+|-------|---------|--------|
+| 35-50 days | Entry signal selection (per-strategy `dte_minimum/maximum` in `options_analysis`) | `config/trading.yaml → spread.dte_min/max` |
+| 35-50 days | Options chain query defaults (`SPREAD_DTE_MIN/MAX` via `trading_rules.py`) | Same YAML keys, fallback hardcoded 60-90 |
+
+The hardcoded fallback in `trading_rules.py` is `_spread_cfg.get("dte_min", 60)` / `_spread_cfg.get("dte_max", 90)` (60-90). At runtime, trading.yaml overrides to 35-50. The 60-90 range only applies if trading.yaml is missing.
+
+---
+
 ## Architektur-Hinweise für Weiterentwicklung
 
 ### Trading-Strategien (2 Analyzer)
@@ -316,7 +329,7 @@ Ersetzt das alte 5-Stufen-System durch gleitende Skalierung:
 - **Delta bleibt fix** bei -0.20 (±0.03) — "Delta ist heilig"
 - **Term Structure Overlay**: Contango → Score -0.5, Backwardation → Score +1.0 (nur VIX > 20)
 - **MarketRegime.UNKNOWN entfernt** — `Optional[VIXRegime] = None` stattdessen
-- **Feature-Flag**: Aktiviert in v5.0.0 (`config/trading.yaml → vix_regime_v2.enabled: true`)
+- **Always active**: v2 is the only regime system; `_VIX_REGIME_V2_ENABLED` defaults to True in scanner
 
 ### Sector RS (RRG-Quadranten)
 
