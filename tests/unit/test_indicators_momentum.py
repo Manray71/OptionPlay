@@ -1355,5 +1355,92 @@ class TestMFI:
         assert 50.0 < result[0] < 60.0
 
 
+# =============================================================================
+# CMF TESTS
+# =============================================================================
+
+class TestCMF:
+    """Tests for calculate_cmf_series (Chaikin Money Flow)."""
+
+    def test_cmf_empty_input(self):
+        from src.indicators.momentum import calculate_cmf_series
+        assert calculate_cmf_series([], [], [], []) == []
+
+    def test_cmf_insufficient_data(self):
+        from src.indicators.momentum import calculate_cmf_series
+        # period=20, len=10 → []
+        h = [101.0] * 10
+        l = [99.0] * 10
+        c = [100.0] * 10
+        v = [1000] * 10
+        assert calculate_cmf_series(h, l, c, v, period=20) == []
+
+    def test_cmf_mismatched_lengths(self):
+        from src.indicators.momentum import calculate_cmf_series
+        h = [101.0] * 25
+        l = [99.0] * 25
+        c = [100.0] * 25
+        v = [1000] * 20  # wrong length
+        assert calculate_cmf_series(h, l, c, v, period=20) == []
+
+    def test_cmf_equal_high_low(self):
+        from src.indicators.momentum import calculate_cmf_series
+        # H == L → mfm = 0, CMF = 0 (no division by zero)
+        n = 5
+        h = [100.0] * n
+        l = [100.0] * n
+        c = [100.0] * n
+        v = [1000] * n
+        result = calculate_cmf_series(h, l, c, v, period=5)
+        assert result == [0.0]
+
+    def test_cmf_zero_volume_sum(self):
+        from src.indicators.momentum import calculate_cmf_series
+        n = 5
+        h = [101.0] * n
+        l = [99.0] * n
+        c = [100.0] * n
+        v = [0] * n
+        result = calculate_cmf_series(h, l, c, v, period=5)
+        assert result == [0.0]
+
+    def test_cmf_accumulation_pattern(self):
+        from src.indicators.momentum import calculate_cmf_series
+        # Closes near highs → positive CMF (accumulation)
+        n = 25
+        highs = [110.0] * n
+        lows = [90.0] * n
+        closes = [109.0] * n  # close near high
+        volumes = [1000] * n
+        result = calculate_cmf_series(highs, lows, closes, volumes, period=20)
+        assert len(result) == n - 20 + 1
+        assert all(v > 0.0 for v in result)
+
+    def test_cmf_distribution_pattern(self):
+        from src.indicators.momentum import calculate_cmf_series
+        # Closes near lows → negative CMF (distribution)
+        n = 25
+        highs = [110.0] * n
+        lows = [90.0] * n
+        closes = [91.0] * n  # close near low
+        volumes = [1000] * n
+        result = calculate_cmf_series(highs, lows, closes, volumes, period=20)
+        assert len(result) == n - 20 + 1
+        assert all(v < 0.0 for v in result)
+
+    def test_cmf_value_bounds(self):
+        from src.indicators.momentum import calculate_cmf_series
+        # For normal OHLCV data, CMF must be in [-1, 1]
+        np.random.seed(7)
+        n = 60
+        closes = [100.0 + np.random.randn() for _ in range(n)]
+        highs = [c + abs(np.random.randn() * 0.5) for c in closes]
+        lows = [c - abs(np.random.randn() * 0.5) for c in closes]
+        volumes = [int(abs(np.random.normal(1000, 200))) + 1 for _ in range(n)]
+        result = calculate_cmf_series(highs, lows, closes, volumes, period=20)
+        assert len(result) > 0
+        assert all(-1.0 <= v <= 1.0 for v in result)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

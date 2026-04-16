@@ -509,6 +509,52 @@ def calculate_mfi_series(
     return result
 
 
+def calculate_cmf_series(
+    highs: List[float],
+    lows: List[float],
+    closes: List[float],
+    volumes: List[int],
+    period: int = 20,
+) -> List[float]:
+    """Berechnet die CMF-Zeitreihe (Chaikin Money Flow).
+
+    CMF nutzt High-Low-Range fuer Money Flow Volume; dividiert durch
+    Gesamtvolumen gibt den Anteil an Accumulation vs Distribution an.
+
+    Args:
+        highs, lows, closes, volumes: OHLCV-Daten (gleiche Laenge)
+        period: Lookback fuer Summen (default 20)
+
+    Returns:
+        CMF-Werte, Bereich typisch -1.0 bis 1.0.
+        Positiv = Accumulation, Negativ = Distribution.
+        Bei unzureichenden Daten: []
+    """
+    if len(closes) < period:
+        return []
+    if not (len(highs) == len(lows) == len(closes) == len(volumes)):
+        return []
+
+    mfm = []
+    for i in range(len(closes)):
+        hl_range = highs[i] - lows[i]
+        if hl_range == 0.0:
+            mfm.append(0.0)
+        else:
+            mfm.append(((closes[i] - lows[i]) - (highs[i] - closes[i])) / hl_range)
+
+    mfv = [mfm[i] * volumes[i] for i in range(len(closes))]
+
+    result = []
+    for i in range(period - 1, len(closes)):
+        vol_sum = sum(volumes[i - period + 1 : i + 1])
+        if vol_sum == 0:
+            result.append(0.0)
+        else:
+            result.append(sum(mfv[i - period + 1 : i + 1]) / vol_sum)
+    return result
+
+
 def calculate_stochastic(
     highs: List[float],
     lows: List[float],
