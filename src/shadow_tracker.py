@@ -29,7 +29,7 @@ VALID_STRATEGIES = frozenset(
     }
 )
 
-VALID_SOURCES = frozenset({"daily_picks", "scan", "manual"})
+VALID_SOURCES = frozenset({"daily_picks", "scan", "manual", "telegram_bot"})
 
 VALID_STATUSES = frozenset(
     {
