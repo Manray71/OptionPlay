@@ -5,36 +5,11 @@ with inline keyboard buttons for shadow-trade actions.
 """
 
 import html
-import sys
-from pathlib import Path
 from typing import Optional
 
-
-def _load_ptb_types():
-    """Load InlineKeyboardButton/InlineKeyboardMarkup from python-telegram-bot.
-
-    src/telegram/ shadows the 'telegram' name when tests prepend src/ to
-    sys.path. Temporarily remove src/ so the real package is found.
-    """
-    src_dir = str(Path(__file__).resolve().parents[1])
-    removed = src_dir in sys.path
-    if removed:
-        sys.path.remove(src_dir)
-    cached = sys.modules.pop("telegram", None)
-    try:
-        from telegram import InlineKeyboardButton as _B, InlineKeyboardMarkup as _M
-
-        return _B, _M
-    except ImportError:
-        return None, None
-    finally:
-        if removed:
-            sys.path.insert(0, src_dir)
-        if cached is not None:
-            sys.modules["telegram"] = cached
-
-
-InlineKeyboardButton, InlineKeyboardMarkup = _load_ptb_types()
+# src/telegram/__init__.py ensures sys.modules["telegram"] = real python-telegram-bot
+# before this module is imported, so the following import resolves correctly.
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 # Exit targets per PLAYBOOK (config/trading.yaml: profit_pct_normal=50, stop_loss_pct=200 of spread)
 # TWS order display uses credit-relative targets:
