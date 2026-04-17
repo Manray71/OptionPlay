@@ -116,6 +116,14 @@ class BaseHandler:
     def ibkr_provider(self) -> Optional["IBKRDataProvider"]:
         return self._ctx.ibkr_provider
 
+    @property
+    def ibkr_connected(self) -> bool:
+        return self._ctx.ibkr_connected
+
+    @property
+    def vix_selector(self) -> Optional[Any]:
+        return self._ctx.vix_selector
+
     async def _ensure_ibkr_connected(self) -> Optional["IBKRDataProvider"]:
         """Establish connection to IBKR if available."""
         import os
