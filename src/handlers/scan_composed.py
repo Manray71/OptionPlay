@@ -142,18 +142,31 @@ class ScanHandler(BaseHandler):
             )
             scanner.config.max_total_results = max_results
 
-            # Load earnings dates into scanner
-            if self._ctx.earnings_fetcher is None:
-                self._ctx.earnings_fetcher = get_earnings_fetcher()
+            # Pre-populate scanner earnings cache from DB (single query, O(N))
+            from ..cache import get_earnings_history_manager
 
-            for symbol in symbols:
-                cached = self._ctx.earnings_fetcher.cache.get(symbol)
-                if cached and cached.earnings_date:
-                    try:
-                        earnings_date = date.fromisoformat(cached.earnings_date)
-                        scanner.set_earnings_date(symbol, earnings_date)
-                    except (ValueError, TypeError):
-                        pass
+            try:
+                ehm = get_earnings_history_manager()
+                next_dates = ehm.get_next_earnings_dates_batch(symbols)
+                for sym_upper, next_date in next_dates.items():
+                    if next_date is not None:
+                        scanner.set_earnings_date(sym_upper, next_date)
+            except Exception as e:
+                logger.warning(
+                    "Scanner earnings DB pre-fetch failed (%s), using JSON cache fallback", e
+                )
+                if self._ctx.earnings_fetcher is None:
+                    from ..cache import get_earnings_fetcher
+
+                    self._ctx.earnings_fetcher = get_earnings_fetcher()
+                for symbol in symbols:
+                    cached = self._ctx.earnings_fetcher.cache.get(symbol)
+                    if cached and cached.earnings_date:
+                        try:
+                            earnings_date = date.fromisoformat(cached.earnings_date)
+                            scanner.set_earnings_date(symbol, earnings_date)
+                        except (ValueError, TypeError):
+                            pass
 
             # Determine historical data requirement
             config_days = self._ctx.config.settings.performance.historical_days
@@ -1044,7 +1057,56 @@ class ScanHandler(BaseHandler):
         symbols,
         min_days,
     ):
-        """Apply earnings pre-filter to symbols list."""
+        """Apply earnings pre-filter to symbols list.
+
+        Primary source: DB via EarningsHistoryManager.is_earnings_day_safe_batch_async().
+        Fallback: JSON cache (only when DB raises an exception).
+
+        Fail-closed: symbols with known upcoming earnings are excluded.
+        Symbols with no earnings history at all (ETFs/ADRs) pass through with a warning.
+        """
+        from ..cache import get_earnings_history_manager
+
+        safe: List[str] = []
+        excluded = 0
+        no_data: List[str] = []
+
+        try:
+            ehm = get_earnings_history_manager()
+            target = date.today()
+            results = await ehm.is_earnings_day_safe_batch_async(
+                symbols, target, min_days=min_days
+            )
+            db_hits = len(results)
+
+            for symbol in symbols:
+                is_safe, _days_to, reason = results.get(
+                    symbol.upper(), (False, None, "no_earnings_data")
+                )
+                if is_safe:
+                    safe.append(symbol)
+                elif reason == "no_earnings_data":
+                    # No earnings history in DB — likely ETF/ADR; pass through
+                    no_data.append(symbol)
+                    safe.append(symbol)
+                else:
+                    excluded += 1
+
+            if excluded > 0 or no_data:
+                logger.info(
+                    "Earnings prefilter (DB): %d excluded, %d safe, %d no-data (pass-through)",
+                    excluded,
+                    len(safe) - len(no_data),
+                    len(no_data),
+                )
+            return safe, excluded, db_hits
+
+        except Exception as e:
+            logger.warning(
+                "Earnings prefilter DB failed (%s), falling back to JSON cache", e
+            )
+
+        # Fallback: JSON cache
         from ..cache import get_earnings_fetcher
 
         if self._ctx.earnings_fetcher is None:
@@ -1061,19 +1123,17 @@ class ScanHandler(BaseHandler):
                     cache_hits += 1
                     if cached.days_to_earnings is not None:
                         if cached.days_to_earnings < 0:
-                            # Past earnings date = safe (next earnings ~90d away)
+                            safe.append(symbol)
+                        elif cached.days_to_earnings >= min_days:
                             safe.append(symbol)
                         else:
-                            if cached.days_to_earnings >= min_days:
-                                safe.append(symbol)
-                            else:
-                                excluded += 1
+                            excluded += 1
                     else:
                         safe.append(symbol)
                 else:
                     safe.append(symbol)
-            except (AttributeError, ValueError) as e:
-                logger.debug("Earnings filter error for %s: %s", symbol, e)
+            except (AttributeError, ValueError) as exc:
+                logger.debug("Earnings filter error for %s: %s", symbol, exc)
                 safe.append(symbol)
 
         return safe, excluded, cache_hits
