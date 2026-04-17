@@ -424,6 +424,8 @@ SIZING_MAX_PER_SECTOR = _sizing_cfg.get("max_per_sector", 2)
 SIZING_MAX_NEW_TRADES_PER_DAY = _sizing_cfg.get("max_new_trades_per_day", 2)
 SIZING_MAX_PORTFOLIO_ALLOCATION = _sizing_cfg.get("max_portfolio_allocation", 50.0)
 SIZING_MAX_BUYING_POWER_PCT = _sizing_cfg.get("max_buying_power_pct", 5.0)
+SIZING_MAX_MARGIN_PCT = _sizing_cfg.get("max_margin_pct", 50.0)
+SIZING_USE_IBKR_MARGIN = _sizing_cfg.get("use_ibkr_margin", True)
 
 
 # =============================================================================

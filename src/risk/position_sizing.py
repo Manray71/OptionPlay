@@ -179,6 +179,10 @@ class PositionSizerConfig:
     # Buying Power pro Einzeltrade (B.3.5): IBKR-Konzept — Buying Power ≈ spread_width × 100
     max_buying_power_pct: float = 0.05  # 5% Buying Power max pro Trade
 
+    # Margin tracking (B.3.4)
+    use_ibkr_margin: bool = True   # Try IBKR account summary first; fallback to notional
+    max_margin_pct: float = 0.50   # Max 50% margin utilization (IBKR live or notional estimate)
+
     @classmethod
     def from_yaml(cls) -> "PositionSizerConfig":
         """Lade YAML-Werte aus trading.yaml in PositionSizerConfig.
@@ -186,6 +190,8 @@ class PositionSizerConfig:
         Liest:
         - sizing.max_risk_per_trade_pct → max_risk_per_trade (pct → fraction)
         - sizing.max_portfolio_allocation → max_portfolio_allocation (pct → fraction)
+        - sizing.max_margin_pct → max_margin_pct (pct → fraction)
+        - sizing.use_ibkr_margin → use_ibkr_margin
 
         Alle anderen Felder behalten ihre Dataclass-Defaults.
         Eliminiert Drift zwischen trading.yaml und hartkodierten Dataclass-Defaults
@@ -193,14 +199,18 @@ class PositionSizerConfig:
         """
         from src.constants.trading_rules import (
             SIZING_MAX_BUYING_POWER_PCT,
+            SIZING_MAX_MARGIN_PCT,
             SIZING_MAX_PORTFOLIO_ALLOCATION,
             SIZING_MAX_RISK_PER_TRADE_PCT,
+            SIZING_USE_IBKR_MARGIN,
         )
 
         return cls(
             max_risk_per_trade=SIZING_MAX_RISK_PER_TRADE_PCT / 100.0,
             max_portfolio_allocation=SIZING_MAX_PORTFOLIO_ALLOCATION / 100.0,
             max_buying_power_pct=SIZING_MAX_BUYING_POWER_PCT / 100.0,
+            max_margin_pct=SIZING_MAX_MARGIN_PCT / 100.0,
+            use_ibkr_margin=SIZING_USE_IBKR_MARGIN,
         )
 
 
@@ -629,6 +639,26 @@ def calculate_optimal_position(
         vix_level=vix_level,
         reliability_grade=reliability_grade,
     )
+
+
+def calculate_spread_margin(
+    spread_width: float,
+    credit_received: float,
+    contracts: int,
+) -> float:
+    """Calculate margin requirement for a bull-put spread.
+
+    Margin = (spread_width - credit_received) × 100 × contracts
+
+    Args:
+        spread_width: Difference between strikes (e.g. 10.0)
+        credit_received: Premium per share (e.g. 1.85)
+        contracts: Number of contracts
+
+    Returns:
+        Margin requirement in USD
+    """
+    return (spread_width - credit_received) * 100 * contracts
 
 
 def get_recommended_stop_loss(

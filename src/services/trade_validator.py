@@ -44,6 +44,7 @@ from ..constants.trading_rules import (
     ENTRY_VIX_NO_TRADING,
     ENTRY_VOLUME_MIN,
     FILTER_ORDER,
+    SIZING_MAX_MARGIN_PCT,
     SIZING_MAX_NEW_TRADES_PER_DAY,
     SIZING_MAX_OPEN_POSITIONS,
     SIZING_MAX_PER_SECTOR,
@@ -268,6 +269,18 @@ class TradeValidator:
         # Portfolio value check (required for risk-% sizing)
         if request.short_strike and request.long_strike and request.credit:
             checks.append(self._check_portfolio_value(request.portfolio_value))
+
+        # Margin capacity check (B.3.4): IBKR live → notional fallback → manual review
+        if request.short_strike and request.long_strike and request.credit:
+            spread_width = abs(request.short_strike - request.long_strike)
+            checks.append(
+                await self._check_margin_capacity(
+                    spread_width=spread_width,
+                    credit_received=request.credit,
+                    contracts=request.contracts or 1,
+                    portfolio_value=request.portfolio_value,
+                )
+            )
 
         # Position sizing recommendation
         sizing = None
@@ -928,6 +941,111 @@ class TradeValidator:
             recommended_contracts=recommended_contracts,
             total_credit=request.credit * recommended_contracts * 100,
             total_risk=max_loss_per_contract * recommended_contracts,
+        )
+
+    async def _check_margin_capacity(
+        self,
+        spread_width: float,
+        credit_received: float,
+        contracts: int,
+        portfolio_value: Optional[float] = None,
+    ) -> ValidationCheck:
+        """Check if adding this trade would exceed the margin limit (B.3.4).
+
+        Strategy:
+        1. Try IBKR account summary (real margin)
+        2. Fallback: estimate from portfolio_value (notional-based)
+        3. If neither available: MANUAL_REVIEW
+        """
+        from ..risk.position_sizing import calculate_spread_margin
+
+        max_margin_pct = SIZING_MAX_MARGIN_PCT / 100.0
+
+        new_trade_margin = calculate_spread_margin(spread_width, credit_received, contracts)
+
+        # Attempt 1: Live IBKR margin
+        try:
+            from ..ibkr.portfolio import get_account_summary
+
+            summary = await get_account_summary()
+            if summary and summary.get("net_liquidation"):
+                net_liq = summary["net_liquidation"]
+                current_margin = summary.get("maint_margin_req", 0.0)
+                projected = current_margin + new_trade_margin
+                margin_pct = projected / net_liq
+
+                if margin_pct > max_margin_pct:
+                    return ValidationCheck(
+                        name="margin_capacity",
+                        passed=False,
+                        decision=TradeDecision.NO_GO,
+                        message=(
+                            f"Margin-Limit: {margin_pct:.1%} > {max_margin_pct:.0%} "
+                            f"(aktuell {current_margin:,.0f} + neu {new_trade_margin:,.0f} "
+                            f"/ net_liq {net_liq:,.0f})"
+                        ),
+                        details={
+                            "current_margin": current_margin,
+                            "new_trade_margin": new_trade_margin,
+                            "projected_margin_pct": round(margin_pct, 4),
+                            "net_liquidation": net_liq,
+                            "source": "ibkr_live",
+                        },
+                    )
+                return ValidationCheck(
+                    name="margin_capacity",
+                    passed=True,
+                    decision=TradeDecision.GO,
+                    message=f"Margin OK: {margin_pct:.1%} (IBKR live)",
+                    details={
+                        "projected_margin_pct": round(margin_pct, 4),
+                        "net_liquidation": net_liq,
+                        "source": "ibkr_live",
+                    },
+                )
+        except Exception:
+            pass  # Fall through to notional estimate
+
+        # Attempt 2: Notional-based estimate
+        if portfolio_value and portfolio_value > 0:
+            notional_margin_pct = new_trade_margin / portfolio_value
+
+            if notional_margin_pct > max_margin_pct:
+                return ValidationCheck(
+                    name="margin_capacity",
+                    passed=False,
+                    decision=TradeDecision.NO_GO,
+                    message=(
+                        f"Notional-Margin-Schätzung: {notional_margin_pct:.1%} > "
+                        f"{max_margin_pct:.0%} (neuer Trade {new_trade_margin:,.0f} "
+                        f"/ Portfolio {portfolio_value:,.0f})"
+                    ),
+                    details={
+                        "new_trade_margin": new_trade_margin,
+                        "notional_margin_pct": round(notional_margin_pct, 4),
+                        "portfolio_value": portfolio_value,
+                        "source": "notional",
+                    },
+                )
+            return ValidationCheck(
+                name="margin_capacity",
+                passed=True,
+                decision=TradeDecision.GO,
+                message=f"Notional-Margin OK: {notional_margin_pct:.1%} (Schätzung)",
+                details={
+                    "notional_margin_pct": round(notional_margin_pct, 4),
+                    "new_trade_margin": new_trade_margin,
+                    "source": "notional",
+                },
+            )
+
+        # Attempt 3: No data available
+        return ValidationCheck(
+            name="margin_capacity",
+            passed=False,
+            decision=TradeDecision.WARNING,
+            message="Margin-Check: weder IBKR noch portfolio_value verfügbar — manuell prüfen",
+            details={"source": "none", "new_trade_margin": new_trade_margin},
         )
 
     def _check_portfolio_value(self, portfolio_value: Optional[float]) -> ValidationCheck:

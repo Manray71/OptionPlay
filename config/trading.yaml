@@ -131,6 +131,8 @@ sizing:
   max_new_trades_per_day: 2    # Max new trades per day
   max_buying_power_pct: 5.0    # Max 5% buying power per trade (Tastytrade)
   max_portfolio_allocation: 50.0  # Max 50% portfolio in spreads
+  max_margin_pct: 50.0         # Max 50% margin utilization (IBKR live or notional estimate)
+  use_ibkr_margin: true        # Try IBKR account summary first; fallback to notional
 
 # =============================================================================
 # DISCIPLINE RULES (PLAYBOOK §6)

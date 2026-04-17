@@ -10,9 +10,10 @@ Provides:
 - Formatted Markdown output for all of the above
 """
 
+import asyncio
 import logging
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from ..utils.markdown_builder import MarkdownBuilder
 from .connection import IBKRConnection
@@ -231,6 +232,53 @@ class IBKRPortfolio:
 
         return spreads
 
+    async def get_account_summary(self) -> Optional[Dict[str, float]]:
+        """Fetch account summary from IBKR TWS.
+
+        Returns dict with:
+          net_liquidation: float  — Total account value
+          maint_margin_req: float — Current margin requirement
+          available_funds: float  — Available funds
+          buying_power: float     — Buying power
+
+        Returns None if TWS not connected, timeout, or empty summary.
+        """
+        if not await self._conn._ensure_connected():
+            logger.warning("IBKR not available for account summary")
+            return None
+
+        try:
+            ib = self._conn.ib
+            summary = ib.accountSummary()
+            if not summary:
+                await asyncio.to_thread(ib.reqAccountSummary)
+                await asyncio.sleep(2)
+                summary = ib.accountSummary()
+
+            if not summary:
+                logger.warning("Account summary empty after request")
+                return None
+
+            result: Dict[str, float] = {}
+            for item in summary:
+                try:
+                    if item.tag == "NetLiquidation":
+                        result["net_liquidation"] = float(item.value)
+                    elif item.tag == "MaintMarginReq":
+                        result["maint_margin_req"] = float(item.value)
+                    elif item.tag == "AvailableFunds":
+                        result["available_funds"] = float(item.value)
+                    elif item.tag == "BuyingPower":
+                        result["buying_power"] = float(item.value)
+                except (ValueError, TypeError):
+                    continue
+
+            return result if result else None
+
+        except Exception as e:
+            logger.warning(f"Account summary failed: {e}")
+            return None
+
     async def get_spreads_formatted(self) -> str:
         """
         Fetches spreads and formats as Markdown.
@@ -291,3 +339,29 @@ class IBKRPortfolio:
         b.kv_line("Max Loss", f"${total_max_loss:,.0f}")
 
         return b.build()
+
+
+# =============================================================================
+# MODULE-LEVEL CONVENIENCE FUNCTION
+# =============================================================================
+
+
+async def get_account_summary(
+    host: str = "127.0.0.1",
+    port: int = 7497,
+    client_id: int = 10,
+) -> Optional[Dict[str, float]]:
+    """Fetch account summary from IBKR TWS using a temporary connection.
+
+    Convenience wrapper for callers that don't hold an IBKRPortfolio instance.
+    Uses a dedicated client_id (10) to avoid conflicts with the main bridge (98).
+
+    Returns dict with net_liquidation, maint_margin_req, available_funds,
+    buying_power — or None if TWS unavailable, timeout, or empty summary.
+    """
+    conn = IBKRConnection(host=host, port=port, client_id=client_id)
+    portfolio = IBKRPortfolio(conn)
+    try:
+        return await portfolio.get_account_summary()
+    finally:
+        await conn.disconnect()
