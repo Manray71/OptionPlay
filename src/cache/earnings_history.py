@@ -611,6 +611,51 @@ class EarningsHistoryManager:
 
         return results
 
+    def get_next_earnings_dates_batch(
+        self, symbols: List[str]
+    ) -> Dict[str, Optional[date]]:
+        """Return the next future earnings date per symbol via a single SQL query.
+
+        Used by the scanner to pre-populate _earnings_cache before the scan loop.
+
+        Args:
+            symbols: List of ticker symbols
+
+        Returns:
+            Dict mapping symbol (upper-case) -> next earnings date, or None if not found
+        """
+        if not symbols:
+            return {}
+
+        symbols_upper = [s.upper() for s in symbols]
+        today = date.today().isoformat()
+        placeholders = ",".join("?" * len(symbols_upper))
+
+        with self._lock:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    f"""
+                    SELECT symbol, MIN(earnings_date) AS next_earnings
+                    FROM earnings_history
+                    WHERE symbol IN ({placeholders})
+                      AND earnings_date >= ?
+                    GROUP BY symbol
+                    """,
+                    (*symbols_upper, today),
+                )
+                rows = cursor.fetchall()
+
+        result: Dict[str, Optional[date]] = {s: None for s in symbols_upper}
+        for row in rows:
+            d = row["next_earnings"]
+            if d is not None:
+                if isinstance(d, str):
+                    d = date.fromisoformat(d)
+                result[row["symbol"]] = d
+
+        return result
+
     # =========================================================================
     # Statistics
     # =========================================================================

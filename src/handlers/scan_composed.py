@@ -142,18 +142,31 @@ class ScanHandler(BaseHandler):
             )
             scanner.config.max_total_results = max_results
 
-            # Load earnings dates into scanner
-            if self._ctx.earnings_fetcher is None:
-                self._ctx.earnings_fetcher = get_earnings_fetcher()
+            # Pre-populate scanner earnings cache from DB (single query, O(N))
+            from ..cache import get_earnings_history_manager
 
-            for symbol in symbols:
-                cached = self._ctx.earnings_fetcher.cache.get(symbol)
-                if cached and cached.earnings_date:
-                    try:
-                        earnings_date = date.fromisoformat(cached.earnings_date)
-                        scanner.set_earnings_date(symbol, earnings_date)
-                    except (ValueError, TypeError):
-                        pass
+            try:
+                ehm = get_earnings_history_manager()
+                next_dates = ehm.get_next_earnings_dates_batch(symbols)
+                for sym_upper, next_date in next_dates.items():
+                    if next_date is not None:
+                        scanner.set_earnings_date(sym_upper, next_date)
+            except Exception as e:
+                logger.warning(
+                    "Scanner earnings DB pre-fetch failed (%s), using JSON cache fallback", e
+                )
+                if self._ctx.earnings_fetcher is None:
+                    from ..cache import get_earnings_fetcher
+
+                    self._ctx.earnings_fetcher = get_earnings_fetcher()
+                for symbol in symbols:
+                    cached = self._ctx.earnings_fetcher.cache.get(symbol)
+                    if cached and cached.earnings_date:
+                        try:
+                            earnings_date = date.fromisoformat(cached.earnings_date)
+                            scanner.set_earnings_date(symbol, earnings_date)
+                        except (ValueError, TypeError):
+                            pass
 
             # Determine historical data requirement
             config_days = self._ctx.config.settings.performance.historical_days
