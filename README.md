@@ -18,6 +18,8 @@ Walk-forward out-of-sample backtesting (2020-2025):
 
 *ATH Breakout, Earnings Dip, and Trend Continuation strategies were removed in v5.0.0.*
 
+*Trained on Delta 0.20 / DTE 35-50. Retraining for Delta 0.16 / DTE 30-45 pending.*
+
 ## Features
 
 - **2 Active Trading Strategies** -- Pullback, Support Bounce
@@ -29,7 +31,7 @@ Walk-forward out-of-sample backtesting (2020-2025):
 - **Trade Recommendations** -- Automated strike selection, credit estimation, risk/reward analysis
 - **MCP Server** -- 25 tools (+ 28 aliases) for Claude Desktop integration
 - **Telegram Bot** -- 11 commands, 3 button callbacks, 3 scheduled daily scans
-- **Portfolio Constraints** -- 2% max risk per trade, 50% max portfolio allocation, sector limits, VIX-scaled sizing
+- **Portfolio Constraints** -- 2.5% max risk per trade, 50% max portfolio allocation, sector limits, VIX-scaled sizing
 - **Shadow Tracker** -- Paper-trade log with P&L tracking
 
 ## Architecture
@@ -83,7 +85,7 @@ Bot token and chat ID are set in `.env` only -- never in config files.
 
 | Component | Technology |
 |-----------|-----------|
-| Language | Python 3.12 |
+| Language | Python 3.11+ |
 | Core | NumPy, aiohttp, PyYAML, Pydantic 2.0 |
 | Database | SQLite (~8.6 GB, 19.3M options records, 442k OHLCV bars) |
 | Live Data | IBKR TWS (port 7497, sole live provider) |
@@ -96,7 +98,7 @@ Bot token and chat ID are set in `.env` only -- never in config files.
 
 ### Prerequisites
 
-- Python 3.12
+- Python 3.11+
 - IBKR TWS running on localhost:7497
 - Telegram bot token (optional, for Telegram bot)
 
