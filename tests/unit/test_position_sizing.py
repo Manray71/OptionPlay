@@ -593,5 +593,34 @@ class TestMaxPortfolioAllocation:
         assert result.limiting_factor != "max_portfolio_allocation"
 
 
+class TestBuyingPowerLimit:
+    """Tests für B.3.5 — SIZING_MAX_BUYING_POWER_PCT Obergrenze."""
+
+    def test_position_size_capped_by_buying_power(self):
+        """Contracts werden durch 5% Buying-Power-Limit gedeckelt."""
+        # Account $100k, 5% BP = $5k, spread_width $5 → $500 pro Kontrakt → max 10 Kontrakte
+        config = PositionSizerConfig(max_buying_power_pct=0.05, max_portfolio_allocation=0.99)
+        sizer = PositionSizer(account_size=100_000, config=config)
+
+        result = sizer.calculate_position_size(
+            max_loss_per_contract=100,
+            win_rate=0.85,
+            avg_win=300,
+            avg_loss=100,
+            signal_score=9.0,
+            vix_level=15.0,
+            spread_width=5.0,
+            contracts_multiplier=100,
+        )
+
+        assert result.contracts <= 10  # $5k / ($5 × 100) = 10
+        assert result.limiting_factor == "max_buying_power"
+
+    def test_buying_power_from_yaml(self):
+        """from_yaml() übernimmt SIZING_MAX_BUYING_POWER_PCT (5%)."""
+        config = PositionSizerConfig.from_yaml()
+        assert config.max_buying_power_pct == pytest.approx(0.05)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

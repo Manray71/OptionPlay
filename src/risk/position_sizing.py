@@ -176,6 +176,9 @@ class PositionSizerConfig:
     # Echte Margin bindet ~70-80% des Notionals; 50% Notional-Grenze ist konservative Näherung.
     max_portfolio_allocation: float = 0.50  # 50% des Portfolios als Notional-Schranke
 
+    # Buying Power pro Einzeltrade (B.3.5): IBKR-Konzept — Buying Power ≈ spread_width × 100
+    max_buying_power_pct: float = 0.05  # 5% Buying Power max pro Trade
+
     @classmethod
     def from_yaml(cls) -> "PositionSizerConfig":
         """Lade YAML-Werte aus trading.yaml in PositionSizerConfig.
@@ -189,6 +192,7 @@ class PositionSizerConfig:
         (analog OQ-2 fix für IV Rank ScanConfig).
         """
         from src.constants.trading_rules import (
+            SIZING_MAX_BUYING_POWER_PCT,
             SIZING_MAX_PORTFOLIO_ALLOCATION,
             SIZING_MAX_RISK_PER_TRADE_PCT,
         )
@@ -196,6 +200,7 @@ class PositionSizerConfig:
         return cls(
             max_risk_per_trade=SIZING_MAX_RISK_PER_TRADE_PCT / 100.0,
             max_portfolio_allocation=SIZING_MAX_PORTFOLIO_ALLOCATION / 100.0,
+            max_buying_power_pct=SIZING_MAX_BUYING_POWER_PCT / 100.0,
         )
 
 
@@ -442,8 +447,18 @@ class PositionSizer:
             else:
                 max_by_notional = 9999  # No notional constraint when spread_width not provided
 
+            # Max by Buying Power per Trade (B.3.5)
+            # Buying Power für einen Bull-Put-Spread ≈ spread_width × 100 (gross notional)
+            if spread_width > 0 and self.config.max_buying_power_pct > 0:
+                buying_power_limit = self.account_size * self.config.max_buying_power_pct
+                max_by_bp = int(buying_power_limit / (spread_width * contracts_multiplier))
+            else:
+                max_by_bp = 9999  # No BP constraint when spread_width not provided
+
             # Finaler Contract Count
-            contracts = int(min(kelly_optimal, max_by_risk, max_by_capital, max_by_notional))
+            contracts = int(
+                min(kelly_optimal, max_by_risk, max_by_capital, max_by_notional, max_by_bp)
+            )
             contracts = max(0, contracts)
 
             # Bestimme limitierenden Faktor
@@ -458,6 +473,8 @@ class PositionSizer:
                     limiting_factor = "insufficient_edge"
             elif contracts == max_by_notional and max_by_notional < 9999:
                 limiting_factor = "max_portfolio_allocation"
+            elif contracts == max_by_bp and max_by_bp < 9999:
+                limiting_factor = "max_buying_power"
             elif contracts == int(kelly_optimal):
                 limiting_factor = "kelly_optimal"
             elif contracts == max_by_risk:
