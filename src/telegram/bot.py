@@ -183,37 +183,57 @@ async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"❌ Fehler: {e}")
 
 
+async def _run_scan_and_notify(
+    bot,
+    chat_id: int,
+    bot_data: dict,
+    scan_type: str = "manual",
+) -> None:
+    """Shared scan logic for cmd_scan and scheduled_scan.
+
+    Sends status message, runs daily_picks, formats and sends each pick
+    with action buttons, and caches pick data in bot_data for callbacks.
+    """
+    await bot.send_message(chat_id=chat_id, text="🔍 Scan läuft...")
+
+    server = await _get_server()
+    result = await server.handlers.scan.daily_picks_result()
+
+    vix = result.vix_level
+    regime = _vix_to_regime_label(vix)
+    picks = result.picks
+
+    if not picks:
+        msg = format_no_picks_message(vix=vix, scan_type=scan_type)
+        await bot.send_message(chat_id=chat_id, text=msg, parse_mode="HTML")
+        return
+
+    summary = format_scan_summary(picks, vix=vix, scan_type=scan_type)
+    await bot.send_message(chat_id=chat_id, text=summary, parse_mode="HTML")
+    await asyncio.sleep(0.3)
+
+    for pick in picks:
+        text = format_pick_message(pick, vix=vix)
+        buttons = format_pick_buttons(pick)
+        await bot.send_message(
+            chat_id=chat_id, text=text, parse_mode="HTML", reply_markup=buttons
+        )
+
+        pick_key = f"pick:{pick.symbol}:{pick.strategy}:{pick.rank}"
+        bot_data[pick_key] = _pick_to_cache_dict(pick, vix, regime)
+
+        await asyncio.sleep(0.5)
+
+
 async def cmd_scan(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """/scan — Manueller Scan, Ergebnisse als Picks mit Buttons."""
     try:
-        await update.message.reply_text("🔍 Scan läuft...")
-
-        server = await _get_server()
-        result = await server.handlers.scan.daily_picks_result()
-
-        vix = result.vix_level
-        regime = _vix_to_regime_label(vix)
-        picks = result.picks
-
-        if not picks:
-            msg = format_no_picks_message(vix=vix, scan_type="manual")
-            await update.message.reply_text(msg, parse_mode="HTML")
-            return
-
-        summary = format_scan_summary(picks, vix=vix, scan_type="manual")
-        await update.message.reply_text(summary, parse_mode="HTML")
-        await asyncio.sleep(0.3)
-
-        for pick in picks:
-            text = format_pick_message(pick, vix=vix)
-            buttons = format_pick_buttons(pick)
-            await update.message.reply_text(text, parse_mode="HTML", reply_markup=buttons)
-
-            pick_key = f"pick:{pick.symbol}:{pick.strategy}:{pick.rank}"
-            context.bot_data[pick_key] = _pick_to_cache_dict(pick, vix, regime)
-
-            await asyncio.sleep(0.5)
-
+        await _run_scan_and_notify(
+            bot=context.bot,
+            chat_id=update.effective_chat.id,
+            bot_data=context.bot_data,
+            scan_type="manual",
+        )
     except Exception as e:
         logger.error(f"cmd_scan error: {e}")
         await update.message.reply_text(f"❌ Scan-Fehler: {e}")
@@ -572,9 +592,8 @@ def main():
 
     app = create_application()
 
-    # Scheduler wird in C.4 hier integriert
-    # from .scheduler import setup_scheduler
-    # setup_scheduler(app)
+    from .scheduler import setup_scheduler
+    setup_scheduler(app)
 
     app.run_polling(
         allowed_updates=Update.ALL_TYPES,
