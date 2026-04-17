@@ -1,0 +1,36 @@
+# Telegram Bot Configuration
+# Token und Chat-ID liegen in .env (NIEMALS hier!)
+
+scan_schedule:
+  morning:
+    hour: 10
+    minute: 0
+    timezone: "America/New_York"
+    description: "Morning Scan (16:00 DE)"
+  midday:
+    hour: 13
+    minute: 0
+    timezone: "America/New_York"
+    description: "Midday Scan (19:00 DE)"
+  evening:
+    hour: 15
+    minute: 30
+    timezone: "America/New_York"
+    description: "Evening Check (21:30 DE)"
+
+remind_delay_minutes: 120  # SPÄTER-Button: 2h
+
+max_picks_per_scan: 5
+
+commands:
+  - start
+  - status
+  - scan
+  - top15
+  - vix
+  - open
+  - pnl
+  - sync
+  - earnings
+  - export
+  - help
