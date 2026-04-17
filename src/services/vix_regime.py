@@ -197,12 +197,12 @@ def _interpolate(vix: float, anchors: list = ANCHOR_POINTS) -> Dict[str, Any]:
     # Clamp below minimum
     if vix <= vix_levels[0]:
         a = anchors[0]
-        return dict(spread=a[1], min_score=a[2], earnings=a[3], max_pos=a[4])
+        return {"spread": a[1], "min_score": a[2], "earnings": a[3], "max_pos": a[4]}
 
     # Clamp above maximum
     if vix >= vix_levels[-1]:
         a = anchors[-1]
-        return dict(spread=a[1], min_score=a[2], earnings=a[3], max_pos=a[4])
+        return {"spread": a[1], "min_score": a[2], "earnings": a[3], "max_pos": a[4]}
 
     # Find surrounding anchors and interpolate
     for i in range(len(anchors) - 1):
@@ -218,7 +218,7 @@ def _interpolate(vix: float, anchors: list = ANCHOR_POINTS) -> Dict[str, Any]:
 
     # Should never reach here, but safety fallback
     a = anchors[-1]
-    return dict(spread=a[1], min_score=a[2], earnings=a[3], max_pos=a[4])
+    return {"spread": a[1], "min_score": a[2], "earnings": a[3], "max_pos": a[4]}
 
 
 def _classify_regime(vix: float) -> RegimeLabel:

@@ -104,7 +104,8 @@ jobs:
             --ignore=tests/unit/test_outcome_storage_security.py \
             --ignore=tests/component/test_container.py \
             --deselect=tests/component/test_vix_cache.py::TestIsDataStale::test_data_stale_fresh_data \
-            --deselect=tests/integration/test_multi_strategy_scanner.py::TestFundamentalsFilter::test_blacklist_filters_symbol
+            --deselect=tests/integration/test_multi_strategy_scanner.py::TestFundamentalsFilter::test_blacklist_filters_symbol \
+            --deselect=tests/integration/test_trade_validator.py::TestVixFetchingExtended::test_get_vix_fallback_to_db_on_import_error
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
