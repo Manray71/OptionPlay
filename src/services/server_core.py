@@ -225,8 +225,6 @@ class ServerCore:
             if self._provider is None:
                 from ..data_providers.ibkr_provider import IBKRDataProvider
 
-                from ..data_providers.ibkr_provider import IBKRDataProvider
-
                 self._provider = IBKRDataProvider()
 
             # Connect with rate limiting

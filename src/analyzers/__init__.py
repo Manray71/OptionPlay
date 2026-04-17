@@ -3,6 +3,7 @@
 # Strategy analyzers for various trading setups
 
 from .base import BaseAnalyzer
+from .batch_scorer import BatchScorer
 from .bounce import BounceAnalyzer, BounceConfig
 from .context import AnalysisContext
 from .pool import (
@@ -14,8 +15,6 @@ from .pool import (
     reset_analyzer_pool,
 )
 from .pullback import PullbackAnalyzer
-
-from .batch_scorer import BatchScorer
 from .score_normalization import (
     STRATEGY_SCORE_CONFIGS,
     ScoreNormalizer,

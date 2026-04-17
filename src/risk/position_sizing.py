@@ -189,8 +189,8 @@ class PositionSizerConfig:
         (analog OQ-2 fix für IV Rank ScanConfig).
         """
         from src.constants.trading_rules import (
-            SIZING_MAX_RISK_PER_TRADE_PCT,
             SIZING_MAX_PORTFOLIO_ALLOCATION,
+            SIZING_MAX_RISK_PER_TRADE_PCT,
         )
 
         return cls(

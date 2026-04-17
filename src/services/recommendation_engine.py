@@ -35,6 +35,8 @@ from ..constants.trading_rules import (
     SIZING_MAX_PER_SECTOR,
     get_regime_rules,
 )
+from ..formatters.pick_formatter import format_picks_markdown as _format_picks_markdown
+from ..formatters.pick_formatter import format_single_pick as _format_single_pick
 from ..models.base import TradeSignal
 from ..options.strike_recommender import StrikeRecommender
 from ..scanner.multi_strategy_scanner import (
@@ -48,8 +50,6 @@ from ..services.vix_strategy import (
     StrategyRecommendation,
     VIXStrategySelector,
 )
-from ..formatters.pick_formatter import format_picks_markdown as _format_picks_markdown
-from ..formatters.pick_formatter import format_single_pick as _format_single_pick
 from .recommendation_ranking import RecommendationRankingMixin
 from .signal_filter import (
     apply_blacklist_filter,

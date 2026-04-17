@@ -37,10 +37,10 @@ from typing import Any, Dict, List, Optional, Tuple
 from .cache import CacheStatus, EarningsFetcher, get_earnings_fetcher, get_historical_cache
 from .config import get_config, get_scan_config, get_watchlist_loader
 from .container import ServiceContainer
-from .data_providers.local_db import LocalDBProvider, get_local_db_provider
 
 # Local imports
 from .data_providers.ibkr_provider import IBKRDataProvider
+from .data_providers.local_db import LocalDBProvider, get_local_db_provider
 from .formatters import HealthCheckData, formatters
 
 # Composition-based handler architecture (Phase 3.3)

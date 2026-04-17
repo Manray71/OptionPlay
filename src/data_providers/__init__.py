@@ -3,6 +3,9 @@
 
 # EarningsInfo, EarningsSource, IVData, IVSource from cache package
 from ..cache import EarningsInfo, EarningsSource, IVData, IVSource
+
+# IBKR Provider
+from .ibkr_provider import IBKRDataProvider, get_ibkr_provider
 from .interface import (
     DataFetcher,
     DataProvider,
@@ -12,9 +15,6 @@ from .interface import (
     OptionQuote,
     PriceQuote,
 )
-
-# IBKR Provider
-from .ibkr_provider import IBKRDataProvider, get_ibkr_provider
 
 # Local Database Provider
 from .local_db import LocalDBProvider, get_local_db_provider, reset_local_db_provider
