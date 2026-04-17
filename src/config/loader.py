@@ -361,7 +361,6 @@ class ConfigLoader:
                 "earnings_prefilter_min_days", ENTRY_EARNINGS_MIN_DAYS
             ),
             earnings_allow_bmo_same_day=scanner_raw.get("earnings_allow_bmo_same_day", False),
-            iv_rank_minimum=settings.filters.iv_rank_minimum,
             iv_rank_maximum=settings.filters.iv_rank_maximum,
             enable_iv_filter=scanner_raw.get("enable_iv_filter", True),
             max_results_per_symbol=scanner_raw.get("max_results_per_symbol", 3),

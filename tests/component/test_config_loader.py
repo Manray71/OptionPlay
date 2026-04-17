@@ -462,7 +462,6 @@ class TestScannerConfig:
         assert config.min_score == 5.0
         assert config.min_actionable_score == 6.0
         assert config.exclude_earnings_within_days == 45  # Unified to 45 days
-        assert config.iv_rank_minimum == 50.0
         assert config.iv_rank_maximum == 80.0
         assert config.enable_iv_filter == True
         assert config.max_results_per_symbol == 3
