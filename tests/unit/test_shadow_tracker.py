@@ -47,7 +47,7 @@ def _make_trade_kwargs(**overrides):
         "long_strike": 230.0,
         "spread_width": 10.0,
         "est_credit": 2.50,
-        "expiration": "2026-04-17",
+        "expiration": (date.today() + timedelta(days=30)).isoformat(),
         "dte": 54,
         "price_at_log": 245.0,
         "enhanced_score": 9.1,
@@ -163,7 +163,7 @@ class TestLogTrade:
         assert trade["long_strike"] == 230.0
         assert trade["spread_width"] == 10.0
         assert trade["est_credit"] == 2.50
-        assert trade["expiration"] == "2026-04-17"
+        assert trade["expiration"] == (date.today() + timedelta(days=30)).isoformat()
         assert trade["dte"] == 54
         assert trade["short_bid"] == 4.20
         assert trade["short_ask"] == 4.50
@@ -987,7 +987,7 @@ class TestResolveTrade:
             "long_strike": 230.0,
             "spread_width": 10.0,
             "est_credit": 2.50,
-            "expiration": "2026-04-17",
+            "expiration": (date.today() + timedelta(days=30)).isoformat(),
             "logged_at": (date.today() - timedelta(days=30)).isoformat() + "T12:00:00",
             "score": 8.5,
         }
@@ -1686,7 +1686,7 @@ class TestFormatDetailOutput:
         # Spread details
         assert "240 / 230" in output  # strikes
         assert "$2.50" in output  # credit
-        assert "2026-04-17" in output  # expiration
+        assert (date.today() + timedelta(days=30)).isoformat() in output  # expiration
         assert "$245.00" in output  # price at log
         # Options market data
         assert "Short (240P)" in output
