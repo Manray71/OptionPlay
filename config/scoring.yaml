@@ -196,6 +196,22 @@ stability_thresholds:
         high: 0
         extreme: 0
       by_sector: {}
+
+# Earnings-Surprise-Modifier basierend auf den letzten n_quarters.
+# Beat = eps_actual > eps_estimate. Miss = eps_actual < eps_estimate.
+# Bei < min_quarters sauberen Daten: Modifier = 0.0 (neutral).
+# Skala: adaptiert von Friend-Scanner (100er) auf OptionPlay (10er).
+earnings_surprise:
+  n_quarters: 4
+  min_quarters: 4
+  thresholds:
+    all_beats: 1.2
+    mostly_beats: 0.6
+    mixed: 0.0
+    mostly_misses: -1.0
+    many_misses: -1.8
+    all_misses: -2.8
+
 sector_momentum:
   enabled: true
   cache_ttl_hours: 4
