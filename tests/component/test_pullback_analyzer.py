@@ -1137,5 +1137,54 @@ class TestPullbackDivergencePenalties:
         assert abs(total - (-11.5)) < 0.01, f"Expected -11.5, got {total}"
 
 
+class TestPullbackEarningsSurpriseModifier:
+    """Verify earnings-surprise modifier is applied in PullbackAnalyzer.analyze()."""
+
+    @pytest.fixture
+    def analyzer(self):
+        return PullbackAnalyzer(PullbackScoringConfig())
+
+    def _make_data(self, n: int = 250):
+        # Strong uptrend (100→200 over 200 bars), then moderate pullback (200→185 over 50 bars).
+        # current_price (185) > SMA200 (~157) → passes gate 2.
+        # current_price (185) < SMA20 (~188) → passes gate 3.
+        uptrend = [100 + i * 0.5 for i in range(200)]          # 100 .. 199.5
+        pullback = [200 - (i + 1) * 0.3 for i in range(50)]    # 199.7 .. 185.3
+        prices = uptrend + pullback
+        volumes = [1_000_000] * len(prices)
+        highs = [p + 1 for p in prices]
+        lows = [p - 1 for p in prices]
+        return prices, volumes, highs, lows
+
+    def test_earnings_surprise_modifier_applied(self, analyzer):
+        """get_earnings_surprise_modifier is called with the symbol."""
+        prices, volumes, highs, lows = self._make_data()
+
+        with patch(
+            "src.services.earnings_quality.get_earnings_surprise_modifier", return_value=1.2
+        ) as mock_mod:
+            candidate = analyzer.analyze_detailed("MSFT", prices, volumes, highs, lows)
+            mock_mod.assert_called_once_with("MSFT")
+
+        assert candidate is not None
+
+    def test_earnings_surprise_zero_when_no_data(self, analyzer):
+        """Zero modifier (neutral) does not change score vs second call with zero."""
+        prices, volumes, highs, lows = self._make_data()
+
+        with patch(
+            "src.services.earnings_quality.get_earnings_surprise_modifier", return_value=0.0
+        ) as mock_mod:
+            candidate = analyzer.analyze_detailed("MSFT", prices, volumes, highs, lows)
+            mock_mod.assert_called_once_with("MSFT")
+
+        with patch(
+            "src.services.earnings_quality.get_earnings_surprise_modifier", return_value=0.0
+        ):
+            candidate_baseline = analyzer.analyze_detailed("MSFT", prices, volumes, highs, lows)
+
+        assert candidate.score == pytest.approx(candidate_baseline.score, abs=0.05)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

@@ -14,6 +14,7 @@
 import pytest
 import sys
 from pathlib import Path
+from unittest.mock import patch
 
 from src.analyzers.bounce import BounceAnalyzer, BounceConfig, BOUNCE_MIN_SCORE, BOUNCE_MAX_SCORE
 from src.analyzers.context import AnalysisContext
@@ -1225,6 +1226,41 @@ class TestBounceDivergencePenalties:
             + BOUNCE_DIV_PENALTY_CMF_EARLY
         )
         assert abs(total - (-11.5)) < 0.01, f"Expected -11.5, got {total}"
+
+
+class TestBounceEarningsSurpriseModifier:
+    """Verify earnings-surprise modifier is applied in BounceAnalyzer.analyze()."""
+
+    def test_earnings_surprise_modifier_applied(self, bounce_data):
+        """Positive earnings modifier raises the total score."""
+        prices, volumes, highs, lows = bounce_data
+        analyzer = BounceAnalyzer()
+
+        with patch(
+            "src.services.earnings_quality.get_earnings_surprise_modifier", return_value=1.2
+        ) as mock_mod:
+            result = analyzer.analyze("AAPL", prices, volumes, highs, lows)
+            mock_mod.assert_called_once_with("AAPL")
+
+        assert result is not None
+
+    def test_earnings_surprise_zero_when_no_data(self, bounce_data):
+        """Zero modifier (neutral) leaves score unchanged."""
+        prices, volumes, highs, lows = bounce_data
+        analyzer = BounceAnalyzer()
+
+        with patch(
+            "src.services.earnings_quality.get_earnings_surprise_modifier", return_value=0.0
+        ) as mock_mod:
+            result_with_zero = analyzer.analyze("AAPL", prices, volumes, highs, lows)
+            mock_mod.assert_called_once_with("AAPL")
+
+        with patch(
+            "src.services.earnings_quality.get_earnings_surprise_modifier", return_value=0.0
+        ):
+            result_baseline = analyzer.analyze("AAPL", prices, volumes, highs, lows)
+
+        assert result_with_zero.score == pytest.approx(result_baseline.score, abs=0.05)
 
 
 if __name__ == "__main__":
