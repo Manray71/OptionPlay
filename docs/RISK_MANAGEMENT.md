@@ -1,6 +1,6 @@
 # Risk Management — Aktive Logik
 
-**Stand:** 2026-04-16 (nach B.3-Implementation)
+**Stand:** 2026-04-17 (nach B.3.4-Implementation)
 
 Dieses Dokument beschreibt die aktiven Risk-Management-Mechanismen.
 Trading-Regeln (Playbook) → `docs/PLAYBOOK.md`.
@@ -66,9 +66,9 @@ max_new_notional   = spread_width * 100
 max_by_notional    = int(notional_capacity / max_new_notional)
 ```
 
-**Einschränkung:** Dies ist eine Approximation. Echte IBKR-Margin (reqAccountSummary)
-bindet ca. 70-80% des Notionals. Die 50%-Notional-Grenze ist bewusst konservativ
-bis B.3.4 die echten Margin-Daten liefert.
+**Einschränkung:** Dies ist eine Näherung. Echte IBKR-Margin bindet ca. 70-80% des Notionals.
+Die 50%-Notional-Grenze ist bewusst konservativ. Seit B.3.4 wird die echte IBKR-Margin bevorzugt
+(siehe §5 unten); die Notional-Approximation bleibt als Fallback aktiv.
 
 ---
 
@@ -87,9 +87,47 @@ Wenn Spread-Parameter vorhanden (short_strike, long_strike, credit) aber kein po
 
 ---
 
-## 5. Offene Restschuld
+## 5. Margin-Capacity-Check (B.3.4)
+
+**Modul:** `src/services/trade_validator.py`
+**Methode:** `_check_margin_capacity()`
+**Quelle:** `config/trading.yaml → sizing.max_margin_pct: 50.0`
+**Konstante:** `SIZING_MAX_MARGIN_PCT` in `src/constants/trading_rules.py`
+
+### Formel
+
+```
+margin = (spread_width - credit_received) × 100 × contracts
+```
+
+Implementiert in `src/risk/position_sizing.calculate_spread_margin()` (pure Funktion).
+
+### Dreistufiger Fallback
+
+| Stufe | Quelle | Entscheidung |
+|-------|--------|-------------|
+| 1 | IBKR `reqAccountSummary` (live) | `(maint_margin_req + new_margin) / net_liq > 50%` → NO_GO |
+| 2 | Notional-Approximation (`portfolio_value`) | `new_margin / portfolio_value > 50%` → NO_GO |
+| 3 | Kein Wert verfügbar | WARNING — manuell prüfen |
+
+### Konfiguration
+
+```yaml
+# config/trading.yaml
+sizing:
+  max_margin_pct: 50.0    # Max 50% margin utilization
+  use_ibkr_margin: true   # Try IBKR first; fallback to notional
+```
+
+### Einbindung in validate()
+
+Läuft nach `_check_portfolio_value`, nur wenn short_strike + long_strike + credit vorhanden.
+Wenn `contracts` nicht angegeben: Prüfung mit 1 Contract.
+
+---
+
+## 6. Offene Restschuld
 
 | ID | Beschreibung |
 |----|-------------|
-| B.3.4 | IBKR `reqAccountSummary` → echte Margin statt Notional-Approximation |
-| B.3.5 | `SIZING_MAX_BUYING_POWER_PCT` (5%) noch nicht im Berechnungsweg |
+| B.3.5 | `SIZING_MAX_BUYING_POWER_PCT` (5%) im Berechnungsweg ✅ (seit B.3.5) |
