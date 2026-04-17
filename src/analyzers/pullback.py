@@ -742,6 +742,7 @@ class PullbackAnalyzer(PullbackScoringMixin, BaseAnalyzer):
 
         # Earnings-surprise modifier (additive, after divergence penalties)
         from ..services.earnings_quality import get_earnings_surprise_modifier  # noqa: PLC0415
+
         breakdown.total_score += get_earnings_surprise_modifier(symbol)
 
         # Dynamic max_possible: sum of max weights for components that scored > 0.

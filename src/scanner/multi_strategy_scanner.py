@@ -68,15 +68,18 @@ _dd_cfg = _scfg.get_drawdown_config()
 _fund_cfg = _scfg.get_fundamentals_prefilter()
 _out_cfg = _scfg.get_output_config()
 
+
 # Load vix_regime_v2 feature flag from trading.yaml
 def _load_vix_regime_v2_enabled() -> bool:
     import yaml
+
     _cfg_path = Path(__file__).resolve().parents[2] / "config" / "trading.yaml"
     try:
         with open(_cfg_path) as f:
             return yaml.safe_load(f).get("vix_regime_v2", {}).get("enabled", True)
     except Exception:
         return True
+
 
 _VIX_REGIME_V2_ENABLED = _load_vix_regime_v2_enabled()
 

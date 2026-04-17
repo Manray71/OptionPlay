@@ -191,9 +191,7 @@ class ConfigLoader:
                     max_data_age_days=local_db.get("max_data_age_days", 7),
                     min_data_points=local_db.get("min_data_points", 60),
                 ),
-                provider_priority=ds.get(
-                    "provider_priority", ["local_db", "ibkr", "yahoo"]
-                ),
+                provider_priority=ds.get("provider_priority", ["local_db", "ibkr", "yahoo"]),
             )
 
         # Connection (IBKR)

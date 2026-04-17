@@ -167,11 +167,7 @@ def _compute_ratio_ema(
     ema_period: int,
 ) -> List[float]:
     """Compute EMA-smoothed sector/benchmark ratio series."""
-    if (
-        not sector_closes
-        or not benchmark_closes
-        or len(sector_closes) != len(benchmark_closes)
-    ):
+    if not sector_closes or not benchmark_closes or len(sector_closes) != len(benchmark_closes):
         return []
 
     ratios = []
@@ -246,9 +242,7 @@ def compute_rs_momentum(
     - > 100: RS improving (sector gaining relative strength)
     - < 100: RS deteriorating (sector losing relative strength)
     """
-    rs_series = compute_rs_ratio_series(
-        sector_closes, benchmark_closes, ema_period=ema_slow
-    )
+    rs_series = compute_rs_ratio_series(sector_closes, benchmark_closes, ema_period=ema_slow)
 
     if len(rs_series) <= momentum_lookback:
         return 100.0
@@ -393,9 +387,7 @@ class SectorRSService:
         """
         etf = SECTOR_ETF_MAP.get(sector, "???")
 
-        rs_ratio = compute_rs_ratio(
-            sector_closes, benchmark_closes, ema_period=self._ema_slow
-        )
+        rs_ratio = compute_rs_ratio(sector_closes, benchmark_closes, ema_period=self._ema_slow)
         rs_momentum = compute_rs_momentum(
             sector_closes,
             benchmark_closes,
@@ -542,15 +534,18 @@ class SectorRSService:
 
                 rs_ratio = compute_rs_ratio(sc, bc, ema_period=self._ema_slow)
                 rs_momentum = compute_rs_momentum(
-                    sc, bc,
+                    sc,
+                    bc,
                     ema_fast=self._ema_fast,
                     ema_slow=self._ema_slow,
                     momentum_lookback=self._momentum_lookback,
                 )
-                trail.append({
-                    "rs_ratio": round(rs_ratio, 2),
-                    "rs_momentum": round(rs_momentum, 2),
-                })
+                trail.append(
+                    {
+                        "rs_ratio": round(rs_ratio, 2),
+                        "rs_momentum": round(rs_momentum, 2),
+                    }
+                )
 
             # Current values = last trail point
             current = trail[-1] if trail else {"rs_ratio": 100.0, "rs_momentum": 100.0}
@@ -589,6 +584,7 @@ class SectorRSService:
         """
         try:
             from ..cache import get_fundamentals_manager
+
             manager = get_fundamentals_manager()
             if sector:
                 # Filter by sector: get all sector stocks, sort by liquidity
@@ -663,27 +659,32 @@ class SectorRSService:
 
                 rs_ratio = compute_rs_ratio(sc, bc, ema_period=self._ema_slow)
                 rs_momentum = compute_rs_momentum(
-                    sc, bc,
+                    sc,
+                    bc,
                     ema_fast=self._ema_fast,
                     ema_slow=self._ema_slow,
                     momentum_lookback=self._momentum_lookback,
                 )
-                trail.append({
-                    "rs_ratio": round(rs_ratio, 2),
-                    "rs_momentum": round(rs_momentum, 2),
-                })
+                trail.append(
+                    {
+                        "rs_ratio": round(rs_ratio, 2),
+                        "rs_momentum": round(rs_momentum, 2),
+                    }
+                )
 
             current = trail[-1] if trail else {"rs_ratio": 100.0, "rs_momentum": 100.0}
             quadrant = classify_quadrant(current["rs_ratio"], current["rs_momentum"])
 
-            stock_results.append({
-                "symbol": f.symbol,
-                "sector": sector_lookup.get(f.symbol, "Unknown"),
-                "rs_ratio": current["rs_ratio"],
-                "rs_momentum": current["rs_momentum"],
-                "quadrant": quadrant.value,
-                "trail": trail[:-1],
-            })
+            stock_results.append(
+                {
+                    "symbol": f.symbol,
+                    "sector": sector_lookup.get(f.symbol, "Unknown"),
+                    "rs_ratio": current["rs_ratio"],
+                    "rs_momentum": current["rs_momentum"],
+                    "quadrant": quadrant.value,
+                    "trail": trail[:-1],
+                }
+            )
 
         return stock_results
 

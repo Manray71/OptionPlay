@@ -332,9 +332,7 @@ def get_regime_rules(vix: float) -> VIXRegimeRules:
     return VIX_REGIME_RULES[regime]
 
 
-def get_regime_rules_v2(
-    vix: float, vix_futures_front: Optional[float] = None
-) -> VIXRegimeRules:
+def get_regime_rules_v2(vix: float, vix_futures_front: Optional[float] = None) -> VIXRegimeRules:
     """Get interpolated regime rules from VIX Regime v2.
 
     Uses continuous interpolation instead of discrete tiers.

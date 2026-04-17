@@ -506,6 +506,7 @@ class BounceAnalyzer(BaseAnalyzer, FeatureScoringMixin):
 
         # Earnings-surprise modifier (additive, after divergence penalties)
         from ..services.earnings_quality import get_earnings_surprise_modifier  # noqa: PLC0415
+
         total_score += get_earnings_surprise_modifier(symbol)
 
         total_score = clamp_score(total_score, BOUNCE_MAX_SCORE)

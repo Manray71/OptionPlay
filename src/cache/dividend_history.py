@@ -429,7 +429,10 @@ def get_dividend_history_manager(db_path: Optional[Path] = None) -> DividendHist
     try:
         from ..container import _default_container
 
-        if _default_container is not None and _default_container.dividend_history_manager is not None:
+        if (
+            _default_container is not None
+            and _default_container.dividend_history_manager is not None
+        ):
             return _default_container.dividend_history_manager
     except ImportError:
         pass

@@ -312,10 +312,7 @@ class RiskHandler(BaseHandler):
         Returns:
             Formatted simulation results
         """
-        return (
-            "[!] Monte Carlo simulation removed in v5.0.0 "
-            "(backtesting module deleted)."
-        )
+        return "[!] Monte Carlo simulation removed in v5.0.0 " "(backtesting module deleted)."
 
     # --- Shared helper methods ---
 
@@ -340,9 +337,7 @@ class RiskHandler(BaseHandler):
         await self._ensure_connected()
         if self._ctx.ibkr_connected and self._ctx.ibkr_provider:
             try:
-                data = await self._ctx.ibkr_provider.get_historical_for_scanner(
-                    symbol, days=days
-                )
+                data = await self._ctx.ibkr_provider.get_historical_for_scanner(symbol, days=days)
                 if data:
                     if self._ctx.historical_cache:
                         self._ctx.historical_cache.set(symbol, data, days=days)

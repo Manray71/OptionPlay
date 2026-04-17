@@ -727,9 +727,7 @@ class VIXStrategySelector:
         if params.max_positions == 0:
             warnings_list.append(f"NO NEW TRADES at VIX {vix:.1f}")
         elif params.max_positions <= 2:
-            warnings_list.append(
-                f"Reduced capacity: max {params.max_positions} positions"
-            )
+            warnings_list.append(f"Reduced capacity: max {params.max_positions} positions")
 
         if params.min_score >= 6.0:
             warnings_list.append(f"High quality required: Score >= {params.min_score:.1f}")

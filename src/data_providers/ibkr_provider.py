@@ -325,9 +325,7 @@ class IBKRDataProvider(DataProvider):
     # Scanner-compatible historical data
     # =========================================================================
 
-    async def get_historical_for_scanner(
-        self, symbol: str, days: int = 260
-    ) -> Optional[tuple]:
+    async def get_historical_for_scanner(self, symbol: str, days: int = 260) -> Optional[tuple]:
         """
         Historical data in scanner format.
 

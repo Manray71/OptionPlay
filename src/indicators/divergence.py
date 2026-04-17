@@ -107,8 +107,7 @@ def check_price_obv_divergence(
             detected=True,
             severity=severity,
             message=(
-                f"bearish OBV divergence "
-                f"(price {p1:.2f}->{p2:.2f}, OBV {obv1:.0f}->{obv2:.0f})"
+                f"bearish OBV divergence " f"(price {p1:.2f}->{p2:.2f}, OBV {obv1:.0f}->{obv2:.0f})"
             ),
             name="price_obv",
         )
@@ -163,8 +162,7 @@ def check_price_mfi_divergence(
             detected=True,
             severity=severity,
             message=(
-                f"bearish MFI divergence "
-                f"(price {p1:.2f}->{p2:.2f}, MFI {mfi1:.1f}->{mfi2:.1f})"
+                f"bearish MFI divergence " f"(price {p1:.2f}->{p2:.2f}, MFI {mfi1:.1f}->{mfi2:.1f})"
             ),
             name="price_mfi",
         )

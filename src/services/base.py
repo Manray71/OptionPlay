@@ -59,7 +59,9 @@ class ServiceContext:
 
     api_key: str
     config: Optional[Any] = None  # ConfigLoader
-    rate_limiter: AdaptiveRateLimiter = field(default_factory=lambda: get_limiter("ibkr", calls_per_minute=30, adaptive=True))
+    rate_limiter: AdaptiveRateLimiter = field(
+        default_factory=lambda: get_limiter("ibkr", calls_per_minute=30, adaptive=True)
+    )
     historical_cache: Optional[HistoricalCache] = None
     _circuit_breaker: Optional[CircuitBreaker] = None
     _provider: Optional[Any] = None  # IBKRDataProvider
@@ -138,9 +140,7 @@ class ServiceContext:
                 if attempt < api_conn.max_retries - 1:
                     await asyncio.sleep(api_conn.retry_base_delay**attempt)
 
-        raise ConnectionError(
-            f"Cannot connect to IBKR TWS after {api_conn.max_retries} attempts"
-        )
+        raise ConnectionError(f"Cannot connect to IBKR TWS after {api_conn.max_retries} attempts")
 
     async def disconnect(self) -> None:
         """Trennt die Verbindung zum Provider."""

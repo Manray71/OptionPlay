@@ -345,9 +345,7 @@ class SymbolFundamentalsManager:
                     columns = list(data.keys())
                     placeholders = ", ".join(["?" for _ in columns])
                     columns_str = ", ".join(columns)
-                    update_str = ", ".join(
-                        f"{c} = excluded.{c}" for c in columns if c != "symbol"
-                    )
+                    update_str = ", ".join(f"{c} = excluded.{c}" for c in columns if c != "symbol")
 
                     cursor.execute(
                         f"""
@@ -1059,10 +1057,7 @@ def get_fundamentals_manager(db_path: Optional[Path] = None) -> SymbolFundamenta
     try:
         from ..container import _default_container
 
-        if (
-            _default_container is not None
-            and _default_container.fundamentals_manager is not None
-        ):
+        if _default_container is not None and _default_container.fundamentals_manager is not None:
             return _default_container.fundamentals_manager
     except ImportError:
         pass

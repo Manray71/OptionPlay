@@ -40,7 +40,9 @@ async def scheduled_scan(context: ContextTypes.DEFAULT_TYPE) -> None:
         logger.error("scheduled_scan: no chat_id available")
         return
 
-    scan_type = (context.job.data or {}).get("scan_type", "scheduled") if context.job else "scheduled"
+    scan_type = (
+        (context.job.data or {}).get("scan_type", "scheduled") if context.job else "scheduled"
+    )
     logger.info("Starting scheduled scan: %s (chat_id=%s)", scan_type, chat_id)
 
     try:
@@ -102,7 +104,10 @@ def setup_scheduler(app: Application) -> None:
 
         logger.info(
             "Scheduled: %s at %02d:%02d %s (Mon-Fri)",
-            description, hour, minute, tz_name,
+            description,
+            hour,
+            minute,
+            tz_name,
         )
 
     logger.info("Scheduler configured: %d daily jobs", len(schedule))

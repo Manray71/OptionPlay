@@ -48,6 +48,7 @@ def _bootstrap_real_ptb() -> None:
             # Clear PathFinder's importer cache — it caches finders for each
             # sys.path entry and persists even after sys.path.remove().
             import importlib as _il
+
             for _e in removed_entries:
                 _sys.path_importer_cache.pop(_e, None)
             _sys.path_importer_cache.pop(src_dir, None)

@@ -239,9 +239,7 @@ def _classify_regime(vix: float) -> RegimeLabel:
         return RegimeLabel.EXTREME
 
 
-def _determine_term_structure(
-    vix: float, vix_futures_front: Optional[float]
-) -> Optional[str]:
+def _determine_term_structure(vix: float, vix_futures_front: Optional[float]) -> Optional[str]:
     """
     Determine term structure state from spot vs futures spread.
 
@@ -442,8 +440,7 @@ def should_trade(
         return {
             "allowed": False,
             "reason": (
-                f"VIX {vix:.1f} -> Regime {params.regime_label.value}: "
-                f"no new positions allowed"
+                f"VIX {vix:.1f} -> Regime {params.regime_label.value}: " f"no new positions allowed"
             ),
             "params": params,
         }
@@ -462,8 +459,7 @@ def should_trade(
         return {
             "allowed": False,
             "reason": (
-                f"Score {candidate_score:.1f} < Min {params.min_score:.1f} "
-                f"at VIX {vix:.1f}"
+                f"Score {candidate_score:.1f} < Min {params.min_score:.1f} " f"at VIX {vix:.1f}"
             ),
             "params": params,
         }

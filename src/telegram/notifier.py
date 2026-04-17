@@ -14,7 +14,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 # Exit targets per PLAYBOOK (config/trading.yaml: profit_pct_normal=50, stop_loss_pct=200 of spread)
 # TWS order display uses credit-relative targets:
 _PROFIT_TARGET_PCT = 0.50  # Close at 50% of received credit (buy back at 50% debit)
-_STOP_LOSS_PCT = 1.50      # Stop at 150% of received credit (buy back at 150% debit)
+_STOP_LOSS_PCT = 1.50  # Stop at 150% of received credit (buy back at 150% debit)
 
 _SEPARATOR = "━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
@@ -50,8 +50,7 @@ def format_pick_message(pick, vix: Optional[float] = None) -> str:
 
     # Header
     lines.append(
-        f"📊 <b>{symbol}</b> ({sector}) "
-        f"🏆 Tier {grade} | {strategy_label} #{pick.rank}"
+        f"📊 <b>{symbol}</b> ({sector}) " f"🏆 Tier {grade} | {strategy_label} #{pick.rank}"
     )
     lines.append(_SEPARATOR)
 
@@ -60,9 +59,7 @@ def format_pick_message(pick, vix: Optional[float] = None) -> str:
     if s is not None:
         lines.append(f"🎯 SELL  ${s.short_strike:.1f}P  ←── SHORT")
         lines.append(f"🛡️  BUY   ${s.long_strike:.1f}P  ←── LONG")
-        lines.append(
-            f"📐 Spread: ${s.spread_width:.2f} | Aktie: ${pick.current_price:.2f}"
-        )
+        lines.append(f"📐 Spread: ${s.spread_width:.2f} | Aktie: ${pick.current_price:.2f}")
         expiry_str = _esc(s.expiry) if s.expiry else "n/a"
         dte_str = f"({s.dte}d)" if s.dte is not None else ""
         lines.append(f"📅 Expiry: {expiry_str} {dte_str}".rstrip())

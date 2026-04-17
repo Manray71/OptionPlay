@@ -110,9 +110,7 @@ class IBKRConnection:
     TWS_LIVE_PORT = 7496
     GATEWAY_PORT = 4001
 
-    def __init__(
-        self, host: str = "127.0.0.1", port: int = 7497, client_id: int = 98
-    ) -> None:
+    def __init__(self, host: str = "127.0.0.1", port: int = 7497, client_id: int = 98) -> None:
         self.host = host
         self.port = port
         self.client_id = client_id

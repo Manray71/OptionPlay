@@ -119,6 +119,7 @@ class BaseHandler:
     async def _ensure_ibkr_connected(self) -> Optional["IBKRDataProvider"]:
         """Establish connection to IBKR if available."""
         import os
+
         if os.environ.get("OPTIONPLAY_NO_IBKR"):
             return None
 

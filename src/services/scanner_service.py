@@ -205,9 +205,7 @@ class ScannerService(BaseService):
         )
         scanner.config.max_total_results = max_results * 2
 
-        historical_days = max(
-            self._config.settings.performance.historical_days, 90
-        )
+        historical_days = max(self._config.settings.performance.historical_days, 90)
 
         # Data fetcher with caching
         async def data_fetcher(symbol: str) -> Any:

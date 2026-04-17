@@ -531,9 +531,7 @@ class DataSourcesConfig:
     """Data sources configuration for historical data priority."""
 
     local_database: LocalDatabaseConfig = field(default_factory=LocalDatabaseConfig)
-    provider_priority: List[str] = field(
-        default_factory=lambda: ["local_db", "ibkr", "yahoo"]
-    )
+    provider_priority: List[str] = field(default_factory=lambda: ["local_db", "ibkr", "yahoo"])
 
 
 # =============================================================================

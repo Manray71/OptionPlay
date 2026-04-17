@@ -215,9 +215,7 @@ async def _run_scan_and_notify(
     for pick in picks:
         text = format_pick_message(pick, vix=vix)
         buttons = format_pick_buttons(pick)
-        await bot.send_message(
-            chat_id=chat_id, text=text, parse_mode="HTML", reply_markup=buttons
-        )
+        await bot.send_message(chat_id=chat_id, text=text, parse_mode="HTML", reply_markup=buttons)
 
         pick_key = f"pick:{pick.symbol}:{pick.strategy}:{pick.rank}"
         bot_data[pick_key] = _pick_to_cache_dict(pick, vix, regime)
@@ -341,9 +339,7 @@ async def cmd_pnl(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 g_total = g.get("total", 0)
                 g_wr = g.get("win_rate", 0.0)
                 g_pnl = g.get("total_pnl", 0.0)
-                lines.append(
-                    f"• {key}: {g_total} Trades | WR {g_wr:.1f}% | ${g_pnl:+.2f}"
-                )
+                lines.append(f"• {key}: {g_total} Trades | WR {g_wr:.1f}% | ${g_pnl:+.2f}")
 
         await update.message.reply_text("\n".join(lines), parse_mode="HTML")
     except Exception as e:
@@ -416,10 +412,22 @@ async def cmd_export(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
         columns = [
-            "id", "symbol", "strategy", "status", "score",
-            "short_strike", "long_strike", "spread_width", "est_credit",
-            "expiration", "dte", "price_at_log", "vix_at_log",
-            "regime_at_log", "stability_at_log", "logged_at",
+            "id",
+            "symbol",
+            "strategy",
+            "status",
+            "score",
+            "short_strike",
+            "long_strike",
+            "spread_width",
+            "est_credit",
+            "expiration",
+            "dte",
+            "price_at_log",
+            "vix_at_log",
+            "regime_at_log",
+            "stability_at_log",
+            "logged_at",
             "theoretical_pnl",
         ]
 
@@ -471,9 +479,7 @@ async def _handle_shadow_log(query, symbol, strategy, rank, context):
         pick_data = context.bot_data.get(pick_key)
 
         if pick_data is None:
-            await query.edit_message_text(
-                "❌ Pick-Daten nicht mehr verfügbar (Session abgelaufen)"
-            )
+            await query.edit_message_text("❌ Pick-Daten nicht mehr verfügbar (Session abgelaufen)")
             return
 
         st = ShadowTracker()
@@ -593,6 +599,7 @@ def main():
     app = create_application()
 
     from .scheduler import setup_scheduler
+
     setup_scheduler(app)
 
     app.run_polling(

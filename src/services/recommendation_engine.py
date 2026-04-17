@@ -393,7 +393,9 @@ class DailyRecommendationEngine(RecommendationRankingMixin):
             regime = self.get_market_regime(vix_level)
             strategy_rec = self._vix_selector.get_recommendation(vix_level)
             # Pass regime to scanner for config-based scoring weights
-            config_regime = self._REGIME_TO_CONFIG.get(regime.value, "normal") if regime else "normal"
+            config_regime = (
+                self._REGIME_TO_CONFIG.get(regime.value, "normal") if regime else "normal"
+            )
             self._scanner.set_regime(config_regime)
         else:
             regime = None
@@ -446,9 +448,7 @@ class DailyRecommendationEngine(RecommendationRankingMixin):
 
                 service = SectorRSService()
                 statuses = await service.get_all_sector_statuses()
-                self._sector_factors = {
-                    s.sector: (1.0 + s.score_modifier) for s in statuses
-                }
+                self._sector_factors = {s.sector: (1.0 + s.score_modifier) for s in statuses}
                 if self._sector_factors:
                     logger.info(
                         f"Loaded sector momentum factors for {len(self._sector_factors)} sectors"

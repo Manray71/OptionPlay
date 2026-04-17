@@ -930,9 +930,7 @@ class TradeValidator:
             total_risk=max_loss_per_contract * recommended_contracts,
         )
 
-    def _check_portfolio_value(
-        self, portfolio_value: Optional[float]
-    ) -> ValidationCheck:
+    def _check_portfolio_value(self, portfolio_value: Optional[float]) -> ValidationCheck:
         """Check that portfolio_value is provided for risk-% sizing (B.3.1).
 
         Ohne portfolio_value kann kein Risk-%-Check stattfinden — silent skip
@@ -944,8 +942,7 @@ class TradeValidator:
                 passed=False,
                 decision=TradeDecision.WARNING,
                 message=(
-                    "portfolio_value fehlt — Risk-%-Check übersprungen, "
-                    "manuelle Prüfung nötig"
+                    "portfolio_value fehlt — Risk-%-Check übersprungen, " "manuelle Prüfung nötig"
                 ),
                 details={"portfolio_value": None, "risk_check_skipped": True},
             )

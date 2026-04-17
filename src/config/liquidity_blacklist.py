@@ -2,6 +2,7 @@
 Liquidity Blacklist — geladen aus config/system.yaml.
 Kein hardcodierter Content mehr.
 """
+
 from pathlib import Path
 
 import yaml

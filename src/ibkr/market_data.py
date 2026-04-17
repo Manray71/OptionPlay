@@ -826,7 +826,7 @@ class IBKRMarketData:
                 ticker = self._conn.ib.ticker(stock)
                 if ticker:
                     mp = ticker.marketPrice()
-                    if mp and not math.isnan(mp) and mp > 0 and mp != float('inf'):
+                    if mp and not math.isnan(mp) and mp > 0 and mp != float("inf"):
                         current_price = mp
                         break
             self._conn.ib.cancelMktData(stock)
@@ -837,9 +837,7 @@ class IBKRMarketData:
 
             # Get options chain definition
             chains = await asyncio.wait_for(
-                self._conn.ib.reqSecDefOptParamsAsync(
-                    stock.symbol, "", stock.secType, stock.conId
-                ),
+                self._conn.ib.reqSecDefOptParamsAsync(stock.symbol, "", stock.secType, stock.conId),
                 timeout=15,
             )
 
@@ -867,16 +865,13 @@ class IBKRMarketData:
                     continue
 
             if not valid_expiries:
-                logger.debug(
-                    f"IBKR: No expirations in DTE range {dte_min}-{dte_max} for {symbol}"
-                )
+                logger.debug(f"IBKR: No expirations in DTE range {dte_min}-{dte_max} for {symbol}")
                 return []
 
             # Filter strikes to +/-20% of current price
             max_distance = 0.20
             valid_strikes = sorted(
-                s for s in chain.strikes
-                if abs(s - current_price) / current_price <= max_distance
+                s for s in chain.strikes if abs(s - current_price) / current_price <= max_distance
             )
 
             right_upper = right.upper()
@@ -917,7 +912,7 @@ class IBKRMarketData:
             results = []
             mktdata_chunk = 100
             for i in range(0, len(qualified), mktdata_chunk):
-                chunk = qualified[i:i + mktdata_chunk]
+                chunk = qualified[i : i + mktdata_chunk]
                 for _, opt, *_ in chunk:
                     try:
                         self._conn.ib.reqMktData(opt, "100,101,106", False, False)
@@ -955,18 +950,10 @@ class IBKRMarketData:
                         delta = gamma = theta = vega = iv = None
                         if opt_ticker.modelGreeks:
                             mg = opt_ticker.modelGreeks
-                            delta = (
-                                mg.delta if mg.delta and not math.isnan(mg.delta) else None
-                            )
-                            gamma = (
-                                mg.gamma if mg.gamma and not math.isnan(mg.gamma) else None
-                            )
-                            theta = (
-                                mg.theta if mg.theta and not math.isnan(mg.theta) else None
-                            )
-                            vega = (
-                                mg.vega if mg.vega and not math.isnan(mg.vega) else None
-                            )
+                            delta = mg.delta if mg.delta and not math.isnan(mg.delta) else None
+                            gamma = mg.gamma if mg.gamma and not math.isnan(mg.gamma) else None
+                            theta = mg.theta if mg.theta and not math.isnan(mg.theta) else None
+                            vega = mg.vega if mg.vega and not math.isnan(mg.vega) else None
                             iv = (
                                 mg.impliedVol
                                 if mg.impliedVol and not math.isnan(mg.impliedVol)

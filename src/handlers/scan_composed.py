@@ -576,7 +576,11 @@ class ScanHandler(BaseHandler):
                 "ELEVATED": "Elevated",
                 "HIGH_VOL": "High Volatility",
             }
-            regime_str = regime_display.get(result.market_regime.value, result.market_regime.value) if result.market_regime else "Unknown"
+            regime_str = (
+                regime_display.get(result.market_regime.value, result.market_regime.value)
+                if result.market_regime
+                else "Unknown"
+            )
             b.kv("Regime", f"{regime_str} (VIX {result.vix_level:.2f})")
 
         b.kv("Scanned", f"{result.symbols_scanned} symbols | Duration: {duration:.1f}s")
@@ -1012,9 +1016,7 @@ class ScanHandler(BaseHandler):
         await self._ensure_connected()
         if self._ctx.ibkr_connected and self._ctx.ibkr_provider:
             try:
-                data = await self._ctx.ibkr_provider.get_historical_for_scanner(
-                    symbol, days=days
-                )
+                data = await self._ctx.ibkr_provider.get_historical_for_scanner(symbol, days=days)
                 if data:
                     if self._ctx.historical_cache:
                         self._ctx.historical_cache.set(symbol, data, days=days)
@@ -1025,6 +1027,7 @@ class ScanHandler(BaseHandler):
         # 3. Fallback: local DB (daily_prices)
         try:
             from ..data_providers.local_db import LocalDBProvider
+
             local = LocalDBProvider()
             data = await local.get_historical_for_scanner(symbol, days=days)
             if data:

@@ -335,10 +335,7 @@ class AnalysisHandler(BaseHandler):
         Returns:
             Formatted Markdown status
         """
-        return (
-            "[!] Ensemble status removed in v5.0.0 "
-            "(backtesting module deleted)."
-        )
+        return "[!] Ensemble status removed in v5.0.0 " "(backtesting module deleted)."
 
     async def recommend_strikes(
         self,
@@ -533,9 +530,7 @@ class AnalysisHandler(BaseHandler):
         await self._ensure_connected()
         if self._ctx.ibkr_connected and self._ctx.ibkr_provider:
             try:
-                data = await self._ctx.ibkr_provider.get_historical_for_scanner(
-                    symbol, days=days
-                )
+                data = await self._ctx.ibkr_provider.get_historical_for_scanner(symbol, days=days)
                 if data:
                     if self._ctx.historical_cache:
                         self._ctx.historical_cache.set(symbol, data, days=days)
@@ -546,6 +541,7 @@ class AnalysisHandler(BaseHandler):
         # 3. Fallback: local DB (daily_prices)
         try:
             from ..data_providers.local_db import LocalDBProvider
+
             local = LocalDBProvider()
             data = await local.get_historical_for_scanner(symbol, days=days)
             if data:

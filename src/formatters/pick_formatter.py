@@ -257,7 +257,11 @@ def format_picks_v2(
 
     # Market Overview (compact single-line)
     if result.vix_level:
-        regime_str = _REGIME_DISPLAY.get(result.market_regime.value, result.market_regime.value) if result.market_regime else "Unknown"
+        regime_str = (
+            _REGIME_DISPLAY.get(result.market_regime.value, result.market_regime.value)
+            if result.market_regime
+            else "Unknown"
+        )
         b.kv("Regime", f"{regime_str} (VIX {result.vix_level:.2f})")
 
     b.kv("Scanned", f"{result.symbols_scanned} symbols | Duration: {duration:.1f}s")

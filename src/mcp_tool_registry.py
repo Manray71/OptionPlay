@@ -261,8 +261,6 @@ async def handle_regime_status(server: Any, arguments: ToolArguments) -> str:
     return await server.handlers.vix.get_regime_status()
 
 
-
-
 @tool_registry.register(
     name="optionplay_health",
     description="Check server health and configuration status.",
@@ -304,7 +302,6 @@ async def handle_scan_bounce(server: Any, arguments: ToolArguments) -> str:
         max_results=arguments.get("max_results", 10),
         min_score=arguments.get("min_score", 5.0),
     )
-
 
 
 @tool_registry.register(
@@ -404,7 +401,6 @@ async def handle_earnings(server: Any, arguments: ToolArguments) -> str:
     )
 
 
-
 @tool_registry.register(
     name="optionplay_expirations",
     description="List available options expiration dates for a symbol.",
@@ -413,7 +409,6 @@ async def handle_earnings(server: Any, arguments: ToolArguments) -> str:
 )
 async def handle_expirations(server: Any, arguments: ToolArguments) -> str:
     return await server.handlers.quote.get_expirations(symbol=arguments["symbol"])
-
 
 
 @tool_registry.register(
@@ -476,7 +471,6 @@ async def handle_analyze(server: Any, arguments: ToolArguments) -> str:
     return await server.handlers.analysis.analyze_symbol(arguments["symbol"])
 
 
-
 @tool_registry.register(
     name="optionplay_ensemble",
     description="Get ensemble strategy recommendation for a symbol. Uses meta-learner to select best strategy.",
@@ -485,7 +479,6 @@ async def handle_analyze(server: Any, arguments: ToolArguments) -> str:
 )
 async def handle_ensemble(server: Any, arguments: ToolArguments) -> str:
     return await server.handlers.analysis.get_ensemble_recommendation(arguments["symbol"])
-
 
 
 @tool_registry.register(
@@ -545,7 +538,6 @@ def handle_portfolio(server: Any, arguments: ToolArguments) -> str:
 )
 def handle_portfolio_positions(server: Any, arguments: ToolArguments) -> str:
     return server.handlers.portfolio.portfolio_positions(status=arguments.get("status", "all"))
-
 
 
 @tool_registry.register(
@@ -617,10 +609,6 @@ def handle_portfolio_expire(server: Any, arguments: ToolArguments) -> str:
     return server.handlers.portfolio.portfolio_expire(position_id=arguments["position_id"])
 
 
-
-
-
-
 @tool_registry.register(
     name="optionplay_portfolio_check",
     description="Check if a new position can be opened. Validates against max positions, sector limits, and daily risk limits.",
@@ -640,9 +628,6 @@ def handle_portfolio_check(server: Any, arguments: ToolArguments) -> str:
         symbol=arguments["symbol"],
         max_risk=arguments.get("max_risk", 500.0),
     )
-
-
-
 
 
 # =============================================================================
@@ -807,7 +792,6 @@ async def handle_shadow_stats(server: Any, arguments: ToolArguments) -> str:
         return format_stats_output(stats)
     finally:
         tracker.close()
-
 
 
 # =============================================================================
