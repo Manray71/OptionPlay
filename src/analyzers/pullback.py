@@ -740,6 +740,10 @@ class PullbackAnalyzer(PullbackScoringMixin, BaseAnalyzer):
             score=breakdown.total_score,
         )
 
+        # Earnings-surprise modifier (additive, after divergence penalties)
+        from ..services.earnings_quality import get_earnings_surprise_modifier  # noqa: PLC0415
+        breakdown.total_score += get_earnings_surprise_modifier(symbol)
+
         # Dynamic max_possible: sum of max weights for components that scored > 0.
         # This prevents components that are structurally impossible during a pullback
         # (e.g., MACD bullish cross, VWAP strong above) from diluting the score.
