@@ -397,38 +397,19 @@ class ScanHandler(BaseHandler):
             list_type=list_type,
         )
 
-    async def daily_picks(
+    async def _daily_picks_core(
         self,
-        symbols: Optional[List[str]] = None,
-        max_picks: int = 5,
-        min_score: float = 3.5,
-        min_stability: float = ENTRY_STABILITY_MIN,
-        include_strikes: bool = True,
-    ) -> str:
+        symbols: Optional[List[str]],
+        max_picks: int,
+        min_score: float,
+        min_stability: float,
+        include_strikes: bool,
+    ) -> tuple:
+        """Core scan logic shared by daily_picks() and daily_picks_result().
+
+        Returns (DailyRecommendationResult, duration_seconds, excluded_by_earnings).
         """
-        Generate daily trading recommendations (3-5 setups).
-
-        Applies PLAYBOOK filter order:
-        1. Blacklist-Check
-        2. Stability >= 70 (>= 80 in Danger Zone)
-        3. Earnings > 45 days
-        4. VIX < 30 (no new trades above 30)
-        5. Multi-Strategy Scan
-        6. Sector Diversification (max 2 per sector)
-        7. Combined Ranking (70% Signal Score + 30% Stability)
-        8. Strike Recommendations for Bull-Put-Spreads
-
-        Args:
-            symbols: List of symbols to scan (uses watchlist if not provided)
-            max_picks: Maximum number of recommendations (default: 5)
-            min_score: Minimum signal score for ranking (default: 3.5)
-            min_stability: Minimum stability score (default: 70.0)
-            include_strikes: Include strike recommendations (default: True)
-
-        Returns:
-            Formatted Markdown with daily picks and strike recommendations
-        """
-        from ..cache import get_earnings_fetcher
+        from ..cache import get_earnings_fetcher  # noqa: F401 (side-effect import)
         from ..config import get_watchlist_loader
         from ..constants.trading_rules import SIZING_MAX_PER_SECTOR
         from ..services.recommendation_engine import DailyRecommendationEngine
@@ -441,7 +422,6 @@ class ScanHandler(BaseHandler):
             watchlist_loader = get_watchlist_loader()
             tier1_symbols = watchlist_loader.get_symbols_by_tier(max_tier=1)
             all_stable = watchlist_loader.get_symbols_by_list_type("stable")
-            # Use tier 1 if it has enough symbols, otherwise fall back to stable list
             if len(tier1_symbols) < len(all_stable):
                 symbols = tier1_symbols
                 self._logger.info(
@@ -531,7 +511,6 @@ class ScanHandler(BaseHandler):
                 self._logger.warning(f"Could not fetch options for {symbol}: {e}")
                 return []
 
-        # Generate picks
         start_time = datetime.now()
         engine_max_picks = max_picks * 3
         result = await engine.get_daily_picks(
@@ -541,15 +520,49 @@ class ScanHandler(BaseHandler):
             vix=vix_level,
             options_fetcher=options_fetcher if include_strikes else None,
         )
-
         duration = (datetime.now() - start_time).total_seconds()
+
+        return result, duration, excluded_by_earnings
+
+    async def daily_picks(
+        self,
+        symbols: Optional[List[str]] = None,
+        max_picks: int = 5,
+        min_score: float = 3.5,
+        min_stability: float = ENTRY_STABILITY_MIN,
+        include_strikes: bool = True,
+    ) -> str:
+        """
+        Generate daily trading recommendations (3-5 setups).
+
+        Applies PLAYBOOK filter order:
+        1. Blacklist-Check
+        2. Stability >= 70 (>= 80 in Danger Zone)
+        3. Earnings > 45 days
+        4. VIX < 30 (no new trades above 30)
+        5. Multi-Strategy Scan
+        6. Sector Diversification (max 2 per sector)
+        7. Combined Ranking (70% Signal Score + 30% Stability)
+        8. Strike Recommendations for Bull-Put-Spreads
+
+        Args:
+            symbols: List of symbols to scan (uses watchlist if not provided)
+            max_picks: Maximum number of recommendations (default: 5)
+            min_score: Minimum signal score for ranking (default: 3.5)
+            min_stability: Minimum stability score (default: 70.0)
+            include_strikes: Include strike recommendations (default: True)
+
+        Returns:
+            Formatted Markdown with daily picks and strike recommendations
+        """
+        result, duration, _ = await self._daily_picks_core(
+            symbols, max_picks, min_score, min_stability, include_strikes
+        )
 
         # Shadow Trade Tracker integration
         shadow_results = await self._shadow_log_picks(result)
 
-        # Format output using the mixin's formatter (imported inline)
-        from ..services.recommendation_engine import DailyPick
-        from ..utils.markdown_builder import MarkdownBuilder, truncate
+        from ..utils.markdown_builder import MarkdownBuilder, truncate  # noqa: F401
 
         b = MarkdownBuilder()
         today_str = date.today().isoformat()
@@ -562,14 +575,12 @@ class ScanHandler(BaseHandler):
                 "DANGER_ZONE": "Danger Zone",
                 "ELEVATED": "Elevated",
                 "HIGH_VOL": "High Volatility",
-                # None regime handled at call site
             }
             regime_str = regime_display.get(result.market_regime.value, result.market_regime.value) if result.market_regime else "Unknown"
             b.kv("Regime", f"{regime_str} (VIX {result.vix_level:.2f})")
 
         b.kv("Scanned", f"{result.symbols_scanned} symbols | Duration: {duration:.1f}s")
 
-        # Shadow tracker summary
         if shadow_results:
             logged = shadow_results.get("logged", 0)
             rejected = shadow_results.get("rejected", 0)
@@ -595,6 +606,24 @@ class ScanHandler(BaseHandler):
             b.hint("No candidates found matching criteria.")
 
         return b.build()
+
+    async def daily_picks_result(
+        self,
+        symbols: Optional[List[str]] = None,
+        max_picks: int = 5,
+        min_score: float = 3.5,
+        min_stability: float = ENTRY_STABILITY_MIN,
+        include_strikes: bool = True,
+    ) -> Any:
+        """Return DailyRecommendationResult for programmatic use (e.g., Telegram bot).
+
+        Unlike daily_picks(), this does NOT auto-log shadow trades — the caller
+        decides what to do with each pick.
+        """
+        result, _, _ = await self._daily_picks_core(
+            symbols, max_picks, min_score, min_stability, include_strikes
+        )
+        return result
 
     def _format_single_pick_v2(self, b: Any, pick: Any) -> None:
         """Format a single pick in v2 format with real chain data."""
