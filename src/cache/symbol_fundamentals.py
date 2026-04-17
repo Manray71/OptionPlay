@@ -811,6 +811,10 @@ class SymbolFundamentalsManager:
             return False
 
     def update_earnings_beat_rate(self, symbol: str) -> bool:
+        # NOTE: earnings_beat_rate is computed and stored but currently unused
+        # in any analyzer or scoring flow. The newer EarningsQualityService
+        # (src/services/earnings_quality.py) uses a 4-quarter rolling window instead.
+        # Retained for potential future use.
         """
         Calculates and saves the Earnings Beat Rate.
 
