@@ -261,6 +261,117 @@ def insert_missing_earnings(symbol: str, earnings_data: List[Dict[str, Any]]) ->
     return inserted
 
 
+def get_watchlist_symbols() -> List[str]:
+    """Holt alle Symbole aus der default_275 Watchlist."""
+    try:
+        from src.config.watchlist_loader import WatchlistLoader
+
+        loader = WatchlistLoader()
+        symbols = loader.get_symbols_from_watchlist("default_275")
+        logger.info(f"Watchlist: {len(symbols)} Symbole geladen")
+        return symbols
+    except Exception as e:
+        logger.warning(f"Watchlist konnte nicht geladen werden: {e}. Fallback auf earnings_history.")
+        return get_symbols_from_earnings_history()
+
+
+def backfill_future_earnings_dates(symbols: List[str], delay: float = 1.0) -> Dict[str, int]:
+    """
+    Holt zukünftige Earnings-Termine von yfinance.Ticker.calendar und
+    fügt fehlende Einträge in earnings_history ein.
+
+    Returns:
+        Dict mit {inserted: n, skipped: n, errors: n}
+    """
+    try:
+        import yfinance as yf
+        import pandas as pd
+    except ImportError:
+        logger.error("yfinance nicht installiert. Run: pip install yfinance")
+        return {"inserted": 0, "skipped": 0, "errors": 0}
+
+    today = date.today().isoformat()
+    inserted = 0
+    skipped = 0
+    errors = 0
+
+    conn = sqlite3.connect(str(DB_PATH))
+
+    for i, sym in enumerate(symbols, 1):
+        try:
+            ticker = yf.Ticker(sym)
+            cal = ticker.calendar
+
+            if cal is None:
+                skipped += 1
+                continue
+
+            # 'Earnings Date' kann eine Liste oder ein einzelner Timestamp sein
+            raw_dates = cal.get("Earnings Date")
+            if raw_dates is None:
+                skipped += 1
+                continue
+
+            if not isinstance(raw_dates, list):
+                raw_dates = [raw_dates]
+
+            eps_estimate = cal.get("Earnings Average")
+            if eps_estimate is not None:
+                try:
+                    eps_estimate = float(eps_estimate)
+                except (TypeError, ValueError):
+                    eps_estimate = None
+
+            for ed in raw_dates:
+                try:
+                    if hasattr(ed, "date"):
+                        ed_date = ed.date()
+                    else:
+                        ed_date = pd.Timestamp(ed).date()
+
+                    ed_str = ed_date.isoformat()
+
+                    # Nur zukünftige oder heutige Termine
+                    if ed_str < today:
+                        continue
+
+                    existing = conn.execute(
+                        "SELECT 1 FROM earnings_history WHERE symbol = ? AND earnings_date = ?",
+                        (sym.upper(), ed_str),
+                    ).fetchone()
+
+                    if existing:
+                        skipped += 1
+                        continue
+
+                    conn.execute(
+                        """INSERT INTO earnings_history
+                           (symbol, earnings_date, eps_estimate, source)
+                           VALUES (?, ?, ?, 'yfinance_calendar')""",
+                        (sym.upper(), ed_str, eps_estimate),
+                    )
+                    inserted += 1
+                    logger.debug(f"  {sym}: inserted future earnings {ed_str}")
+
+                except Exception as e:
+                    logger.debug(f"  {sym}: Fehler bei Datum {ed}: {e}")
+                    errors += 1
+
+        except Exception as e:
+            logger.warning(f"  {sym}: calendar-Fehler - {e}")
+            errors += 1
+
+        if i < len(symbols) and delay > 0:
+            time.sleep(delay)
+
+    conn.commit()
+    conn.close()
+    logger.info(
+        f"Future earnings backfill: {inserted} inserted, {skipped} already existed / no date, {errors} errors"
+    )
+    return {"inserted": inserted, "skipped": skipped, "errors": errors}
+
+
 def process_symbol(symbol: str) -> Dict[str, int]:
     """
     Verarbeitet ein Symbol: Holt Daten und aktualisiert DB.
@@ -351,6 +462,18 @@ def main():
         logger.info(f"Mit beiden: {stats['with_both']} ({stats['coverage_pct']}%)")
         logger.info(f"Symbole mit EPS-Daten: {stats['symbols_with_eps']}")
         return
+
+    # Schritt 1: Zukünftige Earnings-Termine aus yfinance.calendar backfillen
+    logger.info(f"\n{'='*60}")
+    logger.info("SCHRITT 1: Zukünftige Earnings-Termine backfillen")
+    logger.info(f"{'='*60}")
+    watchlist_symbols = get_watchlist_symbols()
+    backfill_future_earnings_dates(watchlist_symbols, delay=args.delay)
+
+    # Schritt 2: EPS-Daten für historische Einträge aktualisieren
+    logger.info(f"\n{'='*60}")
+    logger.info("SCHRITT 2: EPS-Daten aktualisieren")
+    logger.info(f"{'='*60}")
 
     # Symbole bestimmen
     if args.symbols:
