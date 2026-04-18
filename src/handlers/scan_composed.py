@@ -43,6 +43,188 @@ class ScanHandler(BaseHandler):
     - daily_picks(): Generate daily trading recommendations
     """
 
+    async def _run_scan_core(
+        self,
+        mode: "ScanMode",
+        symbols: Optional[List[str]],
+        max_results: int,
+        min_score: float,
+        min_historical_days: int,
+        list_type: str,
+    ) -> tuple:
+        """
+        Core scan logic: symbol loading, earnings pre-filter, cache, scanner execution.
+
+        Returns:
+            (ScanResult, original_count, excluded_by_earnings, scanned_symbols, cache_hit, duration)
+        """
+        from ..config import get_watchlist_loader
+        from ..scanner.multi_strategy_scanner import ScanMode
+        from ..utils.validation import validate_symbols
+
+        await self._ensure_connected()
+
+        if not symbols:
+            watchlist_loader = get_watchlist_loader()
+            symbols = watchlist_loader.get_symbols_by_list_type(list_type)
+            list_info = f" ({list_type})" if watchlist_loader.stability_split_enabled else ""
+            self._logger.info(f"Scanning {len(symbols)} symbols{list_info}")
+        else:
+            symbols = validate_symbols(symbols, skip_invalid=True)
+
+        original_count = len(symbols)
+        excluded_by_earnings = 0
+        earnings_cache_hits = 0
+
+        scanner_config = self._ctx.config.settings.scanner
+
+        if scanner_config.auto_earnings_prefilter:
+            min_days = scanner_config.earnings_prefilter_min_days
+            symbols, excluded_by_earnings, earnings_cache_hits = (
+                await self._apply_earnings_prefilter(symbols, min_days)
+            )
+            if excluded_by_earnings > 0:
+                self._logger.info(
+                    f"Earnings pre-filter: {excluded_by_earnings}/{original_count} symbols excluded, "
+                    f"{earnings_cache_hits} cache hits"
+                )
+
+        cache_key = self._make_scan_cache_key(mode, symbols, min_score, max_results)
+        cache_hit = False
+        duration = 0.0
+
+        if cache_key in self._ctx.scan_cache:
+            cached_result, cached_time = self._ctx.scan_cache[cache_key]
+            age = (datetime.now() - cached_time).total_seconds()
+            if age < self._ctx.scan_cache_ttl:
+                result = cached_result
+                cache_hit = True
+                self._ctx.scan_cache_hits += 1
+                self._logger.info(f"Scan cache HIT: {mode.value} (age: {age:.0f}s)")
+                return result, original_count, excluded_by_earnings, symbols, cache_hit, duration
+
+        self._ctx.scan_cache_misses += 1
+
+        enable_pullback = mode in [ScanMode.PULLBACK_ONLY, ScanMode.ALL, ScanMode.BEST_SIGNAL]
+        enable_bounce = mode in [ScanMode.BOUNCE_ONLY, ScanMode.ALL, ScanMode.BEST_SIGNAL]
+
+        scanner = self._get_multi_scanner(
+            min_score=min_score,
+            enable_pullback=enable_pullback,
+            enable_bounce=enable_bounce,
+        )
+        scanner.config.max_total_results = max_results
+
+        from ..cache import get_earnings_history_manager
+
+        try:
+            ehm = get_earnings_history_manager()
+            next_dates = ehm.get_next_earnings_dates_batch(symbols)
+            for sym_upper, next_date in next_dates.items():
+                if next_date is not None:
+                    scanner.set_earnings_date(sym_upper, next_date)
+        except Exception as e:
+            logger.warning(
+                "Scanner earnings DB pre-fetch failed (%s), using JSON cache fallback", e
+            )
+            if self._ctx.earnings_fetcher is None:
+                from ..cache import get_earnings_fetcher
+
+                self._ctx.earnings_fetcher = get_earnings_fetcher()
+            for symbol in symbols:
+                cached = self._ctx.earnings_fetcher.cache.get(symbol)
+                if cached and cached.earnings_date:
+                    try:
+                        earnings_date = date.fromisoformat(cached.earnings_date)
+                        scanner.set_earnings_date(symbol, earnings_date)
+                    except (ValueError, TypeError):
+                        pass
+
+        config_days = self._ctx.config.settings.performance.historical_days
+        historical_days = (
+            max(config_days, min_historical_days) if min_historical_days else config_days
+        )
+
+        prefetch_batch_size = getattr(
+            self._ctx.config.settings.performance, "prefetch_batch_size", 20
+        )
+
+        prefetch_cache: Dict[str, tuple] = {}
+
+        async def prefetch_batch(batch_symbols: List[str]) -> None:
+            tasks = [
+                self._fetch_historical_cached(sym, days=historical_days)
+                for sym in batch_symbols
+            ]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            for sym, res in zip(batch_symbols, results):
+                if res is not None and not isinstance(res, Exception):
+                    prefetch_cache[sym] = res
+
+        for i in range(0, len(symbols), prefetch_batch_size):
+            await prefetch_batch(symbols[i : i + prefetch_batch_size])
+
+        self._logger.debug(f"Pre-fetched {len(prefetch_cache)}/{len(symbols)} symbols")
+
+        async def data_fetcher(symbol: str) -> Optional[tuple]:
+            if symbol in prefetch_cache:
+                return prefetch_cache[symbol]
+            return await self._fetch_historical_cached(symbol, days=historical_days)
+
+        start_time = datetime.now()
+        result = await scanner.scan_async(symbols=symbols, data_fetcher=data_fetcher, mode=mode)
+        duration = (datetime.now() - start_time).total_seconds()
+
+        self._ctx.scan_cache[cache_key] = (result, datetime.now())
+
+        return result, original_count, excluded_by_earnings, symbols, cache_hit, duration
+
+    async def execute_scan_raw(
+        self,
+        strategy: str = "multi",
+        list_type: str = "stable",
+        min_score: float = 3.5,
+        max_results: int = 10,
+        symbols: Optional[List[str]] = None,
+        min_historical_days: int = 0,
+    ) -> Any:
+        """
+        Run a scan and return the raw ScanResult (no Markdown formatting).
+
+        Passes through earnings pre-filter, DB batch seed, and 30-min scan cache
+        — identical to the MCP scan tools but returns structured data for the Web API.
+
+        Args:
+            strategy: "multi" | "pullback" | "bounce"
+            list_type: "stable" | "risk" | "all"
+            min_score: Minimum signal score threshold
+            max_results: Maximum number of signals to return
+            symbols: Override symbol list (uses watchlist when None)
+            min_historical_days: Minimum required historical data days
+
+        Returns:
+            ScanResult with .signals list and .symbols_with_signals count
+        """
+        from ..scanner.multi_strategy_scanner import ScanMode
+
+        mode_map = {
+            "multi": ScanMode.BEST_SIGNAL,
+            "pullback": ScanMode.PULLBACK_ONLY,
+            "bounce": ScanMode.BOUNCE_ONLY,
+        }
+        mode = mode_map.get(strategy, ScanMode.BEST_SIGNAL)
+
+        result, _orig, _excl, _syms, _hit, _dur = await self._run_scan_core(
+            mode=mode,
+            symbols=symbols,
+            max_results=max_results,
+            min_score=min_score,
+            min_historical_days=min_historical_days,
+            list_type=list_type,
+        )
+        result.signals = sorted(result.signals, key=lambda s: s.score, reverse=True)[:max_results]
+        return result
+
     async def _execute_scan(
         self,
         mode: "ScanMode",
@@ -60,157 +242,23 @@ class ScanHandler(BaseHandler):
         """
         Common scan execution logic for all strategy-specific scans.
 
-        Args:
-            mode: ScanMode determining which strategies to enable
-            title: Header title for the output
-            emoji: Emoji prefix for the header
-            symbols: Optional list of symbols (default: watchlist)
-            max_results: Maximum number of results
-            min_score: Minimum score threshold
-            min_historical_days: Minimum historical data days
-            table_columns: Column headers for results table
-            row_formatter: Function to format each signal into a table row
-            no_results_msg: Message when no candidates found
-            list_type: "stable", "risk", or "all"
-
         Returns:
             Formatted Markdown string with scan results
         """
-        from ..cache import get_earnings_fetcher
         from ..config import get_watchlist_loader
-        from ..scanner.multi_strategy_scanner import ScanMode
         from ..utils.markdown_builder import MarkdownBuilder, truncate
-        from ..utils.validation import validate_symbols
 
-        await self._ensure_connected()
-
-        # Load and validate symbols
-        if not symbols:
-            watchlist_loader = get_watchlist_loader()
-            symbols = watchlist_loader.get_symbols_by_list_type(list_type)
-            list_info = f" ({list_type})" if watchlist_loader.stability_split_enabled else ""
-            self._logger.info(f"Scanning {len(symbols)} symbols{list_info}")
-        else:
-            symbols = validate_symbols(symbols, skip_invalid=True)
-            list_info = ""
-
-        # Apply earnings pre-filter if enabled
-        original_count = len(symbols)
-        excluded_by_earnings = 0
-        earnings_cache_hits = 0
-
-        scanner_config = self._ctx.config.settings.scanner
-
-        if scanner_config.auto_earnings_prefilter:
-            min_days = scanner_config.earnings_prefilter_min_days
-            symbols, excluded_by_earnings, earnings_cache_hits = (
-                await self._apply_earnings_prefilter(
-                    symbols,
-                    min_days,
-                )
-            )
-            if excluded_by_earnings > 0:
-                self._logger.info(
-                    f"Earnings pre-filter: {excluded_by_earnings}/{original_count} symbols excluded, "
-                    f"{earnings_cache_hits} cache hits"
-                )
-
-        # Check scan cache first
-        cache_key = self._make_scan_cache_key(mode, symbols, min_score, max_results)
-        cache_hit = False
-
-        if cache_key in self._ctx.scan_cache:
-            cached_result, cached_time = self._ctx.scan_cache[cache_key]
-            age = (datetime.now() - cached_time).total_seconds()
-            if age < self._ctx.scan_cache_ttl:
-                result = cached_result
-                cache_hit = True
-                self._ctx.scan_cache_hits += 1
-                duration = 0.0
-                self._logger.info(f"Scan cache HIT: {mode.value} (age: {age:.0f}s)")
-
-        if not cache_hit:
-            self._ctx.scan_cache_misses += 1
-
-            enable_pullback = mode in [ScanMode.PULLBACK_ONLY, ScanMode.ALL, ScanMode.BEST_SIGNAL]
-            enable_bounce = mode in [ScanMode.BOUNCE_ONLY, ScanMode.ALL, ScanMode.BEST_SIGNAL]
-
-            scanner = self._get_multi_scanner(
+        result, original_count, excluded_by_earnings, symbols, cache_hit, duration = (
+            await self._run_scan_core(
+                mode=mode,
+                symbols=symbols,
+                max_results=max_results,
                 min_score=min_score,
-                enable_pullback=enable_pullback,
-                enable_bounce=enable_bounce,
+                min_historical_days=min_historical_days,
+                list_type=list_type,
             )
-            scanner.config.max_total_results = max_results
+        )
 
-            # Pre-populate scanner earnings cache from DB (single query, O(N))
-            from ..cache import get_earnings_history_manager
-
-            try:
-                ehm = get_earnings_history_manager()
-                next_dates = ehm.get_next_earnings_dates_batch(symbols)
-                for sym_upper, next_date in next_dates.items():
-                    if next_date is not None:
-                        scanner.set_earnings_date(sym_upper, next_date)
-            except Exception as e:
-                logger.warning(
-                    "Scanner earnings DB pre-fetch failed (%s), using JSON cache fallback", e
-                )
-                if self._ctx.earnings_fetcher is None:
-                    from ..cache import get_earnings_fetcher
-
-                    self._ctx.earnings_fetcher = get_earnings_fetcher()
-                for symbol in symbols:
-                    cached = self._ctx.earnings_fetcher.cache.get(symbol)
-                    if cached and cached.earnings_date:
-                        try:
-                            earnings_date = date.fromisoformat(cached.earnings_date)
-                            scanner.set_earnings_date(symbol, earnings_date)
-                        except (ValueError, TypeError):
-                            pass
-
-            # Determine historical data requirement
-            config_days = self._ctx.config.settings.performance.historical_days
-            historical_days = (
-                max(config_days, min_historical_days) if min_historical_days else config_days
-            )
-
-            # Pre-fetch historical data in parallel batches
-            prefetch_batch_size = getattr(
-                self._ctx.config.settings.performance, "prefetch_batch_size", 20
-            )
-
-            prefetch_cache: Dict[str, tuple] = {}
-
-            async def prefetch_batch(batch_symbols: List[str]) -> None:
-                tasks = [
-                    self._fetch_historical_cached(sym, days=historical_days)
-                    for sym in batch_symbols
-                ]
-                results = await asyncio.gather(*tasks, return_exceptions=True)
-                for sym, res in zip(batch_symbols, results):
-                    if res is not None and not isinstance(res, Exception):
-                        prefetch_cache[sym] = res
-
-            for i in range(0, len(symbols), prefetch_batch_size):
-                batch = symbols[i : i + prefetch_batch_size]
-                await prefetch_batch(batch)
-
-            self._logger.debug(f"Pre-fetched {len(prefetch_cache)}/{len(symbols)} symbols")
-
-            async def data_fetcher(symbol: str) -> Optional[tuple]:
-                if symbol in prefetch_cache:
-                    return prefetch_cache[symbol]
-                return await self._fetch_historical_cached(symbol, days=historical_days)
-
-            # Execute scan
-            start_time = datetime.now()
-            result = await scanner.scan_async(symbols=symbols, data_fetcher=data_fetcher, mode=mode)
-            duration = (datetime.now() - start_time).total_seconds()
-
-            # Cache the result
-            self._ctx.scan_cache[cache_key] = (result, datetime.now())
-
-        # Build output
         b = MarkdownBuilder()
         b.h1(f"{emoji} {title}").blank()
 
