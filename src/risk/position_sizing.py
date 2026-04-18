@@ -180,8 +180,8 @@ class PositionSizerConfig:
     max_buying_power_pct: float = 0.05  # 5% Buying Power max pro Trade
 
     # Margin tracking (B.3.4)
-    use_ibkr_margin: bool = True   # Try IBKR account summary first; fallback to notional
-    max_margin_pct: float = 0.50   # Max 50% margin utilization (IBKR live or notional estimate)
+    use_ibkr_margin: bool = True  # Try IBKR account summary first; fallback to notional
+    max_margin_pct: float = 0.50  # Max 50% margin utilization (IBKR live or notional estimate)
 
     @classmethod
     def from_yaml(cls) -> "PositionSizerConfig":

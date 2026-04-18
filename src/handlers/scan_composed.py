@@ -153,8 +153,7 @@ class ScanHandler(BaseHandler):
 
         async def prefetch_batch(batch_symbols: List[str]) -> None:
             tasks = [
-                self._fetch_historical_cached(sym, days=historical_days)
-                for sym in batch_symbols
+                self._fetch_historical_cached(sym, days=historical_days) for sym in batch_symbols
             ]
             results = await asyncio.gather(*tasks, return_exceptions=True)
             for sym, res in zip(batch_symbols, results):
@@ -1122,9 +1121,7 @@ class ScanHandler(BaseHandler):
         try:
             ehm = get_earnings_history_manager()
             target = date.today()
-            results = await ehm.is_earnings_day_safe_batch_async(
-                symbols, target, min_days=min_days
-            )
+            results = await ehm.is_earnings_day_safe_batch_async(symbols, target, min_days=min_days)
             db_hits = len(results)
 
             for symbol in symbols:
@@ -1150,9 +1147,7 @@ class ScanHandler(BaseHandler):
             return safe, excluded, db_hits
 
         except Exception as e:
-            logger.warning(
-                "Earnings prefilter DB failed (%s), falling back to JSON cache", e
-            )
+            logger.warning("Earnings prefilter DB failed (%s), falling back to JSON cache", e)
 
         # Fallback: JSON cache
         from ..cache import get_earnings_fetcher

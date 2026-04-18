@@ -611,9 +611,7 @@ class EarningsHistoryManager:
 
         return results
 
-    def get_next_earnings_dates_batch(
-        self, symbols: List[str]
-    ) -> Dict[str, Optional[date]]:
+    def get_next_earnings_dates_batch(self, symbols: List[str]) -> Dict[str, Optional[date]]:
         """Return the next future earnings date per symbol via a single SQL query.
 
         Used by the scanner to pre-populate _earnings_cache before the scan loop.
