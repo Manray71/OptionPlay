@@ -262,13 +262,15 @@ def insert_missing_earnings(symbol: str, earnings_data: List[Dict[str, Any]]) ->
 
 
 def get_watchlist_symbols() -> List[str]:
-    """Holt alle Symbole aus der default_275 Watchlist."""
+    """Holt alle Symbole aus der default_275 + extended_600 Watchlists."""
     try:
         from src.config.watchlist_loader import WatchlistLoader
 
         loader = WatchlistLoader()
-        symbols = loader.get_symbols_from_watchlist("default_275")
-        logger.info(f"Watchlist: {len(symbols)} Symbole geladen")
+        symbols_275 = loader.get_symbols_from_watchlist("default_275")
+        symbols_600 = loader.get_symbols_from_watchlist("extended_600")
+        symbols = sorted(set(symbols_275 + symbols_600))
+        logger.info(f"Watchlist: {len(symbols)} Symbole geladen (default_275={len(symbols_275)}, extended_600={len(symbols_600)})")
         return symbols
     except Exception as e:
         logger.warning(f"Watchlist konnte nicht geladen werden: {e}. Fallback auf earnings_history.")
