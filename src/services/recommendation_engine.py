@@ -457,9 +457,10 @@ class DailyRecommendationEngine(RecommendationRankingMixin):
 
             sm_config = get_scoring_resolver().get_sector_momentum_config()
             if sm_config.get("enabled", False):
+                from ..data_providers.local_db import LocalDBProvider
                 from ..services.sector_rs import SectorRSService
 
-                service = SectorRSService()
+                service = SectorRSService(provider=LocalDBProvider())
                 statuses = await service.get_all_sector_statuses()
                 self._sector_factors = {s.sector: (1.0 + s.score_modifier) for s in statuses}
                 if self._sector_factors:

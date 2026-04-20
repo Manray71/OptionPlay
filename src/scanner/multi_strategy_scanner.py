@@ -362,9 +362,10 @@ class MultiStrategyScanner:
         self._sector_rs_service = None
         if self.config.enable_sector_rs:
             try:
+                from ..data_providers.local_db import LocalDBProvider
                 from ..services.sector_rs import SectorRSService
 
-                self._sector_rs_service = SectorRSService()
+                self._sector_rs_service = SectorRSService(provider=LocalDBProvider())
                 logger.info("SectorRS service enabled for additive score modifiers")
             except ImportError:
                 logger.debug("SectorRS service not available")

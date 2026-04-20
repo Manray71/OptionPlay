@@ -347,10 +347,11 @@ class VixHandler(BaseHandler):
         Returns:
             Formatted Markdown with RS Ratio, Momentum, Quadrant, Modifier
         """
+        from ..data_providers.local_db import LocalDBProvider
         from ..services.sector_rs import SectorRSService
         from ..utils.markdown_builder import MarkdownBuilder
 
-        service = SectorRSService()
+        service = SectorRSService(provider=LocalDBProvider())
         rs_map = await service.get_all_sector_rs()
 
         b = MarkdownBuilder()

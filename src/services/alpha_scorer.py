@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Optional
 
 import yaml
 
+from src.data_providers.local_db import LocalDBProvider
 from src.models.alpha import AlphaCandidate
 from src.services.sector_rs import RSQuadrant, SectorRSService, normalize_sector_name
 
@@ -49,7 +50,7 @@ class AlphaScorer:
         if sector_rs_service is not None:
             self._sector_rs_service = sector_rs_service
         else:
-            self._sector_rs_service = SectorRSService()
+            self._sector_rs_service = SectorRSService(provider=LocalDBProvider())
 
         self._sector_map: Dict[str, str] = {}
 
