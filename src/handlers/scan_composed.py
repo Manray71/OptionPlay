@@ -60,13 +60,27 @@ class ScanHandler(BaseHandler):
         """
         from ..config import get_watchlist_loader
         from ..scanner.multi_strategy_scanner import ScanMode
+        from ..services.alpha_scorer import get_alpha_filtered_symbols
         from ..utils.validation import validate_symbols
 
         await self._ensure_connected()
 
         if not symbols:
             watchlist_loader = get_watchlist_loader()
-            symbols = watchlist_loader.get_symbols_by_list_type(list_type)
+
+            # Alpha stage: merge ALL watchlists for broadest universe
+            all_symbols = list(
+                set(
+                    watchlist_loader.get_symbols_from_watchlist("default_275")
+                    + watchlist_loader.get_symbols_from_watchlist("extended_600")
+                )
+            )
+            if not all_symbols:
+                all_symbols = watchlist_loader.get_symbols_by_list_type(list_type)
+
+            trading_config = self._load_trading_config()
+            symbols, _ = await get_alpha_filtered_symbols(all_symbols, trading_config)
+
             list_info = f" ({list_type})" if watchlist_loader.stability_split_enabled else ""
             self._logger.info(f"Scanning {len(symbols)} symbols{list_info}")
         else:
@@ -472,25 +486,51 @@ class ScanHandler(BaseHandler):
         from ..cache import get_earnings_fetcher  # noqa: F401 (side-effect import)
         from ..config import get_watchlist_loader
         from ..constants.trading_rules import SIZING_MAX_PER_SECTOR
+        from ..services.alpha_scorer import get_alpha_filtered_symbols
         from ..services.recommendation_engine import DailyRecommendationEngine
         from ..utils.validation import validate_symbols
 
         await self._ensure_connected()
 
-        # Load symbols — prefer Tier 1 (high liquidity) if tier data available
+        alpha_candidates: Dict[str, Any] = {}
+
+        # Load symbols — Alpha-Engine uses broadest universe, then narrows
         if not symbols:
             watchlist_loader = get_watchlist_loader()
-            tier1_symbols = watchlist_loader.get_symbols_by_tier(max_tier=1)
-            all_stable = watchlist_loader.get_symbols_by_list_type("stable")
-            if len(tier1_symbols) < len(all_stable):
-                symbols = tier1_symbols
+
+            # Alpha stage: merge ALL watchlists for broadest universe
+            all_symbols = list(
+                set(
+                    watchlist_loader.get_symbols_from_watchlist("default_275")
+                    + watchlist_loader.get_symbols_from_watchlist("extended_600")
+                )
+            )
+            if not all_symbols:
+                all_symbols = watchlist_loader.get_all_symbols()
+
+            trading_config = self._load_trading_config()
+            symbols, alpha_candidates = await get_alpha_filtered_symbols(
+                all_symbols, trading_config
+            )
+
+            if alpha_candidates:
                 self._logger.info(
-                    f"Daily picks: scanning {len(symbols)} Tier-1 symbols "
-                    f"(of {len(all_stable)} stable)"
+                    f"Daily picks: Alpha-Longlist {len(symbols)} from "
+                    f"{len(all_symbols)} universe"
                 )
             else:
-                symbols = all_stable
-                self._logger.info(f"Daily picks: scanning {len(symbols)} stable symbols")
+                # Fallback: use Tier 1 (high liquidity) if no alpha
+                tier1_symbols = watchlist_loader.get_symbols_by_tier(max_tier=1)
+                all_stable = watchlist_loader.get_symbols_by_list_type("stable")
+                if len(tier1_symbols) < len(all_stable):
+                    symbols = tier1_symbols
+                    self._logger.info(
+                        f"Daily picks: scanning {len(symbols)} Tier-1 symbols "
+                        f"(of {len(all_stable)} stable)"
+                    )
+                else:
+                    symbols = all_stable
+                    self._logger.info(f"Daily picks: scanning {len(symbols)} stable symbols")
         else:
             symbols = validate_symbols(symbols, skip_invalid=True)
 
@@ -581,6 +621,25 @@ class ScanHandler(BaseHandler):
             options_fetcher=options_fetcher if include_strikes else None,
         )
         duration = (datetime.now() - start_time).total_seconds()
+
+        # Enrich picks with alpha data
+        if alpha_candidates:
+            for pick in result.picks:
+                ac = alpha_candidates.get(pick.symbol)
+                if ac:
+                    pick.alpha_percentile = ac.alpha_percentile
+                    pick.alpha_raw = ac.alpha_raw
+                    pick.dual_label = ac.dual_label
+                    pick.quadrant_slow = (
+                        ac.quadrant_slow.value
+                        if hasattr(ac.quadrant_slow, "value")
+                        else str(ac.quadrant_slow)
+                    )
+                    pick.quadrant_fast = (
+                        ac.quadrant_fast.value
+                        if hasattr(ac.quadrant_fast, "value")
+                        else str(ac.quadrant_fast)
+                    )
 
         return result, duration, excluded_by_earnings
 
@@ -1199,6 +1258,19 @@ class ScanHandler(BaseHandler):
         if exclude_earnings_within_days is not None:
             config.exclude_earnings_within_days = exclude_earnings_within_days
         return MultiStrategyScanner(config=config)
+
+    def _load_trading_config(self) -> Dict[str, Any]:
+        """Load trading.yaml as dict for alpha-engine config access."""
+        from pathlib import Path
+
+        import yaml
+
+        config_path = Path(__file__).resolve().parents[2] / "config" / "trading.yaml"
+        try:
+            with open(config_path) as f:
+                return yaml.safe_load(f) or {}
+        except Exception:
+            return {}
 
     # _get_vix() inherited from BaseHandler
 

@@ -9,6 +9,10 @@ import pytest
 from src.services.sector_rs import (
     DEFAULT_EMA_FAST,
     DEFAULT_EMA_SLOW,
+    DEFAULT_FAST_EMA,
+    DEFAULT_FAST_MOMENTUM_LOOKBACK,
+    DEFAULT_FAST_WEIGHT,
+    DEFAULT_FAST_WINDOW,
     DEFAULT_MOMENTUM_LOOKBACK,
     MODIFIER_IMPROVING,
     MODIFIER_LAGGING,
@@ -18,6 +22,8 @@ from src.services.sector_rs import (
     RSQuadrant,
     SectorRS,
     SectorRSService,
+    StockRS,
+    _compute_dual_label,
     classify_quadrant,
     compute_ema,
     compute_rs_momentum,
@@ -25,7 +31,6 @@ from src.services.sector_rs import (
     get_quadrant_modifier,
     normalize_sector_name,
 )
-
 
 # =============================================================================
 # EMA TESTS
@@ -431,3 +436,334 @@ class TestSectorRSService:
         # "Healthcare" should map to "Health Care"
         factor = await service.get_sector_factor("Healthcare")
         assert 0.5 <= factor <= 1.5
+
+
+# =============================================================================
+# E.1 DUAL-WINDOW TESTS
+# =============================================================================
+
+
+class TestDualLabel:
+    """Test _compute_dual_label helper."""
+
+    def test_same_quadrant_returns_value(self):
+        assert _compute_dual_label(RSQuadrant.LEADING, RSQuadrant.LEADING) == "LEADING"
+        assert _compute_dual_label(RSQuadrant.LAGGING, RSQuadrant.LAGGING) == "LAGGING"
+
+    def test_different_quadrants_arrow_format(self):
+        label = _compute_dual_label(RSQuadrant.LAGGING, RSQuadrant.IMPROVING)
+        assert label == "LAG→IMP"
+
+    def test_all_short_codes(self):
+        assert _compute_dual_label(RSQuadrant.LEADING, RSQuadrant.WEAKENING) == "LEAD→WEAK"
+        assert _compute_dual_label(RSQuadrant.WEAKENING, RSQuadrant.LAGGING) == "WEAK→LAG"
+        assert _compute_dual_label(RSQuadrant.IMPROVING, RSQuadrant.LEADING) == "IMP→LEAD"
+
+
+class TestDualWindowConfig:
+    """Test E.1 config constants."""
+
+    def test_slow_ema_is_50(self):
+        assert DEFAULT_EMA_SLOW == 50
+
+    def test_slow_momentum_lookback_is_14(self):
+        assert DEFAULT_MOMENTUM_LOOKBACK == 14
+
+    def test_fast_ema_is_10(self):
+        assert DEFAULT_FAST_EMA == 10
+
+    def test_fast_window_is_20(self):
+        assert DEFAULT_FAST_WINDOW == 20
+
+    def test_fast_momentum_lookback_is_5(self):
+        assert DEFAULT_FAST_MOMENTUM_LOOKBACK == 5
+
+    def test_fast_weight_is_1_5(self):
+        assert DEFAULT_FAST_WEIGHT == 1.5
+
+    def test_ema_fast_alias(self):
+        """DEFAULT_EMA_FAST is alias for DEFAULT_FAST_EMA (backward compat)."""
+        assert DEFAULT_EMA_FAST == DEFAULT_FAST_EMA
+
+
+class TestDualWindowCalculation:
+    """Test dual-window RS computation on sector level."""
+
+    def _make_provider(self, price_map: dict) -> AsyncMock:
+        provider = AsyncMock()
+
+        async def mock_historical(symbol, days=120):
+            prices = price_map.get(symbol)
+            if prices is None:
+                return None
+            result = MagicMock()
+            result.closes = prices
+            return result
+
+        provider.get_historical = mock_historical
+        return provider
+
+    def _make_prices(self, n: int, base: float = 100.0, trend: float = 0.1) -> list:
+        return [base + i * trend for i in range(n)]
+
+    @pytest.mark.asyncio
+    async def test_dual_window_fields_present(self):
+        """SectorRS returned by calculate_sector_rs has all E.1 fields."""
+        n = 140
+        spy = self._make_prices(n)
+        xlk = self._make_prices(n, trend=0.3)
+        price_map = {etf: spy for etf in SECTOR_ETF_MAP.values()}
+        price_map["SPY"] = spy
+        price_map["XLK"] = xlk
+
+        svc = SectorRSService(provider=self._make_provider(price_map))
+        result = await svc.get_all_sector_rs()
+        tech = result["Technology"]
+
+        assert hasattr(tech, "rs_ratio_fast")
+        assert hasattr(tech, "rs_momentum_fast")
+        assert hasattr(tech, "quadrant_fast")
+        assert hasattr(tech, "dual_label")
+
+    @pytest.mark.asyncio
+    async def test_slow_and_fast_differ(self):
+        """Fast RS responds more to recent price changes than slow RS."""
+        n = 140
+        spy = self._make_prices(n, trend=0.1)
+        # XLK: flat then strong rally at end (fast should pick up more)
+        xlk = [100.0] * 100 + [100.0 + i * 1.0 for i in range(40)]
+        price_map = {etf: spy for etf in SECTOR_ETF_MAP.values()}
+        price_map["SPY"] = spy
+        price_map["XLK"] = xlk
+
+        svc = SectorRSService(provider=self._make_provider(price_map))
+        result = await svc.get_all_sector_rs()
+        tech = result["Technology"]
+
+        # Fast reacts more to recent rally, so fast RS ratio should exceed slow
+        assert tech.rs_ratio_fast != tech.rs_ratio
+
+    @pytest.mark.asyncio
+    async def test_score_modifier_is_slow_based(self):
+        """score_modifier always comes from the slow quadrant, regardless of fast."""
+        n = 140
+        spy = self._make_prices(n, trend=0.1)
+        # XLK lags SPY overall (slow=LAGGING), but rallies in last 30 bars
+        xlk = [100.0 - i * 0.05 for i in range(100)] + [95.0 + i * 1.5 for i in range(40)]
+        price_map = {etf: spy for etf in SECTOR_ETF_MAP.values()}
+        price_map["SPY"] = spy
+        price_map["XLK"] = xlk
+
+        svc = SectorRSService(provider=self._make_provider(price_map))
+        result = await svc.get_all_sector_rs()
+        tech = result["Technology"]
+
+        # score_modifier must equal modifier of the slow quadrant
+        expected_modifier = get_quadrant_modifier(tech.quadrant)
+        assert tech.score_modifier == expected_modifier
+
+    @pytest.mark.asyncio
+    async def test_dual_label_lag_to_imp(self):
+        """Slow=LAGGING, Fast=IMPROVING → dual_label == 'LAG→IMP'."""
+        n = 140
+        spy = self._make_prices(n, trend=0.3)
+        # XLK underperforms for long run, strong short-term reversal
+        xlk = [100.0 - i * 0.02 for i in range(110)] + [97.8 + i * 2.0 for i in range(30)]
+        price_map = {etf: spy for etf in SECTOR_ETF_MAP.values()}
+        price_map["SPY"] = spy
+        price_map["XLK"] = xlk
+
+        svc = SectorRSService(provider=self._make_provider(price_map))
+        result = await svc.get_all_sector_rs()
+        tech = result["Technology"]
+
+        expected = _compute_dual_label(tech.quadrant, tech.quadrant_fast)
+        assert tech.dual_label == expected
+
+    @pytest.mark.asyncio
+    async def test_graceful_degradation_missing_fast_window_config(self):
+        """Service uses defaults if fast_window not in config dict."""
+        svc = SectorRSService(config={})  # empty config
+        assert svc._fast_window == DEFAULT_FAST_WINDOW
+        assert svc._fast_ema == DEFAULT_FAST_EMA
+        assert svc._fast_momentum_lookback == DEFAULT_FAST_MOMENTUM_LOOKBACK
+        assert svc._fast_weight == DEFAULT_FAST_WEIGHT
+
+
+class TestGetAllStockRS:
+    """Test E.1 batch stock RS method."""
+
+    def _make_provider(self, price_map: dict) -> AsyncMock:
+        provider = AsyncMock()
+
+        async def mock_historical(symbol, days=130):
+            prices = price_map.get(symbol)
+            if prices is None:
+                return None
+            result = MagicMock()
+            result.closes = prices
+            return result
+
+        provider.get_historical = mock_historical
+        return provider
+
+    def _make_prices(self, n: int = 140, base: float = 100.0, trend: float = 0.1) -> list:
+        return [base + i * trend for i in range(n)]
+
+    @pytest.mark.asyncio
+    async def test_returns_stock_rs_for_all_symbols(self):
+        """get_all_stock_rs returns StockRS for each requested symbol."""
+        syms = ["AAPL", "MSFT", "NVDA"]
+        spy = self._make_prices()
+        price_map = {
+            "SPY": spy,
+            "AAPL": self._make_prices(trend=0.2),
+            "MSFT": spy,
+            "NVDA": self._make_prices(trend=0.4),
+        }
+
+        svc = SectorRSService(provider=self._make_provider(price_map))
+        result = await svc.get_all_stock_rs(syms)
+
+        assert set(result.keys()) == set(syms)
+        for sym in syms:
+            assert isinstance(result[sym], StockRS)
+
+    @pytest.mark.asyncio
+    async def test_stock_rs_has_all_dual_fields(self):
+        """StockRS contains slow, fast, composite, and raw score fields."""
+        spy = self._make_prices()
+        price_map = {"SPY": spy, "AAPL": self._make_prices(trend=0.3)}
+
+        svc = SectorRSService(provider=self._make_provider(price_map))
+        result = await svc.get_all_stock_rs(["AAPL"])
+        aapl = result["AAPL"]
+
+        assert hasattr(aapl, "rs_ratio")
+        assert hasattr(aapl, "rs_ratio_fast")
+        assert hasattr(aapl, "quadrant")
+        assert hasattr(aapl, "quadrant_fast")
+        assert hasattr(aapl, "dual_label")
+        assert hasattr(aapl, "b_raw")
+        assert hasattr(aapl, "f_raw")
+
+    @pytest.mark.asyncio
+    async def test_b_raw_and_f_raw_computation(self):
+        """b_raw = rs_ratio - 100, f_raw = rs_ratio_fast - 100."""
+        spy = self._make_prices()
+        price_map = {"SPY": spy, "AAPL": self._make_prices(trend=0.3)}
+
+        svc = SectorRSService(provider=self._make_provider(price_map))
+        result = await svc.get_all_stock_rs(["AAPL"])
+        aapl = result["AAPL"]
+
+        assert abs(aapl.b_raw - (aapl.rs_ratio - 100.0)) < 1e-6
+        assert abs(aapl.f_raw - (aapl.rs_ratio_fast - 100.0)) < 1e-6
+
+    @pytest.mark.asyncio
+    async def test_empty_symbols_returns_empty(self):
+        svc = SectorRSService(provider=AsyncMock())
+        result = await svc.get_all_stock_rs([])
+        assert result == {}
+
+    @pytest.mark.asyncio
+    async def test_missing_symbol_data_skipped(self):
+        """Symbols with no price data are omitted from result."""
+        price_map = {"SPY": self._make_prices(), "AAPL": self._make_prices()}
+        svc = SectorRSService(provider=self._make_provider(price_map))
+        result = await svc.get_all_stock_rs(["AAPL", "MISSING"])
+
+        assert "AAPL" in result
+        assert "MISSING" not in result
+
+    @pytest.mark.asyncio
+    async def test_stock_rs_dual_label_consistency(self):
+        """dual_label matches _compute_dual_label(quadrant, quadrant_fast)."""
+        spy = self._make_prices()
+        price_map = {"SPY": spy, "JPM": self._make_prices(trend=0.05)}
+
+        svc = SectorRSService(provider=self._make_provider(price_map))
+        result = await svc.get_all_stock_rs(["JPM"])
+        jpm = result["JPM"]
+
+        expected = _compute_dual_label(jpm.quadrant, jpm.quadrant_fast)
+        assert jpm.dual_label == expected
+
+
+class TestTrailWithFast:
+    """Test E.1.5 fast trail in get_all_sector_rs_with_trail."""
+
+    def _make_provider(self, price_map: dict) -> AsyncMock:
+        provider = AsyncMock()
+
+        async def mock_historical(symbol, days=150):
+            prices = price_map.get(symbol)
+            if prices is None:
+                return None
+            result = MagicMock()
+            result.closes = prices
+            return result
+
+        provider.get_historical = mock_historical
+        return provider
+
+    @pytest.mark.asyncio
+    async def test_trail_fast_key_present(self):
+        """get_all_sector_rs_with_trail returns trail_fast key."""
+        n = 160
+        prices = [100.0 + i * 0.1 for i in range(n)]
+        price_map = {etf: prices for etf in SECTOR_ETF_MAP.values()}
+        price_map["SPY"] = prices
+
+        svc = SectorRSService(provider=self._make_provider(price_map))
+        result = await svc.get_all_sector_rs_with_trail()
+
+        for sector_data in result.values():
+            assert "trail_fast" in sector_data
+
+    @pytest.mark.asyncio
+    async def test_trail_fast_length_bounded(self):
+        """trail_fast length <= fast_window (20)."""
+        n = 160
+        prices = [100.0 + i * 0.1 for i in range(n)]
+        price_map = {etf: prices for etf in SECTOR_ETF_MAP.values()}
+        price_map["SPY"] = prices
+
+        svc = SectorRSService(provider=self._make_provider(price_map))
+        result = await svc.get_all_sector_rs_with_trail()
+
+        for sector_data in result.values():
+            assert len(sector_data["trail_fast"]) <= svc._fast_window
+
+    @pytest.mark.asyncio
+    async def test_trail_fast_fields_correct(self):
+        """trail_fast entries have rs_ratio and rs_momentum keys."""
+        n = 160
+        prices = [100.0 + i * 0.1 for i in range(n)]
+        price_map = {etf: prices for etf in SECTOR_ETF_MAP.values()}
+        price_map["SPY"] = prices
+
+        svc = SectorRSService(provider=self._make_provider(price_map))
+        result = await svc.get_all_sector_rs_with_trail()
+
+        for sector_data in result.values():
+            for pt in sector_data["trail_fast"]:
+                assert "rs_ratio" in pt
+                assert "rs_momentum" in pt
+
+    @pytest.mark.asyncio
+    async def test_trail_result_has_fast_top_level_fields(self):
+        """Top-level dict has rs_ratio_fast, rs_momentum_fast, quadrant_fast, dual_label."""
+        n = 160
+        prices = [100.0 + i * 0.1 for i in range(n)]
+        price_map = {etf: prices for etf in SECTOR_ETF_MAP.values()}
+        price_map["SPY"] = prices
+
+        svc = SectorRSService(provider=self._make_provider(price_map))
+        result = await svc.get_all_sector_rs_with_trail()
+
+        for sector_data in result.values():
+            assert "rs_ratio_fast" in sector_data
+            assert "rs_momentum_fast" in sector_data
+            assert "quadrant_fast" in sector_data
+            assert "dual_label" in sector_data

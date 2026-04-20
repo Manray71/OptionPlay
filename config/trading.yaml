@@ -579,12 +579,21 @@ roll_strategy:
 sector_rs:
   enabled: true  # Activated in v5.0.0
   benchmark: "SPY"
-  lookback_days: 60
-  ema_fast: 10
-  ema_slow: 30
-  momentum_lookback: 5
+  # Slow window (Kontext, B in dual-window model)
+  # NOTE: ema_slow changed from 30→50; score_modifier still based on slow quadrant
+  lookback_days: 120      # was 60; 100d slow EMA + buffer
+  ema_slow: 50            # was 30; closer to true 100d-equivalent
+  momentum_lookback: 14   # was 5; longer-term trend signal
+  # Fast window (Signal, F in dual-window model) — NEW E.1
+  fast_window: 20         # 20d lookback for fast slice
+  fast_ema: 10            # EMA period for fast RS
+  fast_momentum_lookback: 5
+  fast_weight: 1.5        # composite = B + 1.5 * F (used in E.2 AlphaScorer)
+  alpha_longlist_size: 30 # Top-N for Alpha-Longlist (E.2)
+  alpha_engine_enabled: true  # E.3: Two-stage pipeline (Alpha pre-filter → Scanner)
+  # Unchanged
   cache_ttl_hours: 8
-  score_modifiers:
+  score_modifiers:         # Risk-filter modifier stays on slow quadrant
     leading: 0.5
     improving: 0.3
     weakening: -0.3
