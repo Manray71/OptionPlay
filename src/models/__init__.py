@@ -23,6 +23,7 @@ from .strategy import (
 from .strategy_breakdowns import (
     BounceScoreBreakdown,
 )
+from .alpha import AlphaCandidate
 
 __all__ = [
     # Base
@@ -60,4 +61,6 @@ __all__ = [
     "EarningsSource",
     "IVData",
     "IVSource",
+    # Alpha Engine
+    "AlphaCandidate",
 ]
