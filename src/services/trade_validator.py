@@ -1110,9 +1110,12 @@ class TradeValidator:
             from ..cache.vix_cache import get_vix_manager
 
             manager = get_vix_manager()
-            return await asyncio.to_thread(manager.get_latest_vix)
-        except ImportError:
-            logger.debug("vix_cache module not available, trying DB fallback")
+            result = await asyncio.to_thread(manager.get_latest_vix)
+            if result is not None:
+                return result
+        except Exception:
+            pass
+        logger.debug("vix_cache not available or returned None, trying DB fallback")
 
         try:
             return await asyncio.to_thread(self._read_vix_from_db)

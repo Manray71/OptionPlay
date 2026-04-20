@@ -446,7 +446,7 @@ class StrategyRecommendationFormatter(BaseFormatter):
         else:
             b.kv("VIX", "Not available")
 
-        b.kv("Regime", recommendation.regime.value)
+        b.kv("Regime", recommendation.regime.value if recommendation.regime else "Unknown")
         b.kv("Profile", recommendation.profile_name.upper())
         b.blank()
 

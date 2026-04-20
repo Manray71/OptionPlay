@@ -440,10 +440,6 @@ class MultiStrategyScanner:
         if not self.config.enable_fundamentals_filter:
             return symbols, {}
 
-        if not self._fundamentals_cache:
-            logger.debug("Fundamentals cache is empty - skipping fundamentals filter")
-            return symbols, {}
-
         passed: List[str] = []
         filtered: Dict[str, str] = {}
 
@@ -462,6 +458,11 @@ class MultiStrategyScanner:
             # Blacklist
             if blacklist and symbol_upper in blacklist:
                 filtered[symbol] = "Blacklisted (historisch schlechte Performance)"
+                continue
+
+            # Without fundamentals cache, pass symbol through (conservative)
+            if not self._fundamentals_cache:
+                passed.append(symbol)
                 continue
 
             # Fundamentals abrufen
