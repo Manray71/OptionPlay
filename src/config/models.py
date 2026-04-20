@@ -374,6 +374,7 @@ class FilterConfig:
     price_maximum: float = ENTRY_PRICE_MAX
     volume_minimum: int = ENTRY_VOLUME_MIN
     iv_rank_minimum: float = ENTRY_IV_RANK_MIN
+    iv_rank_minimum: float = ENTRY_IV_RANK_MIN  # Min IV-Rank für ausreichend Prämie
     iv_rank_maximum: float = ENTRY_IV_RANK_MAX
     # Fundamentals-Filter
     fundamentals: FundamentalsFilterConfig = field(default_factory=FundamentalsFilterConfig)
@@ -409,6 +410,7 @@ class ScannerConfig:
     earnings_allow_bmo_same_day: bool = False  # Konservativ: BMO-Tag nicht handeln
 
     # IV-Rank Filter (für Credit-Spreads wichtig!)
+    iv_rank_minimum: float = ENTRY_IV_RANK_MIN  # Min IV-Rank für ausreichend Prämie
     iv_rank_maximum: float = ENTRY_IV_RANK_MAX  # Max IV-Rank (zu hohe IV = erhöhtes Risiko)
     enable_iv_filter: bool = True  # IV-Filter aktivieren/deaktivieren
 
