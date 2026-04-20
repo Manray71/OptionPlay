@@ -93,13 +93,21 @@ for _alias, _canonical in _SECTOR_ALIASES.items():
     if _canonical not in _SECTOR_REVERSE:
         _SECTOR_REVERSE[_canonical] = _alias
 
-# Default configuration
+# Default configuration — Slow window
 DEFAULT_BENCHMARK = _cfg.get("benchmark", "SPY")
-DEFAULT_LOOKBACK_DAYS = _cfg.get("lookback_days", 60)
-DEFAULT_EMA_FAST = _cfg.get("ema_fast", 10)
-DEFAULT_EMA_SLOW = _cfg.get("ema_slow", 30)
+DEFAULT_LOOKBACK_DAYS = _cfg.get("lookback_days", 120)
+DEFAULT_EMA_SLOW = _cfg.get("ema_slow", 50)
 DEFAULT_MOMENTUM_LOOKBACK = _cfg.get("momentum_lookback", 14)
 DEFAULT_CACHE_TTL_HOURS = _cfg.get("cache_ttl_hours", 8)
+
+# Default configuration — Fast window (E.1)
+DEFAULT_FAST_WINDOW = _cfg.get("fast_window", 20)
+DEFAULT_FAST_EMA = _cfg.get("fast_ema", 10)
+DEFAULT_FAST_MOMENTUM_LOOKBACK = _cfg.get("fast_momentum_lookback", 5)
+DEFAULT_FAST_WEIGHT = _cfg.get("fast_weight", 1.5)
+
+# Legacy alias kept for any code that still imports DEFAULT_EMA_FAST
+DEFAULT_EMA_FAST = DEFAULT_FAST_EMA
 
 # Score modifiers per quadrant (additive, not multiplicative)
 _mod_cfg = _cfg.get("score_modifiers", {})
@@ -129,10 +137,49 @@ class SectorRS:
 
     sector: str
     etf_symbol: str
+    # Slow window (100d context, B)
     rs_ratio: float  # > 100 = outperforming benchmark
     rs_momentum: float  # > 100 = improving
     quadrant: RSQuadrant
-    score_modifier: float  # Additive modifier for signal scores
+    score_modifier: float  # Additive modifier for risk-filter (slow-based)
+    # Fast window (20d signal, F) — E.1 additions; defaults preserve backward compat
+    rs_ratio_fast: float = 100.0
+    rs_momentum_fast: float = 100.0
+    quadrant_fast: RSQuadrant = RSQuadrant.LEADING
+    dual_label: str = ""  # e.g. "LAG→IMP" when slow=LAG, fast=IMP
+
+
+@dataclass(frozen=True)
+class StockRS:
+    """Individual stock relative strength result (dual-window)."""
+
+    symbol: str
+    # Slow
+    rs_ratio: float
+    rs_momentum: float
+    quadrant: RSQuadrant
+    # Fast
+    rs_ratio_fast: float
+    rs_momentum_fast: float
+    quadrant_fast: RSQuadrant
+    # Composite
+    dual_label: str
+    # Raw scores for AlphaScorer (E.2)
+    b_raw: float  # rs_ratio_slow - 100.0
+    f_raw: float  # rs_ratio_fast - 100.0
+
+
+def _compute_dual_label(slow: RSQuadrant, fast: RSQuadrant) -> str:
+    """Build a compact dual-quadrant label like 'LAG→IMP'."""
+    if slow == fast:
+        return slow.value.upper()
+    short = {
+        "leading": "LEAD",
+        "weakening": "WEAK",
+        "lagging": "LAG",
+        "improving": "IMP",
+    }
+    return f"{short[slow.value]}→{short[fast.value]}"
 
 
 # =============================================================================
@@ -232,6 +279,7 @@ def compute_rs_momentum(
     ema_fast: int = DEFAULT_EMA_FAST,
     ema_slow: int = DEFAULT_EMA_SLOW,
     momentum_lookback: int = DEFAULT_MOMENTUM_LOOKBACK,
+    ema_period: Optional[int] = None,
 ) -> float:
     """
     Compute RS Momentum: rate of change of the RS-Ratio over momentum_lookback days.
@@ -241,8 +289,12 @@ def compute_rs_momentum(
     Returns value centered around 100:
     - > 100: RS improving (sector gaining relative strength)
     - < 100: RS deteriorating (sector losing relative strength)
+
+    Args:
+        ema_period: If provided, overrides ema_slow (allows dual-window reuse).
     """
-    rs_series = compute_rs_ratio_series(sector_closes, benchmark_closes, ema_period=ema_slow)
+    effective_ema = ema_period if ema_period is not None else ema_slow
+    rs_series = compute_rs_ratio_series(sector_closes, benchmark_closes, ema_period=effective_ema)
 
     if len(rs_series) <= momentum_lookback:
         return 100.0
@@ -326,7 +378,7 @@ class SectorRSService:
 
     @property
     def _ema_fast(self) -> int:
-        return self._config.get("ema_fast", DEFAULT_EMA_FAST)
+        return self._config.get("fast_ema", DEFAULT_FAST_EMA)
 
     @property
     def _ema_slow(self) -> int:
@@ -335,6 +387,22 @@ class SectorRSService:
     @property
     def _momentum_lookback(self) -> int:
         return self._config.get("momentum_lookback", DEFAULT_MOMENTUM_LOOKBACK)
+
+    @property
+    def _fast_window(self) -> int:
+        return self._config.get("fast_window", DEFAULT_FAST_WINDOW)
+
+    @property
+    def _fast_ema(self) -> int:
+        return self._config.get("fast_ema", DEFAULT_FAST_EMA)
+
+    @property
+    def _fast_momentum_lookback(self) -> int:
+        return self._config.get("fast_momentum_lookback", DEFAULT_FAST_MOMENTUM_LOOKBACK)
+
+    @property
+    def _fast_weight(self) -> float:
+        return self._config.get("fast_weight", DEFAULT_FAST_WEIGHT)
 
     @property
     def _benchmark(self) -> str:
@@ -378,7 +446,7 @@ class SectorRSService:
         self, sector: str, sector_closes: List[float], benchmark_closes: List[float]
     ) -> SectorRS:
         """
-        Calculate RS for a single sector given price data.
+        Calculate dual-window RS for a single sector given price data.
 
         Args:
             sector: Sector name
@@ -387,16 +455,33 @@ class SectorRSService:
         """
         etf = SECTOR_ETF_MAP.get(sector, "???")
 
+        # Slow window (100d context, B)
         rs_ratio = compute_rs_ratio(sector_closes, benchmark_closes, ema_period=self._ema_slow)
         rs_momentum = compute_rs_momentum(
             sector_closes,
             benchmark_closes,
-            ema_fast=self._ema_fast,
             ema_slow=self._ema_slow,
             momentum_lookback=self._momentum_lookback,
         )
         quadrant = classify_quadrant(rs_ratio, rs_momentum)
         modifier = get_quadrant_modifier(quadrant)
+
+        # Fast window (20d signal, F) — slice from same dataset
+        fast_n = self._fast_window + 10  # 30-bar slice (20 + buffer)
+        sector_fast = sector_closes[-fast_n:] if len(sector_closes) >= fast_n else sector_closes
+        bench_fast = (
+            benchmark_closes[-fast_n:] if len(benchmark_closes) >= fast_n else benchmark_closes
+        )
+
+        rs_ratio_fast = compute_rs_ratio(sector_fast, bench_fast, ema_period=self._fast_ema)
+        rs_momentum_fast = compute_rs_momentum(
+            sector_fast,
+            bench_fast,
+            ema_period=self._fast_ema,
+            momentum_lookback=self._fast_momentum_lookback,
+        )
+        quadrant_fast = classify_quadrant(rs_ratio_fast, rs_momentum_fast)
+        dual_label = _compute_dual_label(quadrant, quadrant_fast)
 
         return SectorRS(
             sector=sector,
@@ -405,6 +490,10 @@ class SectorRSService:
             rs_momentum=round(rs_momentum, 2),
             quadrant=quadrant,
             score_modifier=modifier,
+            rs_ratio_fast=round(rs_ratio_fast, 2),
+            rs_momentum_fast=round(rs_momentum_fast, 2),
+            quadrant_fast=quadrant_fast,
+            dual_label=dual_label,
         )
 
     async def get_all_sector_rs(self) -> Dict[str, SectorRS]:
@@ -490,15 +579,22 @@ class SectorRSService:
             logger.warning(f"No {benchmark} data for trail, returning neutral")
             return {
                 sector: {
-                    **self._neutral_rs(sector).__dict__,
+                    **{
+                        k: v
+                        for k, v in self._neutral_rs(sector).__dict__.items()
+                        if k not in ("quadrant", "quadrant_fast")
+                    },
                     "quadrant": self._neutral_rs(sector).quadrant.value,
+                    "quadrant_fast": self._neutral_rs(sector).quadrant_fast.value,
                     "trail": [],
+                    "trail_fast": [],
                 }
                 for sector in SECTOR_ETF_MAP
             }
 
         sector_results: Dict[str, dict] = {}
         offsets = list(range(trail_points * trail_interval, 0, -trail_interval)) + [0]
+        fast_n = self._fast_window + 10  # 30-bar slice for fast window
 
         for sector, etf in SECTOR_ETF_MAP.items():
             etf_closes = price_map.get(etf)
@@ -511,7 +607,12 @@ class SectorRSService:
                     "rs_momentum": nr.rs_momentum,
                     "quadrant": nr.quadrant.value,
                     "score_modifier": nr.score_modifier,
+                    "rs_ratio_fast": nr.rs_ratio_fast,
+                    "rs_momentum_fast": nr.rs_momentum_fast,
+                    "quadrant_fast": nr.quadrant_fast.value,
+                    "dual_label": nr.dual_label,
                     "trail": [],
+                    "trail_fast": [],
                 }
                 continue
 
@@ -521,6 +622,7 @@ class SectorRSService:
             bench_aligned = benchmark_closes[-min_len:]
 
             trail = []
+            trail_fast = []
             for offset in offsets:
                 if offset == 0:
                     sc = etf_aligned
@@ -536,7 +638,6 @@ class SectorRSService:
                 rs_momentum = compute_rs_momentum(
                     sc,
                     bc,
-                    ema_fast=self._ema_fast,
                     ema_slow=self._ema_slow,
                     momentum_lookback=self._momentum_lookback,
                 )
@@ -547,9 +648,30 @@ class SectorRSService:
                     }
                 )
 
+                # Fast trail point — slice from this same truncated series
+                sc_fast = sc[-fast_n:] if len(sc) >= fast_n else sc
+                bc_fast = bc[-fast_n:] if len(bc) >= fast_n else bc
+                rs_ratio_f = compute_rs_ratio(sc_fast, bc_fast, ema_period=self._fast_ema)
+                rs_momentum_f = compute_rs_momentum(
+                    sc_fast,
+                    bc_fast,
+                    ema_period=self._fast_ema,
+                    momentum_lookback=self._fast_momentum_lookback,
+                )
+                trail_fast.append(
+                    {
+                        "rs_ratio": round(rs_ratio_f, 2),
+                        "rs_momentum": round(rs_momentum_f, 2),
+                    }
+                )
+
             # Current values = last trail point
             current = trail[-1] if trail else {"rs_ratio": 100.0, "rs_momentum": 100.0}
+            current_fast = (
+                trail_fast[-1] if trail_fast else {"rs_ratio": 100.0, "rs_momentum": 100.0}
+            )
             quadrant = classify_quadrant(current["rs_ratio"], current["rs_momentum"])
+            quadrant_fast = classify_quadrant(current_fast["rs_ratio"], current_fast["rs_momentum"])
 
             sector_results[sector] = {
                 "sector": sector,
@@ -558,10 +680,98 @@ class SectorRSService:
                 "rs_momentum": current["rs_momentum"],
                 "quadrant": quadrant.value,
                 "score_modifier": get_quadrant_modifier(quadrant),
+                "rs_ratio_fast": current_fast["rs_ratio"],
+                "rs_momentum_fast": current_fast["rs_momentum"],
+                "quadrant_fast": quadrant_fast.value,
+                "dual_label": _compute_dual_label(quadrant, quadrant_fast),
                 "trail": trail[:-1],  # Exclude current (it's in top-level fields)
+                "trail_fast": trail_fast[:-1],
             }
 
         return sector_results
+
+    async def get_all_stock_rs(self, symbols: List[str]) -> Dict[str, StockRS]:
+        """
+        Compute dual-window RS for all symbols vs SPY. Batch-optimised.
+
+        Fetches SPY once, then all symbol closes in a single parallel gather.
+        Result is cached alongside sector RS (same TTL).
+
+        Args:
+            symbols: List of ticker symbols (up to ~350 at once).
+
+        Returns:
+            Dict mapping symbol -> StockRS with slow + fast fields.
+        """
+        if not symbols:
+            return {}
+
+        benchmark = self._benchmark
+        fetch_days = self._lookback_days + 10  # slow window buffer
+
+        # Fetch SPY + all symbols in one parallel batch
+        all_syms = [benchmark] + list(symbols)
+        tasks = [self._fetch_closes(sym, fetch_days) for sym in all_syms]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        price_map: Dict[str, List[float]] = {}
+        for sym, res in zip(all_syms, results):
+            if isinstance(res, list) and len(res) > 0:
+                price_map[sym] = res
+
+        benchmark_closes = price_map.get(benchmark)
+        if benchmark_closes is None:
+            logger.warning(f"No {benchmark} data for stock RS batch")
+            return {}
+
+        fast_n = self._fast_window + 10
+
+        stock_results: Dict[str, StockRS] = {}
+        for sym in symbols:
+            sym_closes = price_map.get(sym)
+            if sym_closes is None:
+                continue
+
+            min_len = min(len(sym_closes), len(benchmark_closes))
+            sc = sym_closes[-min_len:]
+            bc = benchmark_closes[-min_len:]
+
+            if len(sc) < self._ema_slow + self._momentum_lookback:
+                continue
+
+            # Slow RS
+            rs_ratio = compute_rs_ratio(sc, bc, ema_period=self._ema_slow)
+            rs_momentum = compute_rs_momentum(
+                sc, bc, ema_slow=self._ema_slow, momentum_lookback=self._momentum_lookback
+            )
+            quadrant = classify_quadrant(rs_ratio, rs_momentum)
+
+            # Fast RS (sliced)
+            sc_fast = sc[-fast_n:] if len(sc) >= fast_n else sc
+            bc_fast = bc[-fast_n:] if len(bc) >= fast_n else bc
+            rs_ratio_fast = compute_rs_ratio(sc_fast, bc_fast, ema_period=self._fast_ema)
+            rs_momentum_fast = compute_rs_momentum(
+                sc_fast,
+                bc_fast,
+                ema_period=self._fast_ema,
+                momentum_lookback=self._fast_momentum_lookback,
+            )
+            quadrant_fast = classify_quadrant(rs_ratio_fast, rs_momentum_fast)
+
+            stock_results[sym] = StockRS(
+                symbol=sym,
+                rs_ratio=round(rs_ratio, 4),
+                rs_momentum=round(rs_momentum, 4),
+                quadrant=quadrant,
+                rs_ratio_fast=round(rs_ratio_fast, 4),
+                rs_momentum_fast=round(rs_momentum_fast, 4),
+                quadrant_fast=quadrant_fast,
+                dual_label=_compute_dual_label(quadrant, quadrant_fast),
+                b_raw=round(rs_ratio - 100.0, 4),
+                f_raw=round(rs_ratio_fast - 100.0, 4),
+            )
+
+        return stock_results
 
     async def get_stock_rs_with_trail(
         self,
@@ -661,7 +871,6 @@ class SectorRSService:
                 rs_momentum = compute_rs_momentum(
                     sc,
                     bc,
-                    ema_fast=self._ema_fast,
                     ema_slow=self._ema_slow,
                     momentum_lookback=self._momentum_lookback,
                 )
@@ -790,4 +999,8 @@ class SectorRSService:
             rs_momentum=100.0,
             quadrant=RSQuadrant.LEADING,  # 100/100 is technically leading
             score_modifier=0.0,  # But modifier is 0 (neutral)
+            rs_ratio_fast=100.0,
+            rs_momentum_fast=100.0,
+            quadrant_fast=RSQuadrant.LEADING,
+            dual_label="LEADING",
         )
