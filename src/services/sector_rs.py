@@ -421,9 +421,19 @@ class SectorRSService:
             from ..container import get_container
 
             container = get_container()
-            self._provider = await container.ensure_provider()
-        except (ImportError, AttributeError):
-            logger.warning("Could not resolve market data provider for SectorRS")
+            provider = await container.ensure_provider()
+            if provider and await provider.is_connected():
+                self._provider = provider
+        except Exception:
+            pass
+
+        if self._provider is None:
+            try:
+                from ..data_providers.local_db import LocalDBProvider
+
+                self._provider = LocalDBProvider()
+            except Exception:
+                logger.warning("Could not resolve market data provider for SectorRS")
         return self._provider
 
     async def _fetch_closes(self, symbol: str, days: int) -> Optional[List[float]]:
