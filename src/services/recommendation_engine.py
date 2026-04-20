@@ -157,6 +157,13 @@ class DailyPick:
     # Liquidity tier (1=high, 2=medium, 3=low)
     liquidity_tier: Optional[int] = None
 
+    # Alpha-Engine fields (E.3: two-stage pipeline)
+    alpha_percentile: Optional[int] = None
+    alpha_raw: Optional[float] = None
+    dual_label: Optional[str] = None
+    quadrant_slow: Optional[str] = None
+    quadrant_fast: Optional[str] = None
+
     # Enhanced scoring (daily_picks re-ranking)
     enhanced_score: Optional[float] = None
     enhanced_score_result: Optional[Any] = None  # EnhancedScoreResult
@@ -191,6 +198,12 @@ class DailyPick:
             result["liquidity_tier"] = self.liquidity_tier
         if self.enhanced_score is not None:
             result["enhanced_score"] = self.enhanced_score
+        if self.alpha_percentile is not None:
+            result["alpha_percentile"] = self.alpha_percentile
+            result["alpha_raw"] = self.alpha_raw
+            result["dual_label"] = self.dual_label
+            result["quadrant_slow"] = self.quadrant_slow
+            result["quadrant_fast"] = self.quadrant_fast
         return result
 
 

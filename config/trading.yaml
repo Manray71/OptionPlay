@@ -590,6 +590,7 @@ sector_rs:
   fast_momentum_lookback: 5
   fast_weight: 1.5        # composite = B + 1.5 * F (used in E.2 AlphaScorer)
   alpha_longlist_size: 30 # Top-N for Alpha-Longlist (E.2)
+  alpha_engine_enabled: true  # E.3: Two-stage pipeline (Alpha pre-filter → Scanner)
   # Unchanged
   cache_ttl_hours: 8
   score_modifiers:         # Risk-filter modifier stays on slow quadrant

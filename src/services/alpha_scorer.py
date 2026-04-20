@@ -166,3 +166,42 @@ class AlphaScorer:
             return {"color": "red", "text": "Not tradeable"}
         else:
             return {"color": "yellow", "text": "Vorsicht — 20d schwächt sich ab"}
+
+
+# =============================================================================
+# SHARED PIPELINE HELPER (E.3)
+# =============================================================================
+
+
+async def get_alpha_filtered_symbols(
+    full_watchlist: List[str],
+    config: Optional[Dict[str, Any]] = None,
+) -> tuple:
+    """
+    Returns (filtered_symbols, alpha_map).
+
+    alpha_map: {symbol: AlphaCandidate} for downstream enrichment.
+    Falls deaktiviert oder Fehler: (full_watchlist, {}).
+
+    The caller is responsible for passing the broadest available universe
+    (default_275 + extended_600 merged, deduplicated).
+    """
+    cfg = config or {}
+    sector_rs_cfg = cfg.get("sector_rs", {})
+
+    if not sector_rs_cfg.get("alpha_engine_enabled", False):
+        return full_watchlist, {}
+
+    try:
+        scorer = AlphaScorer()
+        top_n = sector_rs_cfg.get("alpha_longlist_size", _DEFAULT_LONGLIST_SIZE)
+        longlist = await scorer.generate_longlist(full_watchlist, top_n=top_n)
+        if longlist:
+            logger.info(f"Alpha-Longlist: {len(longlist)} from {len(full_watchlist)} symbols")
+            return [c.symbol for c in longlist], {c.symbol: c for c in longlist}
+        else:
+            logger.warning("Alpha-Longlist empty, falling back to full watchlist")
+    except Exception as e:
+        logger.error(f"Alpha-Engine error, fallback to full watchlist: {e}")
+
+    return full_watchlist, {}
