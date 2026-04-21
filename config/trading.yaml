@@ -107,6 +107,12 @@ exit:
   stop_loss_multiplier: 2.0    # 200% of credit = stop loss
   roll_dte: 21                 # Decision point: roll or close
   force_close_dte: 7           # Force close, no exceptions
+  # G.1 Gamma-Zone Stop: DTE < 21, Gamma steigt stark — Exit bei -30%
+  gamma_zone_dte: 21
+  gamma_zone_loss_pct: 30.0
+  # G.2 Time-Stop: Hope-Holding nach 25 Tagen + Verlust > 20%
+  time_stop_days: 25
+  time_stop_loss_pct: 20.0
 
 # =============================================================================
 # ROLL RULES (PLAYBOOK §4)

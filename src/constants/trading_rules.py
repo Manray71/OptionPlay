@@ -399,6 +399,14 @@ EXIT_STOP_LOSS_MULTIPLIER = _exit_cfg.get("stop_loss_multiplier", 2.0)
 EXIT_ROLL_DTE = _exit_cfg.get("roll_dte", 21)
 EXIT_FORCE_CLOSE_DTE = _exit_cfg.get("force_close_dte", 7)
 
+# G.1 Gamma-Zone Stop (Paket G)
+EXIT_GAMMA_ZONE_DTE = _exit_cfg.get("gamma_zone_dte", 21)
+EXIT_GAMMA_ZONE_LOSS_PCT = _exit_cfg.get("gamma_zone_loss_pct", 30.0)
+
+# G.2 Time-Stop (Paket G)
+EXIT_TIME_STOP_DAYS = _exit_cfg.get("time_stop_days", 25)
+EXIT_TIME_STOP_LOSS_PCT = _exit_cfg.get("time_stop_loss_pct", 20.0)
+
 # Event exits
 # Support broken -> CLOSE (within session)
 # Earnings announced -> CLOSE IMMEDIATELY (regardless of P&L)
