@@ -27,10 +27,25 @@ import pytest
 DB_PATH = Path.home() / ".optionplay" / "trades.db"
 OUTCOMES_DB_PATH = Path.home() / ".optionplay" / "outcomes.db"
 
-# Skip all benchmarks if DB doesn't exist
+_REQUIRED_TABLES = ("symbol_fundamentals", "earnings_history", "vix_data", "options_prices")
+
+
+def _db_has_required_tables() -> bool:
+    if not DB_PATH.exists():
+        return False
+    try:
+        conn = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True)
+        existing = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+        conn.close()
+        return all(t in existing for t in _REQUIRED_TABLES)
+    except Exception:
+        return False
+
+
+# Skip all benchmarks if DB or required tables are missing
 pytestmark = pytest.mark.skipif(
-    not DB_PATH.exists(),
-    reason=f"Database not found at {DB_PATH}"
+    not _db_has_required_tables(),
+    reason=f"Database at {DB_PATH} missing one or more required tables: {_REQUIRED_TABLES}"
 )
 
 
