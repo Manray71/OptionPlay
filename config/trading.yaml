@@ -679,3 +679,18 @@ alpha_composite:
     seasonality: 0.5      # E.2b.3
     quadrant_combo: 1.0
 
+  # Christian's Divergenz-Penalty-Skala (für Composite, nicht Pullback-Analyzer)
+  divergence_penalties:
+    single: -6
+    double: -12
+    severe: -20
+
+  # Money Flow Score Konfiguration
+  money_flow_scoring:
+    obv_weight: 0.40
+    mfi_weight: 0.35
+    cmf_weight: 0.25
+    obv_sma_period: 20
+    mfi_period: 14
+    cmf_period: 20
+
