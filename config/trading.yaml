@@ -694,3 +694,10 @@ alpha_composite:
     mfi_period: 14
     cmf_period: 20
 
+  # Post-Crash-Modus: Gewichte wenn Stress-Score >= 4 (VIX >= 25 als Vereinfachung)
+  # Fast-Fenster bekommt mehr Gewicht, Classic wird reduziert
+  post_crash:
+    classic_weight: 0.3       # statt 1.0
+    fast_weight_adj: 0.7      # Faktor auf den fast_weight (0.7 * 1.5 = 1.05)
+    score_adjustment: -8      # globaler Score-Abzug im Post-Crash-Modus
+

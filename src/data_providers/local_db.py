@@ -656,6 +656,62 @@ class LocalDBProvider(DataProvider):
             return None
 
     # =========================================================================
+    # Batch OHLCV Loading (E.2b.4)
+    # =========================================================================
+
+    def _batch_ohlcv_sync(
+        self,
+        symbols: List[str],
+        limit: int = 260,
+    ) -> (
+        "Dict[str, Optional[Tuple[List[float], List[int], List[float], List[float], List[float]]]]"
+    ):
+        """Load OHLCV for multiple symbols using a single DB connection.
+
+        Returns dict {symbol: (closes, volumes, highs, lows, opens)} or {symbol: None}
+        when insufficient data exists. Oldest-first ordering, same as _query_daily_prices_sync.
+        """
+        result: "Dict[str, Optional[Tuple]]" = {}
+        try:
+            with self._get_connection() as conn:
+                for sym in symbols:
+                    cursor = conn.cursor()
+                    cursor.execute(
+                        """
+                        SELECT quote_date, open, high, low, close, volume
+                        FROM daily_prices
+                        WHERE symbol = ?
+                        ORDER BY quote_date DESC
+                        LIMIT ?
+                        """,
+                        (sym.upper(), limit),
+                    )
+                    rows = cursor.fetchall()
+                    if not rows:
+                        result[sym] = None
+                        continue
+                    rows = list(reversed(rows))
+                    closes = [float(row[4]) for row in rows]
+                    volumes = [int(row[5]) for row in rows]
+                    highs = [float(row[2]) for row in rows]
+                    lows = [float(row[3]) for row in rows]
+                    opens = [float(row[1]) for row in rows]
+                    result[sym] = (closes, volumes, highs, lows, opens)
+        except Exception as e:
+            logger.error(f"Batch OHLCV load failed: {e}")
+        return result
+
+    async def get_batch_ohlcv(
+        self,
+        symbols: List[str],
+        limit: int = 260,
+    ) -> (
+        "Dict[str, Optional[Tuple[List[float], List[int], List[float], List[float], List[float]]]]"
+    ):
+        """Async batch OHLCV load — single DB connection open for all symbols."""
+        return await self._run_sync(self._batch_ohlcv_sync, symbols, limit)
+
+    # =========================================================================
     # Local DB Specific Methods
     # =========================================================================
 
