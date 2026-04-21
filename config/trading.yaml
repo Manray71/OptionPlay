@@ -637,3 +637,73 @@ sector_rs:
 # > $500       | $15.00       | $20.00        | $25.00
 #
 # Funktion: calculate_spread_width(stock_price, regime) in vix_strategy.py
+
+# =============================================================================
+# E.2b ALPHA COMPOSITE (Multi-Faktor)
+# =============================================================================
+
+alpha_composite:
+  # Feature-Flag: aktiviert TechnicalComposite statt RS-only Formel (E.2b.4)
+  enabled: true
+
+  # 4x4 Quadrant-Kombinations-Matrix (Classic × Fast)
+  # Key-Format: "{CLASSIC}_{FAST}"
+  quadrant_scores:
+    LEADING_LEADING: 30
+    LEADING_IMPROVING: 10
+    LEADING_WEAKENING: -5
+    LEADING_LAGGING: -10
+    IMPROVING_LEADING: 25
+    IMPROVING_IMPROVING: 10
+    IMPROVING_WEAKENING: -10
+    IMPROVING_LAGGING: -15
+    WEAKENING_LEADING: 5
+    WEAKENING_IMPROVING: 0
+    WEAKENING_WEAKENING: -15
+    WEAKENING_LAGGING: -20
+    LAGGING_LEADING: 20
+    LAGGING_IMPROVING: 15
+    LAGGING_WEAKENING: -20
+    LAGGING_LAGGING: -25
+
+  # RSI Score-Mapping
+  rsi_scoring:
+    period: 14
+    oversold_threshold: 30      # RSI < 30 → max bullish
+    oversold_score: 5.0
+    neutral_upper: 70           # RSI > 70 → overbought
+    overbought_score: -3.0
+    neutral_bullish_score: 3.0  # Score at RSI=70 (linear from 50)
+
+  # Gewichte pro Komponente (E.2b.2-E.2b.4 füllen die TODO-Felder)
+  weights:
+    rsi: 1.0
+    money_flow: 1.0       # E.2b.2
+    tech: 1.0             # E.2b.3
+    divergence: 1.0       # E.2b.2
+    earnings: 1.0         # E.2b.3
+    seasonality: 0.5      # E.2b.3
+    quadrant_combo: 1.0
+
+  # Christian's Divergenz-Penalty-Skala (für Composite, nicht Pullback-Analyzer)
+  divergence_penalties:
+    single: -6
+    double: -12
+    severe: -20
+
+  # Money Flow Score Konfiguration
+  money_flow_scoring:
+    obv_weight: 0.40
+    mfi_weight: 0.35
+    cmf_weight: 0.25
+    obv_sma_period: 20
+    mfi_period: 14
+    cmf_period: 20
+
+  # Post-Crash-Modus: Gewichte wenn Stress-Score >= 4 (VIX >= 25 als Vereinfachung)
+  # Fast-Fenster bekommt mehr Gewicht, Classic wird reduziert
+  post_crash:
+    classic_weight: 0.3       # statt 1.0
+    fast_weight_adj: 0.7      # Faktor auf den fast_weight (0.7 * 1.5 = 1.05)
+    score_adjustment: -8      # globaler Score-Abzug im Post-Crash-Modus
+

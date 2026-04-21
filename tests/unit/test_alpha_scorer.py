@@ -8,7 +8,6 @@ from src.models.alpha import AlphaCandidate
 from src.services.alpha_scorer import AlphaScorer
 from src.services.sector_rs import RSQuadrant, StockRS
 
-
 # =============================================================================
 # HELPERS
 # =============================================================================
@@ -40,14 +39,23 @@ def _build_scorer(
     stock_rs_map: dict,
     fast_weight: float = 1.5,
     sector_map: dict | None = None,
+    composite_enabled: bool = False,
 ) -> AlphaScorer:
-    """Build AlphaScorer with mocked SectorRSService."""
+    """Build AlphaScorer with mocked SectorRSService.
+
+    composite_enabled=False (default) forces RS-only path regardless of global
+    config/trading.yaml flag, so RS-formula tests stay config-independent.
+    """
     mock_srs = MagicMock()
     mock_srs.get_all_stock_rs = AsyncMock(return_value=stock_rs_map)
     mock_srs.get_all_sector_rs = AsyncMock(return_value={})
 
     config = {"fast_weight": fast_weight, "alpha_longlist_size": 30}
-    scorer = AlphaScorer(sector_rs_service=mock_srs, config=config)
+    scorer = AlphaScorer(
+        sector_rs_service=mock_srs,
+        config=config,
+        composite_config={"enabled": composite_enabled},
+    )
 
     if sector_map:
         scorer._sector_map = sector_map
@@ -168,8 +176,7 @@ class TestLonglistTopN:
     async def test_top_n_selection(self):
         """50 symbols, top_n=10 -> exactly 10 returned."""
         rs_map = {
-            f"S{i}": _make_stock_rs(f"S{i}", b_raw=float(i), f_raw=float(i))
-            for i in range(50)
+            f"S{i}": _make_stock_rs(f"S{i}", b_raw=float(i), f_raw=float(i)) for i in range(50)
         }
         scorer = _build_scorer(rs_map)
         result = await scorer.generate_longlist([f"S{i}" for i in range(50)], top_n=10)
@@ -199,10 +206,7 @@ class TestLonglistTopN:
     @pytest.mark.asyncio
     async def test_default_top_n_from_config(self):
         """Default top_n from config (30)."""
-        rs_map = {
-            f"S{i}": _make_stock_rs(f"S{i}", b_raw=float(i))
-            for i in range(50)
-        }
+        rs_map = {f"S{i}": _make_stock_rs(f"S{i}", b_raw=float(i)) for i in range(50)}
         scorer = _build_scorer(rs_map)
         result = await scorer.generate_longlist([f"S{i}" for i in range(50)])
         assert len(result) == 30
@@ -404,20 +408,22 @@ class TestSectorAlphaSummary:
         from src.services.sector_rs import SectorRS
 
         mock_srs = MagicMock()
-        mock_srs.get_all_sector_rs = AsyncMock(return_value={
-            "Technology": SectorRS(
-                sector="Technology",
-                etf_symbol="XLK",
-                rs_ratio=102.0,
-                rs_momentum=101.0,
-                quadrant=RSQuadrant.LEADING,
-                score_modifier=0.5,
-                rs_ratio_fast=103.0,
-                rs_momentum_fast=102.0,
-                quadrant_fast=RSQuadrant.LEADING,
-                dual_label="LEADING",
-            )
-        })
+        mock_srs.get_all_sector_rs = AsyncMock(
+            return_value={
+                "Technology": SectorRS(
+                    sector="Technology",
+                    etf_symbol="XLK",
+                    rs_ratio=102.0,
+                    rs_momentum=101.0,
+                    quadrant=RSQuadrant.LEADING,
+                    score_modifier=0.5,
+                    rs_ratio_fast=103.0,
+                    rs_momentum_fast=102.0,
+                    quadrant_fast=RSQuadrant.LEADING,
+                    dual_label="LEADING",
+                )
+            }
+        )
         scorer = AlphaScorer(sector_rs_service=mock_srs, config={"fast_weight": 1.5})
         result = await scorer.get_sector_alpha_summary()
         assert len(result) == 1
@@ -437,20 +443,22 @@ class TestSectorAlphaSummary:
         from src.services.sector_rs import SectorRS
 
         mock_srs = MagicMock()
-        mock_srs.get_all_sector_rs = AsyncMock(return_value={
-            "Energy": SectorRS(
-                sector="Energy",
-                etf_symbol="XLE",
-                rs_ratio=98.0,
-                rs_momentum=99.0,
-                quadrant=RSQuadrant.LAGGING,
-                score_modifier=-0.5,
-                rs_ratio_fast=97.0,
-                rs_momentum_fast=98.0,
-                quadrant_fast=RSQuadrant.LAGGING,
-                dual_label="LAGGING",
-            )
-        })
+        mock_srs.get_all_sector_rs = AsyncMock(
+            return_value={
+                "Energy": SectorRS(
+                    sector="Energy",
+                    etf_symbol="XLE",
+                    rs_ratio=98.0,
+                    rs_momentum=99.0,
+                    quadrant=RSQuadrant.LAGGING,
+                    score_modifier=-0.5,
+                    rs_ratio_fast=97.0,
+                    rs_momentum_fast=98.0,
+                    quadrant_fast=RSQuadrant.LAGGING,
+                    dual_label="LAGGING",
+                )
+            }
+        )
         scorer = AlphaScorer(sector_rs_service=mock_srs, config={"fast_weight": 1.5})
         result = await scorer.get_sector_alpha_summary()
         assert result[0]["ampel"] == "red"
@@ -509,11 +517,11 @@ class TestFullPipeline:
     async def test_end_to_end_ranking(self):
         """Full pipeline: 5 symbols -> ranked by percentile."""
         rs_map = {
-            "A": _make_stock_rs("A", b_raw=1.0, f_raw=0.5),   # 1.0 + 1.5*0.5 = 1.75
-            "B": _make_stock_rs("B", b_raw=3.0, f_raw=2.0),   # 3.0 + 1.5*2.0 = 6.0
-            "C": _make_stock_rs("C", b_raw=-1.0, f_raw=-0.5), # -1.0 + 1.5*(-0.5) = -1.75
-            "D": _make_stock_rs("D", b_raw=0.0, f_raw=0.0),   # 0.0
-            "E": _make_stock_rs("E", b_raw=5.0, f_raw=3.0),   # 5.0 + 1.5*3.0 = 9.5
+            "A": _make_stock_rs("A", b_raw=1.0, f_raw=0.5),  # 1.0 + 1.5*0.5 = 1.75
+            "B": _make_stock_rs("B", b_raw=3.0, f_raw=2.0),  # 3.0 + 1.5*2.0 = 6.0
+            "C": _make_stock_rs("C", b_raw=-1.0, f_raw=-0.5),  # -1.0 + 1.5*(-0.5) = -1.75
+            "D": _make_stock_rs("D", b_raw=0.0, f_raw=0.0),  # 0.0
+            "E": _make_stock_rs("E", b_raw=5.0, f_raw=3.0),  # 5.0 + 1.5*3.0 = 9.5
         }
         sector_map = {s: "Technology" for s in "ABCDE"}
         scorer = _build_scorer(rs_map, sector_map=sector_map)
@@ -536,8 +544,7 @@ class TestFullPipeline:
     async def test_top_n_cuts_bottom(self):
         """Top-3 from 5 symbols cuts the two lowest."""
         rs_map = {
-            f"S{i}": _make_stock_rs(f"S{i}", b_raw=float(i), f_raw=float(i))
-            for i in range(5)
+            f"S{i}": _make_stock_rs(f"S{i}", b_raw=float(i), f_raw=float(i)) for i in range(5)
         }
         scorer = _build_scorer(rs_map)
         result = await scorer.generate_longlist([f"S{i}" for i in range(5)], top_n=3)
@@ -548,3 +555,270 @@ class TestFullPipeline:
         assert "S2" in symbols
         assert "S0" not in symbols
         assert "S1" not in symbols
+
+
+# =============================================================================
+# E.2b.4 — COMPOSITE FEATURE FLAG
+# =============================================================================
+
+
+def _make_composite_score(sym: str, timeframe: str, total: float, signals=()):
+    from src.services.technical_composite import CompositeScore
+
+    return CompositeScore(
+        symbol=sym,
+        timeframe=timeframe,
+        total=total,
+        breakout_signals=tuple(signals),
+    )
+
+
+def _make_ohlcv(n: int, base: float = 100.0):
+    """Fake OHLCV tuple with n bars, oldest-first."""
+    closes = [base + i * 0.1 for i in range(n)]
+    highs = [c + 1.0 for c in closes]
+    lows = [c - 1.0 for c in closes]
+    volumes = [1_000_000 for _ in closes]
+    opens = [c - 0.5 for c in closes]
+    return (closes, volumes, highs, lows, opens)
+
+
+def _build_composite_scorer(stock_rs_map: dict, ohlcv_map: dict, compute_side_effect=None):
+    """Build AlphaScorer with composite enabled and all external calls mocked."""
+    mock_srs = MagicMock()
+    mock_srs.get_all_stock_rs = AsyncMock(return_value=stock_rs_map)
+    mock_srs.get_all_sector_rs = AsyncMock(return_value={})
+
+    scorer = AlphaScorer(
+        sector_rs_service=mock_srs,
+        config={"fast_weight": 1.5, "alpha_longlist_size": 30},
+        composite_config={"enabled": True},
+    )
+    scorer._load_batch_ohlcv = AsyncMock(return_value=ohlcv_map)
+
+    mock_composite = MagicMock()
+    if compute_side_effect is not None:
+        mock_composite.compute.side_effect = compute_side_effect
+    else:
+        mock_composite.compute.return_value = _make_composite_score("X", "classic", 10.0)
+    scorer._composite = mock_composite
+    return scorer
+
+
+class TestCompositeFeatureFlag:
+    @pytest.mark.asyncio
+    async def test_flag_false_uses_rs_path(self):
+        """enabled=false -> b_raw + f_raw*1.5, no TechnicalComposite call."""
+        rs_map = {"AAPL": _make_stock_rs("AAPL", b_raw=2.0, f_raw=3.0)}
+        scorer = _build_scorer(rs_map, composite_enabled=False)
+        result = await scorer.generate_longlist(["AAPL"])
+        assert result[0].alpha_raw == pytest.approx(6.5, abs=0.01)
+        assert result[0].b_composite is None
+        assert result[0].f_composite is None
+
+    @pytest.mark.asyncio
+    async def test_flag_true_uses_composite(self):
+        """enabled=true -> TechnicalComposite.compute called for each symbol."""
+        rs_map = {"AAPL": _make_stock_rs("AAPL")}
+        ohlcv_map = {"AAPL": _make_ohlcv(200)}
+
+        call_log = []
+
+        def fake_compute(symbol, closes, highs, lows, volumes, timeframe, **kwargs):
+            call_log.append(timeframe)
+            return _make_composite_score(symbol, timeframe, 20.0)
+
+        scorer = _build_composite_scorer(rs_map, ohlcv_map, compute_side_effect=fake_compute)
+        result = await scorer.generate_longlist(["AAPL"])
+        assert len(result) == 1
+        assert "classic" in call_log
+        assert "fast" in call_log
+
+    @pytest.mark.asyncio
+    async def test_composite_score_differs_from_rs(self):
+        """Composite total != RS b_raw + 1.5*f_raw when enabled."""
+        rs_map = {"AAPL": _make_stock_rs("AAPL", b_raw=2.0, f_raw=1.0)}
+        # b_raw + 1.5*f_raw = 3.5; composite: 30.0 + 1.5*15.0 = 52.5
+        ohlcv_map = {"AAPL": _make_ohlcv(200)}
+
+        def fake_compute(symbol, closes, highs, lows, volumes, timeframe, **kwargs):
+            total = 30.0 if timeframe == "classic" else 15.0
+            return _make_composite_score(symbol, timeframe, total)
+
+        scorer = _build_composite_scorer(rs_map, ohlcv_map, compute_side_effect=fake_compute)
+        result = await scorer.generate_longlist(["AAPL"])
+        assert result[0].alpha_raw == pytest.approx(52.5, abs=0.01)
+        # Confirm it differs from plain RS score
+        assert result[0].alpha_raw != pytest.approx(3.5, abs=0.5)
+
+    @pytest.mark.asyncio
+    async def test_longlist_has_breakout_signals(self):
+        """Breakout signals from CompositeScore propagate to AlphaCandidate."""
+        rs_map = {"X": _make_stock_rs("X")}
+        ohlcv_map = {"X": _make_ohlcv(200)}
+
+        def fake_compute(symbol, closes, highs, lows, volumes, timeframe, **kwargs):
+            sigs = ("BREAKOUT IMMINENT",) if timeframe == "fast" else ()
+            return _make_composite_score(symbol, timeframe, 10.0, signals=sigs)
+
+        scorer = _build_composite_scorer(rs_map, ohlcv_map, compute_side_effect=fake_compute)
+        result = await scorer.generate_longlist(["X"])
+        assert "BREAKOUT IMMINENT" in result[0].breakout_signals
+
+    @pytest.mark.asyncio
+    async def test_post_crash_weights_applied(self):
+        """VIX=30 -> classic*0.3 + fast*0.7*1.5 formula used."""
+        rs_map = {"X": _make_stock_rs("X")}
+        ohlcv_map = {"X": _make_ohlcv(200)}
+
+        def fake_compute(symbol, closes, highs, lows, volumes, timeframe, **kwargs):
+            total = 20.0 if timeframe == "classic" else 10.0
+            return _make_composite_score(symbol, timeframe, total)
+
+        scorer = _build_composite_scorer(rs_map, ohlcv_map, compute_side_effect=fake_compute)
+        result = await scorer.generate_longlist(["X"], vix=30.0)
+        # post-crash: 20.0*0.3 + 10.0*0.7*1.5 = 6.0 + 10.5 = 16.5
+        assert result[0].alpha_raw == pytest.approx(16.5, abs=0.01)
+
+    @pytest.mark.asyncio
+    async def test_post_crash_vix_below_25_normal_mode(self):
+        """VIX=15 -> normal composite formula: b + f*1.5."""
+        rs_map = {"X": _make_stock_rs("X")}
+        ohlcv_map = {"X": _make_ohlcv(200)}
+
+        def fake_compute(symbol, closes, highs, lows, volumes, timeframe, **kwargs):
+            total = 20.0 if timeframe == "classic" else 10.0
+            return _make_composite_score(symbol, timeframe, total)
+
+        scorer = _build_composite_scorer(rs_map, ohlcv_map, compute_side_effect=fake_compute)
+        result = await scorer.generate_longlist(["X"], vix=15.0)
+        # normal: 20.0 + 10.0*1.5 = 35.0
+        assert result[0].alpha_raw == pytest.approx(35.0, abs=0.01)
+
+    @pytest.mark.asyncio
+    async def test_regression_generate_longlist_returns_candidates(self):
+        """generate_longlist always returns list of AlphaCandidate (regression)."""
+        rs_map = {"A": _make_stock_rs("A"), "B": _make_stock_rs("B")}
+        scorer = _build_scorer(rs_map)
+        result = await scorer.generate_longlist(["A", "B"], top_n=2)
+        assert isinstance(result, list)
+        assert all(isinstance(c, AlphaCandidate) for c in result)
+
+    @pytest.mark.asyncio
+    async def test_regression_get_alpha_filtered_symbols(self):
+        """get_alpha_filtered_symbols returns (symbols_list, dict) — pipeline contract."""
+        from src.services.alpha_scorer import get_alpha_filtered_symbols
+
+        config = {"sector_rs": {"alpha_engine_enabled": False}}
+        symbols, alpha_map = await get_alpha_filtered_symbols(["AAPL", "MSFT"], config=config)
+        assert isinstance(symbols, list)
+        assert isinstance(alpha_map, dict)
+
+
+# =============================================================================
+# E.2b.4 — BATCH OHLCV LOADING
+# =============================================================================
+
+
+class TestBatchOHLCV:
+    @pytest.mark.asyncio
+    async def test_batch_5_symbols_structure(self):
+        """Batch load returns dict with (closes, volumes, highs, lows, opens) tuples."""
+        rs_map = {f"S{i}": _make_stock_rs(f"S{i}") for i in range(5)}
+        symbols = [f"S{i}" for i in range(5)]
+        ohlcv_map = {sym: _make_ohlcv(200) for sym in symbols}
+
+        scorer = _build_composite_scorer(rs_map, ohlcv_map)
+        # _load_batch_ohlcv is already mocked — verify it was called with symbol list
+        await scorer.generate_longlist(symbols, top_n=5)
+        scorer._load_batch_ohlcv.assert_awaited_once()
+        call_args = scorer._load_batch_ohlcv.call_args[0][0]
+        assert set(call_args) == set(symbols)
+
+    @pytest.mark.asyncio
+    async def test_batch_slicing_correct_lengths(self):
+        """Composite called with closes[-135:] (classic) and closes[-30:] (fast)."""
+        rs_map = {"A": _make_stock_rs("A")}
+        ohlcv_map = {"A": _make_ohlcv(260)}
+
+        received_lengths = {}
+
+        def capture_compute(symbol, closes, highs, lows, volumes, timeframe, **kwargs):
+            received_lengths[timeframe] = len(closes)
+            return _make_composite_score(symbol, timeframe, 5.0)
+
+        scorer = _build_composite_scorer(rs_map, ohlcv_map, compute_side_effect=capture_compute)
+        await scorer.generate_longlist(["A"])
+        assert received_lengths["classic"] == 135
+        assert received_lengths["fast"] == 30
+
+    @pytest.mark.asyncio
+    async def test_insufficient_bars_uses_rs_fallback(self):
+        """Symbol with < 30 bars -> RS fallback, no crash, b_composite = None."""
+        rs_map = {"SHORT": _make_stock_rs("SHORT", b_raw=3.0, f_raw=2.0)}
+        ohlcv_map = {"SHORT": _make_ohlcv(10)}  # only 10 bars
+
+        scorer = _build_composite_scorer(rs_map, ohlcv_map)
+        result = await scorer.generate_longlist(["SHORT"])
+        assert len(result) == 1
+        # RS fallback: 3.0 + 1.5*2.0 = 6.0
+        assert result[0].alpha_raw == pytest.approx(6.0, abs=0.01)
+        assert result[0].b_composite is None
+
+
+# =============================================================================
+# E.2b.4 — COMPOSITE INTEGRATION
+# =============================================================================
+
+
+class TestCompositeIntegration:
+    @pytest.mark.asyncio
+    async def test_composite_ranking_plausible(self):
+        """Symbol with higher composite score ranks above symbol with lower score."""
+        rs_map = {
+            "HIGH": _make_stock_rs("HIGH"),
+            "LOW": _make_stock_rs("LOW"),
+        }
+        ohlcv_map = {"HIGH": _make_ohlcv(200), "LOW": _make_ohlcv(200)}
+
+        def fake_compute(symbol, closes, highs, lows, volumes, timeframe, **kwargs):
+            total = 50.0 if symbol == "HIGH" else 5.0
+            return _make_composite_score(symbol, timeframe, total)
+
+        scorer = _build_composite_scorer(rs_map, ohlcv_map, compute_side_effect=fake_compute)
+        result = await scorer.generate_longlist(["HIGH", "LOW"], top_n=2)
+        assert result[0].symbol == "HIGH"
+        assert result[1].symbol == "LOW"
+
+    @pytest.mark.asyncio
+    async def test_feature_flag_toggle_changes_ranking(self):
+        """Same RS data, flag=False gives RS ranking, flag=True gives composite ranking."""
+        # With RS only: AAPL (b=5, f=0 -> 5.0) > MSFT (b=0, f=3 -> 4.5)
+        # With composite mocked: MSFT gets composite total 100 > AAPL 10
+        rs_map = {
+            "AAPL": _make_stock_rs("AAPL", b_raw=5.0, f_raw=0.0),
+            "MSFT": _make_stock_rs("MSFT", b_raw=0.0, f_raw=3.0),
+        }
+
+        # RS-only scorer
+        rs_scorer = _build_scorer(rs_map)
+        rs_result = await rs_scorer.generate_longlist(["AAPL", "MSFT"], top_n=2)
+        assert rs_result[0].symbol == "AAPL"
+
+        # Composite scorer where MSFT gets high composite score
+        ohlcv_map = {"AAPL": _make_ohlcv(200), "MSFT": _make_ohlcv(200)}
+
+        def fake_compute(symbol, closes, highs, lows, volumes, timeframe, **kwargs):
+            total = 10.0 if symbol == "AAPL" else 100.0
+            return _make_composite_score(symbol, timeframe, total)
+
+        comp_scorer = _build_composite_scorer(rs_map, ohlcv_map, compute_side_effect=fake_compute)
+        comp_result = await comp_scorer.generate_longlist(["AAPL", "MSFT"], top_n=2)
+        assert comp_result[0].symbol == "MSFT"
+
+    def test_no_circular_import(self):
+        """Importing both modules does not raise ImportError (no circular dependency)."""
+        import importlib
+
+        importlib.import_module("src.services.alpha_scorer")
+        importlib.import_module("src.services.technical_composite")  # no exception
