@@ -39,14 +39,23 @@ def _build_scorer(
     stock_rs_map: dict,
     fast_weight: float = 1.5,
     sector_map: dict | None = None,
+    composite_enabled: bool = False,
 ) -> AlphaScorer:
-    """Build AlphaScorer with mocked SectorRSService."""
+    """Build AlphaScorer with mocked SectorRSService.
+
+    composite_enabled=False (default) forces RS-only path regardless of global
+    config/trading.yaml flag, so RS-formula tests stay config-independent.
+    """
     mock_srs = MagicMock()
     mock_srs.get_all_stock_rs = AsyncMock(return_value=stock_rs_map)
     mock_srs.get_all_sector_rs = AsyncMock(return_value={})
 
     config = {"fast_weight": fast_weight, "alpha_longlist_size": 30}
-    scorer = AlphaScorer(sector_rs_service=mock_srs, config=config)
+    scorer = AlphaScorer(
+        sector_rs_service=mock_srs,
+        config=config,
+        composite_config={"enabled": composite_enabled},
+    )
 
     if sector_map:
         scorer._sector_map = sector_map
@@ -601,7 +610,7 @@ class TestCompositeFeatureFlag:
     async def test_flag_false_uses_rs_path(self):
         """enabled=false -> b_raw + f_raw*1.5, no TechnicalComposite call."""
         rs_map = {"AAPL": _make_stock_rs("AAPL", b_raw=2.0, f_raw=3.0)}
-        scorer = _build_scorer(rs_map)  # composite disabled by default
+        scorer = _build_scorer(rs_map, composite_enabled=False)
         result = await scorer.generate_longlist(["AAPL"])
         assert result[0].alpha_raw == pytest.approx(6.5, abs=0.01)
         assert result[0].b_composite is None

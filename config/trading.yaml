@@ -638,7 +638,7 @@ sector_rs:
 
 alpha_composite:
   # Feature-Flag: aktiviert TechnicalComposite statt RS-only Formel (E.2b.4)
-  enabled: false
+  enabled: true
 
   # 4x4 Quadrant-Kombinations-Matrix (Classic × Fast)
   # Key-Format: "{CLASSIC}_{FAST}"
