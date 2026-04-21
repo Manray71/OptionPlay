@@ -9,10 +9,13 @@ Priority order matches PLAYBOOK (lower number = higher priority):
   2. Force Close (DTE <= 7) → CLOSE
   3. Profit Target reached → CLOSE
   4. Stop Loss hit → CLOSE
-  5. 21 DTE Decision Point → ROLL or CLOSE
-  6. High VIX (>30) → CLOSE winners / ALERT losers
-  7. Earnings before expiration → CLOSE
-  8. Default → HOLD
+  5. Gamma-Zone Stop (DTE < 21 + loss > 30%) → CLOSE  [G.1]
+  6. Time-Stop (held > 25d + loss > 20%) → CLOSE       [G.2]
+  7. 21 DTE Decision Point → ROLL or CLOSE
+  8. High VIX (>30) → CLOSE winners / ALERT losers
+  9. Earnings before expiration → CLOSE
+  10. RRG Rotation Exit → CLOSE or ALERT              [G.3]
+  11. Default → HOLD
 
 Usage:
     from src.services.position_monitor import get_position_monitor
@@ -29,14 +32,18 @@ from __future__ import annotations
 import logging
 import math
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 from ..constants.trading_rules import (
     EXIT_FORCE_CLOSE_DTE,
+    EXIT_GAMMA_ZONE_DTE,
+    EXIT_GAMMA_ZONE_LOSS_PCT,
     EXIT_PROFIT_PCT_NORMAL,
     EXIT_ROLL_DTE,
     EXIT_STOP_LOSS_MULTIPLIER,
+    EXIT_TIME_STOP_DAYS,
+    EXIT_TIME_STOP_LOSS_PCT,
     ROLL_NEW_DTE_MAX,
     ROLL_NEW_DTE_MIN,
     SPREAD_DTE_TARGET,
@@ -50,11 +57,28 @@ from ..constants.trading_rules import (
 logger = logging.getLogger(__name__)
 
 # =============================================================================
-# CONSTANTS — extracted from inline magic numbers
+# CONSTANTS
 # =============================================================================
 
-# Estimated original DTE for theta/P&L calculation (typical BPS entry at 60-90 DTE)
 THETA_ESTIMATE_ORIGINAL_DTE = SPREAD_DTE_TARGET
+
+# G.4 Macro Calendar — FOMC / CPI / NFP Termine 2026
+MACRO_EVENTS_2026: Dict[str, List[str]] = {
+    "FOMC": [
+        "2026-01-29", "2026-03-19", "2026-05-07", "2026-06-18",
+        "2026-07-30", "2026-09-17", "2026-11-05", "2026-12-17",
+    ],
+    "CPI": [
+        "2026-01-15", "2026-02-12", "2026-03-12", "2026-04-10",
+        "2026-05-13", "2026-06-11", "2026-07-15", "2026-08-12",
+        "2026-09-11", "2026-10-14", "2026-11-12", "2026-12-10",
+    ],
+    "NFP": [
+        "2026-01-09", "2026-02-06", "2026-03-06", "2026-04-03",
+        "2026-05-08", "2026-06-05", "2026-07-09", "2026-08-07",
+        "2026-09-04", "2026-10-02", "2026-11-06", "2026-12-04",
+    ],
+}
 
 
 # =============================================================================
@@ -92,6 +116,10 @@ class PositionSnapshot:
     pnl_pct_of_max_profit: Optional[float] = None
     pnl_estimated: bool = False  # True if P&L is theta-estimated
 
+    # Entry metadata (optional — for G.2 Time-Stop and G.3 RRG Exit)
+    entry_date: Optional[str] = None          # YYYY-MM-DD, for Time-Stop
+    rrg_quadrant_at_entry: Optional[str] = None  # e.g. "leading", for RRG Exit
+
 
 @dataclass
 class PositionSignal:
@@ -101,7 +129,7 @@ class PositionSignal:
     symbol: str
     action: ExitAction
     reason: str  # Human-readable
-    priority: int  # 1=highest, 8=HOLD
+    priority: int  # 1=highest, 11=HOLD
     dte: int
     pnl_pct: Optional[float] = None
     details: dict[str, Any] = field(default_factory=dict)
@@ -116,6 +144,7 @@ class MonitorResult:
     regime: Optional[str] = None
     timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
     positions_count: int = 0
+    macro_alerts: List[str] = field(default_factory=list)
 
     @property
     def close_signals(self) -> list[PositionSignal]:
@@ -160,6 +189,7 @@ def snapshot_from_internal(position: Any) -> PositionSnapshot:
         max_loss=position.max_loss,
         breakeven=position.breakeven,
         source="internal",
+        entry_date=getattr(position, "open_date", None),
     )
 
 
@@ -294,6 +324,7 @@ class PositionMonitor:
         self,
         snapshots: list[PositionSnapshot],
         current_vix: Optional[float] = None,
+        sector_rs_map: Optional[Dict[str, Any]] = None,
     ) -> MonitorResult:
         """
         Check all positions and generate exit signals.
@@ -301,17 +332,19 @@ class PositionMonitor:
         Args:
             snapshots: Normalized position snapshots
             current_vix: Current VIX level
+            sector_rs_map: Optional Dict[symbol, StockRS] for G.3 RRG Exit.
+                           If None, RRG exit check is skipped.
 
         Returns:
-            MonitorResult with signals for each position
+            MonitorResult with signals for each position and macro alerts.
         """
         signals: list[PositionSignal] = []
 
         for snap in snapshots:
-            signal = self._evaluate_position(snap, current_vix)
+            signal = self._evaluate_position(snap, current_vix, sector_rs_map)
             signals.append(signal)
 
-        # Sort by priority (1=urgent, 8=hold)
+        # Sort by priority (1=urgent, 11=hold)
         signals.sort(key=lambda s: s.priority)
 
         # Build regime info
@@ -320,17 +353,22 @@ class PositionMonitor:
             vix_regime = get_vix_regime(current_vix)
             regime = f"{vix_regime.value} (VIX {current_vix:.1f})"
 
+        # G.4 Macro Calendar
+        macro_alerts = self.check_macro_events(date.today())
+
         return MonitorResult(
             signals=signals,
             vix=current_vix,
             regime=regime,
             positions_count=len(snapshots),
+            macro_alerts=macro_alerts,
         )
 
     def _evaluate_position(
         self,
         snap: PositionSnapshot,
         current_vix: Optional[float],
+        sector_rs_map: Optional[Dict[str, Any]] = None,
     ) -> PositionSignal:
         """
         Evaluate a single position through all exit rules in priority order.
@@ -357,28 +395,43 @@ class PositionMonitor:
         if signal:
             return signal
 
-        # Priority 5: 21 DTE decision (roll or close)
+        # Priority 5: Gamma-Zone Stop (G.1)
+        signal = self._check_gamma_zone_stop(snap)
+        if signal:
+            return signal
+
+        # Priority 6: Time-Stop (G.2)
+        signal = self._check_time_stop(snap)
+        if signal:
+            return signal
+
+        # Priority 7: 21 DTE decision (roll or close)
         signal = self._check_21dte_decision(snap, current_vix)
         if signal:
             return signal
 
-        # Priority 6: High VIX
+        # Priority 8: High VIX
         signal = self._check_high_vix(snap, current_vix)
         if signal:
             return signal
 
-        # Priority 7: Earnings before expiration
+        # Priority 9: Earnings before expiration
         signal = self._check_earnings_risk(snap)
         if signal:
             return signal
 
-        # Priority 8: Default — HOLD
+        # Priority 10: RRG Rotation Exit (G.3)
+        signal = self._check_rrg_exit(snap, sector_rs_map)
+        if signal:
+            return signal
+
+        # Priority 11: Default — HOLD
         return PositionSignal(
             position_id=snap.position_id,
             symbol=snap.symbol,
             action=ExitAction.HOLD,
             reason="Keine Aktion nötig",
-            priority=8,
+            priority=11,
             dte=snap.dte,
             pnl_pct=snap.pnl_pct_of_max_profit,
         )
@@ -484,12 +537,81 @@ class PositionMonitor:
 
         return None
 
+    def _check_gamma_zone_stop(self, snap: PositionSnapshot) -> Optional[PositionSignal]:
+        """Priority 5: G.1 Gamma-Zone Stop — DTE < 21 AND loss > 30%.
+
+        Gamma steigt in den letzten 3 Wochen vor Expiry stark an.
+        Ein Spread mit -30% bei DTE < 21 hat hohe Wahrscheinlichkeit auf -100%.
+        """
+        if snap.pnl_pct_of_max_profit is None:
+            return None
+        if snap.dte >= EXIT_GAMMA_ZONE_DTE:
+            return None
+        if snap.pnl_pct_of_max_profit > -EXIT_GAMMA_ZONE_LOSS_PCT:
+            return None
+
+        return PositionSignal(
+            position_id=snap.position_id,
+            symbol=snap.symbol,
+            action=ExitAction.CLOSE,
+            reason=(
+                f"GAMMA-ZONE STOP — DTE {snap.dte} < {EXIT_GAMMA_ZONE_DTE},"
+                f" Verlust {snap.pnl_pct_of_max_profit:.0f}% <= -{EXIT_GAMMA_ZONE_LOSS_PCT:.0f}%"
+            ),
+            priority=5,
+            dte=snap.dte,
+            pnl_pct=snap.pnl_pct_of_max_profit,
+            details={
+                "gamma_zone_dte": EXIT_GAMMA_ZONE_DTE,
+                "loss_pct": snap.pnl_pct_of_max_profit,
+            },
+        )
+
+    def _check_time_stop(self, snap: PositionSnapshot) -> Optional[PositionSignal]:
+        """Priority 6: G.2 Time-Stop — held > 25 days AND loss > 20%.
+
+        Verhindert Hope-Holding. Eine Position die nach 25 Tagen noch
+        im Minus ist, wird wahrscheinlich nicht mehr profitabel.
+        """
+        if snap.entry_date is None or snap.pnl_pct_of_max_profit is None:
+            return None
+
+        try:
+            entry = date.fromisoformat(str(snap.entry_date))
+        except (ValueError, TypeError):
+            return None
+
+        days_held = (date.today() - entry).days
+
+        if days_held <= EXIT_TIME_STOP_DAYS:
+            return None
+        if snap.pnl_pct_of_max_profit > -EXIT_TIME_STOP_LOSS_PCT:
+            return None
+
+        return PositionSignal(
+            position_id=snap.position_id,
+            symbol=snap.symbol,
+            action=ExitAction.CLOSE,
+            reason=(
+                f"TIME-STOP — {days_held} Tage gehalten,"
+                f" Verlust {snap.pnl_pct_of_max_profit:.0f}% <= -{EXIT_TIME_STOP_LOSS_PCT:.0f}%"
+            ),
+            priority=6,
+            dte=snap.dte,
+            pnl_pct=snap.pnl_pct_of_max_profit,
+            details={
+                "days_held": days_held,
+                "time_stop_days": EXIT_TIME_STOP_DAYS,
+                "loss_pct": snap.pnl_pct_of_max_profit,
+            },
+        )
+
     def _check_21dte_decision(
         self,
         snap: PositionSnapshot,
         current_vix: Optional[float],
     ) -> Optional[PositionSignal]:
-        """Priority 5: 21 DTE decision point — roll or close (EXIT_ROLL_DTE)."""
+        """Priority 7: 21 DTE decision point — roll or close (EXIT_ROLL_DTE)."""
         if snap.dte > EXIT_ROLL_DTE:
             return None
 
@@ -504,7 +626,7 @@ class PositionMonitor:
                 symbol=snap.symbol,
                 action=ExitAction.ROLL,
                 reason=f"21-DTE ROLL — DTE {snap.dte}, Profit {snap.pnl_pct_of_max_profit:.0f}%, rollbar",
-                priority=5,
+                priority=7,
                 dte=snap.dte,
                 pnl_pct=snap.pnl_pct_of_max_profit,
                 details={"can_roll": True, "profitable": True},
@@ -522,7 +644,7 @@ class PositionMonitor:
             symbol=snap.symbol,
             action=ExitAction.CLOSE,
             reason=f"21-DTE CLOSE — DTE {snap.dte}, {', '.join(reason_parts)}",
-            priority=5,
+            priority=7,
             dte=snap.dte,
             pnl_pct=snap.pnl_pct_of_max_profit,
             details={"can_roll": can_roll, "profitable": is_profitable},
@@ -533,7 +655,7 @@ class PositionMonitor:
         snap: PositionSnapshot,
         current_vix: Optional[float],
     ) -> Optional[PositionSignal]:
-        """Priority 6: VIX > 30 — close winners, alert losers."""
+        """Priority 8: VIX > 30 — close winners, alert losers."""
         if current_vix is None or current_vix < VIX_ELEVATED_MAX:
             return None
 
@@ -545,7 +667,7 @@ class PositionMonitor:
                 symbol=snap.symbol,
                 action=ExitAction.CLOSE,
                 reason=f"HIGH VIX ({current_vix:.1f}) — Gewinn sichern ({snap.pnl_pct_of_max_profit:.0f}%)",
-                priority=6,
+                priority=8,
                 dte=snap.dte,
                 pnl_pct=snap.pnl_pct_of_max_profit,
                 details={"vix": current_vix},
@@ -556,14 +678,14 @@ class PositionMonitor:
             symbol=snap.symbol,
             action=ExitAction.ALERT,
             reason=f"HIGH VIX ({current_vix:.1f}) — Position im Verlust, Beobachtung",
-            priority=6,
+            priority=8,
             dte=snap.dte,
             pnl_pct=snap.pnl_pct_of_max_profit,
             details={"vix": current_vix},
         )
 
     def _check_earnings_risk(self, snap: PositionSnapshot) -> Optional[PositionSignal]:
-        """Priority 7: Earnings fall before expiration."""
+        """Priority 9: Earnings fall before expiration."""
         from ..utils.validation import is_etf
 
         # ETFs have no earnings
@@ -590,13 +712,100 @@ class PositionMonitor:
                 symbol=snap.symbol,
                 action=ExitAction.CLOSE,
                 reason=f"EARNINGS-RISIKO — Earnings in {days_str}, vor Expiration (DTE {snap.dte})",
-                priority=7,
+                priority=9,
                 dte=snap.dte,
                 pnl_pct=snap.pnl_pct_of_max_profit,
                 details={"days_to_earnings": days_to},
             )
 
         return None
+
+    def _check_rrg_exit(
+        self,
+        snap: PositionSnapshot,
+        sector_rs_map: Optional[Dict[str, Any]],
+    ) -> Optional[PositionSignal]:
+        """Priority 10: G.3 RRG Rotation Exit.
+
+        Warnung: LEADING → WEAKENING (ALERT)
+        Exit: Symbol im LAGGING Quadrant (CLOSE)
+
+        Requires rrg_quadrant_at_entry on the snapshot and sector_rs_map
+        with current quadrants. If either is missing, check is skipped.
+        """
+        if snap.rrg_quadrant_at_entry is None:
+            return None
+        if sector_rs_map is None:
+            return None
+
+        current_rs = sector_rs_map.get(snap.symbol)
+        if current_rs is None:
+            return None
+
+        try:
+            current_quadrant = current_rs.quadrant.value  # e.g. "leading"
+        except AttributeError:
+            return None
+
+        entry_quadrant = snap.rrg_quadrant_at_entry.lower()
+
+        if current_quadrant == "lagging":
+            return PositionSignal(
+                position_id=snap.position_id,
+                symbol=snap.symbol,
+                action=ExitAction.CLOSE,
+                reason=(
+                    f"RRG EXIT — {snap.symbol} → LAGGING"
+                    f" (Entry: {entry_quadrant.upper()})"
+                    " Aktie verliert Stärke vs. SPY"
+                ),
+                priority=10,
+                dte=snap.dte,
+                pnl_pct=snap.pnl_pct_of_max_profit,
+                details={
+                    "entry_quadrant": entry_quadrant,
+                    "current_quadrant": current_quadrant,
+                },
+            )
+
+        if entry_quadrant == "leading" and current_quadrant == "weakening":
+            return PositionSignal(
+                position_id=snap.position_id,
+                symbol=snap.symbol,
+                action=ExitAction.ALERT,
+                reason=(
+                    f"RRG ROTATION — {snap.symbol} LEADING → WEAKENING"
+                    " Kapitalfluss dreht, relative Stärke schwindet"
+                ),
+                priority=10,
+                dte=snap.dte,
+                pnl_pct=snap.pnl_pct_of_max_profit,
+                details={
+                    "entry_quadrant": entry_quadrant,
+                    "current_quadrant": current_quadrant,
+                },
+            )
+
+        return None
+
+    # =========================================================================
+    # G.4 MACRO CALENDAR
+    # =========================================================================
+
+    @staticmethod
+    def check_macro_events(today: date) -> List[str]:
+        """
+        G.4: Prüft ob morgen ein FOMC / CPI / NFP Termin ist.
+
+        Returns list of event names scheduled for tomorrow, e.g. ["FOMC"].
+        Returns empty list when no macro event is upcoming.
+        """
+        tomorrow = (today + timedelta(days=1)).isoformat()
+        return [
+            event_type
+            for event_type, dates in MACRO_EVENTS_2026.items()
+            if tomorrow in dates
+        ]
 
     # =========================================================================
     # HELPERS

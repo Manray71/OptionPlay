@@ -368,7 +368,7 @@ class TestCheck21DTEDecision:
         with patch("src.utils.validation.is_etf", return_value=False):
             result = await monitor.check_positions([snap], current_vix=18.0)
         assert result.signals[0].action == ExitAction.ROLL
-        assert result.signals[0].priority == 5
+        assert result.signals[0].priority == 7
 
     @pytest.mark.asyncio
     async def test_21dte_losing_is_close(self, monitor):
@@ -376,7 +376,7 @@ class TestCheck21DTEDecision:
         snap = make_snapshot(dte=18, pnl_pct=-20.0, unrealized_pnl=-50.0)
         result = await monitor.check_positions([snap], current_vix=18.0)
         assert result.signals[0].action == ExitAction.CLOSE
-        assert result.signals[0].priority == 5
+        assert result.signals[0].priority == 7
         assert "im Verlust" in result.signals[0].reason
 
     @pytest.mark.asyncio
@@ -394,7 +394,7 @@ class TestCheck21DTEDecision:
         """DTE > 21 → not triggered."""
         snap = make_snapshot(dte=25, pnl_pct=30.0, unrealized_pnl=75.0)
         result = await monitor.check_positions([snap], current_vix=18.0)
-        assert result.signals[0].priority != 5
+        assert result.signals[0].priority != 7
 
     @pytest.mark.asyncio
     async def test_uses_roll_dte_constant(self, monitor):
@@ -451,7 +451,7 @@ class TestCheckEarningsRisk:
             result = await monitor.check_positions([snap], current_vix=18.0)
 
         assert result.signals[0].action == ExitAction.CLOSE
-        assert result.signals[0].priority == 7
+        assert result.signals[0].priority == 9
         assert "EARNINGS" in result.signals[0].reason
 
     @pytest.mark.asyncio
@@ -741,7 +741,7 @@ class TestCheckPositions:
 
 
 class TestDefaultHold:
-    """Priority 8: Default HOLD signal."""
+    """Priority 11: Default HOLD signal."""
 
     @pytest.mark.asyncio
     async def test_normal_position_is_hold(self, monitor):
@@ -749,7 +749,7 @@ class TestDefaultHold:
         snap = make_snapshot(dte=45, pnl_pct=20.0, unrealized_pnl=50.0)
         result = await monitor.check_positions([snap], current_vix=18.0)
         assert result.signals[0].action == ExitAction.HOLD
-        assert result.signals[0].priority == 8
+        assert result.signals[0].priority == 11
 
 
 # =============================================================================
@@ -903,10 +903,10 @@ class TestAlertGenerationScenarios:
         snap = make_snapshot(dte=45, pnl_pct=-15.0, unrealized_pnl=-37.50)
         result = await monitor.check_positions([snap], current_vix=32.0)
 
-        # In HIGH VIX, losing positions get ALERT (priority 6)
+        # In HIGH VIX, losing positions get ALERT (priority 8)
         signal = result.signals[0]
         assert signal.action == ExitAction.ALERT
-        assert signal.priority == 6
+        assert signal.priority == 8
         assert "HIGH VIX" in signal.reason
         assert "Verlust" in signal.reason
 
@@ -1031,7 +1031,7 @@ class TestEdgeCasesAndBoundaries:
         snap = make_snapshot(dte=21, pnl_pct=30.0, unrealized_pnl=75.0)
         with patch("src.utils.validation.is_etf", return_value=False):
             result = await monitor.check_positions([snap], current_vix=18.0)
-        assert result.signals[0].priority == 5  # 21 DTE decision
+        assert result.signals[0].priority == 7  # 21 DTE decision
 
         # DTE exactly 7 (EXIT_FORCE_CLOSE_DTE)
         snap = make_snapshot(dte=7, pnl_pct=30.0, unrealized_pnl=75.0)
@@ -1103,12 +1103,12 @@ class TestEdgeCasesAndBoundaries:
         ]
         result = await monitor.check_positions(snapshots, current_vix=18.0)
 
-        # Should be sorted: priority 1, 2, 8
+        # Should be sorted: priority 1, 2, 11
         assert result.signals[0].priority == 1
         assert result.signals[0].symbol == "EXPIRED"
         assert result.signals[1].priority == 2
         assert result.signals[1].symbol == "FORCE"
-        assert result.signals[2].priority == 8
+        assert result.signals[2].priority == 11
         assert result.signals[2].symbol == "HOLD"
 
 
@@ -1133,7 +1133,7 @@ class TestEvaluatePositionInternal:
         signal = monitor._evaluate_position(snap, current_vix=18.0)
 
         assert signal.action == ExitAction.HOLD
-        assert signal.priority == 8
+        assert signal.priority == 11
         assert "Keine Aktion" in signal.reason
 
     def test_signal_includes_pnl_pct(self, monitor):
