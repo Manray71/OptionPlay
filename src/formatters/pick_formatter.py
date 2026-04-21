@@ -423,6 +423,48 @@ def format_single_pick_v2(b: MarkdownBuilder, pick: Any) -> None:
     if checklist_parts:
         b.text(f"**Checks:** {' | '.join(checklist_parts)}")
 
+    # E.5 — Alpha composite breakdown
+    b_raw = getattr(pick, "b_raw", None)
+    f_raw = getattr(pick, "f_raw", None)
+    alpha_raw = getattr(pick, "alpha_raw", None)
+    dual_label = getattr(pick, "dual_label", None)
+    if alpha_raw is not None and b_raw is not None and f_raw is not None:
+        composite_str = f"Alpha {alpha_raw:.0f} (B:{b_raw:.0f} + F:{f_raw:.0f}×1.5)"
+        rrg_str = f" | RRG {dual_label}" if dual_label else ""
+        b.text(f"**{composite_str}{rrg_str}**")
+
+    # E.5 — Breakout signals
+    breakout_signals = tuple(getattr(pick, "breakout_signals", ()) or ())
+    pre_breakout = getattr(pick, "pre_breakout", False)
+    if pre_breakout and "PRE_BREAKOUT" not in breakout_signals:
+        breakout_signals = ("PRE_BREAKOUT",) + breakout_signals
+    if breakout_signals:
+        _SIGNAL_ICONS_PF = {
+            "BREAKOUT_IMMINENT": "🚩⚡",
+            "PRE_BREAKOUT": "🎯",
+            "VWAP_RECLAIM": "📊",
+            "THREE_BAR_PLAY": "📈",
+            "BB_SQUEEZE": "⚙️↑",
+            "BULL_FLAG": "🚩",
+            "NR7_INSIDE": "🕯️",
+            "GOLDEN_POCKET": "✧",
+        }
+        _SIGNAL_LABELS_PF = {
+            "BREAKOUT_IMMINENT": "BREAKOUT IMMINENT",
+            "PRE_BREAKOUT": "PRE-BREAKOUT",
+            "VWAP_RECLAIM": "VWAP Reclaim",
+            "THREE_BAR_PLAY": "3-Bar Play",
+            "BB_SQUEEZE": "BB Squeeze",
+            "BULL_FLAG": "Bull Flag",
+            "NR7_INSIDE": "NR7+Inside Bar",
+            "GOLDEN_POCKET": "Golden Pocket+",
+        }
+        sig_parts = " | ".join(
+            f"{_SIGNAL_ICONS_PF.get(s, '')} {_SIGNAL_LABELS_PF.get(s, s)}".strip()
+            for s in breakout_signals
+        )
+        b.text(f"**Breakout:** {sig_parts}")
+
     # Signal reason
     if pick.reason:
         b.text(f"**Signal:** {truncate(pick.reason, 120)}")

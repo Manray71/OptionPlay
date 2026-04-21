@@ -640,6 +640,10 @@ class ScanHandler(BaseHandler):
                         if hasattr(ac.quadrant_fast, "value")
                         else str(ac.quadrant_fast)
                     )
+                    pick.b_raw = ac.b_raw
+                    pick.f_raw = ac.f_raw
+                    pick.breakout_signals = ac.breakout_signals
+                    pick.pre_breakout = ac.pre_breakout
 
         return result, duration, excluded_by_earnings
 

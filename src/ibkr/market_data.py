@@ -818,10 +818,11 @@ class IBKRMarketData:
             stock = Stock(ibkr_sym, "SMART", "USD")
             self._conn.ib.qualifyContracts(stock)
 
-            # Get current price (delayed data needs more time)
+            # Get current price — delayed data (no real-time subscription)
+            # typically takes 3-8s; 8s cap keeps worst-case at ~47 min for 350 symbols
             self._conn.ib.reqMktData(stock, "", False, False)
             current_price = None
-            for _ in range(20):  # up to 2 seconds
+            for _ in range(80):  # up to 8 seconds
                 await asyncio.sleep(0.1)
                 ticker = self._conn.ib.ticker(stock)
                 if ticker:

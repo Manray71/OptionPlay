@@ -850,19 +850,30 @@ Examples:
             total_updates += count
             logger.info(f"VIX update: {count} new records")
 
-        # Options snapshot via IBKR
-        if args.snapshot_options:
-            count = asyncio.run(
-                fetch_options_snapshot(logger, args.dry_run)
-            )
-            total_updates += count
+        # IBKR async fetchers — run in a single event loop to avoid
+        # "no running event loop" error on Python 3.14+ (asyncio.run()
+        # is not re-entrant; two calls crash the second one).
+        run_prices = args.update_prices is not None
+        run_snapshot = args.snapshot_options
 
-        # OHLCV daily prices via IBKR
-        if args.update_prices is not None:
-            count = asyncio.run(
-                fetch_daily_prices(args.update_prices, logger, args.dry_run)
-            )
-            total_updates += count
+        if run_prices or run_snapshot:
+            async def _run_ibkr_fetchers() -> tuple:
+                prices_count = 0
+                snapshot_count = 0
+                # daily_prices first: fast (~2 min), safer to secure OHLCV
+                # before the longer options snapshot (~10-15 min)
+                if run_prices:
+                    prices_count = await fetch_daily_prices(
+                        args.update_prices, logger, args.dry_run
+                    )
+                if run_snapshot:
+                    snapshot_count = await fetch_options_snapshot(
+                        logger, args.dry_run
+                    )
+                return prices_count, snapshot_count
+
+            prices_c, snapshot_c = asyncio.run(_run_ibkr_fetchers())
+            total_updates += prices_c + snapshot_c
 
         # Future earnings update (daily or forced)
         if args.update_earnings:

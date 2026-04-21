@@ -44,7 +44,7 @@ connection:
   ibkr:
     host: "127.0.0.1"
     port: 7497                    # 7497 = TWS Paper, 7496 = TWS Live (migrated from Gateway 4001)
-    client_id: 1
+    client_id: 2
     timeout_seconds: 30
     max_retries: 3
     retry_delay_seconds: 5

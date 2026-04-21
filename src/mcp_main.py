@@ -30,9 +30,9 @@ from mcp.types import Prompt, PromptArgument, PromptMessage, TextContent, Tool
 
 # IMPORTANT: Load .env file BEFORE importing other modules that need API keys
 # This ensures environment variables are set before SecureConfig is used
-from .utils.secure_config import get_secure_config
+from .utils.secure_config import SecureConfig
 
-_config = get_secure_config()  # This triggers .env loading
+SecureConfig()  # Trigger .env loading (avoids deprecated get_secure_config() wrapper)
 
 from .container import ServiceContainer
 from .mcp_server import OptionPlayServer

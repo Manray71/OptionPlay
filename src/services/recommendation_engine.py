@@ -163,6 +163,12 @@ class DailyPick:
     dual_label: Optional[str] = None
     quadrant_slow: Optional[str] = None
     quadrant_fast: Optional[str] = None
+    # Alpha composite breakdown (E.5 display)
+    b_raw: Optional[float] = None
+    f_raw: Optional[float] = None
+    # Breakout signals (E.5 — set by E.2b pattern detection)
+    breakout_signals: tuple[str, ...] = field(default_factory=tuple)
+    pre_breakout: bool = False
 
     # Enhanced scoring (daily_picks re-ranking)
     enhanced_score: Optional[float] = None
@@ -204,6 +210,12 @@ class DailyPick:
             result["dual_label"] = self.dual_label
             result["quadrant_slow"] = self.quadrant_slow
             result["quadrant_fast"] = self.quadrant_fast
+            result["b_raw"] = self.b_raw
+            result["f_raw"] = self.f_raw
+        if self.breakout_signals:
+            result["breakout_signals"] = list(self.breakout_signals)
+        if self.pre_breakout:
+            result["pre_breakout"] = self.pre_breakout
         return result
 
 

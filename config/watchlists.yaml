@@ -1067,7 +1067,6 @@ watchlists:
       # ADDITIONAL GROWTH & MOMENTUM (ca. 100 Symbole)
       # =====================================================================
       # Fintech & Payments
-      - SQ        # Block (Square)
       - SOFI      # SoFi Technologies
       - AFRM      # Affirm
       - NU        # Nu Holdings
@@ -1138,13 +1137,11 @@ watchlists:
       - ARKK      # ARK Innovation
       # v5.0.0 additions
       - HUBS      # HubSpot
-      - CFLT      # Confluent
       - ESTC      # Elastic
       - PODD      # Insulet
       - IDXX      # IDEXX Laboratories
       - VEEV      # Veeva Systems
       - INCY      # Incyte
-      - EXAS      # Exact Sciences
       - POOL      # Pool Corp
       - MPWR      # Monolithic Power
       - ONON      # On Holding
